@@ -134,3 +134,17 @@ uv run python -m qs_ai.bootstrap.import_prompts --imported-by <操作人标识>
 迁移 `0010_schema_assets` 保存原规范字节、schema_id/version、SHA-256 和首次导入审计。命令为 `uv run python -m qs_ai.bootstrap.import_schemas --imported-by <操作人标识>`。两份 v1 规范从固定 QS 提交提取，先验证文件校验和及 JSON Schema，再插入不可变资产；重复导入不覆盖，同版异内容报冲突。
 
 只读对账范围现为 `fixed_profile_prompt_route_schema_baseline`，包括 1 个 Profile、6 个 Prompt、1 个 route/revision 和 2 份规范，以及 Profile 对输入/输出规范版本的引用。隔离 MySQL 8.4 整套导入后 matched；规范首次插入 2 条、再次 0 条。matched 只证明基线内容与引用相符，已知输入 null/array 契约差异仍存在，不能当作 release 审批或运行验收。生产尚未迁移或导入。
+
+## 构建生成清单（不审批、不激活）
+
+导入所有基线资产后，可只读构建：
+
+```sh
+uv run python -m qs_ai.bootstrap.build_manifest \
+  --profile-id participant-scale-score-range-default \
+  --profile-version v6 --route-revision v8
+```
+
+清单绑定 Profile、Prompt、generation route、input schema、output schema 的明确版本、原指纹及内容校验和。缺失、仓库返回身份不符或未知版本失败，不回退 latest；Prompt 包校验和独立绑定，避免同原指纹不同导出内容被视为同一清单。资产 insert-only，因此各次只读查询不会遭遇内容原地替换。
+
+这是 `qs-ai-generation-manifest/v1`，不是 QS 的完整评测 release identity；后者还需用例集、语义评测 Prompt/schema/route、执行策略及门槛策略。命令返回 `approved: false`、`activated: false`，不持久保存发布状态，也不验证已知输入兼容问题。运行时尚未切换为清单驱动。
