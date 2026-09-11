@@ -47,12 +47,14 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: FangcunMount/qs-server
-          ref: b9a2425260c629810f08c145cf479023fdeea90e
+          ref: 1b52081ea42c94dc5653ce91e8c7a1db9f85fc44
           path: .interop/qs-server
       - uses: actions/setup-go@v5
         with:
           go-version: '1.25.12'
           cache-dependency-path: .interop/qs-server/go.sum
+      - name: Verify migrated executable Prompt packages
+        run: uv run python scripts/export_qs_prompts.py .interop/qs-server --check
       - name: Build pinned QS bridge and initialize separate test database
         run: |
           (cd .interop/qs-server && go build -o ../qs-ai-bridge ./cmd/qs-ai-bridge)
