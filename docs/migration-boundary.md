@@ -1,0 +1,95 @@
+# AI 解读迁移与系统责任边界
+
+状态：2026-09-11 根据用户补充修订的迁移决定，跨服务命令与状态回传已完成本地联调，见 [第 1 批验证](batch1-verification.md)；真实业务授权、事实及正式成果接入待完成。优先级高于早期“qs-ai 直接承接用户入口”的假设。已有 P1 Python 会话与任务骨架继续使用。
+
+## 核心决定
+
+qs-server 负责业务发起、业务权限与事实、接收并展示结果；qs-ai 负责完整 AI 解读生命周期。测评计分和标准报告继续由 qs-server 负责。“AI 测评”在此指其后的 AI 解读，不迁移计分规则或让模型修改标准结论。
+
+首版沿用现有产品入口：客户端→现有 collection-server/qs-server 业务入口→qs-ai。qs-ai 接收经可信服务身份认证的内部命令，不再要求 qs-server 替独立 Python 用户入口提供 AuthenticateActor RPC。未来独立 AI 用户入口若需要，直接接现有 IAM，另行形成契约。
+
+## 能力归属
+
+| 能力 | 目标归属 | qs-server 保留内容 |
+| --- | --- | --- |
+| Testee、关系授权、测评、标准计分/报告 | qs-server 与现有 IAM | 继续为权威来源 |
+| 发起解读与业务请求幂等 | qs-server | 用户权限、业务请求号、AI session_id 关联和可靠投递 |
+| 多报告关联与补充信息判断 | qs-ai | 提供授权事实，不做 AI 推理 |
+| 问题、回答、上下文、长期记忆 | qs-ai | 产品路由转交问题/回答，按权限展示 |
+| 模型/Prompt/Profile/release、路由与生成策略 | qs-ai | 管理入口可代理，不保留第二套配置权威 |
+| AI Run/Job、租约、重试、取消、恢复、预算 | qs-ai | 只重投未确认的跨服务消息，不重启模型步骤 |
+| 结构/事实引用校验、语义评测、质量发布 | qs-ai | 校验接收契约及业务关联，不重复执行 AI 质量流程 |
+| AI Artifact 正式成果与版本 | qs-ai | 结果副本或查询引用，用于展示与业务消费 |
+| 历史旧成果与在途旧任务 | 迁移期间原引擎 | 根据 engine_version 路由，直到归档/排空 |
+
+AI 状态权威只有 qs-ai；qs-server 的状态是按事件更新的业务投影，不再维护第二套 Generation/Run 执行状态机。AI 服务内部的查询幂等与数据库约束仍保留，不因上游也有投递幂等而删掉。
+
+## 新主链路
+
+```mermaid
+sequenceDiagram
+    participant U as 用户/产品入口
+    participant Q as qs-server
+    participant A as qs-ai
+    U->>Q: 发起 AI 解读
+    Q->>Q: 授权、冻结事实引用、保存请求和待投递记录
+    Q->>A: StartInterpretation(request_id, actor, evidence)
+    A->>A: 持久化会话和任务
+    A-->>Q: accepted(session_id)
+    A->>Q: QuestionRequired(session_id, question_id)
+    Q-->>U: 展示问题
+    U->>Q: 回答/跳过
+    Q->>A: SubmitAnswer(command_id, question_id, version)
+    A->>A: 执行、校验、保存不可变成果与待回传事件
+    A->>Q: InterpretationCompleted(event_id, artifact)
+    Q->>Q: 去重、校验关联、保存结果投影
+    Q-->>U: 展示 AI 解读
+```
+
+没有信息缺口时不提问；失败/取消也有明确状态事件。客户端退出后仍由 qs-ai 的持久任务继续执行。
+
+## qs-server 不能省略的协作责任
+
+1. **事实与权限**：发起时授权并提供不可变 report_id/outcome_id/版本/受众范围；长任务执行期间和结果展示时支持按持久主体重新检查当前授权。不能把“发起时允许”当作永久许可。
+2. **交互转交**：主动提问需要转交问题、回答和取消命令；问题与会话状态的权威仍在 qs-ai。
+3. **可靠接收**：验证回传服务身份、消息去重、请求/会话/主体/版本关联及结果格式，可靠落库并确认。接收失败不能让 qs-ai 重新生成内容。
+
+事实可随初始命令推送，后续扩展证据或授权复核可走受控只读 RPC。不会因为新主链路是推送，就删掉 qs-server 的数据与授权责任。qs-ai 不直连 qs-server 数据库，不保存用户短期 access token。
+
+## 双向契约的最小要求
+
+| 方向 | 契约 | 不变量 |
+| --- | --- | --- |
+| QS→AI | StartInterpretation | 稳定 request_id；主体由可信业务入口确定；显式事实版本；相同键不同内容冲突 |
+| QS→AI | SubmitAnswer / Cancel | 稳定 command_id、当前 question_id、expected_version；重放不重复接受 |
+| AI→QS | TaskAccepted / QuestionRequired / Completed / Failed / Cancelled | event_id、session_id、request_id、单调 session_version；持久化后重传 |
+| QS↔AI | GetSession / GetArtifact / 对账 | 回传丢失可补齐；不因轮询触发生成 |
+| AI→QS | RecheckAccess / ReadEvidence | 专用服务身份、持久主体、用途及精确资源；当前权限可拒绝 |
+
+消息传输按至少一次设计：发起端与回传端各自有 outbox，接收端有去重回执。旧事件不能覆盖新投影；终态不能被迟到的 running/question 事件倒退。QS 接收完成事件须绑定原任务与证据，不把旧事实生成的成果挂到新报告下。结果原件归 AI；QS 保存副本不改变其权威归属。
+
+身份与 ACL 应按各方向配置独立服务身份；不复用旧 collection-server/worker 证书冒充调用者。具体协议与鉴权实现待下一批代码固化，不因本文出现名称就宣称 RPC 已存在。
+
+## 现有代码如何迁出
+
+本轮只读核对源：qs-server 独立工作区基于 16afc904。主要责任链已确认：
+
+- application/interpretation/aiexplanation/participant：当前 Capability/Request/Get 入口。目标改为业务网关及新旧引擎路由，不再装配模型生成。
+- application/interpretation/aiexplanation/execution、recovery、persistence：执行、恢复和成果提交。迁移为 qs-ai 用例、工作流与仓储。
+- application/interpretation/aiexplanation/prompt、input、validation：AI 输入、Prompt 与输出校验迁入 qs-ai；其中标准报告/Outcome 读取与授权留在 QS，形成中立事实接口。
+- application/interpretation/aiexplanation/evaluation、governance、administration 及对应领域/存储：AI 评测、发布和治理迁入 qs-ai；旧管理页面先代理，避免两边同时修改同一发布配置。
+- domain/interpretation/aiexplanation 的 Generation/Run/Profile/Artifact/Evaluation：职责迁移，结合新 Session/EvidenceSet 模型重构；不逐行翻译 Go 类。
+- worker 的 AIExplanationAutomationClient、AI 解读/评测事件处理：新任务切换为投递到 qs-ai；旧任务排空后退役旧执行 RPC。
+- domain/interpretation/report、标准报告构建与 EvaluationOutcome：留在 qs-server，不能与 aiexplanation 一起删除。
+
+可保留的迁移资产：脱敏评测样例、输出 Schema、Prompt 版本、失败分类和质量规则。旧运行记录/成果保留来源标识，不能直接改名为新 Session 后伪装成新契约数据。
+
+## 调整后的落地批次
+
+1. **接口闭环**：先固化 Start/Answer/Cancel 与状态/结果回传，复用 Python P1 会话/任务骨架；用合成输入验证可靠投递、重复回传、乱序与取消。
+2. **真实事实与授权**：把标准事实组装和授权复核作为 QS 的业务适配；为两端配置独立身份，做 Go/Python 契约联调。此次未完成的认证代理草案已撤下。
+3. **旧 AI 单报告迁入**：迁移默认模型路线、核心 Prompt、结构/引用校验及发布配置；同样样例离线对照。新请求按 engine_version 明确选择一侧，禁止双生成。
+4. **产品交互与治理迁入**：主动提问、多报告、记忆和管理入口；AI 内部状态/配置只写 qs-ai。
+5. **旧引擎退役**：确认在途任务排空、历史查询可用、结果对账及回滚路线后，删除 QS 的旧 AI Provider/调度/评测实现和相应权限。
+
+迁移期间“旧代码还在”不代表两套长期维护。新引擎满足真实单报告与交付验收前，不停掉旧生产能力；灰度只切新请求，回滚也不把新会话送给不兼容的旧引擎。

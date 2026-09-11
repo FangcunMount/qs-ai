@@ -1,0 +1,93 @@
+import asyncio
+from uuid import uuid4
+
+import pytest
+from sqlalchemy import func, select
+
+from qs_ai.application.integration.events import DeliverResults
+from qs_ai.application.interpretation.commands import CancelCommand
+from qs_ai.domain.interpretation.model import RuleViolation
+from qs_ai.infrastructure.persistence.mysql.result_outbox import MySQLResultOutbox
+from qs_ai.infrastructure.persistence.mysql.schema import external_requests, jobs, result_outbox
+from tests.integration.test_interpretation import kit  # noqa: F401
+
+pytestmark = pytest.mark.integration
+
+
+async def test_external_start_is_atomic_and_globally_idempotent(kit, monkeypatch):  # noqa: F811
+    import qs_ai.infrastructure.persistence.mysql.interpretation as persistence
+
+    original = persistence.stage_state
+    request_id = str(uuid4())
+
+    async def failed_stage(db, session):
+        await original(db, session)
+        raise RuntimeError("after result staging")
+
+    monkeypatch.setattr(persistence, "stage_state", failed_stage)
+    with pytest.raises(RuntimeError):
+        await kit.service.start_external(kit.actor, "7", ("42",), "goal", request_id)
+    async with kit.transactions.open() as db:
+        assert (
+            await db.scalar(
+                select(func.count())
+                .select_from(external_requests)
+                .where(external_requests.c.request_id == request_id)
+            )
+            == 0
+        )
+    monkeypatch.setattr(persistence, "stage_state", original)
+    receipts = await asyncio.gather(
+        *[kit.service.start_external(kit.actor, "7", ("42",), "goal", request_id) for _ in range(2)]
+    )
+    assert receipts[0] == receipts[1]
+    session_id = receipts[0].session_id
+    async with kit.transactions.open() as db:
+        for table in (jobs, result_outbox):
+            assert (
+                await db.scalar(
+                    select(func.count()).select_from(table).where(table.c.session_id == session_id)
+                )
+                == 1
+            )
+    with pytest.raises(RuleViolation, match="idempotency_conflict"):
+        await kit.service.start_external(kit.actor, "7", ("42",), "changed", request_id)
+
+
+async def test_cancel_publishes_new_snapshot_and_failed_delivery_keeps_payload(kit):  # noqa: F811
+    receipt = await kit.service.start_external(kit.actor, "7", ("42",), "goal", str(uuid4()))
+    await kit.worker().once()
+    view = await kit.service.get(kit.actor, receipt.session_id)
+    await kit.service.cancel(
+        kit.actor,
+        receipt.session_id,
+        CancelCommand(expected_version=view.session.version),
+        str(uuid4()),
+    )
+    store = MySQLResultOutbox(kit.transactions)
+    before = sorted(await store.pending(20), key=lambda event: event.version)
+    assert [event.status for event in before] == [
+        "queued",
+        "running",
+        "awaiting_answer",
+        "cancelled",
+    ]
+    assert len({event.event_id for event in before}) == len(before)
+
+    class Unavailable:
+        async def accept(self, event):
+            raise TimeoutError("lost confirmation")
+
+    assert await DeliverResults(store, Unavailable()).once() == 0
+    async with kit.transactions.open() as db:
+        rows = (
+            (
+                await db.execute(
+                    select(result_outbox).where(result_outbox.c.session_id == receipt.session_id)
+                )
+            )
+            .mappings()
+            .all()
+        )
+        assert all(not row["delivered"] and row["attempts"] == 1 for row in rows)
+        assert {row["event_id"] for row in rows} == {event.event_id for event in before}

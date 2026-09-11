@@ -1,0 +1,40 @@
+name: checks
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_DATABASE: qs_ai
+          MYSQL_USER: qs_ai
+          MYSQL_PASSWORD: qs_ai_local
+          MYSQL_ROOT_PASSWORD: qs_ai_local_root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -pqs_ai_local_root --silent"
+          --health-interval=5s --health-timeout=3s --health-retries=30
+    env:
+      QS_AI_DATABASE_URL: mysql+asyncmy://qs_ai:qs_ai_local@127.0.0.1:3306/qs_ai
+      QS_AI_TEST_MYSQL_DSN: mysql://qs_ai:qs_ai_local@127.0.0.1:3306/qs_ai
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.12.13"
+          python-version: "3.11"
+      - run: uv sync --locked
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run mypy
+      - run: uv run python scripts/generate_qs_proto.py --check
+      - run: uv run python scripts/generate_workflow_proto.py --check
+      - run: uv run python scripts/check_docs.py
+      - run: uv run alembic upgrade head
+      - run: uv run alembic check
+      - run: uv run pytest
+      - run: uv build

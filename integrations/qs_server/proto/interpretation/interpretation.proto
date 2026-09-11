@@ -1,0 +1,278 @@
+syntax = "proto3";
+
+package interpretation;
+
+option go_package = "github.com/FangcunMount/qs-server/api/grpc/gen/interpretation";
+
+import "evaluation/evaluation.proto";
+
+service ParticipantReportService {
+  rpc GetAssessmentReport(GetAssessmentReportRequest) returns (GetAssessmentReportResponse);
+  rpc ListMyReports(ListMyReportsRequest) returns (ListMyReportsResponse);
+}
+
+// ParticipantAIExplanationService exposes the optional manual AI supplement.
+// Standard report reads stay on ParticipantReportService and do not depend on
+// this service being configured or available.
+service ParticipantAIExplanationService {
+  rpc GetAIExplanationCapability(GetAIExplanationCapabilityRequest) returns (AIExplanationResponse);
+  rpc RequestAIExplanation(RequestAIExplanationRequest) returns (AIExplanationResponse);
+  rpc GetAIExplanation(GetAIExplanationRequest) returns (AIExplanationResponse);
+  rpc ExportAIExplanations(ExportAIExplanationsRequest) returns (AIExplanationSubjectExportResponse);
+}
+
+service InterpretationAutomationService {
+  rpc GenerateReportFromOutcome(GenerateReportFromOutcomeRequest) returns (GenerateReportFromAssessmentResponse);
+  rpc GenerateReportFromAssessment(GenerateReportFromAssessmentRequest) returns (GenerateReportFromAssessmentResponse) {
+    option deprecated = true;
+  }
+}
+
+// AIExplanationAutomationService is an internal one-shot execution boundary.
+// It is called by Worker after the durable requested event is delivered.
+service AIExplanationAutomationService {
+  rpc ExecuteAIExplanation(ExecuteAIExplanationRequest) returns (ExecuteAIExplanationResponse);
+  rpc ExecutePromptEvaluationStep(ExecutePromptEvaluationStepRequest) returns (ExecutePromptEvaluationStepResponse);
+}
+
+message Suggestion { string category = 1; string content = 2; string factor_code = 3; }
+message NormReference {
+  string score_kind = 1; double benchmark = 2; string table_version = 3;
+  string form_variant = 4; int32 min_age_months = 5; int32 max_age_months = 6;
+  string gender = 7;
+}
+message DimensionInterpret {
+  string factor_code = 1; string factor_name = 2; double raw_score = 3;
+  string risk_level = 4; string description = 5; double max_score = 6; string suggestion = 7;
+  repeated evaluation.ScoreValue derived_scores = 8;
+  evaluation.ResultLevel level = 9;
+  NormReference norm_reference = 10;
+}
+message ModelRarity { double percent = 1; string label = 2; int32 one_in_x = 3; }
+message ModelExtra {
+  string kind = 1; string type_code = 2; string type_name = 3; string one_liner = 4;
+  string image_url = 5; double match_percent = 6; bool is_special = 7;
+  string special_trigger = 8; string commentary = 9; ModelRarity rarity = 10;
+}
+message AssessmentReport {
+  reserved 2, 3, 4, 5;
+  reserved "scale_code", "scale_name", "total_score", "risk_level";
+  uint64 assessment_id = 1;
+  string conclusion = 6;
+  repeated DimensionInterpret dimensions = 7;
+  repeated Suggestion suggestions = 8;
+  string created_at = 9;
+  ModelExtra model_extra = 10;
+  evaluation.ModelIdentity model = 11;
+  evaluation.ScoreValue primary_score = 12;
+  evaluation.ResultLevel level = 13;
+}
+message GetAssessmentReportRequest { uint64 assessment_id = 1; uint64 testee_id = 2; }
+message GetAssessmentReportResponse { AssessmentReport report = 1; }
+message ListMyReportsRequest { uint64 testee_id = 1; int32 page = 2; int32 page_size = 3; }
+message ListMyReportsResponse {
+  repeated AssessmentReport items = 1; int32 total = 2; int32 page = 3;
+  int32 page_size = 4; int32 total_pages = 5;
+}
+message GenerateReportFromAssessmentRequest { uint64 assessment_id = 1; string outcome_id = 2; }
+message GenerateReportFromOutcomeRequest {
+  reserved 2;
+  reserved "historical_context";
+  string outcome_id = 1;
+}
+message GenerateReportFromAssessmentResponse {
+  bool success = 1; string status = 2; string message = 3; bool retryable = 4;
+  string run_id = 5; string failure_kind = 6; string generation_id = 7;
+  string report_id = 8; string failure_code = 9;
+  string retry_disposition = 10; string attempt_origin = 11;
+  int32 current_attempt = 12; int32 max_automatic_attempts = 13;
+  int32 remaining_automatic_attempts = 14; string next_attempt_at = 15;
+  string retry_event_id = 16; string action_request_id = 17;
+}
+
+message ExecuteAIExplanationRequest {
+  string generation_id = 1;
+  string trace_id = 2;
+  string event_id = 3;
+  int32 expected_attempt = 4;
+  string attempt_origin = 5;
+  string action_request_id = 6;
+  string expected_run_id = 7;
+  string expected_lease_expires_at = 8;
+  string expected_invocation_phase = 9;
+}
+
+message ExecuteAIExplanationResponse {
+  bool success = 1;
+  string status = 2;
+  string generation_id = 3;
+  string run_id = 4;
+  string artifact_id = 5;
+  string failure_kind = 6;
+  string failure_code = 7;
+  string safe_message = 8;
+  bool retryable = 9;
+}
+
+message ExecutePromptEvaluationStepRequest {
+  int64 org_id = 1;
+  string run_id = 2;
+  string case_id = 3;
+  int32 attempt = 4;
+  string requested_by = 5;
+  string event_id = 6;
+  string recheck_id = 7;
+  string evidence_version = 8;
+  string execution_kind = 9;
+  int32 slot_ordinal = 10;
+  string candidate_id = 11;
+  int32 execution_ordinal = 12;
+}
+
+message ExecutePromptEvaluationStepResponse {
+  bool success = 1;
+  string run_id = 2;
+  string case_id = 3;
+  int32 attempt = 4;
+  string status = 5;
+  string run_status = 6;
+  string next_case_id = 7;
+  int32 next_attempt = 8;
+  string recheck_id = 9;
+  string evidence_version = 10;
+  string execution_kind = 11;
+  int32 slot_ordinal = 12;
+  string candidate_id = 13;
+  int32 execution_ordinal = 14;
+}
+
+message AIExplanationEvidenceRef {
+  string kind = 1;
+  string ref = 2;
+}
+
+message AIExplanationIntegratedInsight {
+  string kind = 1;
+  string title = 2;
+  string content = 3;
+  string why_it_matters = 4;
+  repeated AIExplanationEvidenceRef evidence_refs = 5;
+}
+
+message AIExplanationSuggestion {
+  string origin = 1;
+  string category = 2;
+  string title = 3;
+  string goal = 4;
+  repeated string actions = 5;
+  string rationale = 6;
+  repeated AIExplanationEvidenceRef evidence_refs = 7;
+  repeated string source_suggestion_refs = 8;
+  string caution = 9;
+}
+
+message AIExplanationContent {
+  string schema_version = 1;
+  string summary = 2;
+  repeated AIExplanationIntegratedInsight integrated_insights = 3;
+  repeated AIExplanationSuggestion suggestions = 4;
+  repeated string limitations = 5;
+}
+
+message AIExplanationFailure {
+  string code = 1;
+  string safe_message = 2;
+  bool retryable = 3;
+}
+
+message GetAIExplanationCapabilityRequest {
+  uint64 assessment_id = 1;
+  uint64 testee_id = 2;
+  string locale = 3;
+  repeated string focus_areas = 4;
+}
+
+message RequestAIExplanationRequest {
+  uint64 assessment_id = 1;
+  uint64 testee_id = 2;
+  string locale = 3;
+  repeated string focus_areas = 4;
+}
+
+message GetAIExplanationRequest {
+  uint64 assessment_id = 1;
+  uint64 testee_id = 2;
+  string generation_id = 3;
+}
+
+message AIExplanationResponse {
+  string status = 1;
+  string reason_code = 2;
+  string generation_id = 3;
+  string artifact_id = 4;
+  string source_report_id = 5;
+  string source_state = 6;
+  AIExplanationContent content = 7;
+  AIExplanationFailure failure = 8;
+  string created_at = 9;
+  string updated_at = 10;
+}
+
+message ExportAIExplanationsRequest {
+  uint64 testee_id = 1;
+  int32 page_size = 2;
+  string cursor = 3;
+}
+
+message AIExplanationExportSourceReceipt {
+  string assessment_id = 1;
+  string report_id = 2;
+  string outcome_id = 3;
+  string report_type = 4;
+  string template_version = 5;
+  string content_schema_version = 6;
+  string builder_identity = 7;
+  string report_generated_at = 8;
+}
+
+message AIExplanationExportReleaseReceipt {
+  string profile_id = 1;
+  string profile_version = 2;
+  string profile_fingerprint = 3;
+  string prompt_template_id = 4;
+  string prompt_version = 5;
+  string prompt_fingerprint = 6;
+  string prompt_git_blob_sha = 7;
+  string provider_route = 8;
+  string provider_route_revision = 9;
+  string resolved_provider = 10;
+  string resolved_model = 11;
+  string execution_spec_fingerprint = 12;
+  string input_schema = 13;
+  string output_schema = 14;
+  string safety_policy = 15;
+  string schema_validator_version = 16;
+  string reference_validator_version = 17;
+  string profile_validator_version = 18;
+  string safety_validator_version = 19;
+  string validated_at = 20;
+}
+
+message AIExplanationSubjectExportItem {
+  string generation_id = 1;
+  string artifact_id = 2;
+  AIExplanationExportSourceReceipt source = 3;
+  AIExplanationExportReleaseReceipt release = 4;
+  AIExplanationContent content = 5;
+  string generated_at = 6;
+}
+
+message AIExplanationSubjectExportResponse {
+  string schema_version = 1;
+  uint64 org_id = 2;
+  uint64 testee_id = 3;
+  string exported_at = 4;
+  string snapshot_at = 5;
+  repeated AIExplanationSubjectExportItem items = 6;
+  string next_cursor = 7;
+}

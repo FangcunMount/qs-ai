@@ -1,0 +1,137 @@
+import sqlalchemy as sa
+from sqlalchemy.dialects import mysql
+
+from qs_ai.infrastructure.persistence.mysql.database import Base
+
+metadata = Base.metadata
+ID = sa.String(36, collation="utf8mb4_bin")
+EXTERNAL_ID = mysql.BIGINT(unsigned=True)
+
+sessions = sa.Table(
+    "interpretation_sessions",
+    metadata,
+    sa.Column("id", ID, primary_key=True),
+    sa.Column("org_id", EXTERNAL_ID, nullable=False),
+    sa.Column("owner_subject_id", sa.String(128, collation="utf8mb4_bin"), nullable=False),
+    sa.Column("testee_id", EXTERNAL_ID, nullable=False),
+    sa.Column("assessment_ids", sa.JSON, nullable=False),
+    sa.Column("goal", sa.Text, nullable=False),
+    sa.Column("status", sa.String(32), nullable=False),
+    sa.Column("version", sa.Integer, nullable=False),
+    sa.Column("active_run_id", ID),
+    sa.Column("current_question_id", ID),
+    sa.Column("evidence_set_id", ID),
+    sa.Column("workflow_version", sa.String(64), nullable=False),
+    sa.Column("failure_code", sa.String(64)),
+    sa.Column("created_at", mysql.DATETIME(fsp=6), server_default=sa.text("CURRENT_TIMESTAMP(6)")),
+    sa.Column("updated_at", mysql.DATETIME(fsp=6), server_default=sa.text("CURRENT_TIMESTAMP(6)")),
+    sa.Index("ix_session_owner", "org_id", "owner_subject_id", "updated_at", "id"),
+    mysql_engine="InnoDB",
+    mysql_charset="utf8mb4",
+)
+questions = sa.Table(
+    "clarifications",
+    metadata,
+    sa.Column("id", ID, primary_key=True),
+    sa.Column("session_id", ID, sa.ForeignKey(sessions.c.id), nullable=False),
+    sa.Column("question_seq", sa.Integer, nullable=False),
+    sa.Column("text", sa.Text, nullable=False),
+    sa.Column("can_skip", sa.Boolean, nullable=False),
+    sa.Column("answer", sa.Text),
+    sa.Column("skipped", sa.Boolean, nullable=False),
+    sa.Column("answered_by", sa.String(128)),
+    sa.Column("answered_at", mysql.DATETIME(fsp=6)),
+    sa.UniqueConstraint("session_id", "question_seq", name="uq_question_seq"),
+    mysql_engine="InnoDB",
+    mysql_charset="utf8mb4",
+)
+evidence_sets = sa.Table(
+    "evidence_sets",
+    metadata,
+    sa.Column("id", ID, primary_key=True),
+    sa.Column("session_id", ID, sa.ForeignKey(sessions.c.id), nullable=False, unique=True),
+    sa.Column("fingerprint", sa.String(64), nullable=False),
+    sa.Column("schema_version", sa.String(32), nullable=False),
+    sa.Column("items", sa.JSON, nullable=False),
+    sa.Column("frozen_at", mysql.DATETIME(fsp=6), server_default=sa.text("CURRENT_TIMESTAMP(6)")),
+    mysql_engine="InnoDB",
+    mysql_charset="utf8mb4",
+)
+runs = sa.Table(
+    "interpretation_runs",
+    metadata,
+    sa.Column("id", ID, primary_key=True),
+    sa.Column("session_id", ID, sa.ForeignKey(sessions.c.id), nullable=False),
+    sa.Column("session_version", sa.Integer, nullable=False),
+    sa.Column("status", sa.String(32), nullable=False),
+    sa.Column("checkpoint_ref", sa.String(128)),
+    mysql_engine="InnoDB",
+    mysql_charset="utf8mb4",
+)
+jobs = sa.Table(
+    "execution_jobs",
+    metadata,
+    sa.Column("id", ID, primary_key=True),
+    sa.Column("run_id", ID, sa.ForeignKey(runs.c.id), nullable=False, unique=True),
+    sa.Column("session_id", ID, sa.ForeignKey(sessions.c.id), nullable=False),
+    sa.Column("status", sa.String(16), nullable=False),
+    sa.Column("available_at", mysql.DATETIME(fsp=6), nullable=False),
+    sa.Column("lease_until", mysql.DATETIME(fsp=6)),
+    sa.Column("fence_token", mysql.BIGINT(unsigned=True), nullable=False),
+    sa.Column("attempt", sa.Integer, nullable=False),
+    sa.Column("answer", sa.Text),
+    sa.Column("skipped", sa.Boolean, nullable=False),
+    sa.Column("question_id", ID),
+    sa.Index("ix_job_claim", "status", "available_at", "id"),
+    mysql_engine="InnoDB",
+    mysql_charset="utf8mb4",
+)
+idempotency = sa.Table(
+    "idempotency_requests",
+    metadata,
+    sa.Column("scope_hash", sa.String(64, collation="utf8mb4_bin"), primary_key=True),
+    sa.Column("key", sa.String(128, collation="utf8mb4_bin"), primary_key=True),
+    sa.Column("request_hash", sa.String(64), nullable=False),
+    sa.Column("response", sa.JSON),
+    sa.Column("created_at", mysql.DATETIME(fsp=6), server_default=sa.text("CURRENT_TIMESTAMP(6)")),
+    mysql_engine="InnoDB",
+    mysql_charset="utf8mb4",
+)
+leases = sa.Table(
+    "checkpoint_leases",
+    metadata,
+    sa.Column("thread_id", sa.String(191, collation="utf8mb4_bin"), primary_key=True),
+    sa.Column("fence", mysql.BIGINT(unsigned=True), nullable=False),
+    sa.Column("expires_at", mysql.DATETIME(fsp=6), nullable=False),
+    mysql_engine="InnoDB",
+    mysql_charset="utf8mb4",
+)
+
+external_requests = sa.Table(
+    "external_requests",
+    metadata,
+    sa.Column("request_id", ID, primary_key=True),
+    sa.Column("session_id", ID, sa.ForeignKey(sessions.c.id), nullable=False, unique=True),
+    mysql_engine="InnoDB",
+    mysql_charset="utf8mb4",
+)
+result_outbox = sa.Table(
+    "result_outbox",
+    metadata,
+    sa.Column("event_id", ID, primary_key=True),
+    sa.Column("session_id", ID, sa.ForeignKey(sessions.c.id), nullable=False),
+    sa.Column("version", sa.Integer, nullable=False),
+    sa.Column("payload", sa.JSON, nullable=False),
+    sa.Column("delivered", sa.Boolean, nullable=False, server_default=sa.text("0")),
+    sa.Column("attempts", sa.Integer, nullable=False, server_default=sa.text("0")),
+    sa.Column(
+        "available_at",
+        mysql.DATETIME(fsp=6),
+        nullable=False,
+        server_default=sa.text("CURRENT_TIMESTAMP(6)"),
+    ),
+    sa.UniqueConstraint("session_id", "version", name="uq_result_version"),
+    sa.Index("ix_results_due", "delivered", "available_at", "event_id"),
+    mysql_engine="InnoDB",
+    mysql_charset="utf8mb4",
+)

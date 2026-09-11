@@ -1,0 +1,62 @@
+[project]
+name = "qs-ai"
+version = "0.1.0"
+description = "AI interpretation and conversational workflows for QS"
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+  "fastapi>=0.115,<1",
+  "uvicorn[standard]>=0.30,<1",
+  "pydantic-settings>=2.6,<3",
+  "langchain>=1,<2",
+  "langgraph>=1,<2",
+  "langgraph-checkpoint-mysql[asyncmy]>=2,<3",
+  "sqlalchemy[asyncio]>=2.0,<2.1",
+  "alembic>=1.14,<2",
+  "asyncmy>=0.2.9,<0.3",
+  "cryptography>=44,<50",
+  "grpcio>=1.83.1,<2",
+  "dishka>=1.7,<2",
+  "protobuf>=7.36.1,<8",
+]
+
+[dependency-groups]
+dev = [
+  "httpx>=0.28,<1",
+  "pytest>=8,<10",
+  "pytest-asyncio>=1,<2",
+  "ruff>=0.12,<1",
+  "mypy>=1.15,<2",
+  "grpcio-tools>=1.68,<2",
+  "types-grpcio>=1.83.0.20260730",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/qs_ai"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = ["integration: requires disposable local MySQL", "interop: requires Go QS bridge and a separate disposable QS database"]
+
+[tool.ruff]
+extend-exclude = ["src/qs_ai/infrastructure/qs_server/generated", "src/qs_ai/contracts/workflow"]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "ASYNC"]
+
+[tool.mypy]
+python_version = "3.11"
+files = ["src/qs_ai"]
+check_untyped_defs = true
+disallow_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = ["qs_ai.infrastructure.qs_server.generated.*", "qs_ai.contracts.workflow.*"]
+ignore_errors = true
