@@ -9,6 +9,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict, CheckpointState
+from qs_ai.domain.evaluation.preflight import PreflightEvidence
 from qs_ai.infrastructure.persistence.mysql.evaluation_checkpoints import save_checkpoint
 from qs_ai.infrastructure.persistence.mysql.schema import evaluation_checkpoints, evaluation_runs
 
@@ -94,6 +95,82 @@ async def transition_requested(
     }
     if target == "canceled":
         progress["canceled_at"] = at.isoformat()
+    state = CheckpointState(run_id, expected_version + 1, None)
+    await save_checkpoint(db, state, expected_version)
+    await db.execute(
+        update(evaluation_runs)
+        .where(evaluation_runs.c.run_id == str(run_id))
+        .values(progress_json=progress)
+    )
+    return state
+
+
+async def complete_preflight(
+    db: AsyncSession,
+    run_id: UUID,
+    expected_version: int,
+    organization_id: int,
+    evidence: "PreflightEvidence",
+) -> CheckpointState:
+    from dataclasses import asdict
+
+    checkpoint = (
+        (
+            await db.execute(
+                select(evaluation_checkpoints)
+                .where(evaluation_checkpoints.c.run_id == str(run_id))
+                .with_for_update()
+            )
+        )
+        .mappings()
+        .one_or_none()
+    )
+    if (
+        checkpoint is None
+        or checkpoint["version"] != expected_version
+        or checkpoint["checkpoint_json"] is not None
+    ):
+        raise CheckpointConflict("Run version changed or execution is active")
+    run = (
+        (
+            await db.execute(
+                select(evaluation_runs)
+                .where(
+                    evaluation_runs.c.run_id == str(run_id),
+                    evaluation_runs.c.organization_id == organization_id,
+                )
+                .with_for_update()
+            )
+        )
+        .mappings()
+        .one_or_none()
+    )
+    if run is None:
+        raise CheckpointConflict("Run unavailable in organization")
+    creation = json.loads(run["definition_json"])
+    progress = run["progress_json"]
+    if progress is None or progress["status"] != "collecting" or "preflight" in progress:
+        raise CheckpointConflict("Pending preflight in collecting Run required")
+    if evidence.case_id != creation["preflight"][
+        "case_id"
+    ] or evidence.evaluated_at < datetime.fromisoformat(creation["audit"]["created_at"]):
+        raise ValueError("Preflight source or time mismatch")
+    value = asdict(evidence)
+    value["evaluated_at"] = evidence.evaluated_at.isoformat()
+    progress = {**progress, "preflight": value}
+    if evidence.status == "failed":
+        progress["status"] = "blocked"
+        progress["transitions"] = [
+            *progress["transitions"],
+            {
+                "from": "collecting",
+                "to": "blocked",
+                "cause_code": "preflight_failed",
+                "actor": "system:runner",
+                "at": evidence.evaluated_at.isoformat(),
+                "evidence_refs": [evidence.case_id],
+            },
+        ]
     state = CheckpointState(run_id, expected_version + 1, None)
     await save_checkpoint(db, state, expected_version)
     await db.execute(

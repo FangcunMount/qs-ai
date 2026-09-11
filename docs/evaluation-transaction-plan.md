@@ -76,3 +76,5 @@ PR #27 的精确提交 `9140a9e80ab433339b480e3ef2443c6e3f1d2249` 已通过 CI `
 `0014_evaluation_progress` 为 Run 增加独立 progress JSON，保留创建 definition 原文不变。创建时写 requested 进度；旧记录只有在 checkpoint version=1 且空检查点时才可从创建记录初始化进度，更高版本须对账。`transition_requested` 在调用方事务中锁定同一 checkpoint version，按组织定位 Run，仅处理 requested→collecting/canceled，并同事务更新进度、审计和版本。已有在途检查点、非 requested 状态或旧版本均拒绝。
 
 隔离 MySQL 8.4 迁移/元数据检查与创建/状态相关 7 项测试通过：开始与取消并发只能一方成功，创建原文不变；提交前异常和错误组织保持全部记录不变。尚未覆盖完整 collecting 生命周期、预检/候选/回执、管理授权、公开入口或生产执行；初始推进函数仍为内部原语，不替代完整 Run 状态机。
+
+预检终态证据已迁入：必须零模型调用，通过需包含 provider_call_count/rejection_reason 两项 passed 断言，保留原断言身份、作用域、序号和结果。`complete_preflight` 同事务写证据/进度/版本；失败进入 blocked，通过保留 collecting，重复提交拒绝。隔离 MySQL 8.4 创建/进度测试与预检领域测试共 10 项通过，包含两类预检结果、提交前回滚和重放拒绝。测试为构造证据，尚未实现实际预检执行器及 NextAction/发送许可对该证据的联动，不能视为生成前门槛已完整接通。
