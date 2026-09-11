@@ -146,3 +146,9 @@ PR #30 精确提交 `65d67755b34df8214d3b37e5b43abf7faec1886d` 的 CI `346405774
 对照 QS `candidateReceiptsV2`/`frozenSemanticObligationsV2` 发现：只选 pending_semantic 会漏掉已确定性失败但仍须独立语义评测的断言。已新增 `assertion_inventory`，从原 v6 Suite 读取 default/case 断言、分作用域同类型序号、hard 标志及全部参数；接受语义结果前逐项核对冻结候选的清单顺序、身份及 hard，不允许遗漏或漂移。所有原 QS 指定独立语义类型都进入评测要求，与确定性结果是否失败无关。
 
 语义决定额外保存在 candidate.semantic_assertions；pending 条目仍解析为决定，原已失败条目保持原状态/理由。读取投影从独立语义证据比对实际输出，不能以语义通过抹去确定性失败。隔离 MySQL 8.4 与清单测试共 26 项通过，包括使用各 case 原始清单的 35 候选全链路及“确定性失败、语义通过仍保留失败”。清单的原参数已完整保存，但确定性断言结果计算尚未迁入；测试输出与初始检查结果仍为构造数据，不是业务质量验收。
+
+### 确定性断言计算
+
+新增 `evaluate_candidate_assertions`，读取冻结清单并复用 QS 输出 Schema、引用/Profile 和安全校验，计算维度引用数量/组合、insight kind、建议来源、禁用来源引用、禁用文本和输出字符上限；禁用文本采用 NFC + casefold，字符数包含 Go JSON HTML 转义。按校验阶段生成 passed/failed/blocked；独立语义要求保持 pending，失败原因不回显模型内容。5 项针对性测试通过，覆盖合法输出、Schema 阻断、引用错误、案例组合/来源不满足、禁用文本和安全失败。Ruff/mypy 通过。
+
+该函数目前接受调用方提供的 PreparedExplanation，尚未从冻结 Suite 构造对应案例输入，也未接入生成接受事务；测试复用合成报告输出，不能据此证明原案例逐项一致。后续需完成固定案例输入构造、原 Go 对照与正式入口，禁止将本批视为确定性验证全面验收。
