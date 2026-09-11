@@ -25,6 +25,15 @@ class ModelResponse:
 
 
 @dataclass(frozen=True)
+class ModelCall:
+    invocation_id: str
+    status: str
+    request_json: str
+    response_json: str | None
+    failure_code: str | None
+
+
+@dataclass(frozen=True)
 class ModelRoute:
     route: str
     revision: str

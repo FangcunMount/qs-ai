@@ -31,6 +31,7 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
     idempotency,
     jobs,
     leases,
+    model_calls,
     questions,
     result_outbox,
     runs,
@@ -92,6 +93,11 @@ async def kit():
                     )
                 ).all()
             )
+            await db.execute(
+                delete(model_calls).where(
+                    model_calls.c.run_id.in_(select(runs.c.id).where(runs.c.session_id.in_(ids)))
+                )
+            )
             for table in (result_outbox, external_requests, jobs, runs, questions, evidence_sets):
                 await db.execute(delete(table).where(table.c.session_id.in_(ids)))
             await db.execute(delete(sessions).where(sessions.c.id.in_(ids)))
@@ -125,6 +131,77 @@ async def expire(kit, session_id):
             .values(expires_at=text("TIMESTAMPADD(SECOND, -1, UTC_TIMESTAMP(6))"))
         )
         await db.commit()
+
+
+async def test_model_dispatch_is_durable_and_only_one_caller_can_send(kit):
+    await kit.queued()
+    claim = await kit.store.claim(60)
+    assert claim is not None
+    attempts = await asyncio.gather(
+        kit.store.begin_model_call(claim, '{"input":"frozen"}'),
+        kit.store.begin_model_call(claim, '{"input":"frozen"}'),
+    )
+    assert sum(created for _, created in attempts) == 1
+    assert attempts[0][0] == attempts[1][0]
+    # A fresh store/connection sees the committed marker, not permission to send again.
+    recovered, created = await MySQLExecutionStore(kit.transactions).begin_model_call(
+        claim, '{"input":"changed"}'
+    )
+    assert not created
+    assert recovered.request_json == '{"input":"frozen"}'
+    assert recovered.status == "dispatched"
+
+
+async def test_model_response_survives_reclaim_without_redispatch(kit):
+    receipt = await kit.queued()
+    claim = await kit.store.claim(60)
+    call, created = await kit.store.begin_model_call(claim, "{}")
+    assert created
+    await kit.store.record_model_response(
+        claim, call.invocation_id, response_json='{"raw_output":"retained"}'
+    )
+    await expire(kit, receipt.session_id)
+    replacement = await kit.store.claim(60)
+    assert replacement.fence > claim.fence
+    recovered, created = await kit.store.begin_model_call(replacement, "{}")
+    assert not created
+    assert recovered.status == "response_received"
+    assert recovered.response_json == '{"raw_output":"retained"}'
+    with pytest.raises(LeaseLost):
+        await kit.store.record_model_response(
+            claim, call.invocation_id, response_json='{"raw_output":"late"}'
+        )
+
+
+async def test_unacknowledged_dispatch_cannot_be_resent_or_overwritten_after_reclaim(kit):
+    receipt = await kit.queued()
+    claim = await kit.store.claim(60)
+    call, _ = await kit.store.begin_model_call(claim, "{}")
+    await expire(kit, receipt.session_id)
+    replacement = await kit.store.claim(60)
+    recovered, created = await kit.store.begin_model_call(replacement, "{}")
+    assert recovered == call
+    assert not created
+    # Neither a stale worker nor its replacement may fabricate a provider receipt.
+    for owner in (claim, replacement):
+        with pytest.raises(LeaseLost):
+            await kit.store.record_model_response(owner, call.invocation_id, response_json="{}")
+
+
+@pytest.mark.parametrize("unknown", [False, True])
+async def test_model_failure_is_retained_and_receipt_is_immutable(kit, unknown):
+    await kit.queued()
+    claim = await kit.store.claim(60)
+    call, _ = await kit.store.begin_model_call(claim, "{}")
+    await kit.store.record_model_response(
+        claim, call.invocation_id, failure_code="provider_timeout", result_unknown=unknown
+    )
+    recovered, created = await kit.store.begin_model_call(claim, "{}")
+    assert not created
+    assert recovered.status == ("unknown" if unknown else "failed")
+    assert recovered.failure_code == "provider_timeout"
+    with pytest.raises(LeaseLost):
+        await kit.store.record_model_response(claim, call.invocation_id, response_json="{}")
 
 
 async def test_create_start_replay_and_key_conflicts(kit):

@@ -86,6 +86,20 @@ jobs = sa.Table(
     mysql_engine="InnoDB",
     mysql_charset="utf8mb4",
 )
+model_calls = sa.Table(
+    "model_calls",
+    metadata,
+    sa.Column("run_id", ID, sa.ForeignKey(runs.c.id), primary_key=True),
+    sa.Column("invocation_id", ID, nullable=False, unique=True),
+    sa.Column("fence_token", mysql.BIGINT(unsigned=True), nullable=False),
+    sa.Column("status", sa.String(32), nullable=False),
+    sa.Column("request_json", mysql.LONGTEXT, nullable=False),
+    sa.Column("response_json", mysql.LONGTEXT),
+    sa.Column("failure_code", sa.String(64)),
+    sa.Column("created_at", mysql.DATETIME(fsp=6), server_default=sa.text("CURRENT_TIMESTAMP(6)")),
+    mysql_engine="InnoDB",
+    mysql_charset="utf8mb4",
+)
 idempotency = sa.Table(
     "idempotency_requests",
     metadata,
