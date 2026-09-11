@@ -200,3 +200,136 @@ async def test_route_mismatch_does_not_store_success(dispatched):
             await accept(db, dispatched, completion=value)
     assert await stored(tx, run_id) == []
     assert (await rows(tx, run_id))[2]["version"] == 5
+
+
+async def next_prepared(db, run_id, value):
+    return await prepare_execution(
+        db,
+        run_id,
+        6,
+        1,
+        "worker:2",
+        "execution:2",
+        "invocation:2",
+        value.finished_at,
+        value.finished_at + timedelta(seconds=30),
+    )
+
+
+async def test_success_plans_semantic_for_same_candidate_and_reserves_it(dispatched):
+    tx, run_id, value, _, _ = dispatched
+    async with tx.open() as db:
+        await accept(db, dispatched)
+        state = await next_prepared(db, run_id, value)
+        assert state.checkpoint.kind == "semantic"
+        assert state.checkpoint.candidate_id == "candidate:1"
+        assert state.checkpoint.case_id == value.case_id
+        assert state.checkpoint.slot_ordinal == 1
+        assert state.checkpoint.execution_ordinal == 1
+        sent = await reserve_dispatch(db, run_id, 7, "worker:2", value.finished_at)
+        await db.commit()
+    assert sent.version == 8 and sent.checkpoint.phase == "dispatching"
+
+
+async def test_contract_failure_plans_second_generation_in_same_slot(dispatched):
+    tx, run_id, value, _, _ = dispatched
+    failure = ClassifiedFailure(
+        "output_validation",
+        "output_contract_conformance",
+        "invalid_output",
+        False,
+        False,
+        "replace_generation",
+        "Invalid output",
+        (value.execution_id,),
+    )
+    value = replace(value, status="failed", failure=failure)
+    async with tx.open() as db:
+        await accept(db, dispatched, completion=value, candidate_id="", assertions=())
+        state = await next_prepared(db, run_id, value)
+        assert state.checkpoint.kind == "generation"
+        assert state.checkpoint.case_id == value.case_id
+        assert state.checkpoint.slot_ordinal == 1
+        assert state.checkpoint.execution_ordinal == 2
+        await reserve_dispatch(db, run_id, 7, "worker:2", value.finished_at)
+        await db.commit()
+
+
+@pytest.mark.parametrize("damage", ["missing_completion", "changed_bytes", "missing_candidate"])
+async def test_projection_does_not_regenerate_when_evidence_is_incomplete(dispatched, damage):
+    from sqlalchemy import update
+
+    tx, run_id, value, _, _ = dispatched
+    async with tx.open() as db:
+        await accept(db, dispatched)
+        if damage == "missing_completion":
+            await db.execute(delete(table).where(table.c.run_id == str(run_id)))
+        else:
+            changes = (
+                {"normalized_output": b"{}"}
+                if damage == "changed_bytes"
+                else {"candidate_json": None}
+            )
+            await db.execute(update(table).where(table.c.run_id == str(run_id)).values(**changes))
+        await db.commit()
+    async with tx.open() as db:
+        with pytest.raises((ValueError, CheckpointConflict)):
+            await next_prepared(db, run_id, value)
+    checkpoint = (await rows(tx, run_id))[2]
+    assert checkpoint["version"] == 6 and checkpoint["checkpoint_json"] is None
+
+
+async def test_second_failed_execution_exhausts_slot_and_blocks_new_preparation(dispatched):
+    tx, run_id, value, _, _ = dispatched
+    failure = ClassifiedFailure(
+        "output_validation",
+        "output_contract_conformance",
+        "invalid_output",
+        False,
+        False,
+        "replace_generation",
+        "Invalid output",
+        (value.execution_id,),
+    )
+    failed = replace(value, status="failed", failure=failure)
+    async with tx.open() as db:
+        await accept(db, dispatched, completion=failed, candidate_id="", assertions=())
+        await next_prepared(db, run_id, value)
+        await reserve_dispatch(db, run_id, 7, "worker:2", value.finished_at)
+        second = replace(
+            failed,
+            execution_id="execution:2",
+            invocation_id="invocation:2",
+            execution_ordinal=2,
+            started_at=value.finished_at,
+            finished_at=value.finished_at + timedelta(seconds=1),
+            receipt=replace(value.receipt, invocation_id="invocation:2"),
+        )
+        await accept(
+            db,
+            dispatched,
+            completion=second,
+            expected_version=8,
+            owner="worker:2",
+            candidate_id="",
+            assertions=(),
+        )
+        await db.commit()
+    run, _, checkpoint = await rows(tx, run_id)
+    assert run["progress_json"]["status"] == "blocked"
+    assert run["progress_json"]["transitions"][-1]["cause_code"] == "generation_budget_exhausted"
+    assert checkpoint["version"] == 9
+    async with tx.open() as db:
+        with pytest.raises(CheckpointConflict):
+            await prepare_execution(
+                db,
+                run_id,
+                9,
+                1,
+                "worker:3",
+                "execution:3",
+                "invocation:3",
+                second.finished_at,
+                second.finished_at + timedelta(seconds=30),
+            )
+    assert len(await stored(tx, run_id)) == 2

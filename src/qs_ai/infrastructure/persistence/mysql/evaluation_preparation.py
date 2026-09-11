@@ -1,4 +1,4 @@
-"""Atomically prepare the first planned execution without guessing terminal evidence."""
+"""Atomically prepare the next planned execution from persisted terminal evidence."""
 
 import json
 from datetime import datetime
@@ -8,12 +8,14 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict, CheckpointState
-from qs_ai.domain.evaluation.actions import SlotProgress, next_action
+from qs_ai.domain.evaluation.actions import next_action
 from qs_ai.domain.evaluation.checkpoint import ExecutionCheckpoint
 from qs_ai.infrastructure.persistence.mysql.evaluation_checkpoints import save_checkpoint
+from qs_ai.infrastructure.persistence.mysql.evaluation_projection import project_slots
 from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_checkpoints,
     evaluation_dispatches,
+    evaluation_generation_completions,
     evaluation_runs,
 )
 from qs_ai.infrastructure.qs_server.evaluation_policies import load_execution_policy
@@ -67,25 +69,40 @@ async def prepare_execution(
     policy = load_execution_policy()
     if creation["execution_policy_json"] != policy.definition_json:
         raise CheckpointConflict("Unsupported frozen execution policy")
-    # A dispatch ledger is not terminal evidence. Never turn it into an empty slot
-    # or guess that a call failed while receipt/candidate acceptance is not wired.
-    dispatched = (
-        await db.execute(
-            select(evaluation_dispatches.c.invocation_id)
-            .where(evaluation_dispatches.c.run_id == str(run_id))
-            .limit(1)
-            .with_for_update()
+    dispatches = (
+        (
+            await db.execute(
+                select(evaluation_dispatches)
+                .where(evaluation_dispatches.c.run_id == str(run_id))
+                .with_for_update()
+            )
         )
-    ).first()
-    if dispatched is not None:
-        raise CheckpointConflict("Terminal execution evidence projection required")
-    slots = tuple(SlotProgress(slot["case_id"], slot["ordinal"]) for slot in creation["slots"])
+        .mappings()
+        .all()
+    )
+    completions = (
+        (
+            await db.execute(
+                select(evaluation_generation_completions)
+                .where(evaluation_generation_completions.c.run_id == str(run_id))
+                .with_for_update()
+            )
+        )
+        .mappings()
+        .all()
+    )
+    slots = project_slots(creation["slots"], list(completions), list(dispatches))
     preflight = progress.get("preflight", creation["preflight"])
     action = next_action(
-        progress["status"], preflight["status"], preflight["case_id"], slots, policy
+        progress["status"],
+        preflight["status"],
+        preflight["case_id"],
+        slots,
+        policy,
+        unresolved_unknown=progress.get("unresolved_result_unknown_count", 0),
     )
-    if action.kind != "generation" or action.resume:
-        raise CheckpointConflict("Next action is not a new generation")
+    if action.kind not in ("generation", "semantic") or action.resume:
+        raise CheckpointConflict("Next action is not a new model execution")
     if at < datetime.fromisoformat(creation["audit"]["created_at"]):
         raise ValueError("Preparation cannot precede Run creation")
     prepared = ExecutionCheckpoint(
