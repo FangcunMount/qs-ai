@@ -4,6 +4,7 @@ import re
 from typing import Any
 
 from qs_ai.application.interpretation.preparation import PreparedExplanation
+from qs_ai.application.interpretation.prompts import PromptMessages
 from qs_ai.application.interpretation.provider import ModelRoute
 
 
@@ -57,12 +58,19 @@ def compatible_schema(schema: dict[str, Any]) -> dict[str, Any]:
 def build_request(
     prepared: PreparedExplanation, route: ModelRoute, schema: dict[str, Any]
 ) -> dict[str, Any]:
+    if route.route != prepared.release.provider_route:
+        raise ValueError("Provider route does not match published Profile")
+    return build_messages_request(prepared.messages, route, schema)
+
+
+def build_messages_request(
+    messages: PromptMessages, route: ModelRoute, schema: dict[str, Any]
+) -> dict[str, Any]:
+    """Serialize validated stage-specific messages; frozen asset checks belong to the caller."""
     if route.provider != "deepseek" or route.protocol != "responses":
         raise ValueError("This adapter requires DeepSeek Responses protocol")
     if route.idempotent_redispatch or route.retrieve_by_invocation_id:
         raise ValueError("This adapter does not support replay or invocation retrieval")
-    if route.route != prepared.release.provider_route:
-        raise ValueError("Provider route does not match published Profile")
     if (
         not route.model.strip()
         or not route.revision.strip()
@@ -74,7 +82,6 @@ def build_request(
         raise ValueError("Incomplete execution route")
     if route.reasoning_effort not in {"", "none", "minimal", "low", "medium", "high", "xhigh"}:
         raise ValueError("Invalid reasoning effort")
-    messages = prepared.messages
     if route.structured_output_mode == "json_schema":
         name = re.sub(r"[^a-zA-Z0-9_-]+", "_", schema["title"].strip()).strip("_")[:64]
         format_value = {

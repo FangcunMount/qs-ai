@@ -168,3 +168,7 @@ PR #30 精确提交 `65d67755b34df8214d3b37e5b43abf7faec1886d` 的 CI `346405774
 ### 语义模型请求数据
 
 新增 `prepare_semantic_messages`，复用原 v2 裁判 system/task/data preamble，投影原语义输入七个字段：schema_version/suite_id/case_id/attempt/assessment_input/candidate_output/assertions。attempt 使用候选槽位序号，与原 online_runner_v2 相同；完整断言参数从冻结 Suite 读取，确定性已失败的独立语义要求仍保留。候选文本只进入 data_json，不能改变固定裁判指令。3 项测试通过，覆盖字段/参数、候选指令隔离与清单/发布漂移拒绝。此步骤尚未调用模型，现有网络适配器仍需解除对生成 PreparedExplanation 的绑定后接入该请求；不能视为常驻评测执行器完成。
+
+### 共用网络调用层
+
+DeepSeek Responses 请求序列化拆出 `build_messages_request`，新增 `generate_messages` 接收阶段消息/路由/Schema，生成入口继续先校验 Profile 路由，再共用原 HTTP 发送、大小/超时/响应解析逻辑。语义请求无需伪造生成 PreparedExplanation 或更改生成 Profile。原生成测试与新增语义路由/Schema/消息投影、超时单次发送共 28 项通过，Ruff/mypy 通过。HTTP 测试使用 MockTransport，不代表真实供应商接入验收；持久评测执行器仍需在发送事务提交后调用此适配器。
