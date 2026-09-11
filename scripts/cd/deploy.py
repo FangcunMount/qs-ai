@@ -7,6 +7,7 @@ import os
 import re
 import shutil
 import subprocess
+import tarfile
 import tempfile
 import time
 from pathlib import Path
@@ -145,7 +146,24 @@ def export_image(image: str, archive: Path, environment: dict, timeout: float = 
             if compressed or exported:
                 raise RuntimeError("Image export failed; raw output suppressed")
         run("gzip integrity", ["gzip", "-t", str(temporary)])
-        run("archive integrity", ["tar", "-tzf", str(temporary)])
+        # A short garbage stream can be accepted as an empty archive by GNU tar.
+        # Read entries without extracting layers or accumulating a large file list.
+        try:
+            manifest_found = False
+            with tarfile.open(temporary, "r|gz") as package:
+                for member in package:
+                    if member.isfile():
+                        content = package.extractfile(member)
+                        assert content is not None
+                        with content:
+                            while content.read(1024 * 1024):
+                                if time.monotonic() >= deadline:
+                                    raise subprocess.TimeoutExpired("archive integrity", timeout)
+                        manifest_found |= member.name == "manifest.json"
+            if not manifest_found:
+                raise RuntimeError("Image archive has no manifest")
+        except (tarfile.TarError, EOFError, OSError):
+            raise RuntimeError("Image archive is invalid; raw output suppressed") from None
         os.replace(temporary, archive)
     finally:
         for process in (compressor, exporter):

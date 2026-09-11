@@ -30,7 +30,11 @@ from pathlib import Path
 mode = os.environ.get('MODE', 'success')
 if mode == 'hang':
     time.sleep(60)
-if mode == 'corrupt':
+if mode == 'empty':
+    sys.stdout.buffer.write(bytes(10240))
+elif mode == 'truncated':
+    sys.stdout.buffer.write(Path(os.environ['PAYLOAD']).read_bytes()[:513])
+elif mode == 'corrupt':
     sys.stdout.buffer.write(b'not a tar archive')
 else:
     sys.stdout.buffer.write(Path(os.environ['PAYLOAD']).read_bytes())
@@ -65,7 +69,9 @@ def test_streaming_export_produces_valid_archive(exporter, tmp_path):
     assert not list(tmp_path.glob("*.tmp"))
 
 
-@pytest.mark.parametrize("mode", ["fail_after_tar", "corrupt", "compression_fail", "hang"])
+@pytest.mark.parametrize(
+    "mode", ["fail_after_tar", "corrupt", "empty", "truncated", "compression_fail", "hang"]
+)
 def test_failed_export_keeps_previous_package_and_reaps_children(exporter, tmp_path, mode):
     module, environment, processes = exporter
     environment["MODE"] = mode
