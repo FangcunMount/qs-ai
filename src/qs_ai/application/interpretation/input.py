@@ -1,0 +1,344 @@
+"""Project frozen QS report facts into the existing AIExplanationInput v1.
+
+The caller supplies policy from a validated published Profile. Authorization and
+Profile publication are separate use cases; neither is inferred from report JSON.
+"""
+
+import hashlib
+import json
+import math
+import re
+from dataclasses import dataclass
+from typing import Any
+from urllib.parse import quote
+
+
+class InvalidInput(ValueError):
+    pass
+
+
+class NotApplicable(InvalidInput):
+    pass
+
+
+@dataclass(frozen=True)
+class InputPolicy:
+    profile_id: str
+    profile_version: str
+    profile_fingerprint: str
+    model_code: str | None
+    model_version: str | None
+    min_dimensions: int
+    max_dimensions: int
+    eligible_codes: tuple[str, ...]
+    excluded_codes: tuple[str, ...]
+    allowed_focus_areas: tuple[str, ...]
+    include_norm_context: bool
+    include_model_result: bool
+
+
+@dataclass(frozen=True)
+class AssembledInput:
+    canonical_json: str
+    fingerprint: str
+    provider_payload: str
+
+
+def _plain(value: Any, limit: int, required: bool = True) -> str:
+    if not isinstance(value, str) or len(value) > limit or (required and not value):
+        raise InvalidInput("Invalid report text")
+    if "<" in value or ">" in value:
+        raise InvalidInput("Report text must be plain text")
+    return value
+
+
+def _ref(code: str) -> str:
+    # Go url.PathEscape leaves these path-segment characters unescaped.
+    return quote(code, safe="$&+.:=@_")
+
+
+def _number(value: Any, optional: bool = False) -> int | float | None:
+    if optional and value is None:
+        return None
+    if type(value) not in (int, float) or not math.isfinite(value):
+        raise InvalidInput("Invalid numeric report fact")
+    return value
+
+
+def _score(value: dict[str, Any] | None) -> dict[str, Any] | None:
+    if value is None:
+        return None
+    return {
+        "kind": value["kind"],
+        "value": _number(value["value"]),
+        "label": value["label"],
+        "max": _number(value["max"], True),
+    }
+
+
+def _level(value: dict[str, Any] | None) -> dict[str, Any] | None:
+    if value is None:
+        return None
+    return {key: value[key] for key in ("code", "label", "severity")}
+
+
+def _norm(value: dict[str, Any] | None) -> dict[str, Any] | None:
+    if value is None:
+        return None
+    result = {
+        key: value[key]
+        for key in (
+            "score_kind",
+            "benchmark",
+            "table_version",
+            "form_variant",
+            "min_age_months",
+            "max_age_months",
+            "gender",
+        )
+    }
+    _number(result["benchmark"])
+    return result
+
+
+def _json(value: object) -> str:
+    return json.dumps(value, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
+
+
+def _object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    value: dict[str, Any] = {}
+    for key, item in pairs:
+        if key in value:
+            raise InvalidInput("Duplicate snapshot field")
+        value[key] = item
+    return value
+
+
+def assemble_input(
+    raw_snapshot: str,
+    policy: InputPolicy,
+    *,
+    locale: str = "zh-CN",
+    focus_areas: tuple[str, ...] = (),
+) -> AssembledInput:
+    try:
+        snapshot = json.loads(raw_snapshot, object_pairs_hook=_object)
+        return _assemble(snapshot, policy, locale, focus_areas)
+    except (KeyError, TypeError, AttributeError, ValueError) as error:
+        if isinstance(error, InvalidInput):
+            raise
+        # Never include participant data from decoding/conversion exceptions.
+        raise InvalidInput("Invalid report snapshot") from None
+
+
+def _assemble(
+    snapshot: dict[str, Any],
+    policy: InputPolicy,
+    locale: str,
+    focus: tuple[str, ...],
+) -> AssembledInput:
+    if snapshot["schema_version"] != "qs-report-snapshot/v1":
+        raise InvalidInput("Unsupported report snapshot version")
+    if (
+        not policy.profile_id
+        or not policy.profile_version
+        or not re.fullmatch(r"sha256:[0-9a-f]{64}", policy.profile_fingerprint)
+    ):
+        raise InvalidInput("Published Profile reference is required")
+    if not 2 <= policy.min_dimensions <= policy.max_dimensions <= 50:
+        raise InvalidInput("Invalid eligibility bounds")
+    if set(policy.eligible_codes) & set(policy.excluded_codes):
+        raise InvalidInput("Overlapping eligibility policy")
+    if not re.fullmatch(r"[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*", locale) or len(locale) > 35:
+        raise InvalidInput("Invalid locale")
+    if len(set(focus)) != len(focus) or any(
+        not re.fullmatch(r"[a-z][a-z0-9_.-]{0,63}", x) or x not in policy.allowed_focus_areas
+        for x in focus
+    ):
+        raise InvalidInput("Invalid or disallowed focus areas")
+    model, runtime = snapshot["model"], snapshot["runtime"]
+    if model["kind"] != "scale" or runtime["decision_kind"] != "score_range":
+        raise NotApplicable("Input v1 requires participant scale/score_range")
+    if (policy.model_code is not None and model["code"] != policy.model_code) or (
+        policy.model_version is not None and model["version"] != policy.model_version
+    ):
+        raise NotApplicable("Profile selector does not match report")
+    for key in ("algorithm", "code", "version", "title"):
+        _plain(model[key], 2000)
+
+    source = snapshot["source"]
+    for key in ("report_id", "outcome_id"):
+        if not re.fullmatch(r"[1-9][0-9]{0,19}", source[key]) or int(source[key]) >= 2**64:
+            raise InvalidInput("Invalid source identity")
+    for key in (
+        "report_template_version",
+        "content_schema_version",
+        "builder_identity",
+        "generated_at",
+    ):
+        _plain(source[key], 255)
+    if source["report_type"] != "standard":
+        raise NotApplicable("Only standard reports are accepted")
+
+    dimensions = snapshot["dimensions"]
+    codes = [d["code"] for d in dimensions]
+    if any(not isinstance(code, str) or not code for code in codes) or len(set(codes)) != len(
+        codes
+    ):
+        raise InvalidInput("Missing or duplicate dimension code")
+    selected = [
+        d
+        for d in dimensions
+        if (not policy.eligible_codes or d["code"] in policy.eligible_codes)
+        and d["code"] not in policy.excluded_codes
+    ]
+    if not policy.min_dimensions <= len(selected) <= policy.max_dimensions:
+        raise NotApplicable("Eligible dimension count outside Profile bounds")
+    refs = {d["code"]: "dimension:" + _ref(d["code"]) for d in selected}
+    suggestions, by_dimension = _suggestions(snapshot, refs)
+    projected = []
+    for d in selected:
+        for field in ("hierarchy_level", "sort_order"):
+            if type(d[field]) is not int or d[field] < 0:
+                raise InvalidInput("Invalid dimension hierarchy or sort order")
+        projected.append(
+            {
+                "ref": refs[d["code"]],
+                "code": d["code"],
+                "kind": _plain(d["kind"], 255),
+                "name": _plain(d["name"], 2000),
+                "role": d["role"],
+                "parent_ref": refs.get(d["parent_code"]),
+                "hierarchy_level": d["hierarchy_level"],
+                "sort_order": d["sort_order"],
+                "raw_score": {
+                    "kind": "raw_score",
+                    "value": _number(d["raw_score"]),
+                    "label": "",
+                    "max": _number(d["max_score"], True),
+                },
+                "derived_scores": [_score(score) for score in d["derived_scores"]],
+                "level": _level(d["level"]),
+                "norm_context": _norm(d["norm_reference"]) if policy.include_norm_context else None,
+                "standard_description": _plain(d["description"], 4000, False),
+                # QS currently encodes an absent suggestion list as null here.
+                "standard_suggestion_refs": by_dimension.get(d["code"]),
+            }
+        )
+    projected.sort(key=lambda d: (d["sort_order"], d["code"]))
+    context = {
+        "scope": "current_assessment_only",
+        "audience": "participant",
+        "locale": locale,
+        "personalization_scope": "assessment_result_and_focus_areas"
+        if focus
+        else "assessment_result_only",
+        "focus_areas": list(focus),
+    }
+    facts = {
+        "runtime": {"decision_kind": runtime["decision_kind"]},
+        "model": {key: model[key] for key in ("kind", "algorithm", "code", "version", "title")},
+        "overall_result": {
+            "primary_score": _score(snapshot["primary_score"]),
+            "level": _level(snapshot["level"]),
+            "standard_conclusion": snapshot["conclusion"],
+        },
+        "dimensions": projected,
+        "standard_suggestions": suggestions,
+        "model_result": _model_result(snapshot["model_extra"])
+        if policy.include_model_result
+        else None,
+    }
+    document = {
+        "schema_version": "ai-explanation-input/v1",
+        "source": {
+            key: source[key]
+            for key in (
+                "report_id",
+                "outcome_id",
+                "report_type",
+                "report_template_version",
+                "content_schema_version",
+                "builder_identity",
+                "generated_at",
+            )
+        },
+        "profile": {
+            "profile_id": policy.profile_id,
+            "profile_version": policy.profile_version,
+            "profile_fingerprint": policy.profile_fingerprint,
+        },
+        "context": context,
+        "facts": facts,
+    }
+    canonical = _json(document)
+    return AssembledInput(
+        canonical,
+        "sha256:" + hashlib.sha256(canonical.encode()).hexdigest(),
+        _json({"context": context, "facts": facts}),
+    )
+
+
+def _suggestions(
+    snapshot: dict[str, Any], refs: dict[str, str]
+) -> tuple[list[dict[str, Any]], dict[str, list[str]]]:
+    result: list[dict[str, Any]] = []
+    by_dimension: dict[str, list[str]] = {}
+    seen: set[tuple[str, str, str]] = set()
+
+    def append(ref: str, category: str, text: str, code: str) -> None:
+        if not category:
+            raise InvalidInput("Suggestion category is required")
+        _plain(text, 2000)
+        key = (category, text, code)
+        if key in seen:
+            return
+        seen.add(key)
+        if code and code not in refs:
+            return
+        dimension_refs = [refs[code]] if code else []
+        if code:
+            by_dimension.setdefault(code, []).append(ref)
+        result.append(
+            {"ref": ref, "category": category, "content": text, "dimension_refs": dimension_refs}
+        )
+
+    indices = set()
+    for suggestion in snapshot["suggestions"]:
+        index = suggestion["source_index"]
+        if type(index) is not int or index < 0 or index in indices:
+            raise InvalidInput("Invalid original suggestion index")
+        indices.add(index)
+        append(
+            f"suggestion:report:{index + 1}",
+            suggestion["category"],
+            suggestion["content"],
+            suggestion["dimension_code"] or "",
+        )
+    for dimension in snapshot["dimensions"]:
+        if dimension["suggestion"].strip():
+            append(
+                "suggestion:dimension:" + _ref(dimension["code"]),
+                "dimension",
+                dimension["suggestion"],
+                dimension["code"],
+            )
+    return result, by_dimension
+
+
+def _model_result(extra: dict[str, Any] | None) -> dict[str, Any] | None:
+    if extra is None:
+        return None
+    for key in ("kind", "type_code", "type_name", "one_liner"):
+        _plain(extra.get(key), 2000)
+    percent = extra.get("match_percent", 0)
+    if type(percent) not in (int, float) or not 0 <= percent <= 100:
+        raise InvalidInput("Invalid model match percent")
+    return {
+        "kind": extra["kind"],
+        "type_code": extra["type_code"],
+        "type_name": extra["type_name"],
+        "one_liner": extra["one_liner"],
+        "match_percent": percent,
+        "commentary": extra.get("commentary", ""),
+    }

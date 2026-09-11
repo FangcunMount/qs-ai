@@ -1,0 +1,118 @@
+{
+  "schema_version": "qs-report-snapshot/v1",
+  "source": {
+    "report_id": "99",
+    "outcome_id": "101",
+    "report_type": "standard",
+    "report_template_version": "v1",
+    "content_schema_version": "standard-v1",
+    "builder_identity": "test",
+    "generated_at": "2026-09-11T00:00:00Z"
+  },
+  "model": {
+    "kind": "scale",
+    "algorithm": "sum",
+    "code": "case",
+    "version": "v1",
+    "title": "合成迁移用例"
+  },
+  "runtime": {
+    "decision_kind": "score_range"
+  },
+  "primary_score": {
+    "kind": "raw_total",
+    "value": 24,
+    "label": "",
+    "max": null
+  },
+  "level": {
+    "code": "stable",
+    "label": "稳定",
+    "severity": "none"
+  },
+  "conclusion": "标准结论",
+  "dimensions": [
+    {
+      "code": "A/观察",
+      "kind": "factor",
+      "name": "观察维度A/观察",
+      "raw_score": 12,
+      "max_score": null,
+      "derived_scores": [
+        {
+          "kind": "t_score",
+          "value": 50,
+          "label": "",
+          "max": null
+        }
+      ],
+      "level": {
+        "code": "stable",
+        "label": "稳定",
+        "severity": "none"
+      },
+      "norm_reference": {
+        "score_kind": "t_score",
+        "benchmark": 50,
+        "table_version": "v1",
+        "form_variant": "standard",
+        "min_age_months": 72,
+        "max_age_months": 120,
+        "gender": "all"
+      },
+      "description": "标准描述 {{locale}}",
+      "suggestion": "观察建议",
+      "role": "child",
+      "parent_code": "P",
+      "hierarchy_level": 1,
+      "sort_order": 2
+    },
+    {
+      "code": "B",
+      "kind": "factor",
+      "name": "观察维度B",
+      "raw_score": 12,
+      "max_score": null,
+      "derived_scores": [],
+      "level": null,
+      "norm_reference": null,
+      "description": "标准描述 {{locale}}",
+      "suggestion": "",
+      "role": "child",
+      "parent_code": "",
+      "hierarchy_level": 1,
+      "sort_order": 1
+    },
+    {
+      "code": "P",
+      "kind": "factor",
+      "name": "观察维度P",
+      "raw_score": 12,
+      "max_score": null,
+      "derived_scores": [],
+      "level": null,
+      "norm_reference": null,
+      "description": "标准描述 {{locale}}",
+      "suggestion": "",
+      "role": "child",
+      "parent_code": "",
+      "hierarchy_level": 1,
+      "sort_order": 0
+    }
+  ],
+  "suggestions": [
+    {
+      "source_index": 1,
+      "category": "dimension",
+      "content": "观察建议",
+      "dimension_code": "A/观察"
+    },
+    {
+      "source_index": 2,
+      "category": "general",
+      "content": "通用建议",
+      "dimension_code": null
+    }
+  ],
+  "model_extra": null
+}
