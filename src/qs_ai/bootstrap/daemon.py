@@ -4,6 +4,9 @@ import asyncio
 import logging
 import signal
 from collections.abc import Awaitable, Callable
+from pathlib import Path
+
+from qs_ai.bootstrap.daemon_health import heartbeat
 
 logger = logging.getLogger(__name__)
 
@@ -70,20 +73,27 @@ async def serve_loop(
     idle_seconds: float,
     max_backoff_seconds: float,
     shutdown_seconds: float,
+    health_file: str,
 ) -> None:
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
     for signum in (signal.SIGTERM, signal.SIGINT):
         loop.add_signal_handler(signum, stop.set)
     try:
-        await run_loop(
-            attempt,
-            stop,
-            concurrency=concurrency,
-            idle_seconds=idle_seconds,
-            max_backoff_seconds=max_backoff_seconds,
-            shutdown_seconds=shutdown_seconds,
-        )
+        async with asyncio.TaskGroup() as group:
+            pulse = group.create_task(heartbeat(Path(health_file), stop))
+            execution = group.create_task(
+                run_loop(
+                    attempt,
+                    stop,
+                    concurrency=concurrency,
+                    idle_seconds=idle_seconds,
+                    max_backoff_seconds=max_backoff_seconds,
+                    shutdown_seconds=shutdown_seconds,
+                )
+            )
+            await execution
+            pulse.cancel()
     finally:
         for signum in (signal.SIGTERM, signal.SIGINT):
             loop.remove_signal_handler(signum)
