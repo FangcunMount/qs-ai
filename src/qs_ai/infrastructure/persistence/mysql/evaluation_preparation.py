@@ -103,7 +103,13 @@ async def prepare_execution(
         .mappings()
         .all()
     )
-    slots = project_slots(creation["slots"], list(completions), list(dispatches), list(semantic))
+    slots = project_slots(
+        creation["slots"],
+        list(completions),
+        list(dispatches),
+        list(semantic),
+        run["progress_json"].get("result_unknown_resolutions", []),
+    )
     preflight = progress.get("preflight", creation["preflight"])
     action = next_action(
         progress["status"],

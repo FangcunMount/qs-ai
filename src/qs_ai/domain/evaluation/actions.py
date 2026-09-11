@@ -12,8 +12,13 @@ from qs_ai.domain.evaluation.policy import ExecutionPolicy
 class ExecutionResult:
     status: str
     failure: ClassifiedFailure | None = None
+    replacement_authorized: bool = False
 
     def __post_init__(self) -> None:
+        if type(self.replacement_authorized) is not bool or (
+            self.replacement_authorized and self.status != "result_unknown"
+        ):
+            raise ValueError("Replacement authorization requires unknown evidence")
         if self.status not in ("succeeded", "failed", "result_unknown"):
             raise ValueError("Invalid terminal execution status")
         if self.status == "succeeded" and self.failure is not None:
@@ -124,10 +129,10 @@ def next_action(
             checkpoint.execution_ordinal,
             True,
         )
-    # Manual resolutions are not represented by this automatic projection yet.
-    # Never let a caller-supplied zero hide an unknown execution in another slot.
+    # Each authorization must be projected from a persisted resolution bound to
+    # the exact unknown execution, never inferred from the aggregate count.
     historical_unknown = any(
-        execution.status == "result_unknown"
+        execution.status == "result_unknown" and not execution.replacement_authorized
         for slot in slots
         for execution in (*slot.generation, *(slot.candidate.semantic if slot.candidate else ()))
     )
@@ -164,11 +169,13 @@ def next_action(
                 kind, "candidate_missing" if candidate is None else "semantic_evidence_missing"
             )
         last = executions[-1]
-        if last.status == "result_unknown":
+        if last.status == "result_unknown" and not last.replacement_authorized:
             return action("block", "result_unknown_requires_review")
         limit = policy.generation_per_slot if candidate is None else policy.semantic_per_candidate
         if ordinal > limit:
             return action("block", kind + "_budget_exhausted")
+        if last.replacement_authorized:
+            return action(kind, "manual_recovery_approved")
         allowed = (
             policy.allows_automatic_generation_recovery
             if candidate is None
