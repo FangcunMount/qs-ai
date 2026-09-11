@@ -10,12 +10,13 @@ from uuid import UUID, uuid4
 from sqlalchemy import select
 
 from qs_ai.application.evaluation.checkpoints import CheckpointState
+from qs_ai.application.evaluation.model_response import response_evidence
 from qs_ai.application.evaluation.provider_failure import classify_provider_failure
 from qs_ai.application.interpretation.prompts import PromptMessages
 from qs_ai.application.interpretation.provider import ModelResponse, ModelRoute, ProviderFailure
 from qs_ai.application.interpretation.route_assets import RouteAssets
 from qs_ai.application.interpretation.schema_assets import SchemaAssets
-from qs_ai.domain.evaluation.completion import GenerationCompletion, ProviderReceipt
+from qs_ai.domain.evaluation.completion import GenerationCompletion
 from qs_ai.domain.evaluation.identity import EvidenceReleaseIdentity, FrozenContractRef
 from qs_ai.domain.evaluation.preflight import AssertionReceipt
 from qs_ai.domain.evaluation.semantic_completion import SemanticCompletion
@@ -135,18 +136,13 @@ async def execute_step(
     receipt = None
     raw, normalized = b"", b""
     if response is not None:
-        if response.invocation_id != invocation_id or response.model != route.model:
-            raise ValueError("Provider response does not match dispatched invocation")
-        receipt = ProviderReceipt(
-            invocation_id,
-            response.request_id,
-            route.provider,
-            response.model,
-            response.input_tokens or 0,
-            response.output_tokens or 0,
-            response.latency_milliseconds * 1_000_000,
+        evidence = response_evidence(cp.kind, execution_id, invocation_id, route, schema, response)
+        receipt, raw, normalized, failure = (
+            evidence.receipt,
+            evidence.raw,
+            evidence.normalized,
+            evidence.failure,
         )
-        raw, normalized = response.raw_output.encode(), response.validation_output.encode()
     status = (
         "succeeded" if failure is None else "result_unknown" if failure.result_unknown else "failed"
     )

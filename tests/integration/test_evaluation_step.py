@@ -160,3 +160,28 @@ async def test_acceptance_failure_preserves_dispatched_checkpoint_without_replay
     with pytest.raises(CheckpointConflict):
         await step(ready, gateway, 5)
     assert gateway.calls == 1
+
+
+async def test_malformed_output_is_saved_then_retried_in_original_slot(ready):
+    from tests.integration.test_evaluation_completions import stored
+
+    class Malformed(Gateway):
+        async def generate_messages(self, *args):
+            response = await super().generate_messages(*args)
+            return replace(response, raw_output="not-json", validation_output="not-json")
+
+    gateway = Malformed(ready)
+    state = await step(ready, gateway)
+    tx, run_id, *_ = ready
+    assert state.version == 6 and state.checkpoint is None
+    records = await stored(tx, run_id)
+    assert records[0]["evidence_json"]["failure"]["code"] == "output_schema_invalid"
+    assert records[0]["raw_output"] == b"not-json"
+    assert records[0]["candidate_id"] is None
+    state = await step(ready, gateway, state.version)
+    assert state.version == 9 and state.checkpoint is None
+    assert (await rows(tx, run_id))[0]["progress_json"]["status"] == "blocked"
+    assert gateway.calls == 2
+    assert [(r["case_id"], r["slot_ordinal"]) for r in await stored(tx, run_id)] == [
+        ("PROMPT-EVAL-001", 1)
+    ] * 2
