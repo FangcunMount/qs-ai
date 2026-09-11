@@ -95,3 +95,43 @@ async def test_response_commit_failure_does_not_authorize_another_send(kit, monk
     with pytest.raises(ProviderFailure, match="provider_result_unknown"):
         await execution.execute(replacement, request())
     assert gateway.calls == 1
+
+
+@pytest.mark.parametrize("boundary", ["dispatched", "response_received"])
+async def test_process_kill_recovers_durable_call_without_another_send(kit, boundary):
+    import os
+    import sys
+
+    receipt = await kit.queued()
+    child = await asyncio.create_subprocess_exec(
+        sys.executable,
+        "-m",
+        "tests.probes.model_crash",
+        receipt.session_id,
+        boundary,
+        env={**os.environ, "QS_AI_TEST_MYSQL_DSN": kit.dsn},
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.DEVNULL,
+    )
+    try:
+        assert await asyncio.wait_for(child.stdout.readline(), 20) == f"{boundary}\n".encode()
+        # Abrupt OS termination, not a coroutine exception or graceful cleanup.
+        child.kill()
+        assert await asyncio.wait_for(child.wait(), 10) != 0
+        await expire(kit, receipt.session_id)
+        replacement = await kit.store.claim(60)
+        assert replacement.session.id == receipt.session_id
+        gateway = Gateway()
+        execution = DurableGeneration(kit.store, gateway, JSONModelCallCodec())
+        if boundary == "dispatched":
+            with pytest.raises(ProviderFailure, match="provider_result_unknown"):
+                await execution.execute(replacement, request())
+        else:
+            result = await execution.execute(replacement, request())
+            assert result.response.request_id == "response-1"
+            assert result.request == request()
+        assert gateway.calls == 0
+    finally:
+        if child.returncode is None:
+            child.kill()
+        await asyncio.wait_for(child.wait(), 10)
