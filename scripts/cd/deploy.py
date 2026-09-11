@@ -113,6 +113,22 @@ def run(phase: str, args: list[str], **kwargs) -> str:
     return result.stdout
 
 
+def record_deployment(ssh: list[str]) -> None:
+    # Remote state is written only after health, image and schema verification.
+    # It also identifies the actual target of rollback, not the workflow source SHA.
+    state = json.loads(run("deployment receipt", [*ssh, "cat /opt/qs-ai/state.json"]))
+    current = state.get("current", "")
+    if not isinstance(current, str) or not re.fullmatch(r"[0-9a-f]{40}-[A-Za-z0-9_.-]+", current):
+        raise RuntimeError("Invalid deployed release receipt")
+    revision = current[:40]
+    Path("deployment-receipt.json").write_text(
+        json.dumps({"revision": revision, "release": current})
+    )
+    if output := os.environ.get("GITHUB_OUTPUT"):
+        with Path(output).open("a") as stream:
+            stream.write(f"actual_revision={revision}\n")
+
+
 def main() -> None:
     os.umask(0o077)
     env = dict(os.environ)
@@ -169,6 +185,7 @@ def main() -> None:
         try:
             if action == "rollback":
                 print(run("rollback", [*ssh, f"python3 {remote_script} rollback"]), end="")
+                record_deployment(ssh)
                 return
             docker_config = work / "docker"
             docker_config.mkdir()
@@ -240,6 +257,7 @@ def main() -> None:
                     json.dumps({key: failure.get(key) for key in ("status", "error_type", "phase")})
                 )
                 raise
+            record_deployment(ssh)
         finally:
             run("remove temporary script", [*ssh, f"rm -f {remote_script}"])
 
