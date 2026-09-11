@@ -1,11 +1,20 @@
-"""Run on serverA. Read the database URL from stdin, never from command arguments."""
+"""Server-side release transaction; standard library only, run as deploy user."""
 
+import fcntl
+import hashlib
 import json
+import os
 import re
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
+
+
+class DeploymentError(RuntimeError):
+    pass
+
+
+ROOT = Path("/opt/qs-ai")
 
 
 def secret_override(database_url: str) -> dict:
@@ -13,7 +22,6 @@ def secret_override(database_url: str) -> dict:
         char in database_url for char in "\r\n\x00"
     ):
         raise ValueError("Invalid database secret")
-    # Compose interpolates values even in JSON; escape dollar signs literally.
     return {
         "services": {
             "api": {
@@ -25,83 +33,192 @@ def secret_override(database_url: str) -> dict:
     }
 
 
+def write_json(path: Path, value: dict) -> None:
+    temporary = path.with_suffix(".tmp")
+    temporary.write_text(json.dumps(value, indent=2) + "\n")
+    temporary.chmod(0o600)
+    temporary.replace(path)
+
+
+def run(phase: str, args: list[str]) -> str:
+    result = subprocess.run(args, capture_output=True, text=True, timeout=1200)
+    if result.returncode:
+        # Do not expose raw driver/Compose errors, which may contain credentials.
+        detail = ""
+        if phase == "database probe":
+            try:
+                diagnostic = json.loads(result.stdout.strip().splitlines()[-1])
+                code = diagnostic.get("driver_code")
+                if isinstance(code, int):
+                    detail = f", database driver code {code}"
+            except (ValueError, IndexError):
+                pass
+        raise DeploymentError(f"{phase} failed (exit {result.returncode}{detail})")
+    return result.stdout
+
+
+def compose(release: Path, *args: str) -> list[str]:
+    return [
+        "sudo",
+        "-n",
+        "docker",
+        "compose",
+        "-p",
+        "qs-ai",
+        "--env-file",
+        str(release / "image.env"),
+        "-f",
+        str(release / "compose.yaml"),
+        "-f",
+        str(release / "runtime.json"),
+        *args,
+    ]
+
+
+def probe(release: Path, require_head: bool = False) -> dict:
+    output = run(
+        "database probe",
+        compose(
+            release,
+            "run",
+            "--rm",
+            "--no-deps",
+            "-T",
+            "api",
+            "/app/.venv/bin/python",
+            "-m",
+            "qs_ai.bootstrap.database_check",
+            *(["--require-head"] if require_head else []),
+        ),
+    )
+    return json.loads(output.strip().splitlines()[-1])
+
+
+def verify(release: Path) -> dict:
+    manifest = json.loads((release / "manifest.json").read_text())
+    run(
+        "service readiness",
+        compose(release, "up", "-d", "--pull", "never", "--wait", "--wait-timeout", "120"),
+    )
+    image_id = run(
+        "running image", ["sudo", "-n", "docker", "inspect", "qs-ai-api", "--format", "{{.Image}}"]
+    ).strip()
+    if image_id != manifest["image_id"]:
+        raise DeploymentError("Running image does not match release")
+    return probe(release, True)
+
+
+def release_path(name: str) -> Path:
+    if not re.fullmatch(r"[0-9a-f]{40}-[0-9]+-[0-9]+", name):
+        raise ValueError("Invalid release identifier")
+    return ROOT / "releases" / name
+
+
+def restore(state: dict) -> None:
+    previous = state.get("previous")
+    if not previous:
+        raise DeploymentError("No previous successful release")
+    target = release_path(previous)
+    # Old image must recognize the current schema and require its own exact head.
+    probe(target, True)
+    verify(target)
+    write_json(ROOT / "state.json", {"current": previous, "previous": state["current"]})
+    print(json.dumps({"rollback": "passed", "release": previous}))
+
+
+def apply(release: Path, state: dict) -> None:
+    manifest = json.loads((release / "manifest.json").read_text())
+    revision = manifest["revision"]
+    if not re.fullmatch(r"[0-9a-f]{40}", revision) or not release.name.startswith(revision + "-"):
+        raise ValueError("Invalid release revision")
+    archive = release / "image.tar.gz"
+    checksum = hashlib.sha256()
+    with archive.open("rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            checksum.update(block)
+    digest = checksum.hexdigest()
+    if digest != manifest["archive_sha256"]:
+        raise DeploymentError("Image archive checksum mismatch")
+    run("image load", ["sudo", "-n", "docker", "load", "-i", str(archive)])
+    inspected = json.loads(
+        run("image identity", ["sudo", "-n", "docker", "image", "inspect", f"qs-ai:{revision}"])
+    )[0]
+    if (
+        inspected["Id"] != manifest["image_id"]
+        or inspected["Architecture"] != "amd64"
+        or inspected["Config"]["Labels"].get("org.opencontainers.image.revision") != revision
+    ):
+        raise DeploymentError("Image identity or architecture mismatch")
+    before = probe(release)
+    write_json(release / "verification.json", {"phase": "preflight", "database": before})
+    # A migration failure never replaces a healthy service. MySQL DDL may be partial.
+    run(
+        "migration",
+        compose(
+            release,
+            "run",
+            "--rm",
+            "--no-deps",
+            "-T",
+            "api",
+            "/app/.venv/bin/alembic",
+            "upgrade",
+            "head",
+        ),
+    )
+    after = probe(release, True)
+    try:
+        verify(release)
+    except Exception:
+        if state.get("current") and before["current"] == after["current"]:
+            previous = release_path(state["current"])
+            probe(previous, True)
+            verify(previous)
+            print("Service restored to previous successful release", flush=True)
+        elif not state.get("current"):
+            run("first release cleanup", compose(release, "down"))
+        else:
+            print("Schema changed; application rollback requires compatibility review", flush=True)
+        raise
+    write_json(
+        release / "verification.json",
+        {"phase": "ready", "database": after, "image_id": manifest["image_id"]},
+    )
+    write_json(ROOT / "state.json", {"current": release.name, "previous": state.get("current")})
+    # Loaded images and release metadata remain available for rollback.
+    archive.unlink()
+    print(json.dumps({"deployed": revision, "database": after, "release": release.name}))
+
+
 def main() -> None:
-    revision = sys.argv[1]
-    if not re.fullmatch(r"[0-9a-f]{40}", revision):
-        raise ValueError("A full commit SHA is required")
-    database_url = sys.stdin.read().rstrip("\n")
-    override = secret_override(database_url)
-    root = Path(__file__).resolve().parents[2]
-    # Temporary directory is mode 0700 and removed on success or failure.
-    with tempfile.TemporaryDirectory(prefix="qs-ai-deploy-") as temporary:
-        directory = Path(temporary)
-        metadata = directory / "image.env"
-        metadata.write_text(f"QS_AI_IMAGE=qs-ai:{revision}\n")
-        secrets = directory / "secrets.json"
-        secrets.write_text(json.dumps(override))
-        secrets.chmod(0o600)
-        docker_config = directory / "docker"
-        docker_config.mkdir()
-        commands = [
-            (
-                "image build",
-                [
-                    "sudo",
-                    "-n",
-                    "docker",
-                    "--config",
-                    str(docker_config),
-                    "build",
-                    "--label",
-                    f"org.opencontainers.image.revision={revision}",
-                    "-t",
-                    f"qs-ai:{revision}",
-                    str(root),
-                ],
-            ),
-        ]
-        compose = [
-            "sudo",
-            "-n",
-            "docker",
-            "compose",
-            "--env-file",
-            str(metadata),
-            "-f",
-            str(root / "deploy/serverA/compose.yaml"),
-            "-f",
-            str(secrets),
-        ]
-        commands.extend(
-            [
-                (
-                    "migration",
-                    [
-                        *compose,
-                        "run",
-                        "--rm",
-                        "--no-deps",
-                        "api",
-                        "/app/.venv/bin/alembic",
-                        "upgrade",
-                        "head",
-                    ],
-                ),
-                ("service readiness", [*compose, "up", "-d", "--wait", "--wait-timeout", "90"]),
-            ]
-        )
-        for phase, command in commands:
-            result = subprocess.run(command, capture_output=True, timeout=1200)
-            if result.returncode:
-                # Migration errors can contain connection details; never print raw output.
-                raise RuntimeError(f"Deployment failed during {phase}; inspect on serverA")
-            print(f"{phase}: passed", flush=True)
-    print(f"Deployed {revision}; database readiness passed")
+    os.umask(0o077)
+    ROOT.mkdir(exist_ok=True)
+    with (ROOT / "deploy.lock").open("a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        path = ROOT / "state.json"
+        state = json.loads(path.read_text()) if path.exists() else {}
+        if sys.argv[1] == "rollback":
+            restore(state)
+        else:
+            release = release_path(sys.argv[1])
+            try:
+                apply(release, state)
+            except Exception as error:
+                write_json(
+                    release / "failure.json",
+                    {
+                        "status": "failed",
+                        "error_type": type(error).__name__,
+                        "phase": str(error) if isinstance(error, DeploymentError) else "unexpected",
+                    },
+                )
+                raise
 
 
 if __name__ == "__main__":
     try:
         main()
-    except Exception:
-        print("Deployment failed; sensitive command output was suppressed", file=sys.stderr)
+    except Exception as error:
+        message = str(error) if isinstance(error, DeploymentError) else type(error).__name__
+        print(f"Deployment failed: {message}", file=sys.stderr)
         raise SystemExit(1) from None

@@ -1,6 +1,18 @@
 name: Deploy serverA
 on:
   workflow_dispatch:
+    inputs:
+      operation:
+        type: choice
+        options: [deploy, rollback]
+        default: deploy
+      revision:
+        description: 'Full main commit SHA; empty selects this workflow commit'
+        required: false
+  workflow_run:
+    workflows: [checks]
+    types: [completed]
+    branches: [main]
 permissions:
   contents: read
   actions: read
@@ -8,43 +20,100 @@ concurrency:
   group: qs-ai-serverA
   cancel-in-progress: false
 jobs:
+  gate:
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_run' && vars.AUTO_DEPLOY_ENABLED == 'true' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-latest
+    outputs:
+      revision: ${{ steps.gate.outputs.revision }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+      - id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUESTED_SHA: ${{ github.event.workflow_run.head_sha || inputs.revision || github.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$REQUESTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          git merge-base --is-ancestor "$REQUESTED_SHA" origin/main
+          gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml --commit "$REQUESTED_SHA" --event push --json conclusion --jq 'any(.[]; .conclusion == "success")' | grep -qx true
+          echo "revision=$REQUESTED_SHA" >> "$GITHUB_OUTPUT"
+  build:
+    needs: gate
+    if: inputs.operation != 'rollback'
+    runs-on: ubuntu-latest
+    outputs:
+      digest: ${{ steps.image.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.gate.outputs.revision }}
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.ALIYUN_ACR_REGISTRY }}
+          username: ${{ secrets.ALIYUN_ACR_USERNAME }}
+          password: ${{ secrets.ALIYUN_ACR_PASSWORD }}
+      - uses: docker/build-push-action@v6
+        id: image
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: ${{ secrets.ALIYUN_ACR_REGISTRY }}/${{ secrets.ALIYUN_ACR_NAMESPACE }}/qs-ai:${{ needs.gate.outputs.revision }}
+          labels: org.opencontainers.image.revision=${{ needs.gate.outputs.revision }}
+          cache-from: type=gha,scope=qs-ai
+          cache-to: type=gha,mode=max,scope=qs-ai
   deploy:
-    if: github.ref == 'refs/heads/main'
-    # Must have SSH connectivity to serverA; configurable as a JSON label list.
-    runs-on: ${{ fromJSON(vars.DEPLOY_RUNNER_LABELS || '["self-hosted", "Linux", "X64"]') }}
+    needs: [gate, build]
+    if: >-
+      always() && needs.gate.result == 'success' &&
+      (needs.build.result == 'success' ||
+       (inputs.operation == 'rollback' && needs.build.result == 'skipped'))
+    runs-on:
+      group: qlume
+      labels: [self-hosted, macOS, ARM64]
     environment: production
     steps:
       - uses: actions/checkout@v4
-      - name: Require passing CI for this exact commit
+        with:
+          ref: ${{ needs.gate.outputs.revision }}
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.12.13'
+          python-version: '3.11'
+      - run: uv sync --locked --no-dev
+      - name: Export and deploy verified image
         env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml --commit "$GITHUB_SHA" --json conclusion --jq 'any(.[]; .conclusion == "success")' | grep -qx true
-      - name: Transfer release and inject production secrets
-        shell: bash
+          DEPLOY_SHA: ${{ needs.gate.outputs.revision }}
+          DEPLOY_OPERATION: ${{ inputs.operation || 'deploy' }}
+          IMAGE_DIGEST: ${{ needs.build.outputs.digest }}
+          ALIYUN_ACR_REGISTRY: ${{ secrets.ALIYUN_ACR_REGISTRY }}
+          ALIYUN_ACR_NAMESPACE: ${{ secrets.ALIYUN_ACR_NAMESPACE }}
+          ALIYUN_ACR_USERNAME: ${{ secrets.ALIYUN_ACR_USERNAME }}
+          ALIYUN_ACR_PASSWORD: ${{ secrets.ALIYUN_ACR_PASSWORD }}
+          MYSQL_HOST: ${{ secrets.MYSQL_HOST }}
+          MYSQL_PORT: ${{ secrets.MYSQL_PORT || '3306' }}
+          MYSQL_DATABASE: ${{ secrets.MYSQL_DATABASE }}
+          MYSQL_DBNAME: ${{ secrets.MYSQL_DBNAME }}
+          MYSQL_USERNAME: ${{ secrets.MYSQL_USERNAME }}
+          MYSQL_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
+          SVRA_HOST: ${{ vars.SVRA_HOST || secrets.SVRA_HOST }}
+          SVRA_USERNAME: ${{ vars.SVRA_USERNAME || secrets.SVRA_USERNAME }}
+          SVRA_SSH_PORT: ${{ vars.SVRA_SSH_PORT || secrets.SVRA_SSH_PORT || '22' }}
+          SVRA_SSH_KEY: ${{ secrets.SVR_MINI_SSH_KEY || secrets.SVRA_SSH_KEY }}
+          SVRA_HOST_PUBLIC_KEY: ${{ vars.SVRA_HOST_PUBLIC_KEY }}
+        run: uv run --no-dev python scripts/cd/deploy.py
+      - name: Release summary
+        if: success()
         env:
-          SVRA_HOST: ${{ secrets.SVRA_HOST }}
-          SVRA_USERNAME: ${{ secrets.SVRA_USERNAME }}
-          SVRA_SSH_KEY: ${{ secrets.SVRA_SSH_KEY }}
-          SVRA_KNOWN_HOSTS: ${{ secrets.SVRA_KNOWN_HOSTS }}
-          QS_AI_DATABASE_URL: ${{ secrets.QS_AI_DATABASE_URL }}
+          REVISION: ${{ needs.gate.outputs.revision }}
+          OPERATION: ${{ inputs.operation || 'deploy' }}
         run: |
-          set -euo pipefail
-          for name in SVRA_HOST SVRA_USERNAME SVRA_SSH_KEY SVRA_KNOWN_HOSTS QS_AI_DATABASE_URL; do
-            if [ -z "${!name}" ]; then echo "Missing secret: $name"; exit 1; fi
-          done
-          [[ "$SVRA_HOST" =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*$ ]]
-          [[ "$SVRA_USERNAME" =~ ^[a-zA-Z_][a-zA-Z0-9_-]*$ ]]
-          work=$(mktemp -d)
-          trap 'rm -rf "$work"' EXIT
-          chmod 700 "$work"
-          printf '%s\n' "$SVRA_SSH_KEY" > "$work/key"
-          printf '%s\n' "$SVRA_KNOWN_HOSTS" > "$work/known_hosts"
-          chmod 600 "$work/key" "$work/known_hosts"
-          opts=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15 -o "UserKnownHostsFile=$work/known_hosts" -i "$work/key")
-          target="$SVRA_USERNAME@$SVRA_HOST"
-          git archive --format=tar.gz -o "$work/release.tar.gz" "$GITHUB_SHA"
-          scp "${opts[@]}" "$work/release.tar.gz" "$target:/tmp/qs-ai-$GITHUB_SHA.tar.gz"
-          ssh "${opts[@]}" "$target" "sudo -n mkdir -p /opt/qs-ai/releases/$GITHUB_SHA && sudo -n tar -xzf /tmp/qs-ai-$GITHUB_SHA.tar.gz -C /opt/qs-ai/releases/$GITHUB_SHA"
-          printf '%s' "$QS_AI_DATABASE_URL" | ssh "${opts[@]}" "$target" "python3 /opt/qs-ai/releases/$GITHUB_SHA/deploy/serverA/deploy.py $GITHUB_SHA"
+          printf 'Operation: %s\n\nWorkflow source: `%s`\n\nTarget: serverA\n' "$OPERATION" "$REVISION" >> "$GITHUB_STEP_SUMMARY"
