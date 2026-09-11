@@ -26,4 +26,6 @@ QS 检查 Report 与 Outcome 的 ID、组织、测评及 Testee 关联。需要�
 
 组装结果与 v6 Prompt 渲染器串联测试验证报告原文留在 data 中；该测试使用静态策略投影，尚未绑定生产任务或调用模型。
 
+preparation.py 的 prepare_report_input 进一步绑定 Session 与 EvidenceSet：会话/证据集 ID、摘要、Testee/测评关联必须一致，且只接受当前单报告 qs-snapshot-v1 的 standard_report 事实。组装后校验快照内部 report_id 和 content_schema_version:outcome_id 与外层证据一致。摘要正确不代表授权有效，执行用例仍须调用 QS 进行当前权限复核。此组件尚待正式 Profile 加载器和生成 Workflow 接线。
+
 验证：QS 单元测试覆盖私有字段导出、null、派生分数/常模/层级、隐藏维度及建议、建议原始下标、Outcome 缺失或关联不符、可见性缺失。未以该测试替代真实报告案例验收。
