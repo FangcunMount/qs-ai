@@ -20,3 +20,9 @@
 `ClassifiedFailure` 保留 QS taxonomy v1 的 stage/kind/disposition、结果未知一致性、消息/证据引用限制以及受限诊断元数据。与原 Go 的 6 stage × 6 kind × 8 disposition × 2 retryable × 2 result_unknown（1,152 组）比较合法性、候选存在、生成替换和语义重试，结果一致。
 
 策略增加基于合法分类的自动恢复判断：输出契约不合格允许替换生成；限流等生成重试仍须命中策略名单；语义重试要求相应处置及名单；质量失败保留候选/拒绝发布，结果未知要求人工确认。判断本身不预留预算、不执行重试，也不接受未经持久化审核的“人工已授权”布尔开关。完整调度、人工确认及原子预留仍待实现。
+
+## 在途检查点规则
+
+`ExecutionCheckpoint` 保留 execution/case/slot/candidate/owner/invocation、阶段及带时区租约时间。generation 不允许提前关联 candidate，semantic 必须关联；槽位 1–5、执行序号 1–2 与原固定 QS v2 约束相同。
+
+prepared → dispatching 要求 owner 匹配和原租约内时间；恢复只允许扫描到的相同 invocation、相同 expiry 的过期 prepared，dispatching 永远不能按此路径自动重放。保留 QS 的 inclusive dispatch endpoint：恰好到期时发送和回收检查都可能成立，持久化层必须用同一聚合版本 CAS 决定唯一赢家。本轮只迁移领域检查，没有实现该 CAS、预算预留、租约续期或完整 NextAction，不能当作并发执行已验收。
