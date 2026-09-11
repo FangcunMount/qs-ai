@@ -2,6 +2,8 @@
 
 from dataclasses import dataclass
 
+from qs_ai.domain.evaluation.failure import ClassifiedFailure
+
 
 @dataclass(frozen=True)
 class ExecutionPolicy:
@@ -43,3 +45,16 @@ class ExecutionPolicy:
                 and run_executions < self.semantic_per_run
             )
         raise ValueError("Unsupported evaluation execution stage")
+
+    def allows_automatic_generation_recovery(self, failure: ClassifiedFailure) -> bool:
+        return failure.allows_generation_replacement() or (
+            failure.disposition == "retry_generation"
+            and self.selects_automatic_retry(
+                failure.stage, failure.code, retryable=failure.retryable
+            )
+        )
+
+    def allows_automatic_semantic_recovery(self, failure: ClassifiedFailure) -> bool:
+        return failure.allows_semantic_retry() and self.selects_automatic_retry(
+            failure.stage, failure.code, retryable=failure.retryable
+        )

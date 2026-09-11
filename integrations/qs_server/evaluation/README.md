@@ -14,3 +14,9 @@
 `load_execution_policy` 校验资源 checksum、原 Go fingerprint 与原 JSON Schema，显式只接受当前已迁入 v2，然后构造冻结 ExecutionPolicy。类型保留样本目标、单目标/整轮预算、自动与人工恢复名单及三个恢复开关。
 
 `selects_automatic_retry` 只是 policy whitelist 判断，不包含 ClassifiedFailure 的完整合法性/处置判断，也不代表可以直接重试。`within_budget` 是预留前检查，计数由后续持久执行聚合提供，失败及结果未知调用不能从预算中扣除。尚未实现并发原子预留、完整 NextAction、人工确认或评测发布门槛；未连接生产生成 worker。
+
+## 失败分类迁移
+
+`ClassifiedFailure` 保留 QS taxonomy v1 的 stage/kind/disposition、结果未知一致性、消息/证据引用限制以及受限诊断元数据。与原 Go 的 6 stage × 6 kind × 8 disposition × 2 retryable × 2 result_unknown（1,152 组）比较合法性、候选存在、生成替换和语义重试，结果一致。
+
+策略增加基于合法分类的自动恢复判断：输出契约不合格允许替换生成；限流等生成重试仍须命中策略名单；语义重试要求相应处置及名单；质量失败保留候选/拒绝发布，结果未知要求人工确认。判断本身不预留预算、不执行重试，也不接受未经持久化审核的“人工已授权”布尔开关。完整调度、人工确认及原子预留仍待实现。
