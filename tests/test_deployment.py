@@ -342,3 +342,20 @@ def test_execution_compose_resolves_isolation_tls_and_health(tmp_path):
         assert "qs_ai.bootstrap.daemon_health" in service["healthcheck"]["test"]
     # Canonical Compose config preserves escaping for subsequent re-parsing.
     assert services["worker"]["environment"]["QS_AI_MODEL_API_KEY"] == "synthetic-$$key-only"
+
+
+def test_deployment_receipt_uses_actual_remote_revision(tmp_path, monkeypatch):
+    module = load("scripts/cd/deploy.py")
+    monkeypatch.chdir(tmp_path)
+    output = tmp_path / "output"
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output))
+    monkeypatch.setenv("DEPLOY_SHA", "a" * 40)
+    actual = "b" * 40
+    monkeypatch.setattr(
+        module,
+        "run",
+        lambda *args: json.dumps({"current": actual + "-12-1", "previous": "ignored"}),
+    )
+    module.record_deployment(["ssh", "test"])
+    assert json.loads((tmp_path / "deployment-receipt.json").read_text())["revision"] == actual
+    assert output.read_text() == f"actual_revision={actual}\n"

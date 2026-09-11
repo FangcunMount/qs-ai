@@ -46,10 +46,14 @@ jobs:
           git merge-base --is-ancestor "$REQUESTED_SHA" origin/main
           gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml --commit "$REQUESTED_SHA" --event push --json conclusion --jq 'any(.[]; .conclusion == "success")' | grep -qx true
           echo "revision=$REQUESTED_SHA" >> "$GITHUB_OUTPUT"
-          if [ "$TRIGGER" = workflow_dispatch ]; then
+          marker=$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?per_page=100" --jq '[.artifacts[] | select(.expired == false and .workflow_run.head_branch == "main" and .workflow_run.head_repository_id == .workflow_run.repository_id and (.name | startswith("qs-ai-deployed-")))] | sort_by(.created_at) | reverse | .[0].name // ""')
+          baseline="${marker#qs-ai-deployed-}"
+          baseline="${baseline%%-*}"
+          if [ "$TRIGGER" = workflow_dispatch ] || [ -z "$marker" ]; then
             echo "deploy=true" >> "$GITHUB_OUTPUT"
           else
-            echo "deploy=$(python3 scripts/cd/deploy_scope.py "$REQUESTED_SHA")" >> "$GITHUB_OUTPUT"
+            [[ "$baseline" =~ ^[0-9a-f]{40}$ ]]
+            echo "deploy=$(python3 scripts/cd/deploy_scope.py "$REQUESTED_SHA" "$baseline")" >> "$GITHUB_OUTPUT"
           fi
   build:
     needs: gate
@@ -100,6 +104,7 @@ jobs:
           python-version: '3.11'
       - run: uv sync --locked --no-dev
       - name: Export and deploy verified image
+        id: release
         env:
           DEPLOY_SHA: ${{ needs.gate.outputs.revision }}
           DEPLOY_OPERATION: ${{ inputs.operation || 'deploy' }}
@@ -124,6 +129,13 @@ jobs:
           SVRA_SSH_KEY: ${{ secrets.SVR_MINI_SSH_KEY || secrets.SVRA_SSH_KEY }}
           SVRA_HOST_PUBLIC_KEY: ${{ vars.SVRA_HOST_PUBLIC_KEY }}
         run: uv run --no-dev python scripts/cd/deploy.py
+      - name: Record verified deployment baseline
+        uses: actions/upload-artifact@v4
+        with:
+          name: qs-ai-deployed-${{ steps.release.outputs.actual_revision }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: deployment-receipt.json
+          if-no-files-found: error
+          retention-days: 90
       - name: Release summary
         if: success()
         env:
