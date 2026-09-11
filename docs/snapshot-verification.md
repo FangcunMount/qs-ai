@@ -1,5 +1,7 @@
 # QS 报告快照接入验证
 
+当前事实格式修复：QS `1a947bfd` 改为显式 [标准报告快照 v1](../integrations/qs_server/report-snapshot.md)。原先直接 JSON 序列化领域对象会丢失维度私有字段，不能据此前的关联/幂等测试判定事实完整。修复保留分数、等级、常模、层级与原文，并在 QS 出口应用参与者可见范围；新增事实内容回归和失败关闭测试通过。尚未接入 Python 输入组装或发布生产。
+
 2026-09-11。本批实现 QS 产品业务入口 → 既有授权 → 标准报告/Outcome 解析 → 持久命令 → qs-ai 冻结快照及排队。没有新增用户、角色、Testee 权限表。
 
 协议新增兼容字段 StartCommand.evidence。每项含 assessment_id、testee_id、report_id、source_version 和事实 ref/value；QS 首版发送 standard_report 内容。AI 校验输入关联，将快照纳入幂等指纹，并与会话、任务和结果 outbox 同事务保存。qs-snapshot-v1 冻结事实但不冻结权限；执行前与接受结果前均复核当前授权。QS 持久主体授权适配未接通前，生产默认依赖失败将阻断执行，不得绕过。
