@@ -19,3 +19,5 @@ QS 新增独立 ai-workflows 产品入口，复用原主体委托与归属判断
 当前授权适配：固定 QS 契约 96638d4039d7，QSAccessSource 调用 AIWorkflowAccessService.Authorize；Dishka 按 grpc.access_address 选择适配并管理 mTLS 通道生命周期。未配置默认拒绝；不持有用户令牌，不读取冻结快照之外的新事实。59 项非 integration 测试通过，含真实 TLS 的 Python 测试服务及状态映射；尚不代表 Go/Python 和生产 IAM 联调通过。
 
 Go/Python 授权联调已通过：Python QSAccessSource → Go AIWorkflowAccessService → CurrentAccess，真实 mTLS；同连接有效→撤销→恢复、跨组织/用户/Testee/测评、错误服务证书与关系源故障均验证。Go fixture 的 Testee/关系/归属数据为隔离替身，尚未证明真实 IAM 或生产调用。CI 固定 QS b9a2425260c629810f08c145cf479023fdeea90e 并构建专用测试进程，纳入每次 pytest。
+
+生产只读核对（2026-09-11）：serverA QS 当前容器 ea166d2b，AI 仍 d39f55f；尚未发布本分支。QS 挂载的 apiserver.prod.yaml 中 AI enabled/participant_enabled 为 true，provider=deepseek、model=deepseek-v4-pro、protocol=responses、route_revision=v8、max_output_tokens=12000、timeout=120s。此为配置文件值，环境覆盖与实际 Profile/release 尚待核对，不直接作为最终案例锁定依据；未读取/输出密钥。
