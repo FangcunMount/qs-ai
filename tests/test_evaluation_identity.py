@@ -73,6 +73,11 @@ func main(){
  json.NewEncoder(os.Stdout).Encode(fingerprint)
 }
 """
+    program = program.replace(
+        "QS_EVALUATION",
+        "github.com/FangcunMount/qs-server/internal/apiserver/"
+        "domain/interpretation/aiexplanation/evaluation",
+    )
     with tempfile.TemporaryDirectory(
         prefix="qs_ai_identity_", dir=Path(source) / "scripts"
     ) as name:
