@@ -82,10 +82,11 @@ jobs:
         env:
           QS_AI_BRIDGE_BIN: ${{ github.workspace }}/.interop/qs-ai-bridge
           QS_AI_ACCESS_PROBE_BIN: ${{ github.workspace }}/.interop/qs-ai-access-probe
+          QS_AI_PROMPT_SOURCE: ${{ github.workspace }}/.interop/qs-server
           QS_AI_TEST_QS_MYSQL_DSN: mysql+asyncmy://qs_ai:qs_ai_local@127.0.0.1:3306/qs_gateway
           QS_AI_TEST_QS_GO_DSN: qs_ai:qs_ai_local@tcp(127.0.0.1:3306)/qs_gateway?parseTime=true
       - run: uv build
-      - name: Verify packaged configuration outside repository
+      - name: Verify packaged configuration and Prompts outside repository
         run: |
           uv run python - <<'PYTHON'
           import os
@@ -101,6 +102,10 @@ jobs:
               environment = {**os.environ, "PYTHONPATH": directory, "QS_AI_ENVIRONMENT": "production"}
               subprocess.run(
                   [sys.executable, "-c", "from qs_ai.config import Settings; s=Settings(); assert s.http.host == '0.0.0.0'; assert s.worker.lease_seconds == 30"],
+                  cwd=directory, env=environment, check=True,
+              )
+              subprocess.run(
+                  [sys.executable, "-c", "from qs_ai.infrastructure.qs_server.prompts import load_prompt; assert load_prompt('cross-dimension-participant-scale', 'v6').version == 'v6'"],
                   cwd=directory, env=environment, check=True,
               )
           PYTHON
