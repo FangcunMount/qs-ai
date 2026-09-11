@@ -62,3 +62,11 @@
 `MySQLRunCreator.create` 现先调用统一 `validate_release_assets`，完成全部 11 项引用解析及 suite Profile/Prompt 对齐，成功后再打开 Run 创建事务。生成侧从不可变资产仓库读取；语义指令/Schema、suite 和策略来自固定资源，语义路由按显式引用读取。相关 23 项资产测试通过，包含六类非生成引用错误在事务打开前拒绝；五项生成引用错误已有对应测试。测试资产仓库使用替身及原资产包，尚未作为完整 MySQL 创建适配器端到端验收。此为内部适配器，调用方仍须完成管理授权；尚未接入 HTTP/gRPC/CLI 入口、依赖注入或 worker，不能将其视为生产可用管理功能。
 
 完整创建适配器现补充隔离 MySQL 8.4 验证：导入原 Profile/Prompt/route/schema 到真实资产表，经真实资产仓库解析完整引用，再由 `MySQLRunCreator` 创建 Run；核对 35 槽位、策略原文、发布指纹与 version=1，并验证重复创建不改变版本。该文件共 5 项集成测试通过。测试明确选择生成路由同时作为评审路由，不声称这就是生产评审配置；没有模型调用、管理授权或公开入口验收。清理只删除本测试实际新增的资产及自身 Run，不删除已存在基线。
+
+## 下一批：Run 状态与单一版本
+
+PR #27 的精确提交 `9140a9e80ab433339b480e3ef2443c6e3f1d2249` 已通过 CI `34636173015`（MySQL 8.0.36、8.4 和镜像），随后合并。生产未部署这些增量。
+
+下一批保留创建记录不变，另存当前进度；所有状态变更仍以已有 checkpoint version 为唯一条件锁，不能新增彼此独立的 Run version。普通推进遵循原 requested→collecting/canceled、collecting→blocked/awaiting_review/canceled、blocked→collecting/canceled、awaiting_review→approved/rejected/canceled；有在途执行时不能直接离开 collecting。允许边并不等于满足前置条件，仍须校验候选完整性、未知结果、评审及门槛。
+
+特别保留原 `review_reopening.go` 的拒绝后重开规则：不能用普通 Transition 从 rejected 重回执行。只有 v2 且特定 G4 判定争议等完整条件满足时，允许最多三次带审计的评审重开；原评审、门槛和最终时间必须归档保留。该规则尚未迁移，不能把状态邻接表当成完整业务状态机。
