@@ -188,3 +188,60 @@ async def test_reused_execution_identity_rolls_back_even_with_new_invocation(pre
             await db.commit()
     assert await count(tx, run_id) == 1
     assert await store.get(run_id) == CheckpointState(run_id, 3, duplicate)
+
+
+async def test_committed_dispatch_cannot_be_reserved_again_after_lost_acknowledgement(prepared):
+    tx, store, run_id, cp = prepared
+    async with tx.open() as db:
+        committed = await reserve_dispatch(db, run_id, 1, cp.owner, cp.claimed_at)
+        await db.commit()
+    # The caller has lost its commit acknowledgement; neither stale nor fresh version
+    # grants another permission to send a checkpoint already marked dispatching.
+    for version in (1, 2):
+        with pytest.raises((CheckpointConflict, ValueError)):
+            async with tx.open() as db:
+                await reserve_dispatch(db, run_id, version, cp.owner, cp.claimed_at)
+                await db.commit()
+    assert await count(tx, run_id) == 1
+    assert await store.get(run_id) == committed
+
+
+async def test_semantic_budget_is_per_candidate_and_separate_from_generation(prepared):
+    tx, store, run_id, cp = prepared
+    async with tx.open() as db:
+        await reserve_dispatch(db, run_id, 1, cp.owner, cp.claimed_at)
+        await db.commit()
+    version = 2
+    for index, candidate, ordinal in (
+        (1, "candidate:1", 1),
+        (2, "candidate:1", 2),
+        (3, "candidate:2", 1),
+    ):
+        semantic = replace(
+            cp,
+            kind="semantic",
+            candidate_id=candidate,
+            execution_ordinal=ordinal,
+            execution_id=f"semantic:{index}",
+            invocation_id=f"semantic:{index}",
+        )
+        await store.save(CheckpointState(run_id, version + 1, semantic), version)
+        async with tx.open() as db:
+            await reserve_dispatch(db, run_id, version + 1, cp.owner, cp.claimed_at)
+            await db.commit()
+        version += 2
+    exhausted = replace(
+        cp,
+        kind="semantic",
+        candidate_id="candidate:1",
+        execution_ordinal=2,
+        execution_id="semantic:4",
+        invocation_id="semantic:4",
+    )
+    await store.save(CheckpointState(run_id, version + 1, exhausted), version)
+    with pytest.raises(CheckpointConflict, match="budget"):
+        async with tx.open() as db:
+            await reserve_dispatch(db, run_id, version + 1, cp.owner, cp.claimed_at)
+            await db.commit()
+    assert await count(tx, run_id) == 4
+    assert await store.get(run_id) == CheckpointState(run_id, version + 1, exhausted)
