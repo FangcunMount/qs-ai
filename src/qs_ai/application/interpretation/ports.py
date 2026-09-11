@@ -2,6 +2,7 @@ from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
 from typing import Protocol
 
+from qs_ai.domain.interpretation.artifact import ArtifactCandidate
 from qs_ai.domain.interpretation.model import Actor, EvidenceItem, EvidenceSet, Question, Session
 
 
@@ -89,6 +90,7 @@ class WorkflowResult:
     question: str | None = None
     can_skip: bool = True
     failure_code: str | None = None
+    artifact: ArtifactCandidate | None = None
 
 
 class Workflow(Protocol):

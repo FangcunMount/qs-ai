@@ -16,4 +16,8 @@ DurableGeneration 将持久接口与模型网关接起来：冻结完整 Prepare
 
 本地 MockTransport 测试只验证构造、发送次数、分类和解析；未访问真实供应商。尚待 Worker/调用记录/成果事务接线、配置与凭据部署、真实案例验收。没有将 HTTP 成功直接转为正式 Artifact。
 
-build_artifact 将恢复后的响应与当前任务冻结证据重新绑定，再运行完整输出 Schema、事实引用及确定性安全校验。只有全部通过才返回 ArtifactCandidate，包含稳定成果 ID、内容指纹、证据/输入/Profile/Prompt/路线及校验器版本和供应商回执 ID。该对象仍是待事务接受的候选；尚未将它保存为正式成果或发出 completed 事件，避免 QS 在完整成果传输契约接通前收到不可读取的成功状态。
+build_artifact 将恢复后的响应与当前任务冻结证据重新绑定，再运行完整输出 Schema、事实引用及确定性安全校验。只有全部通过才返回 ArtifactCandidate，包含稳定成果 ID、内容指纹、证据/输入/Profile/Prompt/路线及校验器版本和供应商回执 ID。
+
+迁移 0006 增加 interpretation_artifacts。finish 在当前租约内复核候选与已保存调用/证据的关联和内容指纹，将完整成果、completed 状态、同版本 Outbox 一并提交；无完整成果不能完成。取消后和已完成后拒绝迟到写入，已完成状态不能再取消。结果事件以新增 proto 字段 artifact_json 承载完整候选信封，序列化大小上限为 128 KiB；重复投递使用同一已保存事件。
+
+MySQL 集成测试验证成果和事件同步保存、Outbox 写入失败时整体回滚、取消后拒绝迟到成果。QS 接收端仍待配套更新，实际 Workflow 与常驻进程也尚未启用，不可将这些离线测试视为正式成果已送达生产 QS。

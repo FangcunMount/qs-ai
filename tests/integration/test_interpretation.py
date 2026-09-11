@@ -26,6 +26,7 @@ from qs_ai.infrastructure.persistence.mysql.execution import MySQLExecutionStore
 from qs_ai.infrastructure.persistence.mysql.interpretation import MySQLUnitOfWorkFactory
 from qs_ai.infrastructure.persistence.mysql.leases import LeaseLost
 from qs_ai.infrastructure.persistence.mysql.schema import (
+    artifacts,
     evidence_sets,
     external_requests,
     idempotency,
@@ -98,7 +99,15 @@ async def kit():
                     model_calls.c.run_id.in_(select(runs.c.id).where(runs.c.session_id.in_(ids)))
                 )
             )
-            for table in (result_outbox, external_requests, jobs, runs, questions, evidence_sets):
+            for table in (
+                result_outbox,
+                external_requests,
+                artifacts,
+                jobs,
+                runs,
+                questions,
+                evidence_sets,
+            ):
                 await db.execute(delete(table).where(table.c.session_id.in_(ids)))
             await db.execute(delete(sessions).where(sessions.c.id.in_(ids)))
             await db.execute(delete(leases).where(leases.c.thread_id.in_(ids)))

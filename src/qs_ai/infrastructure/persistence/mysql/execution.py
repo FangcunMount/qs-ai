@@ -1,3 +1,5 @@
+import hashlib
+import json
 from dataclasses import asdict
 from typing import Any
 from uuid import uuid4
@@ -14,6 +16,7 @@ from qs_ai.infrastructure.persistence.mysql.database import Transactions
 from qs_ai.infrastructure.persistence.mysql.interpretation import MySQLUnitOfWork, session_from
 from qs_ai.infrastructure.persistence.mysql.leases import LeaseLost
 from qs_ai.infrastructure.persistence.mysql.schema import (
+    artifacts,
     evidence_sets,
     jobs,
     leases,
@@ -341,6 +344,8 @@ class MySQLExecutionStore:
             return evidence
 
     async def finish(self, claim: Claim, result: WorkflowResult) -> None:
+        if result.artifact is not None and (result.question is not None or result.failure_code):
+            raise ValueError("Artifact cannot accompany a question or failure")
         if result.question is not None and (
             not result.question.strip()
             or not result.checkpoint_ref
@@ -349,7 +354,42 @@ class MySQLExecutionStore:
             raise ValueError("Question must have a durable checkpoint and no failure")
         async with self.transactions.open() as db:
             session = await self._guard(db, claim)
-            if result.question is not None:
+            if result.artifact is not None:
+                candidate = result.artifact
+                evidence = await self._evidence(db, session.id)
+                call = (
+                    (
+                        await db.execute(
+                            select(model_calls).where(model_calls.c.run_id == claim.run_id)
+                        )
+                    )
+                    .mappings()
+                    .one()
+                )
+                if (
+                    candidate.session_id != session.id
+                    or candidate.run_id != claim.run_id
+                    or evidence is None
+                    or candidate.evidence_set_id != evidence.id
+                    or candidate.evidence_fingerprint != evidence.fingerprint
+                    or call["status"] != "response_received"
+                    or candidate.invocation_id != call["invocation_id"]
+                    or candidate.provider_request_id
+                    != json.loads(call["response_json"])["request_id"]
+                    or candidate.content_fingerprint
+                    != "sha256:" + hashlib.sha256(candidate.content_json.encode()).hexdigest()
+                ):
+                    raise ValueError("Artifact does not match the durable execution")
+                payload = asdict(candidate)
+                if len(json.dumps(payload, ensure_ascii=False).encode()) > 131072:
+                    raise ValueError("Artifact exceeds delivery limit")
+                await db.execute(
+                    insert(artifacts).values(
+                        id=candidate.id, session_id=session.id, run_id=claim.run_id, payload=payload
+                    )
+                )
+                session.complete()
+            elif result.question is not None:
                 question_id = str(uuid4())
                 seq = (
                     await db.scalar(

@@ -2,7 +2,6 @@
 
 import hashlib
 import json
-from dataclasses import dataclass
 from uuid import NAMESPACE_URL, uuid5
 
 from qs_ai.application.execution.generation import GeneratedExplanation
@@ -10,28 +9,8 @@ from qs_ai.application.interpretation.output import InvalidOutput, OutputParser,
 from qs_ai.application.interpretation.ports import Claim
 from qs_ai.application.interpretation.preparation import prepare_report_input
 from qs_ai.application.interpretation.safety import check_safety
+from qs_ai.domain.interpretation.artifact import ArtifactCandidate
 from qs_ai.domain.interpretation.model import EvidenceSet, RuleViolation
-
-
-@dataclass(frozen=True)
-class ArtifactCandidate:
-    id: str
-    session_id: str
-    run_id: str
-    evidence_set_id: str
-    evidence_fingerprint: str
-    invocation_id: str
-    provider_request_id: str
-    content_json: str
-    content_fingerprint: str
-    input_fingerprint: str
-    profile_id: str
-    profile_version: str
-    profile_fingerprint: str
-    prompt_fingerprint: str
-    route_fingerprint: str
-    output_validator_version: str
-    safety_validator_version: str
 
 
 def build_artifact(

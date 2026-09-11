@@ -100,6 +100,17 @@ model_calls = sa.Table(
     mysql_engine="InnoDB",
     mysql_charset="utf8mb4",
 )
+artifacts = sa.Table(
+    "interpretation_artifacts",
+    metadata,
+    sa.Column("id", ID, primary_key=True),
+    sa.Column("session_id", ID, sa.ForeignKey(sessions.c.id), nullable=False, unique=True),
+    sa.Column("run_id", ID, sa.ForeignKey(runs.c.id), nullable=False, unique=True),
+    sa.Column("payload", sa.JSON, nullable=False),
+    sa.Column("created_at", mysql.DATETIME(fsp=6), server_default=sa.text("CURRENT_TIMESTAMP(6)")),
+    mysql_engine="InnoDB",
+    mysql_charset="utf8mb4",
+)
 idempotency = sa.Table(
     "idempotency_requests",
     metadata,
