@@ -152,6 +152,11 @@ class ParticipantAIExplanationServiceStub:
         Args:
             channel: A grpc.Channel.
         """
+        self.RequestAIWorkflow = channel.unary_unary(
+                '/interpretation.ParticipantAIExplanationService/RequestAIWorkflow',
+                request_serializer=interpretation_dot_interpretation__pb2.RequestAIWorkflowRequest.SerializeToString,
+                response_deserializer=interpretation_dot_interpretation__pb2.AIWorkflowAccepted.FromString,
+                _registered_method=True)
         self.GetAIExplanationCapability = channel.unary_unary(
                 '/interpretation.ParticipantAIExplanationService/GetAIExplanationCapability',
                 request_serializer=interpretation_dot_interpretation__pb2.GetAIExplanationCapabilityRequest.SerializeToString,
@@ -180,6 +185,12 @@ class ParticipantAIExplanationServiceServicer:
     this service being configured or available.
     """
 
+    def RequestAIWorkflow(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def GetAIExplanationCapability(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
@@ -207,6 +218,11 @@ class ParticipantAIExplanationServiceServicer:
 
 def add_ParticipantAIExplanationServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
+            'RequestAIWorkflow': grpc.unary_unary_rpc_method_handler(
+                    servicer.RequestAIWorkflow,
+                    request_deserializer=interpretation_dot_interpretation__pb2.RequestAIWorkflowRequest.FromString,
+                    response_serializer=interpretation_dot_interpretation__pb2.AIWorkflowAccepted.SerializeToString,
+            ),
             'GetAIExplanationCapability': grpc.unary_unary_rpc_method_handler(
                     servicer.GetAIExplanationCapability,
                     request_deserializer=interpretation_dot_interpretation__pb2.GetAIExplanationCapabilityRequest.FromString,
@@ -240,6 +256,33 @@ class ParticipantAIExplanationService:
     Standard report reads stay on ParticipantReportService and do not depend on
     this service being configured or available.
     """
+
+    @staticmethod
+    def RequestAIWorkflow(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/interpretation.ParticipantAIExplanationService/RequestAIWorkflow',
+            interpretation_dot_interpretation__pb2.RequestAIWorkflowRequest.SerializeToString,
+            interpretation_dot_interpretation__pb2.AIWorkflowAccepted.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
 
     @staticmethod
     def GetAIExplanationCapability(request,
@@ -575,6 +618,81 @@ class AIExplanationAutomationService:
             '/interpretation.AIExplanationAutomationService/ExecutePromptEvaluationStep',
             interpretation_dot_interpretation__pb2.ExecutePromptEvaluationStepRequest.SerializeToString,
             interpretation_dot_interpretation__pb2.ExecutePromptEvaluationStepResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+
+class AIWorkflowAccessServiceStub:
+    """Durable participant access recheck; only the qs-ai mTLS workload may call it.
+    """
+
+    def __init__(self, channel):
+        """Constructor.
+
+        Args:
+            channel: A grpc.Channel.
+        """
+        self.Authorize = channel.unary_unary(
+                '/interpretation.AIWorkflowAccessService/Authorize',
+                request_serializer=interpretation_dot_interpretation__pb2.AIWorkflowAccessRequest.SerializeToString,
+                response_deserializer=interpretation_dot_interpretation__pb2.AIWorkflowAccessResponse.FromString,
+                _registered_method=True)
+
+
+class AIWorkflowAccessServiceServicer:
+    """Durable participant access recheck; only the qs-ai mTLS workload may call it.
+    """
+
+    def Authorize(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+
+def add_AIWorkflowAccessServiceServicer_to_server(servicer, server):
+    rpc_method_handlers = {
+            'Authorize': grpc.unary_unary_rpc_method_handler(
+                    servicer.Authorize,
+                    request_deserializer=interpretation_dot_interpretation__pb2.AIWorkflowAccessRequest.FromString,
+                    response_serializer=interpretation_dot_interpretation__pb2.AIWorkflowAccessResponse.SerializeToString,
+            ),
+    }
+    generic_handler = grpc.method_handlers_generic_handler(
+            'interpretation.AIWorkflowAccessService', rpc_method_handlers)
+    server.add_generic_rpc_handlers((generic_handler,))
+    server.add_registered_method_handlers('interpretation.AIWorkflowAccessService', rpc_method_handlers)
+
+
+ # This class is part of an EXPERIMENTAL API.
+class AIWorkflowAccessService:
+    """Durable participant access recheck; only the qs-ai mTLS workload may call it.
+    """
+
+    @staticmethod
+    def Authorize(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/interpretation.AIWorkflowAccessService/Authorize',
+            interpretation_dot_interpretation__pb2.AIWorkflowAccessRequest.SerializeToString,
+            interpretation_dot_interpretation__pb2.AIWorkflowAccessResponse.FromString,
             options,
             channel_credentials,
             insecure,

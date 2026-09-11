@@ -13,6 +13,7 @@ worker:
 grpc:
   bind_address: 127.0.0.1:50061
   result_address: null
+  access_address: null
   max_receive_bytes: 65536
   shutdown_grace_seconds: 5
   request_timeout_seconds: 5

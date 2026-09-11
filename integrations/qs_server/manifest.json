@@ -1,9 +1,9 @@
 {
   "repository": "https://github.com/FangcunMount/qs-server",
-  "commit": "17344553f6d134dd5f00145ddf635ececb914af6",
+  "commit": "96638d4039d7f0e1e2fc477bcf1dc87e92293479",
   "files": {
     "evaluation/evaluation.proto": "fc3ba454c9dad2457f9b8ba8fdfdee374d2210adac4b135e20611618684bcc31",
-    "interpretation/interpretation.proto": "d97f974ee63757755e904b3a0d9cacf0345f55261d2fe1c3e8639ad6f08537bd"
+    "interpretation/interpretation.proto": "6549e0193b4969b0c401739bba8315370ebdf73ef18cf6a6cab6c3c88f3160ff"
   },
-  "purpose": "Existing ParticipantReportService transport probe; not the new evidence contract"
+  "purpose": "Participant report probe and durable AIWorkflowAccessService authorization"
 }
