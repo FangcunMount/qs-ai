@@ -213,3 +213,6 @@ M1 → M2 → M3 → M4 → M5。M3 清单分析可提前开展，生产切换�
 - QS 转发增量位于独立工作区 `qs-server-ai-governance`、分支 `codex/ai-evaluation-governance`，从 origin/main 的 `3be1c3705` 创建。QS 草稿 [PR #86](https://github.com/FangcunMount/qs-server/pull/86) 提交 `f852436d9` 同步管理协议与 Go 客户端，应用层每次从当前授权上下文判断 OrgAdmin，缺失/撤销权限或缺少风险确认时不调用 AI；写调用五秒超时且不自动重试。application/aibridge、infra/aibridge、transport/grpc 三包测试通过，两仓 proto 字节一致。尚未装配 mTLS 连接或注册 HTTP 路由，后续需从认证上下文获取身份并完成跨服务验收；原 QS 工作区未改动，生产未发布。
 
 - QS PR #86 后续提交 `51f248bcf` 已装配默认关闭的 workflow_management：internal v2 管理 GET/POST 从 RequireProtectedScope 读取身份、应用层每次检查 OrgAdmin；模块构造 TLS 1.3 双向认证连接，Cleanup 关闭连接。相关配置、模块、容器、REST 与客户端包测试通过，本地 Go mTLS 服务验证 QS 证书身份及关闭后不可调用。`f8a7ebf45` 同步机器契约清单和源基线，修复 CI 的服务/RPC 数量漂移；完整本地 docs-check 通过。该握手测试不是 Go/Python 跨进程或生产验收，正式 API 文档和跨服务测试仍待完成；两端开关关闭，未发布。
+
+- 跨语言管理增量：在 QS 独立工作区提交 `f8a7ebf45e98dc16e004dcac6177d9b4edab52bc` 编译真实应用服务与 mTLS 客户端探针，调用 Python EvaluationManagement 处理器及真实 MySQL 管理事务。两项场景分别覆盖 cancel_run、authorize_replacement：错误工作负载证书/错误组织拒绝、缺少确认或撤权不转发、决定成功落库、状态回读一致、重复旧版本冲突，审计 actor 为 user:42。测试执行由正常创建/预检/发送/过期恢复路径产生过去时间的证据，服务端采用真实时钟。
+- 使用临时 CA/证书及隔离 MySQL 8.4，IAM 授权快照为测试构造；调用跨 Go/Python 进程，但没有生产 IAM/HTTP 入口、真实报告或模型流量，不构成 M1–M5 生产验收。互操作测试需显式设置 QS_AI_GOVERNANCE_SOURCE 指向包含管理桥接的独立 QS checkout；临时 Go 源目录结束后自动清理，QS 工作区保持干净。下一批完善正式 API 文档并检查两份草稿的精确 CI 状态。
