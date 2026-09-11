@@ -11,6 +11,7 @@
 | 4 | [接口与模型契约](contracts.md) | HTTP/gRPC、授权、Provider、Prompt、评测发布 |
 | 5 | [实施路线](roadmap.md) | P0–P5、验证矩阵、迁移部署、未决项 |
 | 配置入口 | [统一配置](../configs/README.md) | 环境覆盖、启动入口与 Actions Secrets |
+| 发布规划 | [CI/CD 建设方案](cicd-plan.md) | 对齐 QS 发布设施、MySQL Secrets、迁移与回滚；待实施 |
 | 重构证据 | [命令入口整理](refactoring-verification.md) | 类型化输入、历史回执兼容与接口回归 |
 | 当前证据 | [第 1 批验证](batch1-verification.md) | QS 发起、AI 持久执行、QS 可靠接收与剩余边界 |
 | P1 证据 | [P1 验证](p1-verification.md) | 会话、任务、恢复、gRPC 传输与接入缺口 |
