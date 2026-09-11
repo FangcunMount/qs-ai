@@ -115,3 +115,91 @@ async def test_failure_at_each_creation_write_rolls_back_all_new_records(setup_r
             await create(db, run_id, release)
             raise RuntimeError("injected before commit")
     assert await rows(tx, run_id) == before
+
+
+async def test_creation_resolves_real_mysql_assets_and_freezes_complete_release(setup_run):
+    from dataclasses import replace
+
+    from qs_ai.application.interpretation.manifest import build_generation_manifest
+    from qs_ai.bootstrap.import_profiles import baseline_assets as profiles
+    from qs_ai.bootstrap.import_prompts import baseline_assets as prompts
+    from qs_ai.bootstrap.import_routes import baseline_assets as routes
+    from qs_ai.bootstrap.import_schemas import baseline_assets as schemas
+    from qs_ai.infrastructure.persistence.mysql.evaluation_runs import MySQLRunCreator
+    from qs_ai.infrastructure.persistence.mysql.profile_assets import MySQLProfileAssets
+    from qs_ai.infrastructure.persistence.mysql.prompt_assets import MySQLPromptAssets
+    from qs_ai.infrastructure.persistence.mysql.route_assets import MySQLRouteAssets
+    from qs_ai.infrastructure.persistence.mysql.schema import (
+        profile_assets,
+        prompt_assets,
+        route_assets,
+        schema_assets,
+    )
+    from qs_ai.infrastructure.persistence.mysql.schema_assets import MySQLSchemaAssets
+    from qs_ai.infrastructure.qs_server.semantic_assets import load_semantic_assets
+
+    tx, run_id, partial = setup_run
+    stores = (
+        MySQLProfileAssets(tx),
+        MySQLPromptAssets(tx),
+        MySQLRouteAssets(tx),
+        MySQLSchemaAssets(tx),
+    )
+    tables = (profile_assets, prompt_assets, route_assets, schema_assets)
+    created = []
+    try:
+        for store, baseline, table in zip(
+            stores, (profiles, prompts, routes, schemas), tables, strict=True
+        ):
+            source, assets = baseline()
+            keys = list(table.primary_key.columns)
+            for asset in assets:
+                inserted = await store.put(asset, source, "integration:run-creation")
+                if inserted:
+                    condition = (keys[0] == getattr(asset, keys[0].name)) & (
+                        keys[1] == getattr(asset, keys[1].name)
+                    )
+                    created.append((table, condition))
+        manifest = await build_generation_manifest(
+            *stores,
+            profile_id="participant-scale-score-range-default",
+            profile_version="v6",
+            route_revision="v8",
+        )
+        generation = {}
+        for name in ("profile", "prompt", "generation_route", "input_schema", "output_schema"):
+            asset = getattr(manifest, name)
+            version = (
+                f"{asset.identity}/{asset.version}" if name.endswith("schema") else asset.version
+            )
+            generation[name] = FrozenContractRef(asset.identity, version, asset.fingerprint)
+        semantic = load_semantic_assets()
+        # Test route choice only: no claim about the production judge configuration.
+        release = replace(
+            partial,
+            **generation,
+            semantic_prompt=semantic.prompt,
+            semantic_output_schema=semantic.output_schema,
+            semantic_route=generation["generation_route"],
+        )
+        creator = MySQLRunCreator(tx, *stores)
+        state = await creator.create(
+            run_id, release, 1, "actor:1", "评测验证", datetime(2026, 9, 12, tzinfo=UTC)
+        )
+        run, policy, checkpoint = await rows(tx, run_id)
+        frozen = json.loads(run["definition_json"])
+        assert state.version == checkpoint["version"] == 1
+        assert frozen["release_fingerprint"] == release.fingerprint()
+        assert frozen["release"]["semantic_prompt"]["fingerprint"] == semantic.prompt.fingerprint
+        assert frozen["execution_policy_json"] == policy["definition_json"]
+        assert len(frozen["slots"]) == 35
+        with pytest.raises(IntegrityError):
+            await creator.create(
+                run_id, release, 1, "actor:1", "评测验证", datetime(2026, 9, 12, tzinfo=UTC)
+            )
+        assert (await rows(tx, run_id))[2]["version"] == 1
+    finally:
+        async with tx.open() as db:
+            for table, condition in reversed(created):
+                await db.execute(delete(table).where(condition))
+            await db.commit()
