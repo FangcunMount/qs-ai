@@ -12,6 +12,7 @@ from qs_ai.application.interpretation.input import assemble_input
 from qs_ai.application.interpretation.output import InvalidOutput, validate_output
 from qs_ai.application.interpretation.preparation import PreparedExplanation
 from qs_ai.application.interpretation.prompts import render_prompt
+from qs_ai.application.interpretation.safety import check_safety
 from qs_ai.infrastructure.qs_server.output import QSOutputParser
 from qs_ai.infrastructure.qs_server.profiles import load_migrated_release
 from qs_ai.infrastructure.qs_server.prompts import load_prompt
@@ -156,17 +157,26 @@ def test_raw_character_limit(prepared: PreparedExplanation) -> None:
 
 
 @pytest.mark.interop
-def test_original_go_deterministic_validation_parity(prepared: PreparedExplanation) -> None:
+@pytest.mark.parametrize("safety", [False, True])
+def test_original_go_deterministic_validation_parity(
+    prepared: PreparedExplanation, safety: bool
+) -> None:
     source = os.environ.get("QS_AI_PROMPT_SOURCE")
     if not source:
         pytest.skip("QS_AI_PROMPT_SOURCE must name the pinned QS checkout")
     values = [candidate() for _ in range(3)]
     values[1]["integrated_insights"][0]["evidence_refs"][1]["ref"] = "dimension:unknown"
     values[2]["integrated_insights"][0]["evidence_refs"][1]["ref"] = "dimension:P"
+    if safety:
+        values = [candidate() for _ in range(4)]
+        values[1]["summary"] = "这导致了另一种结果。"
+        values[2]["limitations"] = ["仅基于本次测评。"]
+        values[3]["limitations"] = ["本次测评不构成诊断，但属于确定性判断。"]
     request = {
         "Input": json.loads(prepared.assembled_input.canonical_json),
         "Definition": json.loads(prepared.release.definition_json),
         "Candidates": values,
+        "Safety": safety,
     }
     checkout = Path(source).resolve()
     with tempfile.TemporaryDirectory(prefix="qs_ai_output_test_", dir=checkout / "scripts") as name:
@@ -184,8 +194,14 @@ def test_original_go_deterministic_validation_parity(prepared: PreparedExplanati
     actual = []
     for value in values:
         try:
-            validate_output(json.dumps(value), prepared, QSOutputParser())
+            checked = validate_output(json.dumps(value), prepared, QSOutputParser())
+            if safety:
+                check_safety(checked)
             actual.append(True)
         except InvalidOutput:
             actual.append(False)
-    assert actual == json.loads(result.stdout) == [True, False, False]
+    assert (
+        actual
+        == json.loads(result.stdout)
+        == ([True, False, False, False] if safety else [True, False, False])
+    )

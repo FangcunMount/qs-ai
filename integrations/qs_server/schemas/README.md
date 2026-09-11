@@ -12,4 +12,6 @@ QSOutputParser 使用该 Schema 严格解析；应用层 validate_output 再应�
 
 测试涵盖 Schema、引用、Profile 数量、第二条违规洞察和祖先链，并与原 Go Validate 对照合法候选、未知引用、直接父子组合。测试候选是合成内容，不是质量验收案例。
 
-QS 现有执行流水线在确定性校验后还调用 SafetyEvaluator。该独立门槛尚未迁移，不能跳过后接受 Artifact；当前未调用模型、未完成生产输出验收。
+QS 现有执行流水线在确定性校验后调用 SafetyEvaluator，实际绑定 safety.DeterministicGate，而非在线语义模型。该门槛现已迁移到 application/interpretation/safety.py：保留七类中英文禁用表述、空白/大小写归一化、64 字符否定窗口与转折边界，版本保留 ai-explanation-safety-deterministic-zh-en/v2。check_safety 接收 DeterministicOutput，返回带双重校验版本的 SafetyCheckedOutput；仍未持久接受 Artifact。
+
+原 Go 对照增加完整候选的合法/禁用因果表述/缺少边界/转折推翻边界四类。语义评测与人工证据仍属于后续 Prompt 发布验证体系；此规则门槛不是完整语义安全保证。此前将运行时 SafetyEvaluator 笼统称为语义安全门槛不准确，以此处源码核对为准。当前未调用模型、未完成生产输出验收。
