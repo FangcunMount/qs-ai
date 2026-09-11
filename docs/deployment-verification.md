@@ -47,3 +47,9 @@
 健康探针使用 AI 证书建立 mTLS，要求业务入口返回 `PERMISSION_DENIED`。独立验收使用 QS 证书发送无效 Change，要求 `INVALID_ARGUMENT`，确认身份通过且不执行业务事务；无客户端证书要求连接拒绝。探针入口为 `python -m qs_ai.bootstrap.grpc_probe`，支持 `--address`、`--ca`、`--cert`、`--key`、`--anonymous` 和 `--expect`。
 
 本次启动通信接收进程；常驻任务执行、结果投递及 QS 真实业务切换仍需后续部署和业务验收。
+
+## M1 适配代码发布（2026-09-11）
+
+AI PR #6 合并后的提交 `0cf33ae18ecff1bb2b575ba5538f8cacba5a236a` 已通过 [main CI 34614854646](https://github.com/FangcunMount/qs-ai/actions/runs/34614854646)，[部署 34615103573](https://github.com/FangcunMount/qs-ai/actions/runs/34615103573) 第二次尝试成功。第一次在镜像拉取阶段失败，尚未替换生产；未确定其具体根因，不能将重试成功视为已修复根因。
+
+随后通过 serverA SSH 独立读取容器列表：qs-ai-api 与 qs-ai-grpc 均使用 `qs-ai:0cf33ae18ecff1bb2b575ba5538f8cacba5a236a` 且 healthy。此轮只证明适配代码镜像及进程健康，不证明真实报告授权、模型调用或结果展示已验收。PR #9 的调用记录及协调器尚未包含在该生产版本中。
