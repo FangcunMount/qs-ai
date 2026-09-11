@@ -56,5 +56,5 @@ def test_only_one_wrapper_layer_removed() -> None:
 
 def test_enclosed_formatting_preserved_for_character_budget() -> None:
     inner = '{  "summary": "原文"  }'
-    result = normalize_output("deepseek", '{ "json" : ' + inner + ' }')
+    result = normalize_output("deepseek", '{ "json" : ' + inner + " }")
     assert result.validation_output == inner
