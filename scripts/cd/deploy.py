@@ -1,5 +1,6 @@
 """Mac mini release packaging and SSH transport. No production values in logs."""
 
+import base64
 import gzip
 import hashlib
 import json
@@ -51,7 +52,20 @@ def runtime_config(environment: dict) -> dict:
     return {"services": {"api": {"environment": {"QS_AI_DATABASE_URL": url}}}}
 
 
+def write_registry_auth(directory: Path, environment: dict) -> None:
+    """Use QS's isolated auth file; docker login may select macOS Keychain."""
+    registry = required(environment, "ALIYUN_ACR_REGISTRY")
+    username = required(environment, "ALIYUN_ACR_USERNAME")
+    password = required(environment, "ALIYUN_ACR_PASSWORD")
+    auth = base64.b64encode(f"{username}:{password}".encode()).decode()
+    path = directory / "config.json"
+    # Creation mode is explicit even when called outside main's private umask.
+    with os.fdopen(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "w") as stream:
+        json.dump({"auths": {registry: {"auth": auth}}}, stream)
+
+
 def run(phase: str, args: list[str], **kwargs) -> str:
+    print(f"{phase}: started", flush=True)
     result = subprocess.run(args, capture_output=True, text=True, timeout=1800, **kwargs)
     if result.returncode:
         raise RuntimeError(f"{phase} failed; raw output suppressed")
@@ -123,19 +137,7 @@ def main() -> None:
             digest = required(env, "IMAGE_DIGEST")
             if not re.fullmatch(r"sha256:[0-9a-f]{64}", digest):
                 raise ValueError("Invalid image digest")
-            run(
-                "registry login",
-                [
-                    "docker",
-                    "login",
-                    registry,
-                    "--username",
-                    required(env, "ALIYUN_ACR_USERNAME"),
-                    "--password-stdin",
-                ],
-                input=required(env, "ALIYUN_ACR_PASSWORD"),
-                env=docker_env,
-            )
+            write_registry_auth(docker_config, env)
             image = f"{registry}/{namespace}/qs-ai@{digest}"
             run(
                 "image pull", ["docker", "pull", "--platform", "linux/amd64", image], env=docker_env
