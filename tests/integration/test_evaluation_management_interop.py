@@ -70,7 +70,7 @@ async def go_management(tmp_path):
 
 
 @pytest.fixture
-async def realtime_run(setup_run):
+async def realtime_run(setup_run, decision):
     tx, run_id, release = setup_run
     refs, _, routes, schemas = assets()
     semantic = load_semantic_assets()
@@ -85,6 +85,12 @@ async def realtime_run(setup_run):
         semantic_output_schema=semantic.output_schema,
     )
     at = datetime.now(UTC) - timedelta(minutes=10)
+    if decision == "start":
+        async with tx.open() as db:
+            state = await create_run(db, run_id, release, 1, "user:42", "跨进程管理测试", at)
+            await db.commit()
+        yield tx, run_id, state
+        return
     async with tx.open() as db:
         await create_run(db, run_id, release, 1, "user:42", "跨进程管理测试", at)
         await transition_requested(db, run_id, 1, 1, "collecting", "user:42", "开始", at)
@@ -123,7 +129,7 @@ async def realtime_run(setup_run):
             await db.commit()
 
 
-@pytest.mark.parametrize("decision", ["cancel_run", "authorize_replacement"])
+@pytest.mark.parametrize("decision", ["cancel_run", "authorize_replacement", "start"])
 async def test_go_python_governance_mtls_resolution_and_readback(
     realtime_run, go_management, tmp_path, decision
 ):
@@ -177,23 +183,32 @@ async def test_go_python_governance_mtls_resolution_and_readback(
                 process.kill()
                 await process.wait()
 
+    action = "start" if decision == "start" else "resolve"
     try:
         initial = await call()
-        assert initial["Code"] == "OK" and initial["State"]["status"] == "blocked"
-        assert (await call(Allowed=False, Action="resolve"))["Denied"]
-        assert (await call(Confirm=False, Action="resolve"))["Invalid"]
+        assert initial["Code"] == "OK"
+        assert initial["State"]["status"] == ("requested" if decision == "start" else "blocked")
+        assert (await call(Allowed=False, Action=action))["Denied"]
+        assert (await call(Confirm=False, Action=action))["Invalid"]
         assert (await call(OrgID=2))["Code"] == "NotFound"
-        assert (await call(certificate="other", Action="resolve"))["Code"] == "PermissionDenied"
+        assert (await call(certificate="other", Action=action))["Code"] == "PermissionDenied"
         assert (await rows(tx, run_id))[2]["version"] == state.version
-        accepted = await call(Action="resolve")
+        accepted = await call(Action=action)
         assert accepted["Code"] == "OK"
         assert accepted["State"]["status"] == (
             "canceled" if decision == "cancel_run" else "collecting"
         )
         readback = await call()
         assert readback["State"] == accepted["State"]
-        assert readback["State"]["resolutions"][0]["actor"] == "user:42"
-        assert (await call(Action="resolve"))["Code"] == "Aborted"
+        if decision == "start":
+            persisted = (await rows(tx, run_id))[0]["progress_json"]
+            assert persisted["transitions"][-1]["actor"] == "user:42"
+            assert persisted["transitions"][-1]["cause_code"] == "evaluation_started"
+            assert readback["State"]["version"] == state.version + 1
+            assert (await call(Action=action, Version=state.version + 1))["Code"] == "Aborted"
+        else:
+            assert readback["State"]["resolutions"][0]["actor"] == "user:42"
+        assert (await call(Action=action))["Code"] == "Aborted"
         assert (await call(Allowed=False))["Denied"]
     finally:
         await server.stop(0)

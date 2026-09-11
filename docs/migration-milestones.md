@@ -216,3 +216,14 @@ M1 → M2 → M3 → M4 → M5。M3 清单分析可提前开展，生产切换�
 
 - 跨语言管理增量：在 QS 独立工作区提交 `f8a7ebf45e98dc16e004dcac6177d9b4edab52bc` 编译真实应用服务与 mTLS 客户端探针，调用 Python EvaluationManagement 处理器及真实 MySQL 管理事务。两项场景分别覆盖 cancel_run、authorize_replacement：错误工作负载证书/错误组织拒绝、缺少确认或撤权不转发、决定成功落库、状态回读一致、重复旧版本冲突，审计 actor 为 user:42。测试执行由正常创建/预检/发送/过期恢复路径产生过去时间的证据，服务端采用真实时钟。
 - 使用临时 CA/证书及隔离 MySQL 8.4，IAM 授权快照为测试构造；调用跨 Go/Python 进程，但没有生产 IAM/HTTP 入口、真实报告或模型流量，不构成 M1–M5 生产验收。互操作测试需显式设置 QS_AI_GOVERNANCE_SOURCE 指向包含管理桥接的独立 QS checkout；临时 Go 源目录结束后自动清理，QS 工作区保持干净。下一批完善正式 API 文档并检查两份草稿的精确 CI 状态。
+
+### 2026-09-12：人工处置合并与启动管理入口
+
+- PR #34 源提交 `6d0f1e55ba0a41a258c9a3c7c894cd95a746846f` 的 CI [34649868072](https://github.com/FangcunMount/qs-ai/actions/runs/34649868072) 镜像和 MySQL 8.0.36/8.4 检查通过，合并至 `ac24914a211bc721b06dd34d1337acbac60ec987`。仅代码合并，生产管理与执行仍关闭。
+- QS PR #86 已生成两个管理 REST 接口及 OpenAPI 文档，本地 API 一致性、80 项文档门禁测试和事实检查通过。最新 CI 发现注释格式缺少空行，已修复并通过本地 fmt-check；继续等待修复提交 CI，不以先前提交通过代替最新版本证明。
+- `codex/evaluation-start-management` 新增默认关闭管理服务的 Start RPC：可信 QS 身份和机构/操作者上下文、明确确认、版本校验；仅 requested Run 可以原子进入 collecting，记录服务端时间及操作人，原冻结定义和预算不变。RPC 不直接调用模型，后续由独立执行进程领取。
+- 6 项隔离 MySQL 8.4 测试通过，覆盖并发唯一接受、重复启动、错误机构/版本/确认/原因/时间均不改状态；管理 RPC 专项 17 项通过，非集成回归 519 项通过、11 项跳过。Ruff、mypy、协议生成和文档检查通过；临时数据库已移除。
+- Start 的 QS 转发尚未接入，Run 创建、人工质量审批和发布仍待实现；本批不代表真实 IAM 或业务入口验收，未部署。M1–M5 验收状态不变。
+
+- 启动链路后续证据：QS 独立分支提交 `0c8a08d1ae05b727e3f4cc4f6ff09e3b9440e712` 已提供 POST `/internal/v2/interpretation/ai-workflow/evaluations/{run_id}/start`，经过当前 OrgAdmin 判断和受保护身份上下文转发。对应 Go 应用/客户端/REST/grpc 包测试、fmt-check、API 生成一致性及文档门禁通过，接口清单为 201 REST operations / 180 paths、64 RPC；精确提交 CI 仍待完成。
+- 在上述 QS 提交编译真实 Go 管理探针，启动/取消/授权替代三项 Go → Python → MySQL 8.4 互操作测试通过。启动场景通过正常创建获得 requested Run；实际服务端时钟写入启动审计，状态进入 collecting 且版本只增加一次；旧版本及当前版本的重复启动都被拒绝，错机构、非可信证书、缺确认和撤权均拒绝。测试使用临时证书、隔离数据库与合成 IAM 快照；未验证生产 IAM/HTTP 页面或调用模型。临时数据库及 Go 源目录已清理，QS 工作区保持干净。

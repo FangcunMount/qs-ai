@@ -159,3 +159,15 @@ class EvaluationState(_message.Message):
     unresolved_result_unknown_count: int
     resolutions_json: str
     def __init__(self, run_id: _Optional[str] = ..., version: _Optional[int] = ..., status: _Optional[str] = ..., unresolved_result_unknown_count: _Optional[int] = ..., resolutions_json: _Optional[str] = ...) -> None: ...
+
+class EvaluationStartCommand(_message.Message):
+    __slots__ = ("scope", "expected_version", "reason", "confirm")
+    SCOPE_FIELD_NUMBER: _ClassVar[int]
+    EXPECTED_VERSION_FIELD_NUMBER: _ClassVar[int]
+    REASON_FIELD_NUMBER: _ClassVar[int]
+    CONFIRM_FIELD_NUMBER: _ClassVar[int]
+    scope: EvaluationQuery
+    expected_version: int
+    reason: str
+    confirm: bool
+    def __init__(self, scope: _Optional[_Union[EvaluationQuery, _Mapping]] = ..., expected_version: _Optional[int] = ..., reason: _Optional[str] = ..., confirm: _Optional[bool] = ...) -> None: ...

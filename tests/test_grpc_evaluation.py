@@ -109,3 +109,40 @@ async def test_error_responses_do_not_expose_internal_data(handler, failure, cod
 
 def test_governance_registration_is_disabled_in_production_defaults():
     assert not Settings(environment="production").grpc.governance_enabled
+
+
+async def test_start_uses_server_time_and_trusted_actor(handler):
+    service, store = handler
+    request = pb.EvaluationStartCommand(
+        scope=command().scope, expected_version=1, reason="启动", confirm=True
+    )
+    store.start.return_value = EvaluationView(request.scope.run_id, 2, "collecting", 0, "[]")
+    reply = await service.Start(request, Context())
+    assert reply.status == "collecting" and reply.version == 2
+    scope, version, reason, at = store.start.await_args.args
+    assert scope.actor == "user:42" and version == 1 and reason == "启动"
+    assert at.utcoffset().total_seconds() == 0
+    assert store.start.await_args.kwargs == {"confirm": True}
+
+
+@pytest.mark.parametrize("invalid", ["confirm", "version", "scope", "workload"])
+async def test_start_rejected_before_store(handler, invalid):
+    service, store = handler
+    request = pb.EvaluationStartCommand(
+        scope=command().scope, expected_version=1, reason="启动", confirm=True
+    )
+    context = Context()
+    expected = grpc.StatusCode.INVALID_ARGUMENT
+    if invalid == "confirm":
+        request.confirm = False
+    elif invalid == "version":
+        request.expected_version = 0
+    elif invalid == "scope":
+        request.scope.operator_user_id = 0
+    else:
+        context.auth_context = lambda: {}
+        expected = grpc.StatusCode.PERMISSION_DENIED
+    with pytest.raises(Aborted) as error:
+        await service.Start(request, context)
+    assert error.value.args[0] == expected
+    store.start.assert_not_awaited()
