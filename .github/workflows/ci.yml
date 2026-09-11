@@ -47,7 +47,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: FangcunMount/qs-server
-          ref: 27972264bd5ca0d0386244f25e987b048acd2680
+          ref: b9a2425260c629810f08c145cf479023fdeea90e
           path: .interop/qs-server
       - uses: actions/setup-go@v5
         with:
@@ -56,6 +56,7 @@ jobs:
       - name: Build pinned QS bridge and initialize separate test database
         run: |
           (cd .interop/qs-server && go build -o ../qs-ai-bridge ./cmd/qs-ai-bridge)
+          (cd .interop/qs-server && go build -o ../qs-ai-access-probe ./internal/apiserver/transport/grpc/service/testdata/accessprobe)
           uv run python - <<'PYTHON'
           import asyncio
           from pathlib import Path
@@ -78,6 +79,7 @@ jobs:
       - run: uv run pytest
         env:
           QS_AI_BRIDGE_BIN: ${{ github.workspace }}/.interop/qs-ai-bridge
+          QS_AI_ACCESS_PROBE_BIN: ${{ github.workspace }}/.interop/qs-ai-access-probe
           QS_AI_TEST_QS_MYSQL_DSN: mysql+asyncmy://qs_ai:qs_ai_local@127.0.0.1:3306/qs_gateway
           QS_AI_TEST_QS_GO_DSN: qs_ai:qs_ai_local@tcp(127.0.0.1:3306)/qs_gateway?parseTime=true
       - run: uv build

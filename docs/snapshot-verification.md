@@ -17,3 +17,5 @@ QS 新增独立 ai-workflows 产品入口，复用原主体委托与归属判断
 2026-09-11 授权绕过修复验证：独立 MySQL 8.0.36，88 项非 interop 测试通过；新增四个执行前/后拒绝与依赖故障用例在旧实现上全部失败，修复后通过。Ruff、mypy、文档链接检查通过；未运行真实 QS 持久主体授权联调，不满足 M1 完成门槛。
 
 当前授权适配：固定 QS 契约 96638d4039d7，QSAccessSource 调用 AIWorkflowAccessService.Authorize；Dishka 按 grpc.access_address 选择适配并管理 mTLS 通道生命周期。未配置默认拒绝；不持有用户令牌，不读取冻结快照之外的新事实。59 项非 integration 测试通过，含真实 TLS 的 Python 测试服务及状态映射；尚不代表 Go/Python 和生产 IAM 联调通过。
+
+Go/Python 授权联调已通过：Python QSAccessSource → Go AIWorkflowAccessService → CurrentAccess，真实 mTLS；同连接有效→撤销→恢复、跨组织/用户/Testee/测评、错误服务证书与关系源故障均验证。Go fixture 的 Testee/关系/归属数据为隔离替身，尚未证明真实 IAM 或生产调用。CI 固定 QS b9a2425260c629810f08c145cf479023fdeea90e 并构建专用测试进程，纳入每次 pytest。
