@@ -28,3 +28,5 @@ ReportWorkflow 已组合准备输入、持久生成、成果校验并返回 Work
 
 
 运行配置集中在 configs/default.yaml 的 generation 节点：启用开关、Profile ID/版本、供应商地址、模型路线及参数。QS_AI_MODEL_API_KEY 仅通过环境变量或显式测试参数提供，禁止写入 YAML；启用生成必须同时配置 HTTPS 地址、非空凭据和 grpc.access_address。HTTP 客户端随请求作用域释放，禁用重定向和隐式环境代理。配置、容器和架构测试覆盖默认关闭、缺配置拒绝、正式组装与 YAML 密钥拒绝；仅组装对象，没有发起真实模型请求。
+
+常驻入口为 `python -m qs_ai.bootstrap.worker --serve` 和 `python -m qs_ai.bootstrap.integration deliver --continuous`，原有探针/单次执行方式保持兼容。worker/delivery 配置各自的并发、空闲等待、最大退避和退出等待；默认并发为 1。收到 SIGTERM/SIGINT 后先停止领取，在途任务继续续租与收尾，超时取消并释放请求作用域。异常日志不输出底层异常正文。首次领取前解析 Workflow/TLS 并检查数据库；尚未加入生产 Compose，也尚未完成进程健康信号及真实进程终止恢复演练。

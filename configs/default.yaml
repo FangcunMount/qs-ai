@@ -10,6 +10,10 @@ database:
   connect_timeout: 3
 worker:
   lease_seconds: 30
+  concurrency: 1
+  idle_seconds: 1
+  max_backoff_seconds: 30
+  shutdown_seconds: 130
 generation:
   enabled: false
   profile_id: participant-scale-score-range-default
@@ -37,3 +41,7 @@ grpc:
 delivery:
   batch_size: 20
   max_retry_seconds: 60
+  concurrency: 1
+  idle_seconds: 1
+  max_backoff_seconds: 30
+  shutdown_seconds: 15

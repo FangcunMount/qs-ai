@@ -26,7 +26,14 @@ class DatabaseOptions(Options):
     connect_timeout: int = Field(ge=1)
 
 
-class WorkerOptions(Options):
+class LoopOptions(Options):
+    concurrency: int = Field(ge=1, le=32)
+    idle_seconds: float = Field(gt=0)
+    max_backoff_seconds: float = Field(gt=0)
+    shutdown_seconds: float = Field(ge=0)
+
+
+class WorkerOptions(LoopOptions):
     lease_seconds: int = Field(ge=3)
 
 
@@ -58,7 +65,7 @@ class GRPCOptions(Options):
     key_file: str | None
 
 
-class DeliveryOptions(Options):
+class DeliveryOptions(LoopOptions):
     batch_size: int = Field(ge=1, le=100)
     max_retry_seconds: int = Field(ge=1, le=86400)
 
