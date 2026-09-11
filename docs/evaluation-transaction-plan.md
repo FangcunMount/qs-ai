@@ -172,3 +172,7 @@ PR #30 精确提交 `65d67755b34df8214d3b37e5b43abf7faec1886d` 的 CI `346405774
 ### 共用网络调用层
 
 DeepSeek Responses 请求序列化拆出 `build_messages_request`，新增 `generate_messages` 接收阶段消息/路由/Schema，生成入口继续先校验 Profile 路由，再共用原 HTTP 发送、大小/超时/响应解析逻辑。语义请求无需伪造生成 PreparedExplanation 或更改生成 Profile。原生成测试与新增语义路由/Schema/消息投影、超时单次发送共 28 项通过，Ruff/mypy 通过。HTTP 测试使用 MockTransport，不代表真实供应商接入验收；持久评测执行器仍需在发送事务提交后调用此适配器。
+
+### 调用错误进入冻结恢复策略
+
+新增 `classify_provider_failure`，对照 QS classifyGenerationFailureV2/classifySemanticFailureV2 与语义 diagnostics 分支：生成保留原安全错误代码，语义限流映射 semantic_provider_rate_limited，语义未知映射 semantic_result_unknown；未知结果覆盖 retryable 并强制 manual_acknowledgement。原始错误代码作为受约束 diagnostics，异常正文不写入证据。8 项测试通过，覆盖限流允许恢复、未知禁止自动重试、一般错误不越过策略白名单及错误文本隔离。现有 Python ProviderFailure 缺少 completed/no_message 诊断，因此不会凭 cardinality 错误猜测并启用对应重试；该诊断能力仍需补齐。此映射尚待持久执行器调用。
