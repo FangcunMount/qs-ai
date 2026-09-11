@@ -24,4 +24,7 @@ MySQL 集成测试验证成果和事件同步保存、Outbox 写入失败时整�
 
 完整成果跨语言验证位于 tests/integration/test_artifact_delivery.py：使用 MySQL 保存的候选及 Outbox、Python GRPCResultReceiver、独立 Go 进程中的真实 Results 接收器和 QS MySQL 投影，在测试 CA 下建立 mTLS；覆盖完成事件先于旧状态、确认丢失、接收器重启及相同成果重投。本地 MySQL 8.4 已通过，CI 固定 QS 成果接收版本 b13c21e02d0d2abf97062c221aeb69565047f419 并纳入 8.0.36/8.4 矩阵。原 Prompt 来源和旧协议兼容测试保留原固定提交，不用新代码替换历史对照基线。该验证没有调用真实模型，也未证明生产授权、客户端展示或 M2 全部验收完成。
 
-ReportWorkflow 已组合准备输入、持久生成、成果校验并返回 WorkflowResult，由 ExecuteNext 在再次授权后提交成果。供应商未知结果统一呈现 provider_result_unknown，格式/安全不合格呈现具体失败码，数据库失败与取消继续传播以保留恢复语义。MySQL 集成测试通过成功、Schema 不合格、安全规则拒绝、执行前撤权、调用后撤权及未知超时六个分支；仍使用模型和权限测试替身。生产依赖注入当前仍选择 UnconfiguredWorkflow，尚待配置与常驻进程接线。
+ReportWorkflow 已组合准备输入、持久生成、成果校验并返回 WorkflowResult，由 ExecuteNext 在再次授权后提交成果。供应商未知结果统一呈现 provider_result_unknown，格式/安全不合格呈现具体失败码，数据库失败与取消继续传播以保留恢复语义。MySQL 集成测试通过成功、Schema 不合格、安全规则拒绝、执行前撤权、调用后撤权及未知超时六个分支；仍使用模型和权限测试替身。GenerationProvider 已支持按配置组装正式 Workflow；generation.enabled 默认为 false，默认仍选择 UnconfiguredWorkflow。常驻进程与生产启用尚待完成。
+
+
+运行配置集中在 configs/default.yaml 的 generation 节点：启用开关、Profile ID/版本、供应商地址、模型路线及参数。QS_AI_MODEL_API_KEY 仅通过环境变量或显式测试参数提供，禁止写入 YAML；启用生成必须同时配置 HTTPS 地址、非空凭据和 grpc.access_address。HTTP 客户端随请求作用域释放，禁用重定向和隐式环境代理。配置、容器和架构测试覆盖默认关闭、缺配置拒绝、正式组装与 YAML 密钥拒绝；仅组装对象，没有发起真实模型请求。

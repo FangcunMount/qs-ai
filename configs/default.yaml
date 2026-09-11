@@ -10,6 +10,20 @@ database:
   connect_timeout: 3
 worker:
   lease_seconds: 30
+generation:
+  enabled: false
+  profile_id: participant-scale-score-range-default
+  profile_version: v6
+  endpoint: null
+  route: balanced_text_v1
+  revision: v8
+  provider: deepseek
+  model: deepseek-v4-pro
+  protocol: responses
+  structured_output_mode: json_schema
+  timeout_milliseconds: 120000
+  max_output_tokens: 12000
+  reasoning_effort: none
 grpc:
   bind_address: 127.0.0.1:50061
   result_address: null

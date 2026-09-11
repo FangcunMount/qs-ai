@@ -30,6 +30,22 @@ class WorkerOptions(Options):
     lease_seconds: int = Field(ge=3)
 
 
+class GenerationOptions(Options):
+    enabled: bool
+    profile_id: str = Field(min_length=1)
+    profile_version: str = Field(min_length=1)
+    endpoint: str | None
+    route: str = Field(min_length=1)
+    revision: str = Field(min_length=1)
+    provider: Literal["deepseek"]
+    model: str = Field(min_length=1)
+    protocol: Literal["responses"]
+    structured_output_mode: Literal["json_schema"]
+    timeout_milliseconds: int = Field(ge=1000, le=600000)
+    max_output_tokens: int = Field(ge=1, le=100000)
+    reasoning_effort: Literal["none", "low", "medium", "high"]
+
+
 class GRPCOptions(Options):
     bind_address: str = Field(min_length=1)
     result_address: str | None
@@ -62,7 +78,7 @@ def read_yaml(path: Path) -> dict[str, Any]:
     if not isinstance(data, dict) or any(not isinstance(key, str) for key in data):
         raise ValueError(f"Configuration must be a mapping: {path.name}")
     # Credentials belong to environment variables or explicit test parameters only.
-    if "database_url" in data or "environment" in data:
+    if any(key in data for key in ("database_url", "environment", "model_api_key")):
         raise ValueError(f"Reserved configuration key in: {path.name}")
     return data
 
@@ -90,6 +106,8 @@ class Settings(BaseSettings):
 
     environment: Literal["local", "production"] = "local"
     database_url: SecretStr | None = None
+    model_api_key: SecretStr | None = None
+    generation: GenerationOptions
     http: HTTPOptions
     database: DatabaseOptions
     worker: WorkerOptions
