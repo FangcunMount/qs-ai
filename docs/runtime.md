@@ -148,3 +148,11 @@ uv run python -m qs_ai.bootstrap.build_manifest \
 清单绑定 Profile、Prompt、generation route、input schema、output schema 的明确版本、原指纹及内容校验和。缺失、仓库返回身份不符或未知版本失败，不回退 latest；Prompt 包校验和独立绑定，避免同原指纹不同导出内容被视为同一清单。资产 insert-only，因此各次只读查询不会遭遇内容原地替换。
 
 这是 `qs-ai-generation-manifest/v1`，不是 QS 的完整评测 release identity；后者还需用例集、语义评测 Prompt/schema/route、执行策略及门槛策略。命令返回 `approved: false`、`activated: false`，不持久保存发布状态，也不验证已知输入兼容问题。运行时尚未切换为清单驱动。
+
+## Prompt 评测进程（M3 增量，未部署）
+
+`python -m qs_ai.bootstrap.evaluation` 默认只检查数据库，`--once` 推进至多一个评测步骤，`--serve` 常驻轮询。执行模式必须显式设置 `QS_AI_EVALUATION__ENABLED=true`；默认及当前生产保持关闭，不因开启报告生成自动开启评测。评测只处理已由管理入口启动的 collecting Run，不自动启动 requested Run。
+
+循环参数集中在 `configs/default.yaml` 的 `evaluation`：并发、空闲等待、异常退避、退出排空时限和独立健康文件。模型连接复用 `generation.endpoint` 与环境变量 `QS_AI_MODEL_API_KEY`，数据库使用 `QS_AI_DATABASE_URL`；实际模型路由和输出规范来自 Run 冻结身份及已导入资产。启动检查 HTTPS 地址、非空凭据和数据库配置；每轮独立 Dishka 作用域，关闭连接后再进入下一轮。配置检查与数据库连通不能替代资产完整性和真实业务验收。
+
+轮询先接受预检，再推进生成或语义步骤。任何活动检查点（包括租约已过期的发送）都不由普通轮询重发；恢复流程另行处理。收到 SIGTERM/SIGINT 后停止领取、限时等待在途工作，超时取消时保留持久检查点。尚未配置生产 Compose/CI 开关，发送恢复、管理授权、人工审核及发布门禁仍需继续建设。

@@ -47,3 +47,10 @@ delivery:
   idle_seconds: 1
   max_backoff_seconds: 30
   shutdown_seconds: 15
+evaluation:
+  enabled: false
+  health_file: /tmp/qs-ai-evaluation-health.json
+  concurrency: 1
+  idle_seconds: 1
+  max_backoff_seconds: 30
+  shutdown_seconds: 130

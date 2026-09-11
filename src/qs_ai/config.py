@@ -34,6 +34,10 @@ class LoopOptions(Options):
     shutdown_seconds: float = Field(ge=0)
 
 
+class EvaluationOptions(LoopOptions):
+    enabled: bool
+
+
 class WorkerOptions(LoopOptions):
     lease_seconds: int = Field(ge=3)
 
@@ -119,6 +123,7 @@ class Settings(BaseSettings):
     http: HTTPOptions
     database: DatabaseOptions
     worker: WorkerOptions
+    evaluation: EvaluationOptions
     grpc: GRPCOptions
     delivery: DeliveryOptions
 
