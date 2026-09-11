@@ -25,9 +25,17 @@ pytestmark = pytest.mark.integration
 @pytest.fixture
 async def dispatched(setup_run):
     tx, run_id, release = setup_run
+    from qs_ai.infrastructure.qs_server.semantic_assets import load_semantic_assets
+
     bound, value, routes, schemas = assets()
+    semantic = load_semantic_assets()
     release = replace(
-        release, generation_route=bound.generation_route, output_schema=bound.output_schema
+        release,
+        generation_route=bound.generation_route,
+        output_schema=bound.output_schema,
+        semantic_route=bound.generation_route,
+        semantic_prompt=semantic.prompt,
+        semantic_output_schema=semantic.output_schema,
     )
     value = replace(value, case_id="PROMPT-EVAL-001")
     at = value.started_at
