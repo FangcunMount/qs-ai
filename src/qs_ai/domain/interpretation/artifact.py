@@ -20,3 +20,7 @@ class ArtifactCandidate:
     route_fingerprint: str
     output_validator_version: str
     safety_validator_version: str
+    assessment_id: str
+    report_id: str
+    source_version: str
+    schema_version: str = "qs-ai-artifact/v1"

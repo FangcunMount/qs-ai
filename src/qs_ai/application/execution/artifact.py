@@ -61,4 +61,7 @@ def build_artifact(
         frozen.route.fingerprint(),
         checked.deterministic_validator_version,
         checked.safety_validator_version,
+        evidence.items[0].assessment_id,
+        evidence.items[0].report_id,
+        evidence.items[0].source_version,
     )
