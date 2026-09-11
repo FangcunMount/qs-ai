@@ -1,5 +1,6 @@
 """Reconstruct planned slots from terminal evidence, never from dispatch counts alone."""
 
+import json
 from datetime import datetime
 from typing import Any
 
@@ -7,6 +8,7 @@ from qs_ai.application.evaluation.checkpoints import CheckpointConflict
 from qs_ai.domain.evaluation.actions import CandidateProgress, ExecutionResult, SlotProgress
 from qs_ai.domain.evaluation.completion import GenerationCompletion, ProviderReceipt
 from qs_ai.domain.evaluation.failure import ClassifiedFailure, ProviderDiagnostics
+from qs_ai.domain.evaluation.semantic_completion import SemanticCompletion
 from qs_ai.infrastructure.persistence.mysql.evaluation_checkpoints import decode
 
 
@@ -32,11 +34,15 @@ def decode_completion(row: Any) -> GenerationCompletion:
 
 
 def project_slots(
-    plan: list[dict], records: list[Any], dispatches: list[Any]
+    plan: list[dict],
+    records: list[Any],
+    dispatches: list[Any],
+    semantic_records: list[Any] | None = None,
 ) -> tuple[SlotProgress, ...]:
-    """Semantic terminal projection will extend this; pending dispatches block preparation."""
+    """Every dispatch must have terminal evidence before new preparation."""
+    semantic_records = semantic_records or []
     ledger = {row["invocation_id"]: row for row in dispatches}
-    if len(ledger) != len(dispatches) or len(records) != len(ledger):
+    if len(ledger) != len(dispatches) or len(records) + len(semantic_records) != len(ledger):
         raise CheckpointConflict("Dispatch and terminal evidence require reconciliation")
     grouped: dict[tuple[str, int], list[tuple[GenerationCompletion, Any]]] = {
         (slot["case_id"], slot["ordinal"]): [] for slot in plan
@@ -97,9 +103,111 @@ def project_slots(
                     or not stored.get("assertions")
                 ):
                     raise CheckpointConflict("Successful generation missing matching candidate")
-                candidate = CandidateProgress(stored["id"], stored["review_ready"])
+                candidate = project_candidate(stored, value, semantic_records, ledger, seen)
             elif stored is not None or row["candidate_id"] is not None:
                 raise CheckpointConflict("Failed execution cannot own candidate")
             executions.append(ExecutionResult(value.status, value.failure))
         slots.append(SlotProgress(slot["case_id"], slot["ordinal"], tuple(executions), candidate))
+    if seen != ledger.keys():
+        raise CheckpointConflict("Unmatched dispatch or semantic candidate")
     return tuple(slots)
+
+
+def project_candidate(
+    stored: dict, generated: GenerationCompletion, records: list[Any], ledger: dict, seen: set[str]
+) -> CandidateProgress:
+    history = sorted(
+        (r for r in records if r["candidate_id"] == stored["id"]),
+        key=lambda r: r["execution_ordinal"],
+    )
+    if [r["execution_ordinal"] for r in history] != list(range(1, len(history) + 1)):
+        raise CheckpointConflict("Incomplete semantic execution sequence")
+    executions = []
+    accepted = None
+    for row in history:
+        if accepted is not None:
+            raise CheckpointConflict("Semantic execution continued after accepted result")
+        fields = dict(row["evidence_json"])
+        fingerprint = fields.pop("output_fingerprint")
+        for key in ("started_at", "finished_at"):
+            fields[key] = datetime.fromisoformat(fields[key])
+        if fields["receipt"] is not None:
+            fields["receipt"] = ProviderReceipt(**fields["receipt"])
+        if fields["failure"] is not None:
+            failure = dict(fields["failure"])
+            failure["evidence_refs"] = tuple(failure["evidence_refs"])
+            if failure["provider_diagnostics"] is not None:
+                failure["provider_diagnostics"] = ProviderDiagnostics(
+                    **failure["provider_diagnostics"]
+                )
+            fields["failure"] = ClassifiedFailure(**failure)
+        value = SemanticCompletion(
+            **fields, raw_output=row["raw_output"], normalized_output=row["normalized_output"]
+        )
+        if value.output_fingerprint != fingerprint or any(
+            getattr(value, k) != row[k]
+            for k in ("execution_id", "invocation_id", "candidate_id", "execution_ordinal")
+        ):
+            raise CheckpointConflict("Semantic bytes or index differ from evidence")
+        entry = ledger.get(value.invocation_id)
+        cp = decode(entry["checkpoint_json"]) if entry is not None else None
+        if (
+            cp is None
+            or not value.matches_checkpoint(cp, cp.owner, generated.normalized_fingerprint)
+            or (cp.case_id, cp.slot_ordinal) != (generated.case_id, generated.slot_ordinal)
+            or value.invocation_id in seen
+        ):
+            raise CheckpointConflict("Semantic completion does not match candidate dispatch")
+        assert entry is not None
+        if any(
+            entry[k] != getattr(cp, k)
+            for k in (
+                "execution_id",
+                "invocation_id",
+                "kind",
+                "case_id",
+                "slot_ordinal",
+                "candidate_id",
+            )
+        ):
+            raise CheckpointConflict("Semantic dispatch index mismatch")
+        seen.add(value.invocation_id)
+        result = row["result_json"]
+        if value.status == "succeeded":
+            output = json.loads(value.normalized_output)
+            if (
+                result is None
+                or result["output_fingerprint"] != fingerprint
+                or dict(result["scores"]) != output["scores"]
+                or result["rationale"] != output["rationale"].strip()
+            ):
+                raise CheckpointConflict("Semantic result differs from normalized evidence")
+            expected = {(d["type"], d["scope"], d["ordinal"]): d for d in output["decisions"]}
+            if len(expected) != len(output["decisions"]) or len(result["decisions"]) != len(
+                expected
+            ):
+                raise CheckpointConflict("Semantic decisions incomplete or duplicated")
+            current = {(a["type"], a["scope"], a["ordinal"]): a for a in stored["assertions"]}
+            for decision in result["decisions"]:
+                decision_key = (decision["type"], decision["scope"], decision["ordinal"])
+                raw = expected.pop(decision_key, None)
+                if (
+                    raw is None
+                    or decision != current.get(decision_key)
+                    or decision["status"] != raw["status"]
+                    or decision["detail"] != raw["detail"].strip()
+                    or decision["evaluator"] != result["evaluator_version"]
+                ):
+                    raise CheckpointConflict(
+                        "Candidate decisions differ from accepted semantic result"
+                    )
+            accepted = value.execution_id
+        elif result is not None:
+            raise CheckpointConflict("Failed semantic execution cannot contain result")
+        executions.append(ExecutionResult(value.status, value.failure))
+    if (
+        stored["review_ready"] != (accepted is not None)
+        or stored.get("accepted_semantic_execution_id") != accepted
+    ):
+        raise CheckpointConflict("Candidate review readiness lacks matching semantic evidence")
+    return CandidateProgress(stored["id"], stored["review_ready"], tuple(executions))

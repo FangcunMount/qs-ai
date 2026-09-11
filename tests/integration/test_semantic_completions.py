@@ -194,3 +194,180 @@ async def test_concurrent_semantic_completion_accepts_once(judge):
     results = await asyncio.gather(attempt(), attempt(), return_exceptions=True)
     assert sum(isinstance(result, CheckpointConflict) for result in results) == 1
     assert len(await evidence(tx, run_id)) == 1
+
+
+async def test_all_35_candidates_complete_before_awaiting_review(judge):
+    from qs_ai.infrastructure.persistence.mysql.evaluation_preparation import prepare_execution
+    from tests.test_generation_completion_assets import assets
+
+    tx, run_id, first, routes = judge
+    _, generated, _, schemas = assets()
+    obligations = context()[3]
+    at = first.finished_at
+    async with tx.open() as db:
+        state = await complete(db, judge)
+        await db.commit()
+    for index in range(2, 36):
+        async with tx.open() as db:
+            state = await prepare_execution(
+                db,
+                run_id,
+                state.version,
+                1,
+                "worker:2",
+                f"generation:{index}",
+                f"gen-call:{index}",
+                at,
+                at + timedelta(seconds=30),
+            )
+            cp = state.checkpoint
+            assert (cp.kind, cp.case_id, cp.slot_ordinal) == (
+                "generation",
+                f"PROMPT-EVAL-{(index - 1) // 5 + 1:03}",
+                (index - 1) % 5 + 1,
+            )
+            state = await reserve_dispatch(db, run_id, state.version, "worker:2", at)
+            generation = replace(
+                generated,
+                execution_id=cp.execution_id,
+                invocation_id=cp.invocation_id,
+                case_id=cp.case_id,
+                slot_ordinal=cp.slot_ordinal,
+                started_at=at,
+                finished_at=at + timedelta(seconds=1),
+                receipt=replace(generated.receipt, invocation_id=cp.invocation_id),
+            )
+            state = await accept(
+                db,
+                (tx, run_id, generation, routes, schemas),
+                expected_version=state.version,
+                owner="worker:2",
+                candidate_id=f"candidate:{index}",
+                assertions=obligations,
+            )
+            at += timedelta(seconds=1)
+            state = await prepare_execution(
+                db,
+                run_id,
+                state.version,
+                1,
+                "worker:2",
+                f"semantic:{index}",
+                f"sem-call:{index}",
+                at,
+                at + timedelta(seconds=30),
+            )
+            cp = state.checkpoint
+            assert cp.kind == "semantic" and cp.candidate_id == f"candidate:{index}"
+            state = await reserve_dispatch(db, run_id, state.version, "worker:2", at)
+            semantic = replace(
+                first,
+                execution_id=cp.execution_id,
+                invocation_id=cp.invocation_id,
+                candidate_id=cp.candidate_id,
+                candidate_output_fingerprint=generation.normalized_fingerprint,
+                started_at=at,
+                finished_at=at + timedelta(seconds=1),
+                receipt=replace(first.receipt, invocation_id=cp.invocation_id),
+            )
+            state = await complete(db, judge, expected_version=state.version, completion=semantic)
+            await db.commit()
+            at += timedelta(seconds=1)
+        run, _, _ = await rows(tx, run_id)
+        assert run["progress_json"]["status"] == (
+            "awaiting_review" if index == 35 else "collecting"
+        )
+    assert len(await stored(tx, run_id)) == len(await evidence(tx, run_id)) == 35
+    async with tx.open() as db:
+        with pytest.raises(CheckpointConflict):
+            await prepare_execution(
+                db,
+                run_id,
+                state.version,
+                1,
+                "worker:2",
+                "extra:1",
+                "extra-call:1",
+                at,
+                at + timedelta(seconds=30),
+            )
+
+
+async def test_semantic_retry_keeps_candidate_and_generation_count(judge):
+    from qs_ai.domain.evaluation.failure import ClassifiedFailure
+    from qs_ai.infrastructure.persistence.mysql.evaluation_preparation import prepare_execution
+
+    tx, run_id, value, _ = judge
+    failure = ClassifiedFailure(
+        "semantic_evaluation",
+        "semantic_execution",
+        "semantic_output_schema_invalid",
+        True,
+        False,
+        "retry_semantic",
+        "Invalid judge output",
+        (value.execution_id,),
+    )
+    async with tx.open() as db:
+        state = await complete(
+            db, judge, completion=replace(value, status="failed", failure=failure)
+        )
+        state = await prepare_execution(
+            db,
+            run_id,
+            state.version,
+            1,
+            "worker:2",
+            "semantic:retry",
+            "call:retry",
+            value.finished_at,
+            value.finished_at + timedelta(seconds=30),
+        )
+        assert (
+            state.checkpoint.kind,
+            state.checkpoint.candidate_id,
+            state.checkpoint.execution_ordinal,
+        ) == ("semantic", value.candidate_id, 2)
+        await reserve_dispatch(db, run_id, state.version, "worker:2", value.finished_at)
+        await db.commit()
+    assert len(await stored(tx, run_id)) == 1
+
+
+@pytest.mark.parametrize("damage", ["missing", "bytes", "decision"])
+async def test_saved_semantic_evidence_damage_blocks_next_candidate(judge, damage):
+    from sqlalchemy import update
+
+    from qs_ai.infrastructure.persistence.mysql.evaluation_preparation import prepare_execution
+
+    tx, run_id, value, _ = judge
+    async with tx.open() as db:
+        await complete(db, judge)
+        if damage == "missing":
+            await db.execute(delete(table).where(table.c.run_id == str(run_id)))
+        elif damage == "bytes":
+            await db.execute(
+                update(table).where(table.c.run_id == str(run_id)).values(normalized_output=b"{}")
+            )
+        else:
+            result = (
+                await db.execute(select(table.c.result_json).where(table.c.run_id == str(run_id)))
+            ).scalar_one()
+            result["decisions"][0]["status"] = "passed"
+            await db.execute(
+                update(table).where(table.c.run_id == str(run_id)).values(result_json=result)
+            )
+        await db.commit()
+    async with tx.open() as db:
+        with pytest.raises(CheckpointConflict):
+            await prepare_execution(
+                db,
+                run_id,
+                9,
+                1,
+                "worker:2",
+                "next:1",
+                "call:next",
+                value.finished_at,
+                value.finished_at + timedelta(seconds=30),
+            )
+    assert (await rows(tx, run_id))[2]["version"] == 9

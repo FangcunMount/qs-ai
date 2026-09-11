@@ -10,11 +10,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict, CheckpointState
 from qs_ai.application.evaluation.release import resolve_semantic_route
 from qs_ai.application.interpretation.route_assets import RouteAssets
+from qs_ai.domain.evaluation.actions import next_action
 from qs_ai.domain.evaluation.identity import EvidenceReleaseIdentity, FrozenContractRef
 from qs_ai.domain.evaluation.preflight import AssertionReceipt
 from qs_ai.domain.evaluation.semantic_completion import SemanticCompletion
 from qs_ai.infrastructure.persistence.mysql.evaluation_checkpoints import decode, save_checkpoint
-from qs_ai.infrastructure.persistence.mysql.evaluation_projection import decode_completion
+from qs_ai.infrastructure.persistence.mysql.evaluation_projection import (
+    decode_completion,
+    project_slots,
+)
 from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_checkpoints,
     evaluation_dispatches,
@@ -228,6 +232,59 @@ async def complete_semantic(
                 "evidence_refs": [completion.execution_id],
             },
         ]
+    if result is not None:
+        generations = (
+            (
+                await db.execute(
+                    select(evaluation_generation_completions)
+                    .where(evaluation_generation_completions.c.run_id == str(run_id))
+                    .with_for_update()
+                )
+            )
+            .mappings()
+            .all()
+        )
+        semantics = (
+            (await db.execute(select(table).where(table.c.run_id == str(run_id)).with_for_update()))
+            .mappings()
+            .all()
+        )
+        dispatches = (
+            (
+                await db.execute(
+                    select(evaluation_dispatches)
+                    .where(evaluation_dispatches.c.run_id == str(run_id))
+                    .with_for_update()
+                )
+            )
+            .mappings()
+            .all()
+        )
+        slots = project_slots(
+            creation["slots"], list(generations), list(dispatches), list(semantics)
+        )
+        preflight = progress["preflight"]
+        action = next_action(
+            progress["status"],
+            preflight["status"],
+            preflight["case_id"],
+            slots,
+            policy,
+            unresolved_unknown=progress.get("unresolved_result_unknown_count", 0),
+        )
+        if action.kind == "await_review":
+            progress["status"] = "awaiting_review"
+            progress["transitions"] = [
+                *progress["transitions"],
+                {
+                    "from": "collecting",
+                    "to": "awaiting_review",
+                    "actor": owner.strip(),
+                    "cause_code": "candidate_evidence_complete",
+                    "at": completion.finished_at.isoformat(),
+                    "evidence_refs": [completion.execution_id],
+                },
+            ]
     state = CheckpointState(run_id, expected_version + 1, None)
     await save_checkpoint(db, state, expected_version)
     await db.execute(
