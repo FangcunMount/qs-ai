@@ -82,3 +82,5 @@ AI 自动部署 `34622452715` 失败；GitHub check annotation 明确为 runner5
 为避免继续堆积失败发布，qs-ai Repository Variable `AUTO_DEPLOY_ENABLED` 已从 true 临时设为 false，普通 CI 未关闭。新的运行 `34625252116` 仍显示 deploy in_progress 且无步骤信息；没有把观察缺失当成已终止，也没有重复发起或中断可能在操作服务器的任务。
 
 恢复前：取得 runner SSH 连接、检查占用与运行任务，只清理已核实归属且可重建的本任务临时产物；再次核对 serverA 实际版本和服务健康。恢复后先完成一次明确版本发布与回执验证，再将 AUTO_DEPLOY_ENABLED 恢复 true。真实报告、授权/撤权及生成业务门槛仍独立验收。
+
+镜像打包也改为 `docker save` 到 gzip 的流式传输，不再额外保留完整未压缩 tar。父进程分别确认两个子进程退出状态，再校验 gzip 和 tar，最后原子替换交付包；失败或超时终止并回收子进程、清理本次临时文件、保留已有完整包。这降低峰值磁盘占用，但不能替代对已满 runner 磁盘的实际修复。
