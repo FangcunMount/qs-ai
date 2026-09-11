@@ -54,3 +54,5 @@
 隔离 MySQL 8.4 的 4 项测试覆盖成功冻结和重复创建，以及策略/检查点写入冲突、提交前异常时全部新增内容回滚。迁移及 Alembic 元数据检查通过。测试中的其他资产引用是占位值，仅验证存储原子性；当前内部操作要求调用方先完成主体授权及全部资产解析，尚未提供该应用入口。因此这不是可执行、可批准的真实 Run，不能通过此存储接口绕过后续身份解析与状态机。下一批需接入资产解析、创建入口和 NextAction，并对 Run 的 requested/collecting 等状态统一实施版本条件更新。
 
 生成侧资产解析器 `resolve_generation_assets` 已复用不可变资产仓库解析 Profile/Prompt/route/input/output 五项引用，并逐项比较原发布身份。QS 评测 Schema 引用使用完整版本（如 `ai-explanation-input/v1`），资产表使用后缀 `v1`，此处显式转换，不能直接复制五项生成清单为评测身份。相关 13 项清单测试通过，包含每一项指纹不符拒绝。该解析器尚未串入完整创建应用入口；语义 Prompt/Schema/route 解析与主体授权仍待实现，存储创建方法仍是内部操作。
+
+语义 v2 指令与输出 Schema 已有冻结读取器 `load_semantic_assets`：按原 Markdown 三个规范文本块还原 system/task/data preamble，保留原文和原 Schema 字节及引用。原 QS `Test(V2)?ExecutablePromptMatchesNormativeMarkdownAndFrozenHashes` 在本任务独立工作区通过，确认这些文本块与实际 Go 消息常量一致；Python 3 项测试通过，包括与原 QS 文件逐字节对照、重算 manifest 后 Prompt 指纹漂移拒绝。此处不迁移语义 payload 构造、路由选择、回执解析或评分判定，尚未形成独立模型评审执行器。
