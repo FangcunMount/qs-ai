@@ -29,6 +29,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       revision: ${{ steps.gate.outputs.revision }}
+      deploy: ${{ steps.gate.outputs.deploy }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -37,6 +38,7 @@ jobs:
       - id: gate
         env:
           GH_TOKEN: ${{ github.token }}
+          TRIGGER: ${{ github.event_name }}
           REQUESTED_SHA: ${{ github.event.workflow_run.head_sha || inputs.revision || github.sha }}
         run: |
           set -euo pipefail
@@ -44,9 +46,14 @@ jobs:
           git merge-base --is-ancestor "$REQUESTED_SHA" origin/main
           gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml --commit "$REQUESTED_SHA" --event push --json conclusion --jq 'any(.[]; .conclusion == "success")' | grep -qx true
           echo "revision=$REQUESTED_SHA" >> "$GITHUB_OUTPUT"
+          if [ "$TRIGGER" = workflow_dispatch ]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy=$(python3 scripts/cd/deploy_scope.py "$REQUESTED_SHA")" >> "$GITHUB_OUTPUT"
+          fi
   build:
     needs: gate
-    if: inputs.operation != 'rollback'
+    if: needs.gate.outputs.deploy == 'true' && inputs.operation != 'rollback'
     runs-on: ubuntu-latest
     outputs:
       digest: ${{ steps.image.outputs.digest }}
@@ -76,7 +83,7 @@ jobs:
   deploy:
     needs: [gate, build]
     if: >-
-      always() && needs.gate.result == 'success' &&
+      always() && needs.gate.result == 'success' && needs.gate.outputs.deploy == 'true' &&
       (needs.build.result == 'success' ||
        (inputs.operation == 'rollback' && needs.build.result == 'skipped'))
     runs-on:
