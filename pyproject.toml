@@ -19,6 +19,8 @@ dependencies = [
   "grpcio>=1.83.1,<2",
   "dishka>=1.7,<2",
   "protobuf>=7.36.1,<8",
+  "jsonschema>=4.23,<5",
+  "httpx>=0.28,<1",
 ]
 
 [dependency-groups]
@@ -31,6 +33,7 @@ dev = [
   "grpcio-tools>=1.68,<2",
   "types-pyyaml>=6,<7",
   "types-grpcio>=1.83.0.20260730",
+  "types-jsonschema>=4.26.0.20260518",
 ]
 
 [build-system]
@@ -42,6 +45,8 @@ packages = ["src/qs_ai"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "configs" = "qs_ai/configs"
+"integrations/qs_server/prompts" = "qs_ai/infrastructure/qs_server/prompt_assets"
+"integrations/qs_server/schemas" = "qs_ai/infrastructure/qs_server/schema_assets"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -1,0 +1,14 @@
+{
+  "repository": "https://github.com/FangcunMount/qs-server",
+  "commit": "1b52081ea42c94dc5653ce91e8c7a1db9f85fc44",
+  "source": "internal/apiserver/infra/aiexplanation/prompt/catalog.go",
+  "files": {
+    "v1.json": "a69d96cdd931e58d82dc8854a250264418cf8f4a2989d9af85bf8ed09bde5219",
+    "v2.json": "29ad3ed55f3147ce917242acbd06062c64b0289156e66ed56e7292bf5ca654d6",
+    "v3.json": "95c58fb24971839f655e11b42d605a6064731428dc6462a060a3e1eed5809d81",
+    "v4.json": "551d198029c28a6af3b53cbf3dfd12442a41c34d70e739e42eb02a0a01c9981c",
+    "v5.json": "7feb854a7d7184d5eddf62623badafd14d420be340f2f4cffc7b09c53001add7",
+    "v6.json": "aae608db7183b9e3ed00d1cdbf39fb8ad73faaa809f312f47df52212b7991c3b"
+  },
+  "status": "Exported executable packages; active Profile and input mapping not yet migrated"
+}

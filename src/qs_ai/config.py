@@ -33,6 +33,7 @@ class WorkerOptions(Options):
 class GRPCOptions(Options):
     bind_address: str = Field(min_length=1)
     result_address: str | None
+    access_address: str | None = None
     max_receive_bytes: int = Field(ge=1024, le=16_777_216)
     shutdown_grace_seconds: float = Field(ge=0)
     request_timeout_seconds: float = Field(gt=0)

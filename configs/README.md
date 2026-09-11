@@ -14,6 +14,7 @@
 | `QS_AI_HTTP__PORT` | HTTP 监听端口 |
 | `QS_AI_WORKER__LEASE_SECONDS` | 任务租约秒数，至少 3 秒 |
 | `QS_AI_GRPC__RESULT_ADDRESS` | QS 回传目标 |
+| `QS_AI_GRPC__ACCESS_ADDRESS` | QS AIWorkflowAccessService 地址；未配置时授权阻断，启用时必须提供三个 TLS 文件 |
 | `QS_AI_GRPC__CA_FILE` / `CERT_FILE` / `KEY_FILE` | 分别使用完整 QS_AI_GRPC__ 前缀的证书文件路径 |
 | `QS_AI_DELIVERY__BATCH_SIZE` | 单次回传数量，1–100 |
 

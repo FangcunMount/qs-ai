@@ -542,3 +542,39 @@ class AIExplanationSubjectExportResponse(_message.Message):
     items: _containers.RepeatedCompositeFieldContainer[AIExplanationSubjectExportItem]
     next_cursor: str
     def __init__(self, schema_version: _Optional[str] = ..., org_id: _Optional[int] = ..., testee_id: _Optional[int] = ..., exported_at: _Optional[str] = ..., snapshot_at: _Optional[str] = ..., items: _Optional[_Iterable[_Union[AIExplanationSubjectExportItem, _Mapping]]] = ..., next_cursor: _Optional[str] = ...) -> None: ...
+
+class RequestAIWorkflowRequest(_message.Message):
+    __slots__ = ("testee_id", "assessment_id", "report_id", "request_id")
+    TESTEE_ID_FIELD_NUMBER: _ClassVar[int]
+    ASSESSMENT_ID_FIELD_NUMBER: _ClassVar[int]
+    REPORT_ID_FIELD_NUMBER: _ClassVar[int]
+    REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
+    testee_id: int
+    assessment_id: int
+    report_id: int
+    request_id: str
+    def __init__(self, testee_id: _Optional[int] = ..., assessment_id: _Optional[int] = ..., report_id: _Optional[int] = ..., request_id: _Optional[str] = ...) -> None: ...
+
+class AIWorkflowAccepted(_message.Message):
+    __slots__ = ("request_id", "status")
+    REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
+    STATUS_FIELD_NUMBER: _ClassVar[int]
+    request_id: str
+    status: str
+    def __init__(self, request_id: _Optional[str] = ..., status: _Optional[str] = ...) -> None: ...
+
+class AIWorkflowAccessRequest(_message.Message):
+    __slots__ = ("org_id", "subject_id", "testee_id", "assessment_ids")
+    ORG_ID_FIELD_NUMBER: _ClassVar[int]
+    SUBJECT_ID_FIELD_NUMBER: _ClassVar[int]
+    TESTEE_ID_FIELD_NUMBER: _ClassVar[int]
+    ASSESSMENT_IDS_FIELD_NUMBER: _ClassVar[int]
+    org_id: str
+    subject_id: str
+    testee_id: str
+    assessment_ids: _containers.RepeatedScalarFieldContainer[str]
+    def __init__(self, org_id: _Optional[str] = ..., subject_id: _Optional[str] = ..., testee_id: _Optional[str] = ..., assessment_ids: _Optional[_Iterable[str]] = ...) -> None: ...
+
+class AIWorkflowAccessResponse(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...

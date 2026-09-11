@@ -41,7 +41,7 @@ class OfflineWorkflow:
         self.dsn = dsn
 
     async def execute(self, claim: Claim, evidence: EvidenceSet) -> WorkflowResult:
-        assert claim.session.workflow_version == "interpretation-v1"
+        assert claim.session.workflow_version in {"interpretation-v1", "qs-snapshot-v1"}
         config = {"configurable": {"thread_id": claim.session.id}}
         async with guarded_saver(self.dsn, Lease(claim.session.id, claim.fence)) as saver:
             graph = build_demo(saver)
