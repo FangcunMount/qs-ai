@@ -7,8 +7,9 @@ from urllib.parse import urlsplit
 import httpx
 
 from qs_ai.application.interpretation.preparation import PreparedExplanation
+from qs_ai.application.interpretation.prompts import PromptMessages
 from qs_ai.application.interpretation.provider import ModelResponse, ModelRoute, ProviderFailure
-from qs_ai.infrastructure.qs_server.deepseek_request import build_request
+from qs_ai.infrastructure.qs_server.deepseek_request import build_messages_request, build_request
 from qs_ai.infrastructure.qs_server.normalization import normalize_output
 
 
@@ -133,6 +134,24 @@ class DeepSeekResponses:
         if not invocation_id:
             raise ValueError("Invocation identity is required")
         body = build_request(prepared, route, schema)
+        return await self._send(body, route, invocation_id)
+
+    async def generate_messages(
+        self,
+        messages: PromptMessages,
+        route: ModelRoute,
+        schema: dict[str, Any],
+        invocation_id: str,
+    ) -> ModelResponse:
+        if not invocation_id:
+            raise ValueError("Invocation identity is required")
+        return await self._send(
+            build_messages_request(messages, route, schema), route, invocation_id
+        )
+
+    async def _send(
+        self, body: dict[str, Any], route: ModelRoute, invocation_id: str
+    ) -> ModelResponse:
         started = time.monotonic()
         try:
             async with asyncio.timeout(route.timeout_milliseconds / 1000):

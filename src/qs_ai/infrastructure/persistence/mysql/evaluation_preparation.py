@@ -17,6 +17,7 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_dispatches,
     evaluation_generation_completions,
     evaluation_runs,
+    evaluation_semantic_completions,
 )
 from qs_ai.infrastructure.qs_server.evaluation_policies import load_execution_policy
 
@@ -91,7 +92,18 @@ async def prepare_execution(
         .mappings()
         .all()
     )
-    slots = project_slots(creation["slots"], list(completions), list(dispatches))
+    semantic = (
+        (
+            await db.execute(
+                select(evaluation_semantic_completions)
+                .where(evaluation_semantic_completions.c.run_id == str(run_id))
+                .with_for_update()
+            )
+        )
+        .mappings()
+        .all()
+    )
+    slots = project_slots(creation["slots"], list(completions), list(dispatches), list(semantic))
     preflight = progress.get("preflight", creation["preflight"])
     action = next_action(
         progress["status"],

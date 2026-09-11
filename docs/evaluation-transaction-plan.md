@@ -120,3 +120,75 @@ PR #29 精确提交 `30df68154cfa650c952b46b832c725f4d4228b5f` 通过 CI `346385
 `prepare_execution` 已解除“一旦有发送流水就停止”的首执行限制，改由 `project_slots` 复核每条冻结槽位的实际终态：重新验证保存字节/指纹、身份索引与发送检查点、连续执行序号、候选关联及成功后不得再生成。发送流水与终态数量/身份必须逐条一致，缺失证据不推断失败。成功候选进入同候选首次 semantic prepared；契约失败按冻结策略准备原槽位第二次 generation。未知结果、不可恢复失败、预算耗尽仍阻断；语义终态尚未接入投影，因此语义发送后不能推进更多槽位，等待后续实现。
 
 隔离 MySQL 8.4 Run/终态与规划测试共 32 项通过：新增成功→同候选语义发送、契约失败→原槽位第二次生成、第二次失败→预算耗尽阻断，及丢失终态/修改字节/缺失候选时不得重发。Ruff/mypy 通过。尚未调用真实模型、未部署生产；候选断言计算和语义终态接受仍待接通。
+
+### 生成终态批次合并与语义解析
+
+PR #30 精确提交 `65d67755b34df8214d3b37e5b43abf7faec1886d` 的 CI `34640577486`（MySQL 8.0.36、8.4 和镜像）全部通过，已合并；未部署生产。
+
+`parse_semantic_output` 复用原 QS v2 语义 Prompt 和输出 Schema，并精确匹配发布引用、调用 ID、评测供应商与模型。结果必须对待评断言按 type/scope/ordinal 一一覆盖，拒绝缺失、重复及未知决定；hard 标志来自原断言。分数和文本按原 Schema 校验，并保留 Go 文本字节上限；输出指纹绑定未重新序列化的字节。质量 failed 是有效评测结论，不转换为执行失败。17 项测试通过，覆盖上述边界及中文长度、无效 UTF-8/JSON、大小限制。解析器尚未接入语义终态保存或候选归属校验；此为下一批执行接受事务的组成部分，不构成完整语义执行或真实质量验收。
+
+语义终态领域模型 `SemanticCompletion` 已补齐：包含被评候选 ID/输出指纹，匹配当前 semantic dispatching 检查点、owner、调用/执行身份及序号，开始时间不得早于发送；租约过期本身不替代事务版本检查。成功需完整回执与输出、合法 UTF-8 JSON，失败仅允许原 QS 语义执行/基础设施/协议/未知分类，质量 failed 不能转换为执行失败。失败响应可保留无法解析的原始字节。与语义输出解析共 29 项测试通过。候选匹配目前是领域检查，尚需由数据库接受事务传入实际保存的候选及指纹，不代表已完成持久关联或 review_ready 推进。
+
+### 语义终态接受事务
+
+新增 `0016_semantic_completions` 与 `complete_semantic`：共享 Run 锁和版本，读取数据库中的生成证据/候选，复核候选输出指纹、case/slot、语义检查点/发送流水、owner/组织及连续序号。成功解析精确覆盖候选的 pending_semantic 断言，保留确定性断言和生成原始字节，写入语义证据并设置 review_ready/accepted_semantic_execution_id；质量 failed 仍是有效结果。失败不改变候选审核状态，未知、预算耗尽及不可自动恢复分类按策略阻断。证据、候选更新、Run 进度和检查点清除同事务，调用方负责提交。
+
+隔离 MySQL 8.4 新增 10 项语义事务测试：质量失败但可审核、候选更新后异常回滚、跨组织/错 owner/候选或指纹错误、未知断言拒绝、失败/未知保留证据与并发仅接受一次；连同生成事务和语义领域/解析共 54 项通过。Alembic upgrade/check、Ruff/mypy 通过。语义资产读取为固定原始资产替身，断言仍为构造数据。语义终态读取投影和全槽位 awaiting_review 转换尚未接通，暂无实际模型执行或生产部署。
+
+### 语义投影与完整槽位推进
+
+`project_slots` 现同时核对生成和语义终态与发送流水。语义记录重新验证保存字节指纹、索引、候选/输出/检查点身份和连续执行序号；成功结果的分数、理由和决定须与规范化字节及候选已接受断言相符。review_ready 与 accepted_semantic_execution_id 必须有成功终态支持，不能单靠标志跳过候选。语义失败可按策略重试同一候选；完成后准备下一槽位的生成。
+
+最后一个语义结果接受时，在同事务重建全槽位投影并执行 NextAction；仅全部候选已完成语义评测时转换 awaiting_review，人工评审仍待进行。隔离 MySQL 8.4 生成/语义事务 26 项通过，包含按 7 case × 5 槽位逐次完成 35 个生成和 35 个语义结果、只有最后一次才待审核且不能再准备调用。另新增 4 项语义重试和缺失/字节/决定损坏检查通过。全部输出为构造证据，验证的是事务和调度，不是原案例事实正确性或生产质量。Ruff/mypy 通过；未部署生产。
+
+### 冻结断言清单与独立语义证据修正
+
+对照 QS `candidateReceiptsV2`/`frozenSemanticObligationsV2` 发现：只选 pending_semantic 会漏掉已确定性失败但仍须独立语义评测的断言。已新增 `assertion_inventory`，从原 v6 Suite 读取 default/case 断言、分作用域同类型序号、hard 标志及全部参数；接受语义结果前逐项核对冻结候选的清单顺序、身份及 hard，不允许遗漏或漂移。所有原 QS 指定独立语义类型都进入评测要求，与确定性结果是否失败无关。
+
+语义决定额外保存在 candidate.semantic_assertions；pending 条目仍解析为决定，原已失败条目保持原状态/理由。读取投影从独立语义证据比对实际输出，不能以语义通过抹去确定性失败。隔离 MySQL 8.4 与清单测试共 26 项通过，包括使用各 case 原始清单的 35 候选全链路及“确定性失败、语义通过仍保留失败”。清单的原参数已完整保存，但确定性断言结果计算尚未迁入；测试输出与初始检查结果仍为构造数据，不是业务质量验收。
+
+### 确定性断言计算
+
+新增 `evaluate_candidate_assertions`，读取冻结清单并复用 QS 输出 Schema、引用/Profile 和安全校验，计算维度引用数量/组合、insight kind、建议来源、禁用来源引用、禁用文本和输出字符上限；禁用文本采用 NFC + casefold，字符数包含 Go JSON HTML 转义。按校验阶段生成 passed/failed/blocked；独立语义要求保持 pending，失败原因不回显模型内容。5 项针对性测试通过，覆盖合法输出、Schema 阻断、引用错误、案例组合/来源不满足、禁用文本和安全失败。Ruff/mypy 通过。
+
+该函数目前接受调用方提供的 PreparedExplanation，尚未从冻结 Suite 构造对应案例输入，也未接入生成接受事务；测试复用合成报告输出，不能据此证明原案例逐项一致。后续需完成固定案例输入构造、原 Go 对照与正式入口，禁止将本批视为确定性验证全面验收。
+
+### 冻结案例准备与计算后接受
+
+`prepare_evaluation_case` 绑定原 v6 Suite 的生成案例、Profile 和 Prompt 指纹，用原 provider_payload 渲染 Prompt；7 个生成案例均测试通过，预检/未知案例及 Profile/Prompt 漂移拒绝。这里的 input fingerprint 指向合成 provider payload，不冒充 QS 授权业务报告指纹。
+
+新增 `complete_evaluated_generation` 内部入口：读取本组织 Run 的冻结发布，准备对应案例并计算断言，再调用同事务生成接受；调用方不能传入固定通过的断言列表。失败终态继续原接受规则。隔离 MySQL 8.4 与案例准备共 43 项通过，包含结构正确但引用不同报告时，记录 all_references_resolve=failed 和 profile 检查 blocked。底层事务原语仍保留供测试/组合调用；常驻评测执行器尚需采用计算入口，尚未完成原 Go 全案例差异验证或真实模型质量验收。
+
+### 原 Go 断言状态对照
+
+新增测试桥接原 QS `EvaluateCandidate` 与真实 DeterministicGate，使用本任务独立 QS worktree（`87f9dbea6db8c5a832d788bbb91ee8c257d47bd9`），临时测试程序运行后自动清理。7 个原生成案例 × 正常/Schema/引用/安全/Profile/禁用文本共 42 组构造输出，逐条比较全部断言状态，Go/Python 一致；interop 测试通过。双方使用同一冻结 Profile、案例 facts 和断言参数，没有外部模型调用。
+
+该证据证明所选 42 组输入的状态一致，不证明全部文本边界、故障分类、发布门槛或真实结果质量。仍需常驻评测执行器调用准备/发送/接受链路、人工审核与发布治理，M1–M5 未验收。
+
+### 语义模型请求数据
+
+新增 `prepare_semantic_messages`，复用原 v2 裁判 system/task/data preamble，投影原语义输入七个字段：schema_version/suite_id/case_id/attempt/assessment_input/candidate_output/assertions。attempt 使用候选槽位序号，与原 online_runner_v2 相同；完整断言参数从冻结 Suite 读取，确定性已失败的独立语义要求仍保留。候选文本只进入 data_json，不能改变固定裁判指令。3 项测试通过，覆盖字段/参数、候选指令隔离与清单/发布漂移拒绝。此步骤尚未调用模型，现有网络适配器仍需解除对生成 PreparedExplanation 的绑定后接入该请求；不能视为常驻评测执行器完成。
+
+### 共用网络调用层
+
+DeepSeek Responses 请求序列化拆出 `build_messages_request`，新增 `generate_messages` 接收阶段消息/路由/Schema，生成入口继续先校验 Profile 路由，再共用原 HTTP 发送、大小/超时/响应解析逻辑。语义请求无需伪造生成 PreparedExplanation 或更改生成 Profile。原生成测试与新增语义路由/Schema/消息投影、超时单次发送共 28 项通过，Ruff/mypy 通过。HTTP 测试使用 MockTransport，不代表真实供应商接入验收；持久评测执行器仍需在发送事务提交后调用此适配器。
+
+### 调用错误进入冻结恢复策略
+
+新增 `classify_provider_failure`，对照 QS classifyGenerationFailureV2/classifySemanticFailureV2 与语义 diagnostics 分支：生成保留原安全错误代码，语义限流映射 semantic_provider_rate_limited，语义未知映射 semantic_result_unknown；未知结果覆盖 retryable 并强制 manual_acknowledgement。原始错误代码作为受约束 diagnostics，异常正文不写入证据。8 项测试通过，覆盖限流允许恢复、未知禁止自动重试、一般错误不越过策略白名单及错误文本隔离。现有 Python ProviderFailure 缺少 completed/no_message 诊断，因此不会凭 cardinality 错误猜测并启用对应重试；该诊断能力仍需补齐。此映射尚待持久执行器调用。
+
+### 持久模型执行步骤
+
+新增内部 `execute_step`：从已 collecting/预检通过的 Run 规划下一执行，按冻结发布准备生成或语义消息、路由与 Schema，发送预留事务提交后才调用共用 Gateway；返回后执行计算断言的生成接受或语义接受事务。ProviderFailure 进入阶段分类和冻结恢复策略，未知结果 blocked。取消/异常或调用后保存失败保留 dispatching，重入不会重新调用。当前仅解析已迁移的 balanced_text_v1/v8 路由，组织范围由受信调用者提供，尚未装配管理授权入口。
+
+隔离 MySQL 8.4 新增 4 项测试通过：生成→语义两步，Gateway 独立会话确认发送记录已提交；发送提交失败零调用；超时未知结果保存后禁止重发；接受失败保留发送检查点且禁止重发。模型为替身，没有生产调用。步骤尚未常驻轮询/心跳/恢复人工处置；非 ProviderFailure 的无效响应/输出校验异常当前保留 dispatching，需要补齐失败证据映射及恢复流程，不能宣称完整可运营执行器。
+
+### 已收到异常输出的失败证据
+
+`response_evidence` 接入执行步骤，校验回执身份/用量、输出大小、严格 JSON 与冻结 Schema，将明确不合格响应转为阶段失败。生成输出契约失败允许按冻结预算替换原槽位；回执错误不允许替换；语义 Schema 错误使用 semantic_output_schema_invalid。生成的非法规范化 JSON 不写入 JSON 证据字段，原响应字节保留；超出存储上限的内容不保存，并记录对应失败码。10 项响应证据测试及 5 项隔离 MySQL 执行步骤测试通过，包含非法输出原槽位重试、第二次预算耗尽阻断。Ruff/mypy 通过。
+
+语义输出结构合法但决定不匹配等后续语义解析错误，目前仍由接受函数拒绝并保留 dispatching，需继续映射明确分类；数据库/提交失败仍不得误归类为输出失败。尚未常驻运行或生产部署。
+
+### 语义决定异常持久化
+
+语义解析增加 `SemanticDecisionInvalid`，仅表示供应商决定清单/理由违反契约。执行步骤在接受前校验，捕获该类型后保存 semantic_decision_contract_invalid 失败；资产引用、数据库及其他错误不被宽泛捕获，仍保留检查点供恢复。17 项语义解析与 6 项隔离 MySQL 步骤测试通过，新增结构合法但未知断言的语义输出：终态失败被保存、检查点清除、原候选保持未审核且不重新生成，冻结策略不允许自动恢复时阻断。未调用真实模型，未部署生产。

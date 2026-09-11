@@ -291,3 +291,21 @@ evaluation_generation_completions = sa.Table(
     mysql_engine="InnoDB",
     mysql_charset="utf8mb4",
 )
+
+evaluation_semantic_completions = sa.Table(
+    "evaluation_semantic_completions",
+    metadata,
+    sa.Column("run_id", sa.CHAR(36), primary_key=True),
+    sa.Column("execution_id", sa.String(128, collation="utf8mb4_bin"), primary_key=True),
+    sa.Column("invocation_id", sa.String(128, collation="utf8mb4_bin"), nullable=False),
+    sa.Column("candidate_id", sa.String(128, collation="utf8mb4_bin"), nullable=False),
+    sa.Column("execution_ordinal", sa.Integer, nullable=False),
+    sa.Column("evidence_json", mysql.JSON, nullable=False),
+    sa.Column("result_json", mysql.JSON),
+    sa.Column("raw_output", mysql.MEDIUMBLOB, nullable=False),
+    sa.Column("normalized_output", mysql.MEDIUMBLOB, nullable=False),
+    sa.UniqueConstraint("run_id", "invocation_id", name="uq_semantic_invocation"),
+    sa.UniqueConstraint("run_id", "candidate_id", "execution_ordinal", name="uq_semantic_ordinal"),
+    mysql_engine="InnoDB",
+    mysql_charset="utf8mb4",
+)

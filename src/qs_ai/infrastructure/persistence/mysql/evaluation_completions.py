@@ -200,3 +200,53 @@ async def complete_generation(
         .values(progress_json=progress)
     )
     return state
+
+
+async def complete_evaluated_generation(
+    db: AsyncSession,
+    run_id: UUID,
+    expected_version: int,
+    organization_id: int,
+    owner: str,
+    completion: GenerationCompletion,
+    routes: RouteAssets,
+    schemas: SchemaAssets,
+    *,
+    candidate_id: str = "",
+) -> CheckpointState:
+    """Compute original case assertions; callers cannot supply a passing assertion list."""
+    from qs_ai.infrastructure.qs_server.candidate_assertions import evaluate_candidate_assertions
+    from qs_ai.infrastructure.qs_server.evaluation_case import prepare_evaluation_case
+
+    assertions: tuple[AssertionReceipt, ...] = ()
+    if completion.status == "succeeded":
+        raw = (
+            await db.execute(
+                select(evaluation_runs.c.definition_json).where(
+                    evaluation_runs.c.run_id == str(run_id),
+                    evaluation_runs.c.organization_id == organization_id,
+                )
+            )
+        ).scalar_one_or_none()
+        if raw is None:
+            raise CheckpointConflict("Run unavailable in organization")
+        creation = json.loads(raw)
+        release = EvidenceReleaseIdentity(
+            **{k: FrozenContractRef(**v) for k, v in creation["release"].items()}
+        )
+        prepared = prepare_evaluation_case(release, completion.case_id)
+        assertions = evaluate_candidate_assertions(
+            completion.normalized_output, prepared, release.suite, completion.case_id
+        )
+    return await complete_generation(
+        db,
+        run_id,
+        expected_version,
+        organization_id,
+        owner,
+        completion,
+        routes,
+        schemas,
+        candidate_id=candidate_id,
+        assertions=assertions,
+    )
