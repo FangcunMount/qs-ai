@@ -98,13 +98,31 @@ def verify(release: Path) -> dict:
     manifest = json.loads((release / "manifest.json").read_text())
     run(
         "service readiness",
-        compose(release, "up", "-d", "--pull", "never", "--wait", "--wait-timeout", "120"),
+        compose(
+            release,
+            "up",
+            "-d",
+            "--remove-orphans",
+            "--pull",
+            "never",
+            "--wait",
+            "--wait-timeout",
+            "120",
+        ),
     )
-    image_id = run(
-        "running image", ["sudo", "-n", "docker", "inspect", "qs-ai-api", "--format", "{{.Image}}"]
-    ).strip()
-    if image_id != manifest["image_id"]:
-        raise DeploymentError("Running image does not match release")
+    services = run("compose services", compose(release, "config", "--services")).split()
+    if not services:
+        raise DeploymentError("No release services configured")
+    for service in services:
+        container = run("running container", compose(release, "ps", "-q", service)).strip()
+        if not container:
+            raise DeploymentError("Missing running service")
+        image_id = run(
+            "running image",
+            ["sudo", "-n", "docker", "inspect", container, "--format", "{{.Image}}"],
+        ).strip()
+        if image_id != manifest["image_id"]:
+            raise DeploymentError("Running image does not match release")
     return probe(release, True)
 
 
@@ -149,6 +167,23 @@ def apply(release: Path, state: dict) -> None:
         or inspected["Config"]["Labels"].get("org.opencontainers.image.revision") != revision
     ):
         raise DeploymentError("Image identity or architecture mismatch")
+    services = run("compose services", compose(release, "config", "--services")).split()
+    if "grpc" in services:
+        run(
+            "TLS file preflight",
+            compose(
+                release,
+                "run",
+                "--rm",
+                "--no-deps",
+                "-T",
+                "grpc",
+                "/app/.venv/bin/python",
+                "-m",
+                "qs_ai.bootstrap.grpc_probe",
+                "--check-files",
+            ),
+        )
     before = probe(release)
     write_json(release / "verification.json", {"phase": "preflight", "database": before})
     # A migration failure never replaces a healthy service. MySQL DDL may be partial.

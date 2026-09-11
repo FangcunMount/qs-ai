@@ -1,6 +1,6 @@
 name: qs-ai
 services:
-  api:
+  api: &runtime
     image: ${QS_AI_IMAGE:?Set the immutable image tag}
     container_name: qs-ai-api
     restart: unless-stopped
@@ -30,6 +30,38 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+  grpc:
+    <<: *runtime
+    container_name: qs-ai-grpc
+    ports: []
+    command: ["/app/.venv/bin/python", "-m", "qs_ai.bootstrap.integration", "serve"]
+    volumes:
+      - type: bind
+        source: /data/infra/ssl/grpc/ca/ca-chain.crt
+        target: /run/qs-ai-tls/ca-chain.crt
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /data/infra/ssl/grpc/server/qs-ai-fullchain.crt
+        target: /run/qs-ai-tls/qs-ai-fullchain.crt
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /data/infra/ssl/grpc/server/qs-ai.key
+        target: /run/qs-ai-tls/qs-ai.key
+        read_only: true
+        bind:
+          create_host_path: false
+    healthcheck:
+      # The AI certificate must complete TLS but be denied as an inbound QS caller.
+      test: ["CMD", "/app/.venv/bin/python", "-m", "qs_ai.bootstrap.grpc_probe"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
 networks:
   backend:
     external: true

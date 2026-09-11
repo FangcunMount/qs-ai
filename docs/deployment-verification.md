@@ -28,3 +28,22 @@
 [PR #4](https://github.com/FangcunMount/qs-ai/pull/4) 与对应主分支 CI 已通过。CI 随后增加 MySQL 8.0.36 / 8.4 双版本矩阵及发布数据库探针。首发成功后启用 AUTO_DEPLOY_ENABLED；后续 main checks 成功将自动发布该确切提交。
 
 当前服务仅为内部 HTTP API 基础设施，未启用真实授权/事实、模型、常驻 worker 或 QS 业务流量切换。数据库连通和迁移完成不代表 AI 解读业务验收完成。
+
+
+## gRPC 通信部署
+
+新增 `qs-ai-grpc` 常驻进程，监听 `0.0.0.0:50061`，仅在 `infra-network` 内以 `qs-ai-grpc:50061` 访问，不发布宿主机端口。API 与 gRPC 使用同一不可变镜像和数据库配置。
+
+三个独立只读挂载：
+
+| serverA 源文件 | 容器路径 |
+| --- | --- |
+| `/data/infra/ssl/grpc/ca/ca-chain.crt` | `/run/qs-ai-tls/ca-chain.crt` |
+| `/data/infra/ssl/grpc/server/qs-ai-fullchain.crt` | `/run/qs-ai-tls/qs-ai-fullchain.crt` |
+| `/data/infra/ssl/grpc/server/qs-ai.key` | `/run/qs-ai-tls/qs-ai.key` |
+
+私钥由 infra 签发并保存在服务器，不经 CI 传递；没有挂载 CA 私钥。部署先以容器实际 UID 检查证书可读及证书/私钥匹配，再迁移和启动。每个运行容器都核对镜像 ID，回滚到单 API 版本时移除新增 gRPC 容器。
+
+健康探针使用 AI 证书建立 mTLS，要求业务入口返回 `PERMISSION_DENIED`。独立验收使用 QS 证书发送无效 Change，要求 `INVALID_ARGUMENT`，确认身份通过且不执行业务事务；无客户端证书要求连接拒绝。探针入口为 `python -m qs_ai.bootstrap.grpc_probe`，支持 `--address`、`--ca`、`--cert`、`--key`、`--anonymous` 和 `--expect`。
+
+本次启动通信接收进程；常驻任务执行、结果投递及 QS 真实业务切换仍需后续部署和业务验收。

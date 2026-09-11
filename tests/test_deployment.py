@@ -35,6 +35,10 @@ def test_mysql_components_round_trip():
     assert url.database == "qs_ai"
     encoded = module.runtime_config(env)["services"]["api"]["environment"]["QS_AI_DATABASE_URL"]
     assert make_url(encoded.replace("$$", "$")) == url
+    assert (
+        module.runtime_config(env)["services"]["grpc"]["environment"]["QS_AI_DATABASE_URL"]
+        == encoded
+    )
     env["MYSQL_DBNAME"] = "other"
     with pytest.raises(ValueError, match="disagree"):
         module.database_url(env)
@@ -114,7 +118,7 @@ def test_migration_failure_never_replaces_service(remote, tmp_path, monkeypatch)
     monkeypatch.setattr(remote, "verify", lambda *args: pytest.fail("must keep old service"))
     with pytest.raises(remote.DeploymentError, match="migration"):
         remote.apply(release, {"current": "b" * 40 + "-1-1"})
-    assert calls == ["image load", "image identity", "migration"]
+    assert calls == ["image load", "image identity", "compose services", "migration"]
     assert not (tmp_path / "state.json").exists()
 
 
@@ -222,3 +226,46 @@ def test_registry_auth_is_private_and_does_not_use_host_keychain(tmp_path):
                 "ALIYUN_ACR_PASSWORD": "replacement",
             },
         )
+
+
+def test_tls_preflight_failure_preserves_running_release(remote, tmp_path, monkeypatch):
+    release, manifest = setup_release(remote, tmp_path, monkeypatch)
+    calls = simulate_apply(remote, monkeypatch, manifest)
+    original = remote.run
+
+    def run(phase, args):
+        if phase == "compose services":
+            return "api\ngrpc\n"
+        if phase == "TLS file preflight":
+            raise remote.DeploymentError("TLS file preflight failed")
+        return original(phase, args)
+
+    monkeypatch.setattr(remote, "run", run)
+    monkeypatch.setattr(remote, "probe", lambda *args: pytest.fail("must not access database"))
+    with pytest.raises(remote.DeploymentError, match="TLS file"):
+        remote.apply(release, {})
+    assert calls == ["image load", "image identity"]
+    assert not (tmp_path / "state.json").exists()
+
+
+def test_verify_rejects_wrong_grpc_image(remote, tmp_path, monkeypatch):
+    release, manifest = setup_release(remote, tmp_path, monkeypatch)
+    images = iter([manifest["image_id"], "sha256:wrong"])
+
+    def run(phase, args):
+        if phase == "service readiness":
+            assert "--remove-orphans" in args
+        if phase == "compose services":
+            return "api\ngrpc\n"
+        if phase == "running container":
+            return args[-1]
+        if phase == "running image":
+            return next(images)
+        return ""
+
+    monkeypatch.setattr(remote, "run", run)
+    monkeypatch.setattr(
+        remote, "probe", lambda *args: pytest.fail("image mismatch must fail first")
+    )
+    with pytest.raises(remote.DeploymentError, match="Running image"):
+        remote.verify(release)
