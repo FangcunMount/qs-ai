@@ -1,11 +1,12 @@
 import asyncio
+import json
 import os
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, insert, select, update
 from sqlalchemy.exc import IntegrityError
 
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict, CheckpointState
@@ -20,6 +21,7 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_checkpoints,
     evaluation_dispatches,
     evaluation_run_policies,
+    evaluation_runs,
 )
 from qs_ai.infrastructure.qs_server.evaluation_policies import load_execution_policy
 
@@ -50,6 +52,24 @@ async def prepared():
         at + timedelta(seconds=30),
     )
     try:
+        async with tx.open() as db:
+            # Synthetic frozen Run isolates dispatch guards from creation and preflight execution.
+            await db.execute(
+                insert(evaluation_runs).values(
+                    run_id=str(run_id),
+                    organization_id=1,
+                    requested_by="actor:1",
+                    definition_json=json.dumps(
+                        {
+                            "slots": [
+                                {"case_id": name, "ordinal": 1} for name in ("case:1", "fresh:1")
+                            ]
+                        }
+                    ),
+                    progress_json={"status": "collecting", "preflight": {"status": "passed"}},
+                )
+            )
+            await db.commit()
         await store.create(run_id)
         async with tx.open() as db:
             await freeze_policy(db, run_id, load_execution_policy())
@@ -58,7 +78,12 @@ async def prepared():
         yield tx, store, run_id, cp
     finally:
         async with tx.open() as db:
-            for table in (evaluation_dispatches, evaluation_run_policies, evaluation_checkpoints):
+            for table in (
+                evaluation_dispatches,
+                evaluation_run_policies,
+                evaluation_checkpoints,
+                evaluation_runs,
+            ):
                 await db.execute(delete(table).where(table.c.run_id == str(run_id)))
             await db.commit()
         await database.close()
@@ -245,3 +270,50 @@ async def test_semantic_budget_is_per_candidate_and_separate_from_generation(pre
             await db.commit()
     assert await count(tx, run_id) == 4
     assert await store.get(run_id) == CheckpointState(run_id, version + 1, exhausted)
+
+
+@pytest.mark.parametrize(
+    "progress",
+    [
+        None,
+        {"status": "requested"},
+        {"status": "canceled", "preflight": {"status": "passed"}},
+        {"status": "collecting"},
+        {"status": "collecting", "preflight": {"status": "failed"}},
+    ],
+)
+async def test_dispatch_requires_collecting_run_and_passed_preflight(prepared, progress):
+    tx, store, run_id, cp = prepared
+    async with tx.open() as db:
+        await db.execute(
+            update(evaluation_runs)
+            .where(evaluation_runs.c.run_id == str(run_id))
+            .values(progress_json=progress)
+        )
+        await db.commit()
+    with pytest.raises(CheckpointConflict, match="preflight"):
+        async with tx.open() as db:
+            await reserve_dispatch(db, run_id, 1, cp.owner, cp.claimed_at)
+            await db.commit()
+    assert await count(tx, run_id) == 0
+    assert await store.get(run_id) == CheckpointState(run_id, 1, cp)
+
+
+@pytest.mark.parametrize("missing_run", [True, False])
+async def test_dispatch_rejects_missing_run_or_unplanned_slot(prepared, missing_run):
+    tx, store, run_id, cp = prepared
+    if missing_run:
+        async with tx.open() as db:
+            await db.execute(delete(evaluation_runs).where(evaluation_runs.c.run_id == str(run_id)))
+            await db.commit()
+        version = 1
+    else:
+        cp = replace(cp, case_id="unplanned:1")
+        await store.save(CheckpointState(run_id, 2, cp), 1)
+        version = 2
+    with pytest.raises(CheckpointConflict):
+        async with tx.open() as db:
+            await reserve_dispatch(db, run_id, version, cp.owner, cp.claimed_at)
+            await db.commit()
+    assert await count(tx, run_id) == 0
+    assert await store.get(run_id) == CheckpointState(run_id, version, cp)
