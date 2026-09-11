@@ -59,6 +59,8 @@ def build_request(
 ) -> dict[str, Any]:
     if route.provider != "deepseek" or route.protocol != "responses":
         raise ValueError("This adapter requires DeepSeek Responses protocol")
+    if route.idempotent_redispatch or route.retrieve_by_invocation_id:
+        raise ValueError("This adapter does not support replay or invocation retrieval")
     if route.route != prepared.release.provider_route:
         raise ValueError("Provider route does not match published Profile")
     if (

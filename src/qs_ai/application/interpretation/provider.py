@@ -3,6 +3,27 @@ import json
 from dataclasses import dataclass
 
 
+class ProviderFailure(Exception):
+    def __init__(self, code: str, *, retryable: bool = False, result_unknown: bool = False) -> None:
+        self.code = code
+        self.retryable = retryable
+        self.result_unknown = result_unknown
+        super().__init__(code)
+
+
+@dataclass(frozen=True)
+class ModelResponse:
+    invocation_id: str
+    request_id: str
+    model: str
+    raw_output: str
+    validation_output: str
+    normalization: str
+    input_tokens: int | None
+    output_tokens: int | None
+    latency_milliseconds: int
+
+
 @dataclass(frozen=True)
 class ModelRoute:
     route: str

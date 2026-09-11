@@ -20,6 +20,7 @@ dependencies = [
   "dishka>=1.7,<2",
   "protobuf>=7.36.1,<8",
   "jsonschema>=4.23,<5",
+  "httpx>=0.28,<1",
 ]
 
 [dependency-groups]
