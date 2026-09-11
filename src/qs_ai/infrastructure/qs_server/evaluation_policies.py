@@ -2,10 +2,12 @@
 
 import hashlib
 import json
+from dataclasses import dataclass
 from pathlib import Path
 
 from jsonschema import Draft202012Validator
 
+from qs_ai.domain.evaluation.identity import FrozenContractRef
 from qs_ai.domain.evaluation.policy import ExecutionPolicy
 
 
@@ -16,7 +18,15 @@ def evaluation_directory() -> Path:
     return Path(__file__).resolve().parents[4] / "integrations" / "qs_server" / "evaluation"
 
 
-def load_execution_policy(*, directory: Path | None = None) -> ExecutionPolicy:
+@dataclass(frozen=True)
+class FrozenPolicyDocument:
+    reference: FrozenContractRef
+    definition_json: str
+
+
+def _load_document(
+    kind: str, schema_name: str, expected_id: str, directory: Path | None
+) -> FrozenPolicyDocument:
     directory = directory if directory is not None else evaluation_directory()
     manifest = json.loads((directory / "manifest.json").read_bytes())
 
@@ -26,19 +36,43 @@ def load_execution_policy(*, directory: Path | None = None) -> ExecutionPolicy:
             raise ValueError("Evaluation resource checksum mismatch")
         return raw
 
-    envelope = json.loads(verified("policies.json"))["execution_policy"]
+    envelope = json.loads(verified("policies.json"))[kind]
     raw = envelope["definition_json"]
     if "sha256:" + hashlib.sha256(raw.encode()).hexdigest() != envelope["fingerprint"]:
-        raise ValueError("Execution policy source fingerprint mismatch")
+        raise ValueError("Policy source fingerprint mismatch")
     definition = json.loads(raw)
-    schema = json.loads(verified("ai-explanation-evaluation-execution-policy-v1.schema.json"))
+    schema = json.loads(verified(schema_name))
     Draft202012Validator.check_schema(schema)
     Draft202012Validator(schema).validate(definition)
     if (definition["policy_id"], definition["version"]) != (
-        "release-evaluation-bounded-recovery",
+        expected_id,
         "v2",
     ):
-        raise ValueError("Unsupported execution policy version")
+        raise ValueError("Unsupported policy version")
+    return FrozenPolicyDocument(
+        FrozenContractRef(definition["policy_id"], definition["version"], envelope["fingerprint"]),
+        raw,
+    )
+
+
+def load_gate_policy(*, directory: Path | None = None) -> FrozenPolicyDocument:
+    return _load_document(
+        "gate_policy",
+        "ai-explanation-release-gate-policy-v1.schema.json",
+        "release-gates",
+        directory,
+    )
+
+
+def load_execution_policy(*, directory: Path | None = None) -> ExecutionPolicy:
+    document = _load_document(
+        "execution_policy",
+        "ai-explanation-evaluation-execution-policy-v1.schema.json",
+        "release-evaluation-bounded-recovery",
+        directory,
+    )
+    raw = document.definition_json
+    definition = json.loads(raw)
     slot, generation, semantic, recovery = (
         definition["slot_policy"],
         definition["generation_budget"],
@@ -48,7 +82,7 @@ def load_execution_policy(*, directory: Path | None = None) -> ExecutionPolicy:
     return ExecutionPolicy(
         definition["policy_id"],
         definition["version"],
-        envelope["fingerprint"],
+        document.reference.fingerprint,
         raw,
         slot["required_generation_cases"],
         slot["required_candidates_per_case"],
