@@ -65,4 +65,4 @@ QS [部署 34615668017](https://github.com/FangcunMount/qs-server/actions/runs/3
 1. 首先发布本批完整镜像，QS_AI_EXECUTION_ENABLED 保持 false；验证迁移 head、API/gRPC 镜像及健康，将该发布保存为执行启用前的基线。
 2. 完成 M1 真实案例、权限与凭据配置后，用同一完整提交再次部署并启用 worker/delivery。新旧发布使用同一迁移 head，前一发布的 runtime.json 仅包含 API/gRPC。
 3. 如启用失败，回退到上述基线；Compose --remove-orphans 停止 worker/delivery，保留新 API/gRPC、数据库中的任务、模型调用及成果，不重新打开 QS 旧生成路线。停止期间的新任务保留排队，恢复后仍遵守未知调用不得盲目重发。
-4. 执行启用前必须确认 state.previous 确实指向已验证且关闭执行的兼容基线；不能仅凭时间先后推断。实际回退演练仍待执行，当前文档不是回退成功证据。
+4. 执行启用前确认 state.current 是已验证且关闭执行的兼容基线；启用成功后再确认 state.previous 指向该基线。不能仅凭时间先后推断。实际回退演练仍待执行，当前文档不是回退成功证据。
