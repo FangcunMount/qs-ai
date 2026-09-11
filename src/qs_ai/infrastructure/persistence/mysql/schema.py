@@ -264,3 +264,30 @@ evaluation_runs = sa.Table(
     mysql_engine="InnoDB",
     mysql_charset="utf8mb4",
 )
+
+evaluation_generation_completions = sa.Table(
+    "evaluation_generation_completions",
+    metadata,
+    sa.Column("run_id", sa.CHAR(36), primary_key=True),
+    sa.Column("execution_id", sa.String(128, collation="utf8mb4_bin"), primary_key=True),
+    sa.Column("invocation_id", sa.String(128, collation="utf8mb4_bin"), nullable=False),
+    sa.Column("case_id", sa.String(128, collation="utf8mb4_bin"), nullable=False),
+    sa.Column("slot_ordinal", sa.Integer, nullable=False),
+    sa.Column("execution_ordinal", sa.Integer, nullable=False),
+    sa.Column("candidate_id", sa.String(128, collation="utf8mb4_bin")),
+    sa.Column("candidate_json", mysql.JSON),
+    sa.Column("evidence_json", mysql.JSON, nullable=False),
+    sa.Column("raw_output", mysql.MEDIUMBLOB, nullable=False),
+    sa.Column("normalized_output", mysql.MEDIUMBLOB, nullable=False),
+    sa.UniqueConstraint("run_id", "invocation_id", name="uq_evaluation_completion_invocation"),
+    sa.UniqueConstraint("run_id", "candidate_id", name="uq_evaluation_completion_candidate"),
+    sa.UniqueConstraint(
+        "run_id",
+        "case_id",
+        "slot_ordinal",
+        "execution_ordinal",
+        name="uq_evaluation_completion_ordinal",
+    ),
+    mysql_engine="InnoDB",
+    mysql_charset="utf8mb4",
+)
