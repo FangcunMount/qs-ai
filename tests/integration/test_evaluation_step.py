@@ -185,3 +185,40 @@ async def test_malformed_output_is_saved_then_retried_in_original_slot(ready):
     assert [(r["case_id"], r["slot_ordinal"]) for r in await stored(tx, run_id)] == [
         ("PROMPT-EVAL-001", 1)
     ] * 2
+
+
+async def test_semantic_decision_mismatch_is_saved_without_regenerating_candidate(ready):
+    from sqlalchemy import select
+
+    from tests.integration.test_evaluation_completions import stored
+
+    class WrongDecision(Gateway):
+        async def generate_messages(self, *args):
+            response = await super().generate_messages(*args)
+            output = json.loads(response.validation_output)
+            if "decisions" in output:
+                output["decisions"][0]["type"] = "unrequested_assertion"
+                return replace(
+                    response, raw_output=json.dumps(output), validation_output=json.dumps(output)
+                )
+            return response
+
+    gateway = WrongDecision(ready)
+    state = await step(ready, gateway)
+    state = await step(ready, gateway, state.version)
+    tx, run_id, *_ = ready
+    assert state.version == 9 and state.checkpoint is None
+    async with tx.open() as db:
+        evidence = (
+            await db.execute(
+                select(evaluation_semantic_completions.c.evidence_json).where(
+                    evaluation_semantic_completions.c.run_id == str(run_id)
+                )
+            )
+        ).scalar_one()
+    assert evidence["failure"]["code"] == "semantic_decision_contract_invalid"
+    assert (await stored(tx, run_id))[0]["candidate_json"]["review_ready"] is False
+    assert len(await stored(tx, run_id)) == 1
+    with pytest.raises(CheckpointConflict):
+        await step(ready, gateway, state.version)
+    assert gateway.calls == 2

@@ -17,6 +17,7 @@ from qs_ai.application.interpretation.provider import ModelResponse, ModelRoute,
 from qs_ai.application.interpretation.route_assets import RouteAssets
 from qs_ai.application.interpretation.schema_assets import SchemaAssets
 from qs_ai.domain.evaluation.completion import GenerationCompletion
+from qs_ai.domain.evaluation.failure import ClassifiedFailure
 from qs_ai.domain.evaluation.identity import EvidenceReleaseIdentity, FrozenContractRef
 from qs_ai.domain.evaluation.preflight import AssertionReceipt
 from qs_ai.domain.evaluation.semantic_completion import SemanticCompletion
@@ -32,10 +33,18 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_generation_completions,
     evaluation_runs,
 )
+from qs_ai.infrastructure.qs_server.evaluation_assertions import (
+    assertion_inventory,
+    semantic_obligations,
+)
 from qs_ai.infrastructure.qs_server.evaluation_case import prepare_evaluation_case
 from qs_ai.infrastructure.qs_server.routes import load_route
 from qs_ai.infrastructure.qs_server.semantic_assets import load_semantic_assets
 from qs_ai.infrastructure.qs_server.semantic_input import prepare_semantic_messages
+from qs_ai.infrastructure.qs_server.semantic_output import (
+    SemanticDecisionInvalid,
+    parse_semantic_output,
+)
 
 
 class MessagesGateway(Protocol):
@@ -64,6 +73,7 @@ async def execute_step(
     at = clock()
     invocation_id, execution_id = str(uuid4()), str(uuid4())
     candidate_fingerprint = ""
+    assertions: tuple[AssertionReceipt, ...] = ()
     async with transactions.open() as db:
         state = await prepare_execution(
             db,
@@ -143,6 +153,26 @@ async def execute_step(
             evidence.normalized,
             evidence.failure,
         )
+    if cp.kind == "semantic" and failure is None:
+        assert receipt is not None
+        obligations = semantic_obligations(
+            assertion_inventory(release.suite, cp.case_id), assertions
+        )
+        try:
+            await parse_semantic_output(
+                normalized, release, routes, receipt, invocation_id, obligations
+            )
+        except SemanticDecisionInvalid:
+            failure = ClassifiedFailure(
+                "semantic_evaluation",
+                "semantic_execution",
+                "semantic_decision_contract_invalid",
+                True,
+                False,
+                "retry_semantic",
+                "Semantic decision evidence invalid",
+                (execution_id,),
+            )
     status = (
         "succeeded" if failure is None else "result_unknown" if failure.result_unknown else "failed"
     )

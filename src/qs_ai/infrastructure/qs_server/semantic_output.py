@@ -14,6 +14,10 @@ from qs_ai.domain.evaluation.preflight import AssertionReceipt
 from qs_ai.infrastructure.qs_server.semantic_assets import load_semantic_assets
 
 
+class SemanticDecisionInvalid(ValueError):
+    """Provider decision evidence is invalid; not an asset, storage or caller error."""
+
+
 @dataclass(frozen=True)
 class SemanticResult:
     evaluator_version: str
@@ -70,17 +74,17 @@ async def parse_semantic_output(
             raise ValueError("Duplicate semantic obligation")
         wanted[key] = obligation
     if len(output["decisions"]) != len(wanted):
-        raise ValueError("Semantic decisions do not cover obligations")
+        raise SemanticDecisionInvalid("Semantic decisions do not cover obligations")
     seen = set()
     decisions = []
     for decision in output["decisions"]:
         key = (decision["type"], decision["scope"], decision["ordinal"])
         if key not in wanted or key in seen:
-            raise ValueError("Unknown or duplicate semantic decision")
+            raise SemanticDecisionInvalid("Unknown or duplicate semantic decision")
         seen.add(key)
         detail = decision["detail"].strip()
         if not detail or len(detail.encode()) > 2000:
-            raise ValueError("Invalid semantic decision rationale")
+            raise SemanticDecisionInvalid("Invalid semantic decision rationale")
         decisions.append(
             AssertionReceipt(
                 *key,
@@ -92,7 +96,7 @@ async def parse_semantic_output(
         )
     rationale = output["rationale"].strip()
     if not rationale or len(rationale.encode()) > 4000:
-        raise ValueError("Invalid semantic rationale")
+        raise SemanticDecisionInvalid("Invalid semantic rationale")
     return SemanticResult(
         assets.prompt.version,
         tuple(output["scores"].items()),
