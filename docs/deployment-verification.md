@@ -74,3 +74,11 @@ QS [部署 34615668017](https://github.com/FangcunMount/qs-server/actions/runs/3
 服务器完成健康、镜像及数据库校验后写入的 state 是回执来源，回执只含实际 revision 和 release 标识。CI 成功后上传 `qs-ai-deployed-<实际 SHA>-<run>-<attempt>` artifact，自动 gate 只读取同仓库 main 的未过期标记并按时间选最新。回退记录实际回退版本，而不是工作流源码 SHA。排队旧版本不得自动回退已更新的生产。
 
 首次启用尚无回执、或标记超出保留窗口时，自动任务建立一次完整基线，不猜测未知生产差异。手动 deploy/rollback 保留显式行为与 main 祖先、精确版本 CI 门槛；范围判断不能替代运行和业务验收。回执上传失败时部署可能已完成，应先核对服务器再处理 CI。
+
+## 2026-09-12 发布 runner 故障与暂停
+
+AI 自动部署 `34622452715` 失败；GitHub check annotation 明确为 runner5 `_diag` 日志写入触发 `System.IO.IOException: No space left on device`，不是业务验收失败。QS 部署 `34620764830` 此前也在 runner3 导出原始 tar 时报磁盘不足。QS PR #85 的流式导出已合并，但不能修复已满的共享磁盘。
+
+为避免继续堆积失败发布，qs-ai Repository Variable `AUTO_DEPLOY_ENABLED` 已从 true 临时设为 false，普通 CI 未关闭。新的运行 `34625252116` 仍显示 deploy in_progress 且无步骤信息；没有把观察缺失当成已终止，也没有重复发起或中断可能在操作服务器的任务。
+
+恢复前：取得 runner SSH 连接、检查占用与运行任务，只清理已核实归属且可重建的本任务临时产物；再次核对 serverA 实际版本和服务健康。恢复后先完成一次明确版本发布与回执验证，再将 AUTO_DEPLOY_ENABLED 恢复 true。真实报告、授权/撤权及生成业务门槛仍独立验收。
