@@ -11,6 +11,7 @@ from qs_ai.application.interpretation.route_assets import RouteAssets
 from qs_ai.application.interpretation.schema_assets import SchemaAssets
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
 from qs_ai.infrastructure.persistence.mysql.evaluation_progress import execute_preflight
+from qs_ai.infrastructure.persistence.mysql.evaluation_scan import RecoveryCursor, recover_next
 from qs_ai.infrastructure.persistence.mysql.evaluation_step import MessagesGateway, execute_step
 from qs_ai.infrastructure.persistence.mysql.schema import evaluation_checkpoints, evaluation_runs
 
@@ -25,15 +26,26 @@ class EvaluationWorker:
         owner: str,
         *,
         enabled: bool = False,
+        recovery_cursor: RecoveryCursor | None = None,
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:
         self.transactions = transactions
         self.gateway, self.routes, self.schemas = gateway, routes, schemas
         self.owner, self.enabled, self.clock = owner, enabled, clock
+        self.recovery_cursor = recovery_cursor if recovery_cursor is not None else RecoveryCursor()
 
     async def once(self) -> bool:
         if not self.enabled:
             return False
+        if await recover_next(
+            self.transactions,
+            self.routes,
+            self.schemas,
+            self.owner,
+            self.clock(),
+            self.recovery_cursor,
+        ):
+            return True
         # Selection is only a hint. The shared checkpoint CAS owns the claim, and
         # the session closes before model I/O. Organization comes from the Run.
         async with self.transactions.open() as db:

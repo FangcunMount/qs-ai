@@ -1,5 +1,4 @@
 import asyncio
-from datetime import timedelta
 
 import pytest
 from sqlalchemy import null, update
@@ -86,7 +85,6 @@ async def test_other_consumer_does_not_resend_active_dispatch(ready):
     try:
         await asyncio.wait_for(entered.wait(), 5)
         another = worker(ready, gateway)
-        another.clock = lambda: AT + timedelta(days=1)
         assert not await another.once()
     finally:
         finish.set()

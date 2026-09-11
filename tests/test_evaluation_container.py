@@ -61,6 +61,7 @@ async def test_request_scope_builds_worker_without_network_and_closes_client():
         async with container() as request:
             other = await request.get(EvaluationWorker)
             assert other.owner != worker.owner
+            assert other.recovery_cursor is worker.recovery_cursor
     finally:
         await container.close()
 

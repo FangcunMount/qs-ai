@@ -11,6 +11,7 @@ from qs_ai.application.interpretation.route_assets import RouteAssets
 from qs_ai.application.interpretation.schema_assets import SchemaAssets
 from qs_ai.config import Settings
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
+from qs_ai.infrastructure.persistence.mysql.evaluation_scan import RecoveryCursor
 from qs_ai.infrastructure.persistence.mysql.evaluation_worker import EvaluationWorker
 from qs_ai.infrastructure.persistence.mysql.route_assets import MySQLRouteAssets
 from qs_ai.infrastructure.persistence.mysql.schema_assets import MySQLSchemaAssets
@@ -18,6 +19,10 @@ from qs_ai.infrastructure.qs_server.responses import DeepSeekResponses
 
 
 class EvaluationProvider(Provider):
+    @provide(scope=Scope.APP)
+    def recovery_cursor(self) -> RecoveryCursor:
+        return RecoveryCursor()
+
     routes = provide(MySQLRouteAssets, provides=RouteAssets, scope=Scope.REQUEST)
     schemas = provide(MySQLSchemaAssets, provides=SchemaAssets, scope=Scope.REQUEST)
 
@@ -28,6 +33,7 @@ class EvaluationProvider(Provider):
         transactions: Transactions,
         routes: RouteAssets,
         schemas: SchemaAssets,
+        recovery_cursor: RecoveryCursor,
     ) -> AsyncIterator[EvaluationWorker]:
         endpoint = settings.generation.endpoint
         if not settings.evaluation.enabled:
@@ -49,4 +55,5 @@ class EvaluationProvider(Provider):
                 schemas,
                 "evaluation:" + str(uuid4()),
                 enabled=True,
+                recovery_cursor=recovery_cursor,
             )
