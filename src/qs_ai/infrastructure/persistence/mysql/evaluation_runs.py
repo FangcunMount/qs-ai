@@ -10,7 +10,12 @@ from sqlalchemy import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from qs_ai.application.evaluation.checkpoints import CheckpointState
+from qs_ai.application.interpretation.profile_assets import ProfileAssets
+from qs_ai.application.interpretation.prompt_assets import PromptAssets
+from qs_ai.application.interpretation.route_assets import RouteAssets
+from qs_ai.application.interpretation.schema_assets import SchemaAssets
 from qs_ai.domain.evaluation.identity import EvidenceReleaseIdentity
+from qs_ai.infrastructure.persistence.mysql.database import Transactions
 from qs_ai.infrastructure.persistence.mysql.evaluation_dispatches import freeze_policy
 from qs_ai.infrastructure.persistence.mysql.schema import evaluation_checkpoints, evaluation_runs
 from qs_ai.infrastructure.qs_server.evaluation_policies import (
@@ -94,3 +99,39 @@ async def create_run(
     await freeze_policy(db, run_id, policy)
     await db.execute(insert(evaluation_checkpoints).values(run_id=str(run_id), version=1))
     return CheckpointState(run_id, 1, None)
+
+
+class MySQLRunCreator:
+    """Internal creation adapter; the caller must establish administrative authorization."""
+
+    def __init__(
+        self,
+        transactions: Transactions,
+        profiles: ProfileAssets,
+        prompts: PromptAssets,
+        routes: RouteAssets,
+        schemas: SchemaAssets,
+    ) -> None:
+        self.transactions = transactions
+        self.profiles, self.prompts, self.routes, self.schemas = profiles, prompts, routes, schemas
+
+    async def create(
+        self,
+        run_id: UUID,
+        release: EvidenceReleaseIdentity,
+        organization_id: int,
+        requested_by: str,
+        request_reason: str,
+        created_at: datetime,
+    ) -> CheckpointState:
+        from qs_ai.infrastructure.qs_server.evaluation_release import validate_release_assets
+
+        await validate_release_assets(
+            release, self.profiles, self.prompts, self.routes, self.schemas
+        )
+        async with self.transactions.open() as db:
+            state = await create_run(
+                db, run_id, release, organization_id, requested_by, request_reason, created_at
+            )
+            await db.commit()
+        return state

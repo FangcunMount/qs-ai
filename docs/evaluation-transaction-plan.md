@@ -58,3 +58,5 @@
 语义 v2 指令与输出 Schema 已有冻结读取器 `load_semantic_assets`：按原 Markdown 三个规范文本块还原 system/task/data preamble，保留原文和原 Schema 字节及引用。原 QS `Test(V2)?ExecutablePromptMatchesNormativeMarkdownAndFrozenHashes` 在本任务独立工作区通过，确认这些文本块与实际 Go 消息常量一致；Python 3 项测试通过，包括与原 QS 文件逐字节对照、重算 manifest 后 Prompt 指纹漂移拒绝。此处不迁移语义 payload 构造、路由选择、回执解析或评分判定，尚未形成独立模型评审执行器。
 
 语义路由解析 `resolve_semantic_route` 按自身 ID/版本/指纹查询不可变路由，缺失或不符即拒绝，不使用生成路由作默认值、不选择 latest。原 QS `SemanticEvaluatorSpec.Validate` 不强制评审与生成使用不同供应商/模型，迁移保留该语义；两者即使共用模型也各自冻结引用。相关清单/引用测试现为 16 项通过。生产语义路由版本尚未确认和导入，解析函数本身不提供缺失配置，也不代表完整创建应用入口已接通。
+
+`MySQLRunCreator.create` 现先调用统一 `validate_release_assets`，完成全部 11 项引用解析及 suite Profile/Prompt 对齐，成功后再打开 Run 创建事务。生成侧从不可变资产仓库读取；语义指令/Schema、suite 和策略来自固定资源，语义路由按显式引用读取。相关 23 项资产测试通过，包含六类非生成引用错误在事务打开前拒绝；五项生成引用错误已有对应测试。测试资产仓库使用替身及原资产包，尚未作为完整 MySQL 创建适配器端到端验收。此为内部适配器，调用方仍须完成管理授权；尚未接入 HTTP/gRPC/CLI 入口、依赖注入或 worker，不能将其视为生产可用管理功能。

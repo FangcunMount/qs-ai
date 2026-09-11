@@ -156,3 +156,62 @@ async def test_semantic_route_rejects_missing_or_mismatched_fingerprint(
         )
     with pytest.raises(ManifestUnavailable, match="semantic route"):
         await resolve_semantic_route(release, routes)
+
+
+@pytest.fixture
+async def complete_release(evaluation_release):
+    from qs_ai.domain.evaluation.identity import FrozenContractRef
+    from qs_ai.infrastructure.qs_server.evaluation_policies import (
+        load_execution_policy,
+        load_gate_policy,
+    )
+    from qs_ai.infrastructure.qs_server.evaluation_suite import V6
+    from qs_ai.infrastructure.qs_server.semantic_assets import load_semantic_assets
+
+    policy, gate, semantic = load_execution_policy(), load_gate_policy(), load_semantic_assets()
+    return replace(
+        evaluation_release,
+        suite=V6,
+        execution_policy=FrozenContractRef(policy.policy_id, policy.version, policy.fingerprint),
+        gate_policy=gate.reference,
+        semantic_prompt=semantic.prompt,
+        semantic_output_schema=semantic.output_schema,
+        semantic_route=evaluation_release.generation_route,
+    )
+
+
+async def test_complete_frozen_release_resolves_all_eleven_components(assets, complete_release):
+    from qs_ai.infrastructure.qs_server.evaluation_release import validate_release_assets
+
+    await validate_release_assets(complete_release, *assets[0])
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "suite",
+        "semantic_prompt",
+        "semantic_output_schema",
+        "semantic_route",
+        "execution_policy",
+        "gate_policy",
+    ],
+)
+async def test_invalid_release_component_never_opens_creation_transaction(
+    assets, complete_release, name
+):
+    from datetime import UTC, datetime
+    from unittest.mock import Mock
+    from uuid import uuid4
+
+    from qs_ai.infrastructure.persistence.mysql.evaluation_runs import MySQLRunCreator
+
+    tx = Mock()
+    creator = MySQLRunCreator(tx, *assets[0])
+    invalid = replace(
+        complete_release,
+        **{name: replace(getattr(complete_release, name), fingerprint="sha256:" + "0" * 64)},
+    )
+    with pytest.raises(ValueError):
+        await creator.create(uuid4(), invalid, 1, "actor:1", "评测", datetime.now(UTC))
+    tx.open.assert_not_called()
