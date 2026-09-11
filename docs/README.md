@@ -1,6 +1,6 @@
 # qs-ai 设计与实施入口
 
-当前阶段：2026-09-11，P1 会话骨架及第 1 批跨服务持久投递本地联调已落地；真实跨服务授权/事实读取尚未接通。P2–P5 为设计。
+当前阶段：M0 基础服务与 mTLS 已发布。以 [M1–M5 替代计划](migration-milestones.md) 为当前执行与验收依据；原 P0–P5 编号保留技术设计参考，不与迁移里程碑混用。
 
 | 阅读顺序 | 文档 | 回答的问题 |
 | --- | --- | --- |
@@ -9,7 +9,8 @@
 | 2 | [领域与数据](domain-data.md) | 聚合、不变量、状态、MySQL 表、记忆 |
 | 3 | [执行与恢复](runtime.md) | API/Worker、租约、模型调用、检查点协调与版本 |
 | 4 | [接口与模型契约](contracts.md) | HTTP/gRPC、授权、Provider、Prompt、评测发布 |
-| 5 | [实施路线](roadmap.md) | P0–P5、验证矩阵、迁移部署、未决项 |
+| 5 | [替代里程碑](migration-milestones.md) | M1–M5 任务、依赖、验收与目标模式台账 |
+| 技术参考 | [原实施路线](roadmap.md) | P0–P5 技术批次和验证矩阵 |
 | 配置入口 | [统一配置](../configs/README.md) | 环境覆盖、启动入口与 Actions Secrets |
 | 发布规划 | [CI/CD 建设方案](cicd-plan.md) | 对齐 QS 发布设施、MySQL Secrets、迁移与回滚的设计依据 |
 | 发布证据 | [部署验证](deployment-verification.md) | CI、实际数据库与 serverA 版本验收 |
