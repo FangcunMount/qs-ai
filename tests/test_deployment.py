@@ -63,7 +63,7 @@ def setup_release(remote, tmp_path, monkeypatch):
     revision = "a" * 40
     release = remote.release_path(revision + "-1-1")
     release.mkdir(parents=True)
-    archive = release / "image.tar"
+    archive = release / "image.tar.gz"
     archive.write_bytes(b"image")
     manifest = {
         "revision": revision,
@@ -76,7 +76,7 @@ def setup_release(remote, tmp_path, monkeypatch):
 
 def test_bad_archive_never_loads_or_migrates(remote, tmp_path, monkeypatch):
     release, _ = setup_release(remote, tmp_path, monkeypatch)
-    (release / "image.tar").write_bytes(b"damaged")
+    (release / "image.tar.gz").write_bytes(b"damaged")
     monkeypatch.setattr(remote, "run", lambda *args: pytest.fail("must not run Docker"))
     with pytest.raises(remote.DeploymentError, match="checksum"):
         remote.apply(release, {})
@@ -162,7 +162,7 @@ def test_success_records_version_only_after_verification(remote, tmp_path, monke
     monkeypatch.setattr(remote, "verify", lambda path: None)
     remote.apply(release, {})
     assert json.loads((tmp_path / "state.json").read_text())["current"] == release.name
-    assert not (release / "image.tar").exists()
+    assert not (release / "image.tar.gz").exists()
     assert json.loads((release / "verification.json").read_text())["phase"] == "ready"
 
 

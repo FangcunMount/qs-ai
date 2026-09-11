@@ -44,7 +44,16 @@ def run(phase: str, args: list[str]) -> str:
     result = subprocess.run(args, capture_output=True, text=True, timeout=1200)
     if result.returncode:
         # Do not expose raw driver/Compose errors, which may contain credentials.
-        raise DeploymentError(f"{phase} failed (exit {result.returncode})")
+        detail = ""
+        if phase == "database probe":
+            try:
+                diagnostic = json.loads(result.stdout.strip().splitlines()[-1])
+                code = diagnostic.get("driver_code")
+                if isinstance(code, int):
+                    detail = f", database driver code {code}"
+            except (ValueError, IndexError):
+                pass
+        raise DeploymentError(f"{phase} failed (exit {result.returncode}{detail})")
     return result.stdout
 
 
@@ -122,7 +131,7 @@ def apply(release: Path, state: dict) -> None:
     revision = manifest["revision"]
     if not re.fullmatch(r"[0-9a-f]{40}", revision) or not release.name.startswith(revision + "-"):
         raise ValueError("Invalid release revision")
-    archive = release / "image.tar"
+    archive = release / "image.tar.gz"
     checksum = hashlib.sha256()
     with archive.open("rb") as stream:
         for block in iter(lambda: stream.read(1024 * 1024), b""):

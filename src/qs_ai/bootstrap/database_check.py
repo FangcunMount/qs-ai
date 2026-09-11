@@ -47,7 +47,17 @@ def main() -> None:
         result = asyncio.run(check(args.require_head))
     except Exception as error:
         # SQLAlchemy/driver errors can include credentials and SQL parameters.
-        print(json.dumps({"database_check": "failed", "error_type": type(error).__name__}))
+        driver = getattr(error, "orig", error)
+        code = driver.args[0] if driver.args and isinstance(driver.args[0], int) else None
+        print(
+            json.dumps(
+                {
+                    "database_check": "failed",
+                    "error_type": type(error).__name__,
+                    "driver_code": code,
+                }
+            )
+        )
         raise SystemExit(1) from None
     print(json.dumps(result))
 

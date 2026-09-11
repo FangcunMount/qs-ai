@@ -1,5 +1,6 @@
 """Mac mini release packaging and SSH transport. No production values in logs."""
 
+import gzip
 import hashlib
 import json
 import os
@@ -146,8 +147,15 @@ def main() -> None:
             )[0]
             package = work / "package"
             package.mkdir()
-            archive = package / "image.tar"
-            run("image export", ["docker", "save", "-o", str(archive), alias], env=docker_env)
+            uncompressed = work / "image.tar"
+            archive = package / "image.tar.gz"
+            run("image export", ["docker", "save", "-o", str(uncompressed), alias], env=docker_env)
+            with (
+                uncompressed.open("rb") as source,
+                gzip.open(archive, "wb", compresslevel=1) as target_stream,
+            ):
+                shutil.copyfileobj(source, target_stream)
+            uncompressed.unlink()
             checksum = hashlib.sha256()
             with archive.open("rb") as stream:
                 for block in iter(lambda: stream.read(1024 * 1024), b""):
@@ -178,7 +186,17 @@ def main() -> None:
                 "retain deployment script",
                 [*ssh, f"cp {remote_script} {target}/deploy.py && chmod 600 {target}/*"],
             )
-            print(run("remote deployment", [*ssh, f"python3 {remote_script} {release_id}"]), end="")
+            try:
+                print(
+                    run("remote deployment", [*ssh, f"python3 {remote_script} {release_id}"]),
+                    end="",
+                )
+            except RuntimeError:
+                failure = json.loads(run("failure record", [*ssh, f"cat {target}/failure.json"]))
+                print(
+                    json.dumps({key: failure.get(key) for key in ("status", "error_type", "phase")})
+                )
+                raise
         finally:
             run("remove temporary script", [*ssh, f"rm -f {remote_script}"])
 
