@@ -124,7 +124,14 @@ def next_action(
             checkpoint.execution_ordinal,
             True,
         )
-    if unresolved_unknown:
+    # Manual resolutions are not represented by this automatic projection yet.
+    # Never let a caller-supplied zero hide an unknown execution in another slot.
+    historical_unknown = any(
+        execution.status == "result_unknown"
+        for slot in slots
+        for execution in (*slot.generation, *(slot.candidate.semantic if slot.candidate else ()))
+    )
+    if unresolved_unknown or historical_unknown:
         return NextAction("block", "result_unknown_requires_review")
     if preflight_status != "passed":
         return NextAction(

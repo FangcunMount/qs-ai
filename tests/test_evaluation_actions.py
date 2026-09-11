@@ -109,3 +109,25 @@ def test_invalid_progress_cannot_skip_or_duplicate_candidate_slots():
     )
     with pytest.raises(ValueError, match="more than one slot"):
         action(slots)
+
+
+def test_unknown_in_later_slot_blocks_new_call_even_when_counter_is_zero():
+    slots = plan()
+    later = replace(slots[-1], generation=(ExecutionResult("result_unknown"),))
+    result = action((*slots[:-1], later), unresolved_unknown=0)
+    assert result.kind == "block"
+    assert result.cause == "result_unknown_requires_review"
+
+
+def test_unknown_semantic_history_cannot_be_hidden_by_review_ready_flag():
+    slots = plan()
+    candidate = CandidateProgress(
+        "candidate:1",
+        True,
+        (
+            ExecutionResult("result_unknown"),
+            ExecutionResult("succeeded"),
+        ),
+    )
+    later = replace(slots[-1], generation=(ExecutionResult("succeeded"),), candidate=candidate)
+    assert action((*slots[:-1], later), unresolved_unknown=0).kind == "block"
