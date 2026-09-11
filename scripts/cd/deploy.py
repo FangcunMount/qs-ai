@@ -1,14 +1,15 @@
 """Mac mini release packaging and SSH transport. No production values in logs."""
 
 import base64
-import gzip
 import hashlib
 import json
 import os
 import re
 import shutil
 import subprocess
+import tarfile
 import tempfile
+import time
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -113,6 +114,69 @@ def run(phase: str, args: list[str], **kwargs) -> str:
     return result.stdout
 
 
+def export_image(image: str, archive: Path, environment: dict, timeout: float = 1800) -> None:
+    """Stream into a private compressed file; check both children before publishing."""
+    if timeout <= 0:
+        raise ValueError("Image export timeout must be positive")
+    exporter = compressor = None
+    temporary = None
+    deadline = time.monotonic() + timeout
+    print("image export: started", flush=True)
+    try:
+        with tempfile.NamedTemporaryFile(
+            dir=archive.parent, suffix=".tar.gz.tmp", delete=False
+        ) as target:
+            temporary = Path(target.name)
+            exporter = subprocess.Popen(
+                ["docker", "save", image],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                env=environment,
+            )
+            compressor = subprocess.Popen(
+                ["gzip", "-1", "-c"],
+                stdin=exporter.stdout,
+                stdout=target,
+                stderr=subprocess.DEVNULL,
+                env=environment,
+            )
+            exporter.stdout.close()
+            compressed = compressor.wait(timeout=max(0, deadline - time.monotonic()))
+            exported = exporter.wait(timeout=max(0, deadline - time.monotonic()))
+            if compressed or exported:
+                raise RuntimeError("Image export failed; raw output suppressed")
+        run("gzip integrity", ["gzip", "-t", str(temporary)])
+        # A short garbage stream can be accepted as an empty archive by GNU tar.
+        # Read entries without extracting layers or accumulating a large file list.
+        try:
+            manifest_found = False
+            with tarfile.open(temporary, "r|gz") as package:
+                for member in package:
+                    if member.isfile():
+                        content = package.extractfile(member)
+                        assert content is not None
+                        with content:
+                            while content.read(1024 * 1024):
+                                if time.monotonic() >= deadline:
+                                    raise subprocess.TimeoutExpired("archive integrity", timeout)
+                        manifest_found |= member.name == "manifest.json"
+            if not manifest_found:
+                raise RuntimeError("Image archive has no manifest")
+        except (tarfile.TarError, EOFError, OSError):
+            raise RuntimeError("Image archive is invalid; raw output suppressed") from None
+        os.replace(temporary, archive)
+    finally:
+        for process in (compressor, exporter):
+            if process is not None:
+                if process.poll() is None:
+                    process.kill()
+                process.wait()
+        if exporter is not None and exporter.stdout is not None:
+            exporter.stdout.close()
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+
+
 def record_deployment(ssh: list[str]) -> None:
     # Remote state is written only after health, image and schema verification.
     # It also identifies the actual target of rollback, not the workflow source SHA.
@@ -207,15 +271,8 @@ def main() -> None:
             )[0]
             package = work / "package"
             package.mkdir()
-            uncompressed = work / "image.tar"
             archive = package / "image.tar.gz"
-            run("image export", ["docker", "save", "-o", str(uncompressed), alias], env=docker_env)
-            with (
-                uncompressed.open("rb") as source,
-                gzip.open(archive, "wb", compresslevel=1) as target_stream,
-            ):
-                shutil.copyfileobj(source, target_stream)
-            uncompressed.unlink()
+            export_image(alias, archive, docker_env)
             checksum = hashlib.sha256()
             with archive.open("rb") as stream:
                 for block in iter(lambda: stream.read(1024 * 1024), b""):
