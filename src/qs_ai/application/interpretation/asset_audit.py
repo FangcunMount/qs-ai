@@ -6,9 +6,11 @@ from dataclasses import dataclass
 from qs_ai.application.interpretation.profile_assets import ProfileAssets
 from qs_ai.application.interpretation.prompt_assets import PromptAssets
 from qs_ai.application.interpretation.route_assets import RouteAssets
+from qs_ai.application.interpretation.schema_assets import SchemaAssets
 from qs_ai.domain.governance.profile import ProfileAsset
 from qs_ai.domain.governance.prompt import PromptAsset
 from qs_ai.domain.governance.route import RouteAsset
+from qs_ai.domain.governance.schema import SchemaAsset
 
 
 @dataclass(frozen=True)
@@ -89,4 +91,34 @@ async def audit_routes(
                     "profile", profile.profile_id, profile.version, "route_not_in_baseline"
                 )
             )
+    return tuple(mismatches)
+
+
+async def audit_schemas(
+    schemas: SchemaAssets,
+    expected_schemas: tuple[SchemaAsset, ...],
+    expected_profiles: tuple[ProfileAsset, ...],
+) -> tuple[AssetMismatch, ...]:
+    mismatches = []
+    for expected in expected_schemas:
+        actual = await schemas.get(expected.schema_id, expected.version)
+        if actual != expected:
+            mismatches.append(
+                AssetMismatch(
+                    "schema",
+                    expected.schema_id,
+                    expected.version,
+                    "missing" if actual is None else "content_mismatch",
+                )
+            )
+    versions = {f"{a.schema_id}/{a.version}" for a in expected_schemas}
+    for profile in expected_profiles:
+        policy = json.loads(profile.definition_json)["generation_policy"]
+        for field in ("input_schema_version", "output_schema_version"):
+            if policy[field] not in versions:
+                mismatches.append(
+                    AssetMismatch(
+                        "profile", profile.profile_id, profile.version, f"{field}_not_in_baseline"
+                    )
+                )
     return tuple(mismatches)

@@ -4,15 +4,17 @@ import asyncio
 import json
 from dataclasses import asdict
 
-from qs_ai.application.interpretation.asset_audit import audit_assets, audit_routes
+from qs_ai.application.interpretation.asset_audit import audit_assets, audit_routes, audit_schemas
 from qs_ai.bootstrap.import_profiles import baseline_assets as profile_baseline
 from qs_ai.bootstrap.import_prompts import baseline_assets as prompt_baseline
 from qs_ai.bootstrap.import_routes import baseline_assets as route_baseline
+from qs_ai.bootstrap.import_schemas import baseline_assets as schema_baseline
 from qs_ai.config import Settings
 from qs_ai.infrastructure.persistence.mysql.database import Database, Transactions
 from qs_ai.infrastructure.persistence.mysql.profile_assets import MySQLProfileAssets
 from qs_ai.infrastructure.persistence.mysql.prompt_assets import MySQLPromptAssets
 from qs_ai.infrastructure.persistence.mysql.route_assets import MySQLRouteAssets
+from qs_ai.infrastructure.persistence.mysql.schema_assets import MySQLSchemaAssets
 
 
 async def run() -> dict:
@@ -22,6 +24,7 @@ async def run() -> dict:
     profile_source, profiles = profile_baseline()
     prompt_source, prompts = prompt_baseline()
     route_source, routes = route_baseline()
+    schema_source, schemas = schema_baseline()
     database = Database(settings.database_url.get_secret_value())
     try:
         transactions = Transactions(database)
@@ -29,14 +32,17 @@ async def run() -> dict:
             MySQLProfileAssets(transactions), MySQLPromptAssets(transactions), profiles, prompts
         )
         mismatches += await audit_routes(MySQLRouteAssets(transactions), routes, profiles)
+        mismatches += await audit_schemas(MySQLSchemaAssets(transactions), schemas, profiles)
         return {
             "audit": "mismatch" if mismatches else "matched",
-            "scope": "fixed_profile_prompt_route_baseline",
+            "scope": "fixed_profile_prompt_route_schema_baseline",
             "profile_source": profile_source,
             "prompt_source": prompt_source,
             "profiles_checked": len(profiles),
             "prompts_checked": len(prompts),
             "routes_checked": len(routes),
+            "schemas_checked": len(schemas),
+            "schema_source": schema_source,
             "route_source": route_source,
             "mismatches": [asdict(item) for item in mismatches],
             "activated": False,

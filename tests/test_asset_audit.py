@@ -54,3 +54,24 @@ async def test_route_reconciliation_requires_revision_and_profile_binding():
         "route_not_in_baseline"
     ]
     store.put.assert_not_called()
+
+
+async def test_schema_reconciliation_requires_both_profile_contract_versions():
+    from qs_ai.application.interpretation.asset_audit import audit_schemas
+    from qs_ai.bootstrap.import_schemas import baseline_assets
+
+    expected = baseline_assets()[1]
+    store = AsyncMock()
+    by_key = {(a.schema_id, a.version): a for a in expected}
+    store.get.side_effect = lambda identity, version: by_key.get((identity, version))
+    assert not await audit_schemas(store, expected, profiles()[1])
+    by_key.clear()
+    assert [f.reason for f in await audit_schemas(store, expected, profiles()[1])] == [
+        "missing",
+        "missing",
+    ]
+    assert [f.reason for f in await audit_schemas(store, (), profiles()[1])] == [
+        "input_schema_version_not_in_baseline",
+        "output_schema_version_not_in_baseline",
+    ]
+    store.put.assert_not_called()
