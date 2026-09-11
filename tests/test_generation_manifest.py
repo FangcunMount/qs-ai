@@ -65,3 +65,58 @@ async def test_route_revision_is_explicit_and_cannot_silently_fall_back(assets):
     with pytest.raises(ManifestUnavailable, match="Route"):
         await build_generation_manifest(*stores, **selection)
     stores[2].get.assert_awaited_once_with("balanced_text_v1", "v9")
+
+
+@pytest.fixture
+async def evaluation_release(assets):
+    from dataclasses import fields
+
+    from qs_ai.domain.evaluation.identity import EvidenceReleaseIdentity, FrozenContractRef
+
+    stores, selection = assets
+    manifest = await build_generation_manifest(*stores, **selection)
+    refs = {
+        f.name: FrozenContractRef(f.name, "v1", "sha256:" + "a" * 64)
+        for f in fields(EvidenceReleaseIdentity)
+    }
+    for name in ("profile", "prompt", "generation_route", "input_schema", "output_schema"):
+        asset = getattr(manifest, name)
+        version = f"{asset.identity}/{asset.version}" if name.endswith("schema") else asset.version
+        refs[name] = FrozenContractRef(asset.identity, version, asset.fingerprint)
+    return EvidenceReleaseIdentity(**refs)
+
+
+async def test_evaluation_resolves_generation_assets_with_original_full_schema_versions(
+    assets, evaluation_release
+):
+    from qs_ai.application.evaluation.release import resolve_generation_assets
+
+    stores, selection = assets
+    resolved = await resolve_generation_assets(evaluation_release, *stores)
+    assert resolved == await build_generation_manifest(*stores, **selection)
+    assert evaluation_release.input_schema.version == "ai-explanation-input/v1"
+    assert evaluation_release.output_schema.version == "ai-explanation-output/v1"
+
+
+@pytest.mark.parametrize(
+    "name", ["profile", "prompt", "generation_route", "input_schema", "output_schema"]
+)
+async def test_evaluation_rejects_changed_generation_fingerprint(assets, evaluation_release, name):
+    from qs_ai.application.evaluation.release import resolve_generation_assets
+
+    changed = replace(
+        evaluation_release,
+        **{name: replace(getattr(evaluation_release, name), fingerprint="sha256:" + "0" * 64)},
+    )
+    with pytest.raises(ManifestUnavailable, match="does not match"):
+        await resolve_generation_assets(changed, *assets[0])
+
+
+async def test_evaluation_does_not_accept_asset_short_schema_version(assets, evaluation_release):
+    from qs_ai.application.evaluation.release import resolve_generation_assets
+
+    changed = replace(
+        evaluation_release, input_schema=replace(evaluation_release.input_schema, version="v1")
+    )
+    with pytest.raises(ManifestUnavailable, match="input_schema"):
+        await resolve_generation_assets(changed, *assets[0])
