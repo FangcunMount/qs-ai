@@ -49,7 +49,9 @@ def database_url(environment: dict) -> str:
 def runtime_config(environment: dict) -> dict:
     # Compose processes interpolation in JSON too.
     url = database_url(environment).replace("$", "$$")
-    return {"services": {"api": {"environment": {"QS_AI_DATABASE_URL": url}}}}
+    return {
+        "services": {name: {"environment": {"QS_AI_DATABASE_URL": url}} for name in ("api", "grpc")}
+    }
 
 
 def write_registry_auth(directory: Path, environment: dict) -> None:
