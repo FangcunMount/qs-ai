@@ -154,3 +154,10 @@ M1 → M2 → M3 → M4 → M5。M3 清单分析可提前开展，生产切换�
 - 完整成果 Python Outbox→mTLS→Go 接收器→QS MySQL 已通过本地及 CI 双 MySQL 版本验证，包含确认丢失、重启、乱序重投。见 [执行适配记录](../integrations/qs_server/provider-runtime.md)。真实模型、真实授权及产品展示仍缺。
 - GitHub 仓库 Secret 名称检查中尚无 QS_AI_MODEL_API_KEY；未设置 QS_AI_EXECUTION_ENABLED/模型地址变量。部署配置测试完成，但没有擅自启用生产生成。后续通过现有安全渠道复用 QS 模型凭据，禁止输出凭据内容。
 - 下一批优先事项：收尾精确版本 CI/发布验证；核对案例和安全凭据复用；先完成 M1 业务门槛，再启用 M2 并做真实模型、进程终止恢复、投递及展示验收。M3–M5 未完成，旧 AI 引擎未退役。
+
+### 2026-09-12：基线部署与进程恢复增量证据
+
+- AI PR #9 已合并至 `ccde2ed627171b748ff63efe5062fdc741757480`；主分支 CI `34620329883` 和部署 `34620513999` 成功。serverA 现场检查确认 `qs-ai-api`、`qs-ai-grpc` 均为该镜像且 healthy，未启动 worker/delivery。该证据仅证明禁用执行的服务基线，不能视为真实模型或 M2 验收。
+- QS PR #84 增加参与者工作流成果 GET：当前授权复核、请求归属校验、正文与冻结报告来源返回，旧 Generation 接口保留。CI 文档测试发现 RPC 数量断言遗漏，已修复后重跑；尚不将未合并 PR 记为生产能力。
+- `tests/integration/test_generation.py::test_process_kill_recovers_durable_call_without_another_send` 在独立 Python 子进程中分别停在 dispatched 和 response_received，使用 OS kill 强制终止。真实隔离 MySQL 8.4 中过期租约后重领：前者恢复为结果未知、后者恢复原持久响应，两者均不再次调用模型网关。该文件 7 项测试本地通过。
+- 进程测试使用合成模型响应，租约过期由测试显式推进；不代表真实供应商断线、整套 worker/delivery 的生产恢复、最终成果展示或真实授权验证。M1–M5 验收状态保持不变。
