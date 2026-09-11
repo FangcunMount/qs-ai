@@ -21,3 +21,5 @@ QS 新增独立 ai-workflows 产品入口，复用原主体委托与归属判断
 Go/Python 授权联调已通过：Python QSAccessSource → Go AIWorkflowAccessService → CurrentAccess，真实 mTLS；同连接有效→撤销→恢复、跨组织/用户/Testee/测评、错误服务证书与关系源故障均验证。Go fixture 的 Testee/关系/归属数据为隔离替身，尚未证明真实 IAM 或生产调用。CI 固定 QS b9a2425260c629810f08c145cf479023fdeea90e 并构建专用测试进程，纳入每次 pytest。
 
 生产只读核对（2026-09-11）：serverA QS 当前容器 ea166d2b，AI 仍 d39f55f；尚未发布本分支。QS 挂载的 apiserver.prod.yaml 中 AI enabled/participant_enabled 为 true，provider=deepseek、model=deepseek-v4-pro、protocol=responses、route_revision=v8、max_output_tokens=12000、timeout=120s。此为配置文件值，环境覆盖与实际 Profile/release 尚待核对，不直接作为最终案例锁定依据；未读取/输出密钥。
+
+生产 Profile 只读查询成功（2026-09-11）：合并 QS 容器实际 Mongo 环境覆盖后，ai_explanation_profiles 中已发布记录 1 条：participant-scale-score-range-default，selector=participant/scale/score_range，无特定 model_code/version 限制，Prompt=cross-dimension-participant-scale/v6，provider_route=balanced_text_v1，输入/输出 Schema v1，上限 8000 字符。仅投影 definition/fingerprint/status，未读取测评者数据。迁移基线保存于 integrations/qs_server/prompts/published-profile-baseline.json；不是 qs-ai 当前运行配置。真实报告案例和 IAM 撤权验收仍待完成。

@@ -1,0 +1,94 @@
+{
+  "observed_on": "2026-09-11",
+  "qs_deployed_sha": "ea166d2b40826208050909dd9e470232928e0a38",
+  "source": "read-only ai_explanation_profiles projection; published status",
+  "profiles": [
+    {
+      "definition": {
+        "eligibility": {
+          "eligible_dimension_codes": [],
+          "excluded_dimension_codes": [],
+          "max_input_dimensions": 12,
+          "min_eligible_dimensions": 2,
+          "on_dimension_overflow": "reject"
+        },
+        "generation_policy": {
+          "input_schema_version": "ai-explanation-input/v1",
+          "max_output_characters": 8000,
+          "output_schema_version": "ai-explanation-output/v1",
+          "prompt_template_id": "cross-dimension-participant-scale",
+          "prompt_version": "v6",
+          "provider_route": "balanced_text_v1"
+        },
+        "input_policy": {
+          "allowed_focus_areas": [
+            "sleep_routine"
+          ],
+          "context_scope": "current_assessment_only",
+          "hierarchy_policy": {
+            "allow_parent_child_in_same_insight": false
+          },
+          "include_model_result": false,
+          "include_norm_context": true
+        },
+        "insight_policy": {
+          "allow_causal_claims": false,
+          "allowed_kinds": [
+            "reinforcing_pattern",
+            "contrasting_pattern",
+            "combined_strength",
+            "combined_attention",
+            "context_dependent_pattern"
+          ],
+          "max_dimension_refs_per_item": 3,
+          "max_items": 3,
+          "min_dimension_refs_per_item": 2,
+          "min_items": 1
+        },
+        "profile_id": "participant-scale-score-range-default",
+        "safety_policy": {
+          "disclaimer_version": "v1",
+          "forbidden_claims": [
+            "diagnosis",
+            "causality",
+            "medication",
+            "treatment_plan",
+            "risk_reclassification",
+            "identity_inference",
+            "deterministic_future_prediction"
+          ],
+          "policy_version": "v1"
+        },
+        "schema_version": "ai-explanation-profile/v1",
+        "selector": {
+          "audience": "participant",
+          "decision_kind": "score_range",
+          "model_code": null,
+          "model_kind": "scale",
+          "model_version": null
+        },
+        "suggestion_policy": {
+          "allowed_categories": [
+            "daily_practice",
+            "self_observation",
+            "communication",
+            "environment_adjustment"
+          ],
+          "allowed_origins": [
+            "standard_derived",
+            "generated_low_risk"
+          ],
+          "max_actions_per_item": 3,
+          "max_items": 3,
+          "min_items": 1,
+          "require_evidence_refs": true,
+          "require_standard_refs_for_standard_derived": true
+        },
+        "version": "v6"
+      },
+      "fingerprint": "sha256:cc747df0a6ae4b02b65b7447ce08845fa8c4e91b9d674f51ac25fbcbffd2a2a2",
+      "status": "published"
+    }
+  ],
+  "status": "Migration baseline; not yet active in qs-ai"
+}
