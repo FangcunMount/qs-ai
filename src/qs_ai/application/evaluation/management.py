@@ -1,6 +1,7 @@
 """Management is delegated by an authenticated QS backend after QS governance authorization."""
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
@@ -36,6 +37,16 @@ class EvaluationView:
 
 class EvaluationManagementStore(Protocol):
     async def get(self, scope: ManagementScope) -> EvaluationView: ...
+    async def start(
+        self,
+        scope: ManagementScope,
+        expected_version: int,
+        reason: str,
+        at: datetime,
+        *,
+        confirm: bool,
+    ) -> EvaluationView: ...
+
     async def resolve(
         self,
         scope: ManagementScope,

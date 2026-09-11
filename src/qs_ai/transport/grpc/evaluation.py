@@ -52,6 +52,21 @@ class EvaluationManagement(rpc.EvaluationManagementServicer):
             )
         raise AssertionError("abort must raise")
 
+    async def Start(
+        self, request: pb.EvaluationStartCommand, context: aio.ServicerContext[Any, Any]
+    ) -> pb.EvaluationState:
+        async with self.operation(context):
+            scope = scope_from(request.scope)
+            if request.expected_version < 1 or not request.confirm:
+                raise ValueError("Explicit version and confirmation required")
+            async with self.container() as operation:
+                store = await operation.get(EvaluationManagementStore)
+                view = await store.start(
+                    scope, request.expected_version, request.reason, datetime.now(UTC), confirm=True
+                )
+            return pb.EvaluationState(**asdict(view))
+        raise AssertionError("abort must raise")
+
     async def Get(
         self, request: pb.EvaluationQuery, context: aio.ServicerContext[Any, Any]
     ) -> pb.EvaluationState:

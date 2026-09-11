@@ -1,4 +1,5 @@
 import json
+from datetime import datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -7,6 +8,7 @@ from qs_ai.application.evaluation.management import EvaluationView, ManagementSc
 from qs_ai.application.interpretation.ports import NotFound
 from qs_ai.domain.evaluation.resolution import ResultUnknownResolution
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
+from qs_ai.infrastructure.persistence.mysql.evaluation_progress import transition_requested
 from qs_ai.infrastructure.persistence.mysql.evaluation_resolution import accept_resolution
 from qs_ai.infrastructure.persistence.mysql.schema import evaluation_checkpoints, evaluation_runs
 
@@ -50,6 +52,34 @@ class MySQLEvaluationManagement:
     async def get(self, scope: ManagementScope) -> EvaluationView:
         async with self.transactions.open() as db:
             return await read_view(db, scope)
+
+    async def start(
+        self,
+        scope: ManagementScope,
+        expected_version: int,
+        reason: str,
+        at: datetime,
+        *,
+        confirm: bool,
+    ) -> EvaluationView:
+        if confirm is not True or type(expected_version) is not int or expected_version < 1:
+            raise ValueError("Explicit version and confirmation required")
+        async with self.transactions.open() as db:
+            # Scope lookup precedes state changes; absent and foreign Runs look identical.
+            await read_view(db, scope)
+            await transition_requested(
+                db,
+                scope.run_id,
+                expected_version,
+                scope.organization_id,
+                "collecting",
+                scope.actor,
+                reason,
+                at,
+            )
+            view = await read_view(db, scope)
+            await db.commit()
+            return view
 
     async def resolve(
         self,
