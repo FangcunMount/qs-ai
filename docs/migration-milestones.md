@@ -211,3 +211,5 @@ M1 → M2 → M3 → M4 → M5。M3 清单分析可提前开展，生产切换�
 - 本地管理接口/容器/配置专项 43 项、MySQL 管理决定与回读 10 项、非集成回归 514 项通过（3 项跳过），生成契约漂移检查通过。接口鉴权测试使用替身 gRPC 上下文，不是新增管理方法的跨服务 mTLS 验收。QS 专属工作区本轮仅读取、未修改；协议同步与经过 OrgAdmin 检查的 QS 转发仍待下一批，PR #34 保持草稿，生产不开启管理接口。
 
 - QS 转发增量位于独立工作区 `qs-server-ai-governance`、分支 `codex/ai-evaluation-governance`，从 origin/main 的 `3be1c3705` 创建。QS 草稿 [PR #86](https://github.com/FangcunMount/qs-server/pull/86) 提交 `f852436d9` 同步管理协议与 Go 客户端，应用层每次从当前授权上下文判断 OrgAdmin，缺失/撤销权限或缺少风险确认时不调用 AI；写调用五秒超时且不自动重试。application/aibridge、infra/aibridge、transport/grpc 三包测试通过，两仓 proto 字节一致。尚未装配 mTLS 连接或注册 HTTP 路由，后续需从认证上下文获取身份并完成跨服务验收；原 QS 工作区未改动，生产未发布。
+
+- QS PR #86 后续提交 `51f248bcf` 已装配默认关闭的 workflow_management：internal v2 管理 GET/POST 从 RequireProtectedScope 读取身份、应用层每次检查 OrgAdmin；模块构造 TLS 1.3 双向认证连接，Cleanup 关闭连接。相关配置、模块、容器、REST 与客户端包测试通过，本地 Go mTLS 服务验证 QS 证书身份及关闭后不可调用。`f8a7ebf45` 同步机器契约清单和源基线，修复 CI 的服务/RPC 数量漂移；完整本地 docs-check 通过。该握手测试不是 Go/Python 跨进程或生产验收，正式 API 文档和跨服务测试仍待完成；两端开关关闭，未发布。
