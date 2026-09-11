@@ -17,10 +17,10 @@
 ```sh
 export PATH="$HOME/.local/bin:$PATH"
 uv sync --locked
-cp -n .env.example .env
+export QS_AI_DATABASE_URL=mysql+asyncmy://qs_ai:qs_ai_local@127.0.0.1:13316/qs_ai
 docker compose up -d --wait mysql
 uv run alembic upgrade head
-uv run uvicorn qs_ai.main:create_app --factory --reload
+uv run python -m qs_ai.bootstrap.http
 ```
 
 打开 http://127.0.0.1:8000/docs。`/healthz` 检查进程存活，`/readyz` 检查数据库连接。没有配置数据库时，进程可以启动，但 readiness 返回 503。
@@ -50,7 +50,8 @@ Worker 默认探测数据库：`uv run python -m qs_ai.bootstrap.worker`；加 `
 - `src/qs_ai/application/`：会话命令/查询、工作执行和外部端口。
 - `src/qs_ai/transport/`：健康与会话 HTTP 路由、内部 gRPC 命令入口。
 - `src/qs_ai/bootstrap/`：Dishka Provider、容器和进程生命周期。
-- `src/qs_ai/config.py`：`QS_AI_` 前缀配置，不在代码中保存密钥。
+- `configs/`：默认、本地、生产配置；详见 [配置说明](configs/README.md)。
+- `src/qs_ai/config.py`：统一加载、覆盖与类型校验；生产密钥经 Actions Secrets 注入。
 - `src/qs_ai/infrastructure/`：MySQL UoW/任务、检查点适配、已固定版本的 gRPC 传输探针。
 - `integrations/qs_server/`：gRPC 契约接入说明。
 - `migrations/`：当前 head 为 `0004_delivery`，包含外部请求关联与结果 outbox。

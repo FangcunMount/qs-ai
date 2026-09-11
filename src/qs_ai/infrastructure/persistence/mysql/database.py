@@ -20,16 +20,24 @@ class Base(DeclarativeBase):
 
 
 class Database:
-    def __init__(self, url: str | None) -> None:
+    def __init__(
+        self,
+        url: str | None,
+        *,
+        pool_size: int = 5,
+        max_overflow: int = 5,
+        pool_timeout: float = 3,
+        connect_timeout: int = 3,
+    ) -> None:
         self.engine: AsyncEngine | None = None
         if url is not None:
             self.engine = create_async_engine(
                 url,
                 pool_pre_ping=True,
-                pool_size=5,
-                max_overflow=5,
-                pool_timeout=3,
-                connect_args={"connect_timeout": 3},
+                pool_size=pool_size,
+                max_overflow=max_overflow,
+                pool_timeout=pool_timeout,
+                connect_args={"connect_timeout": connect_timeout},
                 hide_parameters=True,
             )
 

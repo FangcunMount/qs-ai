@@ -18,19 +18,27 @@ from qs_ai.transport.grpc.commands import Commands
 
 
 async def main() -> None:
+    settings = Settings()
     parser = argparse.ArgumentParser()
     parser.add_argument("mode", choices=["serve", "deliver"])
-    parser.add_argument("--address", required=True, help="Bind address or QS callback target")
-    parser.add_argument("--ca", required=True)
-    parser.add_argument("--cert", required=True)
-    parser.add_argument("--key", required=True)
+    parser.add_argument("--address", help="Override bind address or QS callback target")
+    parser.add_argument("--ca", default=settings.grpc.ca_file)
+    parser.add_argument("--cert", default=settings.grpc.cert_file)
+    parser.add_argument("--key", default=settings.grpc.key_file)
     args = parser.parse_args()
+    args.address = args.address or (
+        settings.grpc.bind_address if args.mode == "serve" else settings.grpc.result_address
+    )
+    if not all((args.address, args.ca, args.cert, args.key)):
+        parser.error("Address and TLS CA, certificate and key paths must be configured")
     ca, cert, key = await asyncio.gather(
         *(asyncio.to_thread(Path(path).read_bytes) for path in (args.ca, args.cert, args.key))
     )
     if args.mode == "serve":
-        async with worker_container(Settings()) as container:
-            server = aio.server(options=(("grpc.max_receive_message_length", 65536),))
+        async with worker_container(settings) as container:
+            server = aio.server(
+                options=(("grpc.max_receive_message_length", settings.grpc.max_receive_bytes),)
+            )
             rpc.add_CommandsServicer_to_server(Commands(container), server)
             credentials = grpc.ssl_server_credentials(
                 [(key, cert)], root_certificates=ca, require_client_auth=True
@@ -41,18 +49,20 @@ async def main() -> None:
             try:
                 await server.wait_for_termination()
             finally:
-                await server.stop(5)
+                await server.stop(settings.grpc.shutdown_grace_seconds)
     else:
         async with mtls_channel(args.address, ca, key, cert) as channel:
 
             class ReceiverProvider(Provider):
                 @provide(scope=Scope.APP, provides=ResultReceiver, override=True)
                 def receiver(self) -> ResultReceiver:
-                    return GRPCResultReceiver(channel)
+                    return GRPCResultReceiver(channel, settings.grpc.request_timeout_seconds)
 
-            async with worker_container(Settings(), ReceiverProvider()) as delivery_container:
+            async with worker_container(settings, ReceiverProvider()) as delivery_container:
                 async with delivery_container() as operation:
-                    count = await (await operation.get(DeliverResults)).once()
+                    count = await (await operation.get(DeliverResults)).once(
+                        settings.delivery.batch_size
+                    )
                     print(f"Delivered {count} result events")
 
 

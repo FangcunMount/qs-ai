@@ -1,0 +1,3 @@
+# Local development still requires QS_AI_DATABASE_URL to access MySQL.
+http:
+  host: 127.0.0.1

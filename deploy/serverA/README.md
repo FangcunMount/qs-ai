@@ -1,41 +1,35 @@
 # serverA 内部基础服务部署
 
-首次仅部署 HTTP API 与独立 MySQL schema，不开放公网路由，不切换 QS 的现有 AI 流量。真实授权源、证据源和业务工作流尚未接通，业务请求会拒绝执行；健康检查仅证明数据库连接可用。
+首次仅部署 HTTP API 与独立 MySQL schema，不开放公网路由，不切换旧 QS AI 流量。真实身份/事实和业务工作流仍未接通，readiness 仅证明数据库可用。
 
-使用非 root 镜像进程、512 MB 内存限制、只读容器文件系统和有界日志。宿主机仅监听 `127.0.0.1:18080`，内部连接既有 `infra-network`。不启动离线测试工作流，也不启动尚未配置证书和事实源的 gRPC/Worker/relay。
+## GitHub Actions 配置
 
-## 准备
+在仓库的 `production` Environment 配置以下 Secrets，不要在聊天或仓库中写入值：
 
-- 在云 MySQL 中准备独立 `qs_ai` 数据库和专用账号，不复用 QS 业务库。
-- 在 serverA `/opt/qs-ai/.env` 安全配置 `QS_AI_ENVIRONMENT=production` 及 `QS_AI_DATABASE_URL`（mysql+asyncmy URL）；密码须 URL 编码。文件权限 0600，不提交仓库。
-- 从通过 CI 的确定提交构建镜像，标签使用完整提交 SHA，设置 `QS_AI_IMAGE`。镜像来源、SHA、迁移版本和运行验证应单独留证。
+| Secret | 内容 |
+| --- | --- |
+| `QS_AI_DATABASE_URL` | 独立 qs_ai 库的 mysql+asyncmy URL；密码 URL 编码 |
+| `SVRA_HOST` | serverA 的可达地址 |
+| `SVRA_USERNAME` | 具有既有 Docker/发布目录 sudo 权限的部署账号 |
+| `SVRA_SSH_KEY` | 部署私钥 |
+| `SVRA_KNOWN_HOSTS` | 已核验的 serverA SSH 主机公钥记录 |
 
-## 操作
+部署工作流默认使用 `["self-hosted", "Linux", "X64"]` runner，需能通过 SSH 到 serverA，且已安装 git、gh、ssh 和 scp。可通过仓库变量 `DEPLOY_RUNNER_LABELS` 设置 JSON 标签列表。目前本任务查询时仓库没有可用的 self-hosted runner；启用部署前需配置 runner 或授权组织 runner 访问此仓库。
 
-在 serverA 上，环境文件准备好后执行；源码或部署包位于 `/opt/qs-ai/releases/<SHA>`：
+只允许在 main 上手动触发 `Deploy serverA`，并要求当前完整 SHA 的 CI 已通过。工作流归档确定版本源码，经 SSH 上传至 `/opt/qs-ai/releases/<SHA>`，使用完整 SHA 镜像标签，在独立数据库上执行迁移，再启动并等待 readiness。
 
-```sh
-export QS_AI_IMAGE=qs-ai:<SHA>
-export QS_AI_ENV_FILE=/opt/qs-ai/.env
-sudo --preserve-env=QS_AI_IMAGE,QS_AI_ENV_FILE docker compose -f /opt/qs-ai/releases/<SHA>/deploy/serverA/compose.yaml run --rm --no-deps api /app/.venv/bin/alembic upgrade head
-sudo --preserve-env=QS_AI_IMAGE,QS_AI_ENV_FILE docker compose -f /opt/qs-ai/releases/<SHA>/deploy/serverA/compose.yaml up -d --wait
-curl --fail http://127.0.0.1:18080/healthz
-curl --fail http://127.0.0.1:18080/readyz
-```
+敏感值只在部署步骤环境中提供，通过 SSH stdin 传给服务端脚本，不进入命令参数或源码归档。服务端临时目录权限 0700，配置文件权限 0600，迁移和启动结束后自动删除；容器保存运行所需环境变量。不会长期保留 `/opt/qs-ai/.env`。错误日志避免打印敏感命令输出。
 
-启动不自动迁移。首次失败可停止本项目容器，保留数据库；后续版本回滚必须先确认 schema 兼容，再切回保留的旧镜像。不要自动回退或删除生产数据。
+## 配置与运行限制
 
-## 未完成的上线环节
+运行参数统一读取 [configs](../../configs/README.md)，容器固定选择 production。512 MB 内存、1 CPU、UID 10001、只读根文件系统、有界日志。宿主机仅监听 `127.0.0.1:18080`，内部连接既有 `infra-network`。
 
-服务证书签发、可信主体/事实读取、正式模型与成果、常驻任务及投递调度、告警和产品灰度另行验收。这里的 API 部署不能代表“真实 AI 解读已经上线”。
+不启动未配置证书、授权源和业务工作流的 gRPC/Worker/relay，不注入合成测试实现。模型凭据尚未接入，此工作流也不会假装已支持模型调用。
 
-## 2026-09-11 准备记录
+不自动回退数据库。失败保留数据；旧镜像回滚需先确认 schema 兼容。没有自动部署触发，也不会因为 push 自动执行生产迁移。
 
-serverA 已完成以下验证：
+## 已有环境证据
 
-- Docker 29.1.1、Compose v2.40.3，`infra-network` 可附加；当时可用内存约 6 GB、根分区可用约 48 GB。
-- 基于已通过 CI 的 `5ae60d76fed1ca9a28e239ccfedead4d1d3467dd` 构建本机镜像 `qs-ai:5ae60d76fed1ca9a28e239ccfedead4d1d3467dd`，镜像 revision 标签一致。
-- 无网络、只读文件系统、512 MB 内存限制下，以 UID 10001 成功加载 API 与 Dishka 容器。未配置数据库时健康查询明确返回 `not_configured`。
-- serverA 既有 Docker 登录信息导致公开 uv 镜像取令牌失败；本次构建使用临时空 Docker 客户端配置完成，没有修改其他服务的登录信息。
+2026-09-11 已确认 serverA 的 Docker 29.1.1、Compose v2.40.3、可附加的 infra-network，约 6 GB 可用内存、48 GB 可用磁盘。旧提交 `5ae60d76fed1ca9a28e239ccfedead4d1d3467dd` 的镜像构建与非 root 装配检查通过；这是历史镜像证据，不代表本次配置改动已经部署。
 
-当次仅构建镜像并运行自动删除的验证容器。专用数据库配置尚待确认，未启动持久 API 容器、未执行云数据库迁移，也未修改公网网关或旧 QS 流量。
+当前专用数据库及 Actions Secrets 尚未配置完成，持久服务未启动。本次配置变更的本地测试/CI 与生产验收分开记录。

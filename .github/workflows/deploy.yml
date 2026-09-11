@@ -1,0 +1,50 @@
+name: Deploy serverA
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: qs-ai-serverA
+  cancel-in-progress: false
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    # Must have SSH connectivity to serverA; configurable as a JSON label list.
+    runs-on: ${{ fromJSON(vars.DEPLOY_RUNNER_LABELS || '["self-hosted", "Linux", "X64"]') }}
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require passing CI for this exact commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml --commit "$GITHUB_SHA" --json conclusion --jq 'any(.[]; .conclusion == "success")' | grep -qx true
+      - name: Transfer release and inject production secrets
+        shell: bash
+        env:
+          SVRA_HOST: ${{ secrets.SVRA_HOST }}
+          SVRA_USERNAME: ${{ secrets.SVRA_USERNAME }}
+          SVRA_SSH_KEY: ${{ secrets.SVRA_SSH_KEY }}
+          SVRA_KNOWN_HOSTS: ${{ secrets.SVRA_KNOWN_HOSTS }}
+          QS_AI_DATABASE_URL: ${{ secrets.QS_AI_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          for name in SVRA_HOST SVRA_USERNAME SVRA_SSH_KEY SVRA_KNOWN_HOSTS QS_AI_DATABASE_URL; do
+            if [ -z "${!name}" ]; then echo "Missing secret: $name"; exit 1; fi
+          done
+          [[ "$SVRA_HOST" =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*$ ]]
+          [[ "$SVRA_USERNAME" =~ ^[a-zA-Z_][a-zA-Z0-9_-]*$ ]]
+          work=$(mktemp -d)
+          trap 'rm -rf "$work"' EXIT
+          chmod 700 "$work"
+          printf '%s\n' "$SVRA_SSH_KEY" > "$work/key"
+          printf '%s\n' "$SVRA_KNOWN_HOSTS" > "$work/known_hosts"
+          chmod 600 "$work/key" "$work/known_hosts"
+          opts=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15 -o "UserKnownHostsFile=$work/known_hosts" -i "$work/key")
+          target="$SVRA_USERNAME@$SVRA_HOST"
+          git archive --format=tar.gz -o "$work/release.tar.gz" "$GITHUB_SHA"
+          scp "${opts[@]}" "$work/release.tar.gz" "$target:/tmp/qs-ai-$GITHUB_SHA.tar.gz"
+          ssh "${opts[@]}" "$target" "sudo -n mkdir -p /opt/qs-ai/releases/$GITHUB_SHA && sudo -n tar -xzf /tmp/qs-ai-$GITHUB_SHA.tar.gz -C /opt/qs-ai/releases/$GITHUB_SHA"
+          printf '%s' "$QS_AI_DATABASE_URL" | ssh "${opts[@]}" "$target" "python3 /opt/qs-ai/releases/$GITHUB_SHA/deploy/serverA/deploy.py $GITHUB_SHA"

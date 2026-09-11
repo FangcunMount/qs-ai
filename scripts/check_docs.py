@@ -39,7 +39,7 @@ def anchors(path: Path) -> set[str]:
 
 def main() -> int:
     files = [ROOT / "README.md"]
-    for directory in ("docs", "integrations"):
+    for directory in ("docs", "integrations", "configs", "deploy"):
         files.extend(p for p in (ROOT / directory).rglob("*.md") if "_archive" not in p.parts)
     errors: list[str] = []
     count = 0

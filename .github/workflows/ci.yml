@@ -38,3 +38,22 @@ jobs:
       - run: uv run alembic check
       - run: uv run pytest
       - run: uv build
+      - name: Verify packaged configuration outside repository
+        run: |
+          uv run python - <<'PYTHON'
+          import os
+          import subprocess
+          import sys
+          import tempfile
+          import zipfile
+          from pathlib import Path
+          wheel = next(Path("dist").glob("*.whl"))
+          with tempfile.TemporaryDirectory() as directory:
+              with zipfile.ZipFile(wheel) as archive:
+                  archive.extractall(directory)
+              environment = {**os.environ, "PYTHONPATH": directory, "QS_AI_ENVIRONMENT": "production"}
+              subprocess.run(
+                  [sys.executable, "-c", "from qs_ai.config import Settings; s=Settings(); assert s.http.host == '0.0.0.0'; assert s.worker.lease_seconds == 30"],
+                  cwd=directory, env=environment, check=True,
+              )
+          PYTHON

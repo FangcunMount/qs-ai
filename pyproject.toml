@@ -8,6 +8,7 @@ dependencies = [
   "fastapi>=0.115,<1",
   "uvicorn[standard]>=0.30,<1",
   "pydantic-settings>=2.6,<3",
+  "pyyaml>=6,<7",
   "langchain>=1,<2",
   "langgraph>=1,<2",
   "langgraph-checkpoint-mysql[asyncmy]>=2,<3",
@@ -28,6 +29,7 @@ dev = [
   "ruff>=0.12,<1",
   "mypy>=1.15,<2",
   "grpcio-tools>=1.68,<2",
+  "types-pyyaml>=6,<7",
   "types-grpcio>=1.83.0.20260730",
 ]
 
@@ -37,6 +39,9 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/qs_ai"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"configs" = "qs_ai/configs"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -52,6 +57,7 @@ line-length = 100
 select = ["E", "F", "I", "UP", "B", "ASYNC"]
 
 [tool.mypy]
+plugins = ["pydantic.mypy"]
 python_version = "3.11"
 files = ["src/qs_ai"]
 check_untyped_defs = true

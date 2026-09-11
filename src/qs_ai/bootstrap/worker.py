@@ -30,10 +30,13 @@ async def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--once", action="store_true", help="Process at most one durable job")
     arguments = parser.parse_args()
-    async with worker_container(Settings()) as container:
+    settings = Settings()
+    async with worker_container(settings) as container:
         async with container() as operation:
             if arguments.once:
-                processed = await (await operation.get(ExecuteNext)).once()
+                processed = await (await operation.get(ExecuteNext)).once(
+                    settings.worker.lease_seconds
+                )
                 print(json.dumps({"mode": "worker_once", "processed": processed}))
                 return 0
             result = await (await operation.get(CheckReadiness)).execute()

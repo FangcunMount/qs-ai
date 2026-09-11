@@ -56,7 +56,8 @@ async def stage_state(db: AsyncSession, session: Session) -> None:
 
 
 class MySQLResultOutbox:
-    def __init__(self, transactions: Transactions) -> None:
+    def __init__(self, transactions: Transactions, max_retry_seconds: int = 60) -> None:
+        self.max_retry_seconds = max_retry_seconds
         self.transactions = transactions
 
     async def pending(self, limit: int) -> list[StateEvent]:
@@ -96,7 +97,10 @@ class MySQLResultOutbox:
                     attempts=result_outbox.c.attempts + 1,
                     available_at=func.timestampadd(
                         literal_column("SECOND"),
-                        func.least(60, func.pow(2, func.least(result_outbox.c.attempts, 6))),
+                        func.least(
+                            self.max_retry_seconds,
+                            func.pow(2, func.least(result_outbox.c.attempts, 17)),
+                        ),
                         func.utc_timestamp(6),
                     ),
                 )

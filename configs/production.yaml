@@ -1,0 +1,5 @@
+# Secrets are injected by GitHub Actions, never stored here.
+http:
+  host: 0.0.0.0
+grpc:
+  bind_address: 0.0.0.0:50061
