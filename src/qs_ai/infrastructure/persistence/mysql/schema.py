@@ -227,3 +227,28 @@ evaluation_checkpoints = sa.Table(
     mysql_engine="InnoDB",
     mysql_charset="utf8mb4",
 )
+
+evaluation_run_policies = sa.Table(
+    "evaluation_run_policies",
+    metadata,
+    sa.Column("run_id", sa.CHAR(36), primary_key=True),
+    sa.Column("fingerprint", sa.String(71), nullable=False),
+    sa.Column("definition_json", mysql.LONGTEXT, nullable=False),
+    mysql_engine="InnoDB",
+    mysql_charset="utf8mb4",
+)
+evaluation_dispatches = sa.Table(
+    "evaluation_dispatches",
+    metadata,
+    sa.Column("run_id", sa.CHAR(36), primary_key=True),
+    sa.Column("invocation_id", sa.String(128, collation="utf8mb4_bin"), primary_key=True),
+    sa.Column("execution_id", sa.String(128, collation="utf8mb4_bin"), nullable=False),
+    sa.UniqueConstraint("run_id", "execution_id", name="uq_evaluation_dispatch_execution"),
+    sa.Column("kind", sa.String(16), nullable=False),
+    sa.Column("case_id", sa.String(128, collation="utf8mb4_bin"), nullable=False),
+    sa.Column("slot_ordinal", sa.Integer, nullable=False),
+    sa.Column("candidate_id", sa.String(128, collation="utf8mb4_bin"), nullable=False),
+    sa.Column("checkpoint_json", mysql.JSON, nullable=False),
+    mysql_engine="InnoDB",
+    mysql_charset="utf8mb4",
+)
