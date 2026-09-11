@@ -164,3 +164,7 @@ PR #30 精确提交 `65d67755b34df8214d3b37e5b43abf7faec1886d` 的 CI `346405774
 新增测试桥接原 QS `EvaluateCandidate` 与真实 DeterministicGate，使用本任务独立 QS worktree（`87f9dbea6db8c5a832d788bbb91ee8c257d47bd9`），临时测试程序运行后自动清理。7 个原生成案例 × 正常/Schema/引用/安全/Profile/禁用文本共 42 组构造输出，逐条比较全部断言状态，Go/Python 一致；interop 测试通过。双方使用同一冻结 Profile、案例 facts 和断言参数，没有外部模型调用。
 
 该证据证明所选 42 组输入的状态一致，不证明全部文本边界、故障分类、发布门槛或真实结果质量。仍需常驻评测执行器调用准备/发送/接受链路、人工审核与发布治理，M1–M5 未验收。
+
+### 语义模型请求数据
+
+新增 `prepare_semantic_messages`，复用原 v2 裁判 system/task/data preamble，投影原语义输入七个字段：schema_version/suite_id/case_id/attempt/assessment_input/candidate_output/assertions。attempt 使用候选槽位序号，与原 online_runner_v2 相同；完整断言参数从冻结 Suite 读取，确定性已失败的独立语义要求仍保留。候选文本只进入 data_json，不能改变固定裁判指令。3 项测试通过，覆盖字段/参数、候选指令隔离与清单/发布漂移拒绝。此步骤尚未调用模型，现有网络适配器仍需解除对生成 PreparedExplanation 的绑定后接入该请求；不能视为常驻评测执行器完成。
