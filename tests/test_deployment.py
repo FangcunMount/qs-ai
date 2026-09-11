@@ -193,3 +193,32 @@ def test_invalid_database_config_fails_before_ssh(monkeypatch):
     monkeypatch.setattr(module, "run", lambda *args: pytest.fail("must not contact SSH or Docker"))
     with pytest.raises(ValueError, match="disagree"):
         module.main()
+
+
+def test_registry_auth_is_private_and_does_not_use_host_keychain(tmp_path):
+    import base64
+
+    module = load("scripts/cd/deploy.py")
+    password = 'pa$word:" with spaces'
+    module.write_registry_auth(
+        tmp_path,
+        {
+            "ALIYUN_ACR_REGISTRY": "registry.test",
+            "ALIYUN_ACR_USERNAME": "user",
+            "ALIYUN_ACR_PASSWORD": password,
+        },
+    )
+    path = tmp_path / "config.json"
+    config = json.loads(path.read_text())
+    assert list(config) == ["auths"]
+    assert base64.b64decode(config["auths"]["registry.test"]["auth"]).decode() == "user:" + password
+    assert path.stat().st_mode & 0o777 == 0o600
+    with pytest.raises(FileExistsError):
+        module.write_registry_auth(
+            tmp_path,
+            {
+                "ALIYUN_ACR_REGISTRY": "registry.test",
+                "ALIYUN_ACR_USERNAME": "user",
+                "ALIYUN_ACR_PASSWORD": "replacement",
+            },
+        )

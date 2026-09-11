@@ -107,7 +107,7 @@ jobs:
           MYSQL_DBNAME: ${{ secrets.MYSQL_DBNAME }}
           MYSQL_USERNAME: ${{ secrets.MYSQL_USERNAME }}
           MYSQL_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
-          SVRA_HOST: ${{ vars.SVRA_HOST || secrets.SVRA_HOST }}
+          SVRA_HOST: ${{ vars.SVRA_PUBLIC_HOST || vars.SVRA_HOST || secrets.SVRA_HOST }}
           SVRA_USERNAME: ${{ vars.SVRA_USERNAME || secrets.SVRA_USERNAME }}
           SVRA_SSH_PORT: ${{ vars.SVRA_SSH_PORT || secrets.SVRA_SSH_PORT || '22' }}
           SVRA_SSH_KEY: ${{ secrets.SVR_MINI_SSH_KEY || secrets.SVRA_SSH_KEY }}
