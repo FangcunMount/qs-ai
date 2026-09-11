@@ -178,3 +178,18 @@ def test_manual_rollback_checks_schema_before_switch(remote, tmp_path, monkeypat
     with pytest.raises(remote.DeploymentError, match="incompatible"):
         remote.restore(state)
     assert not (tmp_path / "state.json").exists()
+
+
+def test_invalid_database_config_fails_before_ssh(monkeypatch):
+    module = load("scripts/cd/deploy.py")
+    monkeypatch.setattr(
+        module.os,
+        "environ",
+        {
+            "MYSQL_DATABASE": "one",
+            "MYSQL_DBNAME": "two",
+        },
+    )
+    monkeypatch.setattr(module, "run", lambda *args: pytest.fail("must not contact SSH or Docker"))
+    with pytest.raises(ValueError, match="disagree"):
+        module.main()

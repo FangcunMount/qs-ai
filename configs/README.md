@@ -4,7 +4,7 @@
 
 优先级从低到高：默认 YAML → 环境 YAML → 环境变量 → 显式构造参数。嵌套对象逐字段合并。`QS_AI_ENVIRONMENT` 只允许 local/production，默认 local；拼写错误、缺失文件或非法参数会立即失败。配置路径不依赖当前工作目录；wheel 和镜像均携带 YAML。
 
-不自动读取 `.env`。本地使用 shell 环境变量；生产敏感值使用 GitHub Actions 的 production Environment Secrets。YAML 中禁止 database_url，避免在配置文件里保存凭据。
+不自动读取 `.env`。本地使用 shell 环境变量；生产敏感值通过 GitHub Actions 的组织/仓库 Secrets 注入，发布 job 使用 production Environment。分项 MYSQL Secrets 由部署脚本转换为应用的 QS_AI_DATABASE_URL。YAML 中禁止 database_url，避免在配置文件里保存凭据。
 
 | 环境变量 | 用途 |
 | --- | --- |
