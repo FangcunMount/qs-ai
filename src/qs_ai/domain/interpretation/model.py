@@ -15,6 +15,7 @@ class Status(StrEnum):
     AWAITING_ANSWER = "awaiting_answer"
     BLOCKED = "blocked"
     CANCELLED = "cancelled"
+    COMPLETED = "completed"
 
 
 @dataclass(frozen=True)
@@ -120,9 +121,17 @@ class Session:
         self.version += 1
 
     def cancel(self) -> None:
-        if self.status == Status.CANCELLED:
+        if self.status in (Status.CANCELLED, Status.COMPLETED):
             raise RuleViolation("invalid_state")
         self.status = Status.CANCELLED
+        self.current_question_id = None
+        self.version += 1
+
+    def complete(self) -> None:
+        if self.status != Status.RUNNING:
+            raise RuleViolation("invalid_state")
+        self.status = Status.COMPLETED
+        self.failure_code = None
         self.current_question_id = None
         self.version += 1
 

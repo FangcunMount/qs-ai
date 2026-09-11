@@ -63,7 +63,7 @@ class Receipt(_message.Message):
     def __init__(self, session_id: _Optional[str] = ..., run_id: _Optional[str] = ..., status: _Optional[str] = ..., version: _Optional[int] = ...) -> None: ...
 
 class StateEvent(_message.Message):
-    __slots__ = ("event_id", "request_id", "session_id", "actor", "testee_id", "version", "status", "question_id", "question", "can_skip", "failure_code")
+    __slots__ = ("event_id", "request_id", "session_id", "actor", "testee_id", "version", "status", "question_id", "question", "can_skip", "failure_code", "artifact_json")
     EVENT_ID_FIELD_NUMBER: _ClassVar[int]
     REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
     SESSION_ID_FIELD_NUMBER: _ClassVar[int]
@@ -75,6 +75,7 @@ class StateEvent(_message.Message):
     QUESTION_FIELD_NUMBER: _ClassVar[int]
     CAN_SKIP_FIELD_NUMBER: _ClassVar[int]
     FAILURE_CODE_FIELD_NUMBER: _ClassVar[int]
+    ARTIFACT_JSON_FIELD_NUMBER: _ClassVar[int]
     event_id: str
     request_id: str
     session_id: str
@@ -86,7 +87,8 @@ class StateEvent(_message.Message):
     question: str
     can_skip: bool
     failure_code: str
-    def __init__(self, event_id: _Optional[str] = ..., request_id: _Optional[str] = ..., session_id: _Optional[str] = ..., actor: _Optional[_Union[Actor, _Mapping]] = ..., testee_id: _Optional[str] = ..., version: _Optional[int] = ..., status: _Optional[str] = ..., question_id: _Optional[str] = ..., question: _Optional[str] = ..., can_skip: _Optional[bool] = ..., failure_code: _Optional[str] = ...) -> None: ...
+    artifact_json: str
+    def __init__(self, event_id: _Optional[str] = ..., request_id: _Optional[str] = ..., session_id: _Optional[str] = ..., actor: _Optional[_Union[Actor, _Mapping]] = ..., testee_id: _Optional[str] = ..., version: _Optional[int] = ..., status: _Optional[str] = ..., question_id: _Optional[str] = ..., question: _Optional[str] = ..., can_skip: _Optional[bool] = ..., failure_code: _Optional[str] = ..., artifact_json: _Optional[str] = ...) -> None: ...
 
 class Acknowledgement(_message.Message):
     __slots__ = ("event_id",)

@@ -10,7 +10,9 @@ import shutil
 import subprocess
 import tempfile
 from pathlib import Path
+from urllib.parse import urlsplit
 
+import yaml
 from sqlalchemy import URL
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -49,9 +51,46 @@ def database_url(environment: dict) -> str:
 def runtime_config(environment: dict) -> dict:
     # Compose processes interpolation in JSON too.
     url = database_url(environment).replace("$", "$$")
-    return {
+    runtime = {
         "services": {name: {"environment": {"QS_AI_DATABASE_URL": url}} for name in ("api", "grpc")}
     }
+    enabled = environment.get("QS_AI_EXECUTION_ENABLED", "false")
+    if enabled not in {"true", "false"}:
+        raise ValueError("QS_AI_EXECUTION_ENABLED must be true or false")
+    if enabled == "true":
+        endpoint = required(environment, "QS_AI_MODEL_ENDPOINT")
+        parsed = urlsplit(endpoint)
+        if (
+            parsed.scheme != "https"
+            or not parsed.hostname
+            or parsed.username
+            or parsed.password
+            or parsed.fragment
+        ):
+            raise ValueError("Expected HTTPS model endpoint without embedded credentials")
+        credential = required(environment, "QS_AI_MODEL_API_KEY")
+        if not credential.strip():
+            raise ValueError("Missing model credential")
+        address = required(environment, "QS_AI_QS_ADDRESS")
+        if (
+            not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9.-]*:[0-9]{1,5}", address)
+            or not 1 <= int(address.rsplit(":", 1)[1]) <= 65535
+        ):
+            raise ValueError("Expected QS internal host:port")
+        services = yaml.safe_load((ROOT / "deploy/serverA/execution.yaml").read_text())["services"]
+        for service in services.values():
+            service["environment"]["QS_AI_DATABASE_URL"] = url
+        services["worker"]["environment"].update(
+            {
+                "QS_AI_GENERATION__ENABLED": "true",
+                "QS_AI_GENERATION__ENDPOINT": endpoint.replace("$", "$$"),
+                "QS_AI_MODEL_API_KEY": credential.replace("$", "$$"),
+                "QS_AI_GRPC__ACCESS_ADDRESS": address,
+            }
+        )
+        services["delivery"]["environment"]["QS_AI_GRPC__RESULT_ADDRESS"] = address
+        runtime["services"].update(services)
+    return runtime
 
 
 def write_registry_auth(directory: Path, environment: dict) -> None:

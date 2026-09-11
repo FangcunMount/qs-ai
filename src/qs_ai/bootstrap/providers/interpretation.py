@@ -10,14 +10,12 @@ from qs_ai.application.interpretation.ports import (
     ExecutionStore,
     IdentityVerifier,
     UnitOfWorkFactory,
-    Workflow,
 )
 from qs_ai.application.interpretation.service import InterpretationService
 from qs_ai.config import Settings
 from qs_ai.infrastructure.interpretation.unconfigured import (
     UnconfiguredEvidenceSource,
     UnconfiguredIdentity,
-    UnconfiguredWorkflow,
 )
 from qs_ai.infrastructure.persistence.mysql.execution import MySQLExecutionStore
 from qs_ai.infrastructure.persistence.mysql.interpretation import MySQLUnitOfWorkFactory
@@ -46,7 +44,6 @@ class InterpretationProvider(Provider):
         async with mtls_channel(options.access_address, ca, key, cert) as channel:
             yield QSAccessSource(channel, options.request_timeout_seconds)
 
-    workflow = provide(UnconfiguredWorkflow, provides=Workflow, scope=Scope.REQUEST)
     uows = provide(MySQLUnitOfWorkFactory, provides=UnitOfWorkFactory, scope=Scope.REQUEST)
     store = provide(MySQLExecutionStore, provides=ExecutionStore, scope=Scope.REQUEST)
     service = provide(InterpretationService, scope=Scope.REQUEST)

@@ -9,6 +9,7 @@ from dishka import Provider, Scope, provide
 from grpc import aio
 
 from qs_ai.application.integration.events import DeliverResults, ResultReceiver
+from qs_ai.bootstrap.daemon import serve_loop
 from qs_ai.bootstrap.worker import worker_container
 from qs_ai.config import Settings
 from qs_ai.contracts.workflow import workflow_pb2_grpc as rpc
@@ -21,11 +22,16 @@ async def main() -> None:
     settings = Settings()
     parser = argparse.ArgumentParser()
     parser.add_argument("mode", choices=["serve", "deliver"])
+    parser.add_argument(
+        "--continuous", action="store_true", help="Continuously deliver result events"
+    )
     parser.add_argument("--address", help="Override bind address or QS callback target")
     parser.add_argument("--ca", default=settings.grpc.ca_file)
     parser.add_argument("--cert", default=settings.grpc.cert_file)
     parser.add_argument("--key", default=settings.grpc.key_file)
     args = parser.parse_args()
+    if args.continuous and args.mode != "deliver":
+        parser.error("--continuous applies only to result delivery")
     args.address = args.address or (
         settings.grpc.bind_address if args.mode == "serve" else settings.grpc.result_address
     )
@@ -59,6 +65,19 @@ async def main() -> None:
                     return GRPCResultReceiver(channel, settings.grpc.request_timeout_seconds)
 
             async with worker_container(settings, ReceiverProvider()) as delivery_container:
+                if args.continuous:
+
+                    async def attempt() -> int:
+                        async with delivery_container() as operation:
+                            return await (await operation.get(DeliverResults)).once(
+                                settings.delivery.batch_size
+                            )
+
+                    await serve_loop(
+                        attempt,
+                        **settings.delivery.model_dump(exclude={"batch_size", "max_retry_seconds"}),
+                    )
+                    return
                 async with delivery_container() as operation:
                     count = await (await operation.get(DeliverResults)).once(
                         settings.delivery.batch_size

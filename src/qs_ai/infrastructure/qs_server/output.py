@@ -1,5 +1,6 @@
 import hashlib
 import json
+from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
@@ -36,8 +37,14 @@ class QSOutputParser:
         if hashlib.sha256(raw).hexdigest() != manifest["sha256"]:
             raise InvalidOutput("schema_checksum_mismatch")
         schema = json.loads(raw)
+        if not isinstance(schema, dict):
+            raise InvalidOutput("schema_document_invalid")
+        self._schema = schema
         Draft202012Validator.check_schema(schema)
         self._validator = Draft202012Validator(schema)
+
+    def schema(self) -> dict[str, Any]:
+        return deepcopy(self._schema)
 
     def parse(self, raw: str) -> dict[str, Any]:
         try:

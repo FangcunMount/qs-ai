@@ -17,6 +17,7 @@ class StateEvent:
     question: str = ""
     can_skip: bool = False
     failure_code: str = ""
+    artifact_json: str = ""
 
 
 class EventStore(Protocol):

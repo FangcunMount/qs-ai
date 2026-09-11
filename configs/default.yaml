@@ -9,7 +9,26 @@ database:
   pool_timeout: 3
   connect_timeout: 3
 worker:
+  health_file: /tmp/qs-ai-worker-health.json
   lease_seconds: 30
+  concurrency: 1
+  idle_seconds: 1
+  max_backoff_seconds: 30
+  shutdown_seconds: 130
+generation:
+  enabled: false
+  profile_id: participant-scale-score-range-default
+  profile_version: v6
+  endpoint: null
+  route: balanced_text_v1
+  revision: v8
+  provider: deepseek
+  model: deepseek-v4-pro
+  protocol: responses
+  structured_output_mode: json_schema
+  timeout_milliseconds: 120000
+  max_output_tokens: 12000
+  reasoning_effort: none
 grpc:
   bind_address: 127.0.0.1:50061
   result_address: null
@@ -21,5 +40,10 @@ grpc:
   cert_file: null
   key_file: null
 delivery:
+  health_file: /tmp/qs-ai-delivery-health.json
   batch_size: 20
   max_retry_seconds: 60
+  concurrency: 1
+  idle_seconds: 1
+  max_backoff_seconds: 30
+  shutdown_seconds: 15

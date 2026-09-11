@@ -107,6 +107,10 @@ jobs:
           MYSQL_DBNAME: ${{ secrets.MYSQL_DBNAME }}
           MYSQL_USERNAME: ${{ secrets.MYSQL_USERNAME }}
           MYSQL_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
+          QS_AI_EXECUTION_ENABLED: ${{ vars.QS_AI_EXECUTION_ENABLED || 'false' }}
+          QS_AI_MODEL_ENDPOINT: ${{ vars.QS_AI_MODEL_ENDPOINT }}
+          QS_AI_MODEL_API_KEY: ${{ secrets.QS_AI_MODEL_API_KEY }}
+          QS_AI_QS_ADDRESS: ${{ vars.QS_AI_QS_ADDRESS || 'qs-apiserver:9090' }}
           SVRA_HOST: ${{ vars.SVRA_PUBLIC_HOST || vars.SVRA_HOST || secrets.SVRA_HOST }}
           SVRA_USERNAME: ${{ vars.SVRA_USERNAME || secrets.SVRA_USERNAME }}
           SVRA_SSH_PORT: ${{ vars.SVRA_SSH_PORT || secrets.SVRA_SSH_PORT || '22' }}

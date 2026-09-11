@@ -1,3 +1,5 @@
+import hashlib
+import json
 from dataclasses import asdict
 from typing import Any
 from uuid import uuid4
@@ -8,14 +10,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.functions import Function
 
 from qs_ai.application.interpretation.ports import Claim, WorkflowResult
+from qs_ai.application.interpretation.provider import ModelCall
 from qs_ai.domain.interpretation.model import EvidenceItem, EvidenceSet, Fact, Session, Status
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
 from qs_ai.infrastructure.persistence.mysql.interpretation import MySQLUnitOfWork, session_from
 from qs_ai.infrastructure.persistence.mysql.leases import LeaseLost
 from qs_ai.infrastructure.persistence.mysql.schema import (
+    artifacts,
     evidence_sets,
     jobs,
     leases,
+    model_calls,
     questions,
     runs,
     sessions,
@@ -31,6 +36,84 @@ def expiry(
 class MySQLExecutionStore:
     def __init__(self, transactions: Transactions) -> None:
         self.transactions = transactions
+
+    async def begin_model_call(self, claim: Claim, request_json: str) -> tuple[ModelCall, bool]:
+        """Commit a dispatch marker before HTTP. Only its creator may send once.
+
+        A crash before the actual send is deliberately indistinguishable from a
+        lost response. Recovery returns the existing marker and must not resend.
+        """
+        async with self.transactions.open() as db:
+            await self._guard(db, claim)
+            row = (
+                (await db.execute(select(model_calls).where(model_calls.c.run_id == claim.run_id)))
+                .mappings()
+                .first()
+            )
+            if row is not None:
+                return ModelCall(
+                    row["invocation_id"],
+                    row["status"],
+                    row["request_json"],
+                    row["response_json"],
+                    row["failure_code"],
+                ), False
+            call = ModelCall(str(uuid4()), "dispatched", request_json, None, None)
+            await db.execute(
+                insert(model_calls).values(
+                    run_id=claim.run_id,
+                    invocation_id=call.invocation_id,
+                    fence_token=claim.fence,
+                    status=call.status,
+                    request_json=request_json,
+                )
+            )
+            await self._check_active(db, claim)
+            await db.commit()
+            return call, True
+
+    async def record_model_response(
+        self,
+        claim: Claim,
+        invocation_id: str,
+        *,
+        response_json: str | None = None,
+        failure_code: str | None = None,
+        result_unknown: bool = False,
+    ) -> None:
+        if (response_json is None) == (failure_code is None):
+            raise ValueError("Exactly one response or failure is required")
+        async with self.transactions.open() as db:
+            await self._guard(db, claim)
+            row = (
+                (
+                    await db.execute(
+                        select(model_calls)
+                        .where(model_calls.c.run_id == claim.run_id)
+                        .with_for_update()
+                    )
+                )
+                .mappings()
+                .one()
+            )
+            if (
+                row["invocation_id"] != invocation_id
+                or row["fence_token"] != claim.fence
+                or row["status"] != "dispatched"
+            ):
+                raise LeaseLost("Model call no longer belongs to this dispatch")
+            status = (
+                "response_received"
+                if response_json is not None
+                else ("unknown" if result_unknown else "failed")
+            )
+            await db.execute(
+                update(model_calls)
+                .where(model_calls.c.run_id == claim.run_id)
+                .values(status=status, response_json=response_json, failure_code=failure_code)
+            )
+            await self._check_active(db, claim)
+            await db.commit()
 
     async def claim(self, ttl_seconds: int) -> Claim | None:
         if ttl_seconds < 3:
@@ -261,6 +344,8 @@ class MySQLExecutionStore:
             return evidence
 
     async def finish(self, claim: Claim, result: WorkflowResult) -> None:
+        if result.artifact is not None and (result.question is not None or result.failure_code):
+            raise ValueError("Artifact cannot accompany a question or failure")
         if result.question is not None and (
             not result.question.strip()
             or not result.checkpoint_ref
@@ -269,7 +354,42 @@ class MySQLExecutionStore:
             raise ValueError("Question must have a durable checkpoint and no failure")
         async with self.transactions.open() as db:
             session = await self._guard(db, claim)
-            if result.question is not None:
+            if result.artifact is not None:
+                candidate = result.artifact
+                evidence = await self._evidence(db, session.id)
+                call = (
+                    (
+                        await db.execute(
+                            select(model_calls).where(model_calls.c.run_id == claim.run_id)
+                        )
+                    )
+                    .mappings()
+                    .one()
+                )
+                if (
+                    candidate.session_id != session.id
+                    or candidate.run_id != claim.run_id
+                    or evidence is None
+                    or candidate.evidence_set_id != evidence.id
+                    or candidate.evidence_fingerprint != evidence.fingerprint
+                    or call["status"] != "response_received"
+                    or candidate.invocation_id != call["invocation_id"]
+                    or candidate.provider_request_id
+                    != json.loads(call["response_json"])["request_id"]
+                    or candidate.content_fingerprint
+                    != "sha256:" + hashlib.sha256(candidate.content_json.encode()).hexdigest()
+                ):
+                    raise ValueError("Artifact does not match the durable execution")
+                payload = asdict(candidate)
+                if len(json.dumps(payload, ensure_ascii=False).encode()) > 131072:
+                    raise ValueError("Artifact exceeds delivery limit")
+                await db.execute(
+                    insert(artifacts).values(
+                        id=candidate.id, session_id=session.id, run_id=claim.run_id, payload=payload
+                    )
+                )
+                session.complete()
+            elif result.question is not None:
                 question_id = str(uuid4())
                 seq = (
                     await db.scalar(
