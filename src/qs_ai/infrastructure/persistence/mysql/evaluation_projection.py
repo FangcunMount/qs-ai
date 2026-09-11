@@ -187,7 +187,9 @@ def project_candidate(
                 expected
             ):
                 raise CheckpointConflict("Semantic decisions incomplete or duplicated")
-            current = {(a["type"], a["scope"], a["ordinal"]): a for a in stored["assertions"]}
+            current = {
+                (a["type"], a["scope"], a["ordinal"]): a for a in stored["semantic_assertions"]
+            }
             for decision in result["decisions"]:
                 decision_key = (decision["type"], decision["scope"], decision["ordinal"])
                 raw = expected.pop(decision_key, None)

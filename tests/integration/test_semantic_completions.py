@@ -20,10 +20,41 @@ from tests.test_semantic_output import context
 pytestmark = pytest.mark.integration
 
 
+def case_evidence(case_id):
+    from qs_ai.infrastructure.qs_server.evaluation_assertions import (
+        SEMANTIC_TYPES,
+        assertion_inventory,
+    )
+    from qs_ai.infrastructure.qs_server.evaluation_suite import V6
+
+    inventory = assertion_inventory(V6, case_id)
+    assertions = tuple(
+        AssertionReceipt(
+            a.type,
+            a.scope,
+            a.ordinal,
+            a.hard,
+            "deterministic",
+            "pending_semantic" if a.type in SEMANTIC_TYPES else "passed",
+            "original",
+        )
+        for a in inventory
+    )
+    output = context()[-1]
+    output["decisions"] = [
+        dict(
+            type=a.type, scope=a.scope, ordinal=a.ordinal, status="failed", detail="quality failure"
+        )
+        for a in assertions
+        if a.type in SEMANTIC_TYPES
+    ]
+    return assertions, json.dumps(output, ensure_ascii=False).encode()
+
+
 @pytest.fixture
 async def judge(dispatched):
     tx, run_id, generated, routes, _ = dispatched
-    raw = json.dumps(context()[-1], ensure_ascii=False).encode()
+    assertions, raw = case_evidence(generated.case_id)
     completion = SemanticCompletion(
         "execution:2",
         "candidate:1",
@@ -39,16 +70,7 @@ async def judge(dispatched):
         raw,
     )
     async with tx.open() as db:
-        await accept(
-            db,
-            dispatched,
-            assertions=(
-                AssertionReceipt("schema", "default", 1, True, "deterministic", "passed", "valid"),
-                AssertionReceipt(
-                    "faithful", "case", 1, True, "semantic", "pending_semantic", "pending"
-                ),
-            ),
-        )
+        await accept(db, dispatched, assertions=assertions)
         await next_prepared(db, run_id, generated)
         await reserve_dispatch(db, run_id, 7, "worker:2", generated.finished_at)
         await db.commit()
@@ -93,7 +115,7 @@ async def test_quality_failed_is_review_ready_with_original_generation_preserved
     assert after["normalized_output"] == before["normalized_output"]
     assert after["candidate_json"]["review_ready"] is True
     assert after["candidate_json"]["assertions"][0] == before["candidate_json"]["assertions"][0]
-    assert after["candidate_json"]["assertions"][1]["status"] == "failed"
+    assert after["candidate_json"]["semantic_assertions"][0]["status"] == "failed"
     (record,) = await evidence(tx, run_id)
     assert record["normalized_output"] == value.normalized_output
     assert record["result_json"]["output_fingerprint"] == value.output_fingerprint
@@ -202,7 +224,6 @@ async def test_all_35_candidates_complete_before_awaiting_review(judge):
 
     tx, run_id, first, routes = judge
     _, generated, _, schemas = assets()
-    obligations = context()[3]
     at = first.finished_at
     async with tx.open() as db:
         state = await complete(db, judge)
@@ -237,6 +258,7 @@ async def test_all_35_candidates_complete_before_awaiting_review(judge):
                 finished_at=at + timedelta(seconds=1),
                 receipt=replace(generated.receipt, invocation_id=cp.invocation_id),
             )
+            obligations, semantic_raw = case_evidence(generation.case_id)
             state = await accept(
                 db,
                 (tx, run_id, generation, routes, schemas),
@@ -266,6 +288,8 @@ async def test_all_35_candidates_complete_before_awaiting_review(judge):
                 invocation_id=cp.invocation_id,
                 candidate_id=cp.candidate_id,
                 candidate_output_fingerprint=generation.normalized_fingerprint,
+                raw_output=semantic_raw,
+                normalized_output=semantic_raw,
                 started_at=at,
                 finished_at=at + timedelta(seconds=1),
                 receipt=replace(first.receipt, invocation_id=cp.invocation_id),
@@ -371,3 +395,39 @@ async def test_saved_semantic_evidence_damage_blocks_next_candidate(judge, damag
                 value.finished_at + timedelta(seconds=30),
             )
     assert (await rows(tx, run_id))[2]["version"] == 9
+
+
+async def test_independent_semantic_pass_cannot_erase_deterministic_failure(judge):
+    from sqlalchemy import update
+
+    from qs_ai.infrastructure.persistence.mysql.schema import evaluation_generation_completions
+
+    tx, run_id, value, _ = judge
+    candidate = (await stored(tx, run_id))[0]["candidate_json"]
+    failed = next(a for a in candidate["assertions"] if a["type"] == "forbidden_claims_absent")
+    failed["status"] = "failed"
+    failed["detail"] = "original deterministic failure"
+    output = json.loads(value.normalized_output)
+    next(a for a in output["decisions"] if a["type"] == "forbidden_claims_absent")["status"] = (
+        "passed"
+    )
+    value = replace(value, normalized_output=json.dumps(output).encode())
+    async with tx.open() as db:
+        await db.execute(
+            update(evaluation_generation_completions)
+            .where(evaluation_generation_completions.c.run_id == str(run_id))
+            .values(candidate_json=candidate)
+        )
+        await complete(db, judge, completion=value)
+        await db.commit()
+    saved = (await stored(tx, run_id))[0]["candidate_json"]
+    assert (
+        next(a for a in saved["assertions"] if a["type"] == "forbidden_claims_absent")["status"]
+        == "failed"
+    )
+    assert (
+        next(a for a in saved["semantic_assertions"] if a["type"] == "forbidden_claims_absent")[
+            "status"
+        ]
+        == "passed"
+    )

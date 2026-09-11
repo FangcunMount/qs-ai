@@ -28,6 +28,10 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
 from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_semantic_completions as table,
 )
+from qs_ai.infrastructure.qs_server.evaluation_assertions import (
+    assertion_inventory,
+    semantic_obligations,
+)
 from qs_ai.infrastructure.qs_server.evaluation_policies import load_execution_policy
 from qs_ai.infrastructure.qs_server.semantic_output import parse_semantic_output
 
@@ -155,10 +159,9 @@ async def complete_semantic(
     result = None
     if completion.status == "succeeded":
         assert completion.receipt is not None
-        obligations = tuple(
-            AssertionReceipt(**a)
-            for a in candidate["assertions"]
-            if a["status"] == "pending_semantic"
+        obligations = semantic_obligations(
+            assertion_inventory(release.suite, generated.case_id),
+            tuple(AssertionReceipt(**a) for a in candidate["assertions"]),
         )
         result = await parse_semantic_output(
             completion.normalized_output,
@@ -175,6 +178,7 @@ async def complete_semantic(
             else a
             for a in candidate["assertions"]
         ]
+        candidate["semantic_assertions"] = [asdict(a) for a in result.decisions]
         candidate["review_ready"] = True
         candidate["accepted_semantic_execution_id"] = completion.execution_id
     evidence = asdict(completion)
