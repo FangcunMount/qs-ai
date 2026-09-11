@@ -54,7 +54,9 @@ jobs:
           go-version: '1.25.12'
           cache-dependency-path: .interop/qs-server/go.sum
       - name: Verify migrated executable Prompt packages
-        run: uv run python scripts/export_qs_prompts.py .interop/qs-server --check
+        run: |
+          uv run python scripts/export_qs_prompts.py .interop/qs-server --check
+          cmp integrations/qs_server/schemas/ai-explanation-output-v1.schema.json .interop/qs-server/api/schema/interpretation/ai-explanation-output-v1.schema.json
       - name: Build pinned QS bridge and initialize separate test database
         run: |
           (cd .interop/qs-server && go build -o ../qs-ai-bridge ./cmd/qs-ai-bridge)
@@ -110,6 +112,10 @@ jobs:
               )
               subprocess.run(
                   [sys.executable, "-c", "from qs_ai.infrastructure.qs_server.profiles import load_migrated_release; assert load_migrated_release('participant-scale-score-range-default', 'v6').provider_route == 'balanced_text_v1'"],
+                  cwd=directory, env=environment, check=True,
+              )
+              subprocess.run(
+                  [sys.executable, "-c", "from qs_ai.infrastructure.qs_server.output import QSOutputParser; QSOutputParser()"],
                   cwd=directory, env=environment, check=True,
               )
           PYTHON
