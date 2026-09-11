@@ -89,3 +89,9 @@ AI PR #10 精确头 `a9b35e5f562d823e5e510bdb7bb3ec983cfd8459` 的 CI `346219712
 ### Prompt 资产实现进度（2026-09-12）
 
 `PromptAsset` / `MySQLPromptAssets` 与迁移 `0008_prompt_assets` 保存原版本包、原指纹、包校验和和首次导入审计。`bootstrap.import_prompts` 复用 manifest 校验加载器导入六个固定历史包，同版本异内容拒绝覆盖。已在隔离 MySQL 8.4 验证并发重放、内容冲突及历史读取；CLI 首次 6 条、重放 0 条。尚未完成生产资产总盘点、route/schema 存储、审批证据、发布及运行时激活，M3 不算验收完成。
+
+### 完整 release 的下一步缺口
+
+QS `api/schema/interpretation/ai-explanation-input-v1.schema.json` 确实存在；当前 qs-ai 只携带原输出 JSON Schema。下一批需要从固定 QS commit 导入输入和输出规范，保留来源与字节校验和。Profile 只含 provider_route 名称，发布清单还必须明确具体 route revision/fingerprint；不能把“路由名称存在”对账误当作版本选择或审批。
+
+PR #17 已将固定 v8 路由做成不可变资产，并把原版内容/缺失检查与 Profile 路由名称关联加入只读对账。该命令不修改发布状态，未接管 QS 的发布管理权威。

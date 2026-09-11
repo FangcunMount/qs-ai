@@ -126,3 +126,5 @@ uv run python -m qs_ai.bootstrap.import_prompts --imported-by <操作人标识>
 迁移 `0009_route_assets` 保存 route/revision、非秘密定义、原算法指纹与首次导入审计。配置 MySQL 并完成迁移后执行 `uv run python -m qs_ai.bootstrap.import_routes --imported-by <操作人标识>`。固定 v8 首次导入 1 条、重复 0 条，同版异内容报错；不覆盖已有审计。来源标识为先前 QS 运行配置观测，不冒充数据库发布记录。
 
 模型 endpoint 和密钥不允许进入该资产。运行时仍读取冻结包并比对配置；数据库入库不批准、不激活。路由动态发布、审批证据和与 Profile 的完整 release 绑定仍待实现。生产尚未导入 `0009`，升级需使用匹配迁移头的镜像。
+
+路由资产加入后，`bootstrap.audit_assets` 的范围为 `fixed_profile_prompt_route_baseline`：额外比较 1 个 route/revision 的完整定义及指纹，并检查 Profile 的路由名称存在于基线。未导入路由会失败。该检查不选择运行时生效 revision，也不代替包含 revision/fingerprint 的完整发布清单和审批。
