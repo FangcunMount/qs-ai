@@ -1,7 +1,6 @@
 """Mac mini release packaging and SSH transport. No production values in logs."""
 
 import base64
-import gzip
 import hashlib
 import json
 import os
@@ -9,6 +8,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -113,6 +113,52 @@ def run(phase: str, args: list[str], **kwargs) -> str:
     return result.stdout
 
 
+def export_image(image: str, archive: Path, environment: dict, timeout: float = 1800) -> None:
+    """Stream into a private compressed file; check both children before publishing."""
+    if timeout <= 0:
+        raise ValueError("Image export timeout must be positive")
+    exporter = compressor = None
+    temporary = None
+    deadline = time.monotonic() + timeout
+    print("image export: started", flush=True)
+    try:
+        with tempfile.NamedTemporaryFile(
+            dir=archive.parent, suffix=".tar.gz.tmp", delete=False
+        ) as target:
+            temporary = Path(target.name)
+            exporter = subprocess.Popen(
+                ["docker", "save", image],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                env=environment,
+            )
+            compressor = subprocess.Popen(
+                ["gzip", "-1", "-c"],
+                stdin=exporter.stdout,
+                stdout=target,
+                stderr=subprocess.DEVNULL,
+                env=environment,
+            )
+            exporter.stdout.close()
+            compressed = compressor.wait(timeout=max(0, deadline - time.monotonic()))
+            exported = exporter.wait(timeout=max(0, deadline - time.monotonic()))
+            if compressed or exported:
+                raise RuntimeError("Image export failed; raw output suppressed")
+        run("gzip integrity", ["gzip", "-t", str(temporary)])
+        run("archive integrity", ["tar", "-tzf", str(temporary)])
+        os.replace(temporary, archive)
+    finally:
+        for process in (compressor, exporter):
+            if process is not None:
+                if process.poll() is None:
+                    process.kill()
+                process.wait()
+        if exporter is not None and exporter.stdout is not None:
+            exporter.stdout.close()
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+
+
 def main() -> None:
     os.umask(0o077)
     env = dict(os.environ)
@@ -190,15 +236,8 @@ def main() -> None:
             )[0]
             package = work / "package"
             package.mkdir()
-            uncompressed = work / "image.tar"
             archive = package / "image.tar.gz"
-            run("image export", ["docker", "save", "-o", str(uncompressed), alias], env=docker_env)
-            with (
-                uncompressed.open("rb") as source,
-                gzip.open(archive, "wb", compresslevel=1) as target_stream,
-            ):
-                shutil.copyfileobj(source, target_stream)
-            uncompressed.unlink()
+            export_image(alias, archive, docker_env)
             checksum = hashlib.sha256()
             with archive.open("rb") as stream:
                 for block in iter(lambda: stream.read(1024 * 1024), b""):
