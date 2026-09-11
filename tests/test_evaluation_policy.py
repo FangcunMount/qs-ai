@@ -56,3 +56,40 @@ def test_unknown_stage_and_changed_policy_are_not_silently_accepted(tmp_path):
     (tmp_path / "manifest.json").write_text(json.dumps(manifest))
     with pytest.raises(ValueError, match="fingerprint"):
         load_execution_policy(directory=tmp_path)
+
+
+def test_gate_policy_keeps_original_bytes_and_release_reference():
+    from qs_ai.infrastructure.qs_server.evaluation_policies import load_gate_policy
+
+    policy = load_gate_policy()
+    original = json.loads((evaluation_directory() / "policies.json").read_bytes())["gate_policy"]
+    assert policy.definition_json == original["definition_json"]
+    assert policy.reference.fingerprint == original["fingerprint"]
+    assert policy.reference.id == "release-gates"
+    assert policy.reference.version == "v2"
+    assert policy.reference.matches_document(policy.definition_json)
+
+
+@pytest.mark.parametrize("mutation", ["schema", "version"])
+def test_gate_rejects_invalid_definition_even_with_recomputed_checksums(tmp_path, mutation):
+    from jsonschema import ValidationError
+
+    from qs_ai.infrastructure.qs_server.evaluation_policies import load_gate_policy
+
+    shutil.copytree(evaluation_directory(), tmp_path, dirs_exist_ok=True)
+    path = tmp_path / "policies.json"
+    policies = json.loads(path.read_bytes())
+    gate = policies["gate_policy"]
+    definition = json.loads(gate["definition_json"])
+    if mutation == "schema":
+        del definition["human_accountability"]
+    else:
+        definition["version"] = "v999"
+    gate["definition_json"] = json.dumps(definition)
+    gate["fingerprint"] = "sha256:" + hashlib.sha256(gate["definition_json"].encode()).hexdigest()
+    path.write_text(json.dumps(policies))
+    manifest = json.loads((tmp_path / "manifest.json").read_bytes())
+    manifest["files"]["policies.json"] = hashlib.sha256(path.read_bytes()).hexdigest()
+    (tmp_path / "manifest.json").write_text(json.dumps(manifest))
+    with pytest.raises((ValidationError, ValueError)):
+        load_gate_policy(directory=tmp_path)
