@@ -1,11 +1,37 @@
 """Bind a frozen session's evidence to the report used for input assembly."""
 
 import json
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 
 from qs_ai.application.interpretation.input import AssembledInput, InputPolicy, assemble_input
+from qs_ai.application.interpretation.prompts import PromptMessages, PromptPackage, render_prompt
+from qs_ai.application.interpretation.release import ExplanationRelease
 from qs_ai.application.interpretation.service import fingerprint
 from qs_ai.domain.interpretation.model import EvidenceSet, RuleViolation, Session
+
+
+@dataclass(frozen=True)
+class PreparedExplanation:
+    assembled_input: AssembledInput
+    messages: PromptMessages
+    release: ExplanationRelease
+    prompt_fingerprint: str
+
+
+def prepare_explanation(
+    session: Session,
+    evidence: EvidenceSet,
+    release: ExplanationRelease,
+    package: PromptPackage,
+    *,
+    locale: str = "zh-CN",
+    focus_areas: tuple[str, ...] = (),
+) -> PreparedExplanation:
+    assembled = prepare_report_input(
+        session, evidence, release.input_policy, locale=locale, focus_areas=focus_areas
+    )
+    messages = render_prompt(package, release.render_policy, assembled.provider_payload)
+    return PreparedExplanation(assembled, messages, release, package.fingerprint)
 
 
 def prepare_report_input(

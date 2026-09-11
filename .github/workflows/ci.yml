@@ -108,6 +108,10 @@ jobs:
                   [sys.executable, "-c", "from qs_ai.infrastructure.qs_server.prompts import load_prompt; assert load_prompt('cross-dimension-participant-scale', 'v6').version == 'v6'"],
                   cwd=directory, env=environment, check=True,
               )
+              subprocess.run(
+                  [sys.executable, "-c", "from qs_ai.infrastructure.qs_server.profiles import load_migrated_release; assert load_migrated_release('participant-scale-score-range-default', 'v6').provider_route == 'balanced_text_v1'"],
+                  cwd=directory, env=environment, check=True,
+              )
           PYTHON
   image:
     runs-on: ubuntu-latest

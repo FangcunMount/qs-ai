@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 from qs_ai.application.interpretation.input import InputPolicy
-from qs_ai.application.interpretation.preparation import prepare_report_input
+from qs_ai.application.interpretation.preparation import prepare_explanation, prepare_report_input
 from qs_ai.application.interpretation.service import fingerprint
 from qs_ai.domain.interpretation.model import (
     Actor,
@@ -14,6 +14,8 @@ from qs_ai.domain.interpretation.model import (
     RuleViolation,
     Session,
 )
+from qs_ai.infrastructure.qs_server.profiles import load_migrated_release
+from qs_ai.infrastructure.qs_server.prompts import load_prompt
 
 
 def bound_case() -> tuple[Session, EvidenceSet, InputPolicy]:
@@ -38,6 +40,17 @@ def bound_case() -> tuple[Session, EvidenceSet, InputPolicy]:
 def test_frozen_report_bound_to_session_and_source() -> None:
     session, evidence, policy = bound_case()
     assert prepare_report_input(session, evidence, policy).provider_payload
+
+
+def test_complete_preparation_from_published_release_and_bound_report() -> None:
+    session, evidence, _ = bound_case()
+    release = load_migrated_release("participant-scale-score-range-default", "v6")
+    package = load_prompt(release.render_policy.template_id, release.render_policy.version)
+    prepared = prepare_explanation(session, evidence, release, package)
+    assert prepared.prompt_fingerprint == package.fingerprint
+    assert prepared.release.provider_route == "balanced_text_v1"
+    assert "标准描述 {{locale}}" in prepared.messages.data_json
+    assert "{{" not in prepared.messages.task_message
 
 
 @pytest.mark.parametrize(
