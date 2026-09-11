@@ -50,7 +50,9 @@ async def asset_store():
     finally:
         async with transactions.open() as db:
             await db.execute(
-                delete(profile_assets).where(profile_assets.c.profile_id == asset.profile_id)
+                delete(profile_assets).where(
+                    profile_assets.c.profile_id.in_((asset.profile_id, asset.profile_id + " "))
+                )
             )
             await db.commit()
         await database.close()
@@ -110,3 +112,20 @@ async def test_concurrent_conflicting_import_has_one_immutable_winner(asset_stor
     assert sum(isinstance(result, AssetConflict) for result in outcomes) == 1
     expected = asset if outcomes[0] is True else changed
     assert await store.get(asset.profile_id, asset.version) == expected
+
+
+async def test_profile_identity_preserves_trailing_space_like_qs(asset_store):
+    store, asset, _ = asset_store
+    definition = json.loads(asset.definition_json)
+    definition["profile_id"] += " "
+    raw = canonical_definition(definition)
+    distinct = ProfileAsset(
+        definition["profile_id"],
+        asset.version,
+        "sha256:" + hashlib.sha256(raw.encode()).hexdigest(),
+        raw,
+    )
+    assert await store.put(asset, "source", "operator")
+    assert await store.put(distinct, "source", "operator")
+    assert await store.get(asset.profile_id, asset.version) == asset
+    assert await store.get(distinct.profile_id, distinct.version) == distinct

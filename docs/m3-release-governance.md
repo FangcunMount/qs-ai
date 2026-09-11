@@ -83,3 +83,5 @@ AI PR #10 精确头 `a9b35e5f562d823e5e510bdb7bb3ec983cfd8459` 的 CI `346219712
 `ProfileAsset` 保留原定义 JSON、Profile/version 和 SHA-256 指纹；`MySQLProfileAssets` 仅支持插入与读取，同版本唯一且无覆盖更新。迁移 `0007_profile_assets` 保存首次导入来源/操作人；`bootstrap.import_profiles` 通过原 QS decoder 校验固定基线后导入。导入不授予发布或激活状态。
 
 隔离 MySQL 8.4 验证并发相同导入仅成功插入一次、重放保留原审计、异内容冲突、不同版本共存与历史读取；固定基线经过 CLI 首次插入 1 条、再次插入 0 条，均未激活。该证据不代表生产导入、发布流程或全部旧资产对账完成。
+
+兼容性补充：QS Profile 定义保留 ID 原值，新 MySQL 资产键使用 `utf8mb4_0900_bin` 的 NO PAD 比较，避免把尾部空格不同的合法 ID 合并。隔离 MySQL 8.4 回归先在旧排序规则下复现冲突，修复后 5 项存储测试通过。迁移仍未合并、未上线，因此直接修正首版 `0007`，没有修改生产库。

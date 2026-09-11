@@ -164,7 +164,7 @@ result_outbox = sa.Table(
 profile_assets = sa.Table(
     "profile_assets",
     metadata,
-    sa.Column("profile_id", sa.String(255, collation="utf8mb4_bin"), primary_key=True),
+    sa.Column("profile_id", sa.String(255, collation="utf8mb4_0900_bin"), primary_key=True),
     sa.Column("version", sa.String(128, collation="utf8mb4_bin"), primary_key=True),
     sa.Column("fingerprint", sa.String(71, collation="utf8mb4_bin"), nullable=False),
     sa.Column("definition_json", mysql.LONGTEXT(collation="utf8mb4_bin"), nullable=False),

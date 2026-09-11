@@ -10,7 +10,7 @@ depends_on = None
 
 def upgrade() -> None:
     op.execute("""CREATE TABLE profile_assets (
-        profile_id VARCHAR(255) COLLATE utf8mb4_bin NOT NULL,
+        profile_id VARCHAR(255) COLLATE utf8mb4_0900_bin NOT NULL,
         version VARCHAR(128) COLLATE utf8mb4_bin NOT NULL,
         fingerprint VARCHAR(71) COLLATE utf8mb4_bin NOT NULL,
         definition_json LONGTEXT COLLATE utf8mb4_bin NOT NULL,
