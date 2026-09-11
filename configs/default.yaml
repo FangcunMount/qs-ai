@@ -30,6 +30,7 @@ generation:
   max_output_tokens: 12000
   reasoning_effort: none
 grpc:
+  governance_enabled: false
   bind_address: 127.0.0.1:50061
   result_address: null
   access_address: null

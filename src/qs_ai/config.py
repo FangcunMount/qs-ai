@@ -59,6 +59,7 @@ class GenerationOptions(Options):
 
 
 class GRPCOptions(Options):
+    governance_enabled: bool = False
     bind_address: str = Field(min_length=1)
     result_address: str | None
     access_address: str | None = None

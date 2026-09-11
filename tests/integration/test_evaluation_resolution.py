@@ -182,3 +182,26 @@ async def test_second_unknown_cannot_be_authorized_past_budget(ready):
     assert run["progress_json"]["status"] == "blocked"
     assert run["progress_json"]["unresolved_result_unknown_count"] == 1
     await accept(ready, state.version, replace(value, decision="cancel_run"))
+
+
+async def test_management_receipt_readback_and_organization_isolation(ready):
+    from qs_ai.application.evaluation.management import ManagementScope
+    from qs_ai.application.interpretation.ports import NotFound
+    from qs_ai.infrastructure.persistence.mysql.evaluation_management import (
+        MySQLEvaluationManagement,
+    )
+
+    tx, run_id, *_ = ready
+    state = await recover(ready, await pending(ready, dispatched=True))
+    store = MySQLEvaluationManagement(tx)
+    scope = ManagementScope(run_id, 1, 42)
+    with pytest.raises(ValueError, match="actor"):
+        await store.resolve(scope, state.version, decision(), confirm=True)
+    view = await store.resolve(
+        scope, state.version, replace(decision(), actor=scope.actor), confirm=True
+    )
+    assert view.status == "collecting" and view.version == state.version + 1
+    assert await store.get(scope) == view
+    assert "execution:dead" in view.resolutions_json
+    with pytest.raises(NotFound):
+        await store.get(ManagementScope(run_id, 2, 42))

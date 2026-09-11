@@ -16,6 +16,7 @@ from qs_ai.contracts.workflow import workflow_pb2_grpc as rpc
 from qs_ai.infrastructure.qs_server.report_probe import mtls_channel
 from qs_ai.infrastructure.workflow_transport.results import GRPCResultReceiver
 from qs_ai.transport.grpc.commands import Commands
+from qs_ai.transport.grpc.evaluation import EvaluationManagement
 
 
 async def main() -> None:
@@ -46,6 +47,10 @@ async def main() -> None:
                 options=(("grpc.max_receive_message_length", settings.grpc.max_receive_bytes),)
             )
             rpc.add_CommandsServicer_to_server(Commands(container), server)
+            if settings.grpc.governance_enabled:
+                rpc.add_EvaluationManagementServicer_to_server(
+                    EvaluationManagement(container), server
+                )
             credentials = grpc.ssl_server_credentials(
                 [(key, cert)], root_certificates=ca, require_client_auth=True
             )
