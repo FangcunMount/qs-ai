@@ -12,7 +12,7 @@ import (
  "context"
  "encoding/json"
  "os"
- port "github.com/FangcunMount/qs-server/internal/apiserver/application/interpretation/aiexplanation/port"
+ port "QS_PORT"
  catalog "github.com/FangcunMount/qs-server/internal/apiserver/infra/aiexplanation/prompt"
 )
 func main(){
@@ -24,6 +24,13 @@ func main(){
  if err:=json.NewEncoder(os.Stdout).Encode(packages);err!=nil{panic(err)}
 }
 """
+
+
+PROGRAM = PROGRAM.replace(
+    "QS_PORT",
+    "github.com/FangcunMount/qs-server/internal/apiserver/"
+    "application/interpretation/aiexplanation/port",
+)
 
 
 def main() -> None:
@@ -63,7 +70,10 @@ def main() -> None:
                 "commit": commit,
                 "source": "internal/apiserver/infra/aiexplanation/prompt/catalog.go",
                 "files": files,
-                "status": "Exported executable packages; active Profile and input mapping not yet migrated",
+                "status": (
+                    "Exported executable packages; active Profile "
+                    "and input mapping not yet migrated"
+                ),
             },
             indent=2,
         )
