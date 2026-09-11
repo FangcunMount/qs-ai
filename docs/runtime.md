@@ -118,3 +118,5 @@ uv run python -m qs_ai.bootstrap.import_prompts --imported-by <操作人标识>
 命令只导入已校验 manifest 的 v1–v6 固定包；原 Prompt fingerprint、GitBlobSHA 和导出 JSON 字节全部保留，另外保存 package_sha256。原指纹并不是导出 JSON 的 SHA-256，不能相互替换。相同 ID/version 的完全相同包可重复导入；异内容报冲突，不覆盖首次来源及操作人。各版本独立提交，部分导入后可重放恢复。
 
 本地隔离 MySQL 8.4 首次导入 6 条、再次 0 条，均为 `activated: false`。生产尚未导入；运行时仍读取冻结包，后续发布流程完成后才能切换资产解析来源。此命令不提供审批、激活或删除能力。
+
+导入后可运行只读对账：`uv run python -m qs_ai.bootstrap.audit_assets`。命令比较固定基线中 1 个 Profile、6 个 Prompt 的完整内容，并核对 Profile 的 Prompt 引用。缺失或不一致返回非零状态；不输出正文，不执行写入或激活。`matched` 只代表该固定基线相符，不代表全部生产资产、route/schema 或发布审批已验收。
