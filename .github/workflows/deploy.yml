@@ -66,6 +66,9 @@ jobs:
           context: .
           platforms: linux/amd64
           push: true
+          # ACR rejects BuildKit attestation manifests; retain digest and revision checks.
+          provenance: false
+          sbom: false
           tags: ${{ secrets.ALIYUN_ACR_REGISTRY }}/${{ secrets.ALIYUN_ACR_NAMESPACE }}/qs-ai:${{ needs.gate.outputs.revision }}
           labels: org.opencontainers.image.revision=${{ needs.gate.outputs.revision }}
           cache-from: type=gha,scope=qs-ai
