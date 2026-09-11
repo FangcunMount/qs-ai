@@ -21,3 +21,5 @@ build_artifact 将恢复后的响应与当前任务冻结证据重新绑定，�
 迁移 0006 增加 interpretation_artifacts。finish 在当前租约内复核候选与已保存调用/证据的关联和内容指纹，将完整成果、completed 状态、同版本 Outbox 一并提交；无完整成果不能完成。取消后和已完成后拒绝迟到写入，已完成状态不能再取消。结果事件以新增 proto 字段 artifact_json 承载完整候选信封，序列化大小上限为 128 KiB；重复投递使用同一已保存事件。
 
 MySQL 集成测试验证成果和事件同步保存、Outbox 写入失败时整体回滚、取消后拒绝迟到成果。QS 接收端仍待配套更新，实际 Workflow 与常驻进程也尚未启用，不可将这些离线测试视为正式成果已送达生产 QS。
+
+完整成果跨语言验证位于 tests/integration/test_artifact_delivery.py：使用 MySQL 保存的候选及 Outbox、Python GRPCResultReceiver、独立 Go 进程中的真实 Results 接收器和 QS MySQL 投影，在测试 CA 下建立 mTLS；覆盖完成事件先于旧状态、确认丢失、接收器重启及相同成果重投。本地 MySQL 8.4 已通过，CI 固定 QS 成果接收版本 b13c21e02d0d2abf97062c221aeb69565047f419 并纳入 8.0.36/8.4 矩阵。原 Prompt 来源和旧协议兼容测试保留原固定提交，不用新代码替换历史对照基线。该验证没有调用真实模型，也未证明生产授权、客户端展示或 M2 全部验收完成。

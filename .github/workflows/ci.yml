@@ -53,6 +53,11 @@ jobs:
         with:
           go-version: '1.25.12'
           cache-dependency-path: .interop/qs-server/go.sum
+      - uses: actions/checkout@v4
+        with:
+          repository: FangcunMount/qs-server
+          ref: b13c21e02d0d2abf97062c221aeb69565047f419
+          path: .interop/qs-artifact
       - name: Verify migrated executable Prompt packages
         run: |
           uv run python scripts/export_qs_prompts.py .interop/qs-server --check
@@ -60,6 +65,7 @@ jobs:
       - name: Build pinned QS bridge and initialize separate test database
         run: |
           (cd .interop/qs-server && go build -o ../qs-ai-bridge ./cmd/qs-ai-bridge)
+          (cd .interop/qs-artifact && go build -o ../qs-ai-artifact-bridge ./cmd/qs-ai-bridge)
           (cd .interop/qs-server && go build -o ../qs-ai-access-probe ./internal/apiserver/transport/grpc/service/testdata/accessprobe)
           uv run python - <<'PYTHON'
           import asyncio
@@ -83,6 +89,7 @@ jobs:
       - run: uv run pytest
         env:
           QS_AI_BRIDGE_BIN: ${{ github.workspace }}/.interop/qs-ai-bridge
+          QS_AI_ARTIFACT_BRIDGE_BIN: ${{ github.workspace }}/.interop/qs-ai-artifact-bridge
           QS_AI_ACCESS_PROBE_BIN: ${{ github.workspace }}/.interop/qs-ai-access-probe
           QS_AI_PROMPT_SOURCE: ${{ github.workspace }}/.interop/qs-server
           QS_AI_TEST_QS_MYSQL_DSN: mysql+asyncmy://qs_ai:qs_ai_local@127.0.0.1:3306/qs_gateway
