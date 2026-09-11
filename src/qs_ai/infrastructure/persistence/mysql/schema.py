@@ -242,6 +242,8 @@ evaluation_dispatches = sa.Table(
     metadata,
     sa.Column("run_id", sa.CHAR(36), primary_key=True),
     sa.Column("invocation_id", sa.String(128, collation="utf8mb4_bin"), primary_key=True),
+    sa.Column("execution_id", sa.String(128, collation="utf8mb4_bin"), nullable=False),
+    sa.UniqueConstraint("run_id", "execution_id", name="uq_evaluation_dispatch_execution"),
     sa.Column("kind", sa.String(16), nullable=False),
     sa.Column("case_id", sa.String(128, collation="utf8mb4_bin"), nullable=False),
     sa.Column("slot_ordinal", sa.Integer, nullable=False),

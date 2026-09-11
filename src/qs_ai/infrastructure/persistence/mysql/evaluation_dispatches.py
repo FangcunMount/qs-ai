@@ -94,12 +94,15 @@ async def reserve_dispatch(
     ]
     if used >= limit or total >= budget["max_executions_per_run"]:
         raise CheckpointConflict("Evaluation execution budget exhausted")
+    if checkpoint.execution_ordinal != used + 1:
+        raise CheckpointConflict("Evaluation execution ordinal is not next")
     state = CheckpointState(run_id, expected_version + 1, dispatched)
     await save_checkpoint(db, state, expected_version)
     await db.execute(
         insert(dispatches).values(
             run_id=str(run_id),
             invocation_id=checkpoint.invocation_id,
+            execution_id=checkpoint.execution_id,
             kind=stage,
             case_id=checkpoint.case_id,
             slot_ordinal=checkpoint.slot_ordinal,

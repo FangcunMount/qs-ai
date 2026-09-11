@@ -17,12 +17,14 @@ def upgrade() -> None:
     op.execute("""CREATE TABLE evaluation_dispatches (
         run_id CHAR(36) NOT NULL,
         invocation_id VARCHAR(128) COLLATE utf8mb4_bin NOT NULL,
+        execution_id VARCHAR(128) COLLATE utf8mb4_bin NOT NULL,
         kind VARCHAR(16) NOT NULL,
         case_id VARCHAR(128) COLLATE utf8mb4_bin NOT NULL,
         slot_ordinal INTEGER NOT NULL,
         candidate_id VARCHAR(128) COLLATE utf8mb4_bin NOT NULL,
         checkpoint_json JSON NOT NULL,
-        PRIMARY KEY (run_id, invocation_id)
+        PRIMARY KEY (run_id, invocation_id),
+        CONSTRAINT uq_evaluation_dispatch_execution UNIQUE (run_id, execution_id)
     ) ENGINE=InnoDB CHARSET=utf8mb4""")
 
 

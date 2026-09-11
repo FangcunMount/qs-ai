@@ -6,6 +6,7 @@ from uuid import uuid4
 
 import pytest
 from sqlalchemy import delete, func, select
+from sqlalchemy.exc import IntegrityError
 
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict, CheckpointState
 from qs_ai.domain.evaluation.checkpoint import ExecutionCheckpoint
@@ -126,6 +127,7 @@ async def test_run_budget_counts_prior_dispatches_even_for_other_targets(prepare
                 dict(
                     run_id=str(run_id),
                     invocation_id=f"prior:{i}",
+                    execution_id=f"prior-execution:{i}",
                     kind="generation",
                     case_id=f"prior-case:{i}",
                     slot_ordinal=1,
@@ -147,3 +149,42 @@ async def test_run_budget_counts_prior_dispatches_even_for_other_targets(prepare
             await reserve_dispatch(db, run_id, 3, cp.owner, cp.claimed_at)
             await db.commit()
     assert await count(tx, run_id) == 70
+
+
+@pytest.mark.parametrize("prior_dispatch", [False, True])
+async def test_dispatch_rejects_skipped_or_repeated_execution_ordinal(prepared, prior_dispatch):
+    tx, store, run_id, cp = prepared
+    version = 1
+    if prior_dispatch:
+        async with tx.open() as db:
+            await reserve_dispatch(db, run_id, version, cp.owner, cp.claimed_at)
+            await db.commit()
+        version += 1
+    invalid = replace(
+        cp,
+        execution_id="execution:next",
+        invocation_id="invocation:next",
+        execution_ordinal=1 if prior_dispatch else 2,
+    )
+    await store.save(CheckpointState(run_id, version + 1, invalid), version)
+    with pytest.raises(CheckpointConflict, match="ordinal"):
+        async with tx.open() as db:
+            await reserve_dispatch(db, run_id, version + 1, cp.owner, cp.claimed_at)
+            await db.commit()
+    assert await count(tx, run_id) == int(prior_dispatch)
+    assert await store.get(run_id) == CheckpointState(run_id, version + 1, invalid)
+
+
+async def test_reused_execution_identity_rolls_back_even_with_new_invocation(prepared):
+    tx, store, run_id, cp = prepared
+    async with tx.open() as db:
+        await reserve_dispatch(db, run_id, 1, cp.owner, cp.claimed_at)
+        await db.commit()
+    duplicate = replace(cp, invocation_id="invocation:2", execution_ordinal=2)
+    await store.save(CheckpointState(run_id, 3, duplicate), 2)
+    with pytest.raises(IntegrityError):
+        async with tx.open() as db:
+            await reserve_dispatch(db, run_id, 3, cp.owner, cp.claimed_at)
+            await db.commit()
+    assert await count(tx, run_id) == 1
+    assert await store.get(run_id) == CheckpointState(run_id, 3, duplicate)
