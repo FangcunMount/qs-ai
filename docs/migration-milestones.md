@@ -138,7 +138,7 @@ M1 → M2 → M3 → M4 → M5。M3 清单分析可提前开展，生产切换�
 | M0 | 完成 | 上述发布及 mTLS 记录 |
 | M1 | 进行中 | 已修复快照执行授权、迁入输入/Prompt/输出规则并完成服务身份联调；真实案例与撤权验收待补，见下方 2026-09-12 记录 |
 | M2 | 实现进行中，未验收 | 调用持久化、成果事务、跨语言回传、Workflow/常驻进程及部署配置已提交；依赖 M1 验收后启用真实生成 |
-| M3 | 资产基础实现中，未验收 | Profile 已合并；Prompt/对账 PR #16；发布权威切换仍依赖 M1/M2，见 m3-release-governance.md |
+| M3 | 资产基础实现中，未验收 | Profile/Prompt/route/schema 与评测冻结基础 PR #12–#26 已合并；Run/审批/发布未接通，权威切换仍依赖 M1/M2 |
 | M4 | 待做 | 依赖 M3；冻结分批样本和运行阈值 |
 | M5 | 待做 | 依赖 M4；证据对账后退役 |
 
@@ -170,3 +170,12 @@ M1 → M2 → M3 → M4 → M5。M3 清单分析可提前开展，生产切换�
 - 再次只读检查 serverA：AI API/gRPC 均为 `ccde2ed627171b748ff63efe5062fdc741757480` 且 healthy，无 worker/delivery；QS apiserver 与两份 collection 均为 `512e32fc2c6ed7f58f8413df288af95e7dec78dc` 且 healthy。本轮未部署，未启用真实生成。
 - 部署 `34625252116` 已终止为 failure；deploy job `103349476594` 的 GitHub 注解为 self-hosted runner lost communication。此错误本身不能证明磁盘耗尽，但此前其他运行已出现磁盘不足。`AUTO_DEPLOY_ENABLED=false` 已复核；runner 恢复、指定版本部署和现场收据验证后应恢复自动部署。
 - 当前外部缺口仍为 runner 可用登录方式及首个授权测评/测试账号标识。代码侧继续推进 route/schema 版本资产、发布证据与审批绑定；不绕过 M1 的真实授权与撤权验收，不提前退役 QS 旧实现。
+
+
+### 2026-09-12：评测冻结与可靠发送基础合并
+
+- PR #16–#19 已合并：原 Prompt、路由、输入/输出规范不可变资产、固定基线对账与五项生成清单。PR #20–#26 已合并：原评测资源、执行策略、失败分类、检查点 CAS、调用预算联合预留、完整 11 项发布身份及 v6 用例集、发布门槛冻结读取。完整 Run 状态机、候选/回执接收、人工评审及发布事务仍未实现，M3 未验收。
+- PR #25 合并 `df020d3b486abb0cf0bf66a717080bfb1e29b96a`；发送预留隔离 MySQL 8.4 的 8 项测试覆盖预算、序号、唯一执行 ID、提交后重放拒绝及事务回滚。未验证真实模型调用次数。
+- PR #26 精确提交 `5eafa89b747f4c13166b979c5a3acd4f45ebd08d` 的 CI [34634480977](https://github.com/FangcunMount/qs-ai/actions/runs/34634480977) 两版 MySQL 与镜像检查通过，随后合并。完整身份指纹与原 Go 实现一致；v6 用例保留原字节并生成 35 个有序槽位和独立预检；策略文档通过指纹、Schema 与版本验证。以上不构成批准或真实评测结果。
+- 本轮再次只读确认 serverA：AI API/gRPC 仍为 `ccde2ed627171b748ff63efe5062fdc741757480` 且 healthy，QS 三个业务容器仍为 `512e32fc2c6ed7f58f8413df288af95e7dec78dc` 且 healthy；未启动 worker/delivery、未部署这些资产/评测增量。`AUTO_DEPLOY_ENABLED=false`。组织 runner 状态查询因权限不足返回 403，不能据此认定 runner 已恢复或仍离线。
+- 下一批：创建 Run 时同事务冻结完整发布身份、原策略、用例顺序、租户/操作人和初始检查点；保留唯一版本控制。随后实现 NextAction、原始回执/候选联合接受与结果未知处理。真实授权案例、撤权、模型/展示及部署恢复缺口继续单独追踪，不能被这些基础测试替代。

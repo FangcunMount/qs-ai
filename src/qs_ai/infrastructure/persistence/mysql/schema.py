@@ -252,3 +252,14 @@ evaluation_dispatches = sa.Table(
     mysql_engine="InnoDB",
     mysql_charset="utf8mb4",
 )
+
+evaluation_runs = sa.Table(
+    "evaluation_runs",
+    metadata,
+    sa.Column("run_id", sa.CHAR(36), primary_key=True),
+    sa.Column("organization_id", sa.BigInteger, nullable=False),
+    sa.Column("requested_by", sa.String(128, collation="utf8mb4_bin"), nullable=False),
+    sa.Column("definition_json", mysql.LONGTEXT, nullable=False),
+    mysql_engine="InnoDB",
+    mysql_charset="utf8mb4",
+)
