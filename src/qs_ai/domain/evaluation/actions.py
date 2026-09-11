@@ -1,5 +1,6 @@
 """Automatic evaluation planning; manual recovery needs a separate audited resolution."""
 
+import re
 from dataclasses import dataclass
 
 from qs_ai.domain.evaluation.checkpoint import ExecutionCheckpoint
@@ -12,12 +13,26 @@ class ExecutionResult:
     status: str
     failure: ClassifiedFailure | None = None
 
+    def __post_init__(self) -> None:
+        if self.status not in ("succeeded", "failed", "result_unknown"):
+            raise ValueError("Invalid terminal execution status")
+        if self.status == "succeeded" and self.failure is not None:
+            raise ValueError("Successful execution cannot carry failure")
+
 
 @dataclass(frozen=True)
 class CandidateProgress:
     candidate_id: str
     review_ready: bool
     semantic: tuple[ExecutionResult, ...] = ()
+
+    def __post_init__(self) -> None:
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9:._/-]{0,127}", self.candidate_id):
+            raise ValueError("Invalid candidate identity")
+        if type(self.review_ready) is not bool or not isinstance(self.semantic, tuple):
+            raise ValueError("Invalid candidate progress")
+        if self.review_ready and not any(x.status == "succeeded" for x in self.semantic):
+            raise ValueError("Review ready candidate requires successful semantic evidence")
 
 
 @dataclass(frozen=True)
@@ -26,6 +41,18 @@ class SlotProgress:
     ordinal: int
     generation: tuple[ExecutionResult, ...] = ()
     candidate: CandidateProgress | None = None
+
+    def __post_init__(self) -> None:
+        if (
+            not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9:._/-]{0,127}", self.case_id)
+            or type(self.ordinal) is not int
+            or self.ordinal < 1
+        ):
+            raise ValueError("Invalid slot identity")
+        if not isinstance(self.generation, tuple):
+            raise ValueError("Immutable generation history required")
+        if self.candidate is not None and not any(x.status == "succeeded" for x in self.generation):
+            raise ValueError("Candidate requires successful generation evidence")
 
 
 @dataclass(frozen=True)
@@ -62,6 +89,27 @@ def next_action(
         raise ValueError("Invalid unresolved result count")
     if preflight_status not in ("pending", "passed", "failed"):
         raise ValueError("Invalid preflight status")
+    if (
+        not isinstance(slots, tuple)
+        or len(slots) != policy.generation_cases * policy.candidates_per_case
+    ):
+        raise ValueError("Incomplete frozen slot plan")
+    seen_cases: set[str] = set()
+    seen_candidates: set[str] = set()
+    for offset in range(0, len(slots), policy.candidates_per_case):
+        group = slots[offset : offset + policy.candidates_per_case]
+        case_id = group[0].case_id
+        if case_id in seen_cases or any(
+            slot.case_id != case_id or slot.ordinal != ordinal
+            for ordinal, slot in enumerate(group, 1)
+        ):
+            raise ValueError("Duplicate or disordered frozen slots")
+        seen_cases.add(case_id)
+        for slot in group:
+            if slot.candidate is not None:
+                if slot.candidate.candidate_id in seen_candidates:
+                    raise ValueError("Candidate belongs to more than one slot")
+                seen_candidates.add(slot.candidate.candidate_id)
     if status == "blocked":
         return NextAction("block", "run_blocked")
     if status != "collecting":

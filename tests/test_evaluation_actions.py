@@ -74,7 +74,38 @@ def test_failure_never_skips_to_a_later_empty_slot():
 def test_existing_candidate_requests_semantic_not_regeneration():
     slots = plan()
     candidate = CandidateProgress("candidate:1", False)
-    result = action((replace(slots[0], candidate=candidate), *slots[1:]))
+    result = action(
+        (
+            replace(slots[0], candidate=candidate, generation=(ExecutionResult("succeeded"),)),
+            *slots[1:],
+        )
+    )
     assert result.kind == "semantic" and result.candidate_id == "candidate:1"
     blocked = replace(candidate, semantic=(ExecutionResult("result_unknown"),))
-    assert action((replace(slots[0], candidate=blocked), *slots[1:])).kind == "block"
+    assert (
+        action(
+            (
+                replace(slots[0], candidate=blocked, generation=(ExecutionResult("succeeded"),)),
+                *slots[1:],
+            )
+        ).kind
+        == "block"
+    )
+
+
+def test_invalid_progress_cannot_skip_or_duplicate_candidate_slots():
+    import pytest
+
+    with pytest.raises(ValueError, match="Duplicate or disordered"):
+        action((plan()[0],) * 35)
+    with pytest.raises(ValueError, match="successful semantic"):
+        CandidateProgress("candidate:1", True)
+    with pytest.raises(ValueError, match="successful generation"):
+        replace(plan()[0], candidate=CandidateProgress("candidate:1", False))
+    candidate = CandidateProgress("candidate:1", True, (ExecutionResult("succeeded"),))
+    slots = tuple(
+        replace(slot, generation=(ExecutionResult("succeeded"),), candidate=candidate)
+        for slot in plan()
+    )
+    with pytest.raises(ValueError, match="more than one slot"):
+        action(slots)
