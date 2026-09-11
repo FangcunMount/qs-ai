@@ -37,6 +37,8 @@ func main() {
 	var result app.EvaluationState
 	if input.Action == "resolve" {
 		result, err = service.Resolve(ctx, scope, app.UnknownResolution{ExpectedVersion: input.Version, ExecutionID: "execution:dead", Decision: input.Decision, Reason: "跨进程管理测试", Confirm: input.Confirm, AcknowledgedDuplicateCallAndCostRisk: input.Confirm})
+	} else if input.Action == "start" {
+		result, err = service.Start(ctx, scope, app.EvaluationStart{ExpectedVersion: input.Version, Reason: "跨进程管理测试", Confirm: input.Confirm})
 	} else {
 		result, err = service.Get(ctx, scope)
 	}

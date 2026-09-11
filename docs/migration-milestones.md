@@ -224,3 +224,6 @@ M1 → M2 → M3 → M4 → M5。M3 清单分析可提前开展，生产切换�
 - `codex/evaluation-start-management` 新增默认关闭管理服务的 Start RPC：可信 QS 身份和机构/操作者上下文、明确确认、版本校验；仅 requested Run 可以原子进入 collecting，记录服务端时间及操作人，原冻结定义和预算不变。RPC 不直接调用模型，后续由独立执行进程领取。
 - 6 项隔离 MySQL 8.4 测试通过，覆盖并发唯一接受、重复启动、错误机构/版本/确认/原因/时间均不改状态；管理 RPC 专项 17 项通过，非集成回归 519 项通过、11 项跳过。Ruff、mypy、协议生成和文档检查通过；临时数据库已移除。
 - Start 的 QS 转发尚未接入，Run 创建、人工质量审批和发布仍待实现；本批不代表真实 IAM 或业务入口验收，未部署。M1–M5 验收状态不变。
+
+- 启动链路后续证据：QS 独立分支提交 `0c8a08d1ae05b727e3f4cc4f6ff09e3b9440e712` 已提供 POST `/internal/v2/interpretation/ai-workflow/evaluations/{run_id}/start`，经过当前 OrgAdmin 判断和受保护身份上下文转发。对应 Go 应用/客户端/REST/grpc 包测试、fmt-check、API 生成一致性及文档门禁通过，接口清单为 201 REST operations / 180 paths、64 RPC；精确提交 CI 仍待完成。
+- 在上述 QS 提交编译真实 Go 管理探针，启动/取消/授权替代三项 Go → Python → MySQL 8.4 互操作测试通过。启动场景通过正常创建获得 requested Run；实际服务端时钟写入启动审计，状态进入 collecting 且版本只增加一次；旧版本及当前版本的重复启动都被拒绝，错机构、非可信证书、缺确认和撤权均拒绝。测试使用临时证书、隔离数据库与合成 IAM 快照；未验证生产 IAM/HTTP 页面或调用模型。临时数据库及 Go 源目录已清理，QS 工作区保持干净。
