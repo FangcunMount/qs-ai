@@ -75,3 +75,19 @@ def test_configuration_migration_and_image_inputs_require_release(tmp_path):
     ):
         assert scope(tmp_path, commit(tmp_path, path, "changed")) == "true"
     assert scope(tmp_path, commit(tmp_path, ".github/workflows/ci.yml", "tests")) == "false"
+
+
+def test_docs_after_pending_runtime_use_deployed_baseline(tmp_path):
+    git(tmp_path, "init", "--initial-branch=main")
+    deployed = commit(tmp_path, "src/qs_ai/runtime.py", "old")
+    runtime = commit(tmp_path, "src/qs_ai/runtime.py", "new")
+    docs = commit(tmp_path, "README.md", "follow-up")
+
+    def since(target, baseline):
+        return subprocess.check_output(
+            [sys.executable, str(SCRIPT), target, baseline], cwd=tmp_path, text=True
+        ).strip()
+
+    assert since(docs, deployed) == "true"
+    assert since(docs, runtime) == "false"
+    assert since(deployed, runtime) == "false"
