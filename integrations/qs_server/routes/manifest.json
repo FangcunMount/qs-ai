@@ -1,0 +1,7 @@
+{
+  "source": "QS runtime configuration observed 2026-09-11; see provider-runtime.md",
+  "files": {
+    "balanced_text_v1-v8.json": "38568eb28fbfd57dcde2a4dd5deae7580124d3dc58df776e6a19640de3188695"
+  },
+  "status": "Migration baseline only; not approval or activation"
+}

@@ -47,7 +47,7 @@ class ModelRoute:
     idempotent_redispatch: bool = False
     retrieve_by_invocation_id: bool = False
 
-    def fingerprint(self) -> str:
+    def definition_json(self) -> str:
         # Preserve the original QS route fingerprint field order and omission
         # rules. Credentials and endpoints never belong in this document.
         value: dict[str, object] = {
@@ -76,4 +76,7 @@ class ModelRoute:
             ("\u2029", "\\u2029"),
         ):
             raw = raw.replace(character, escaped)
-        return "sha256:" + hashlib.sha256(raw.encode()).hexdigest()
+        return raw
+
+    def fingerprint(self) -> str:
+        return "sha256:" + hashlib.sha256(self.definition_json().encode()).hexdigest()

@@ -5,8 +5,10 @@ from dataclasses import dataclass
 
 from qs_ai.application.interpretation.profile_assets import ProfileAssets
 from qs_ai.application.interpretation.prompt_assets import PromptAssets
+from qs_ai.application.interpretation.route_assets import RouteAssets
 from qs_ai.domain.governance.profile import ProfileAsset
 from qs_ai.domain.governance.prompt import PromptAsset
+from qs_ai.domain.governance.route import RouteAsset
 
 
 @dataclass(frozen=True)
@@ -56,6 +58,35 @@ async def audit_assets(
                     expected_profile.profile_id,
                     expected_profile.version,
                     "prompt_not_in_baseline",
+                )
+            )
+    return tuple(mismatches)
+
+
+async def audit_routes(
+    routes: RouteAssets,
+    expected_routes: tuple[RouteAsset, ...],
+    expected_profiles: tuple[ProfileAsset, ...],
+) -> tuple[AssetMismatch, ...]:
+    mismatches = []
+    for expected in expected_routes:
+        actual = await routes.get(expected.route, expected.revision)
+        if actual != expected:
+            mismatches.append(
+                AssetMismatch(
+                    "route",
+                    expected.route,
+                    expected.revision,
+                    "missing" if actual is None else "content_mismatch",
+                )
+            )
+    route_names = {a.route for a in expected_routes}
+    for profile in expected_profiles:
+        name = json.loads(profile.definition_json)["generation_policy"]["provider_route"]
+        if name not in route_names:
+            mismatches.append(
+                AssetMismatch(
+                    "profile", profile.profile_id, profile.version, "route_not_in_baseline"
                 )
             )
     return tuple(mismatches)

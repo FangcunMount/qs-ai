@@ -120,3 +120,11 @@ uv run python -m qs_ai.bootstrap.import_prompts --imported-by <操作人标识>
 本地隔离 MySQL 8.4 首次导入 6 条、再次 0 条，均为 `activated: false`。生产尚未导入；运行时仍读取冻结包，后续发布流程完成后才能切换资产解析来源。此命令不提供审批、激活或删除能力。
 
 导入后可运行只读对账：`uv run python -m qs_ai.bootstrap.audit_assets`。命令比较固定基线中 1 个 Profile、6 个 Prompt 的完整内容，并核对 Profile 的 Prompt 引用。缺失或不一致返回非零状态；不输出正文，不执行写入或激活。`matched` 只代表该固定基线相符，不代表全部生产资产、route/schema 或发布审批已验收。
+
+## 导入模型路由资产（不发布）
+
+迁移 `0009_route_assets` 保存 route/revision、非秘密定义、原算法指纹与首次导入审计。配置 MySQL 并完成迁移后执行 `uv run python -m qs_ai.bootstrap.import_routes --imported-by <操作人标识>`。固定 v8 首次导入 1 条、重复 0 条，同版异内容报错；不覆盖已有审计。来源标识为先前 QS 运行配置观测，不冒充数据库发布记录。
+
+模型 endpoint 和密钥不允许进入该资产。运行时仍读取冻结包并比对配置；数据库入库不批准、不激活。路由动态发布、审批证据和与 Profile 的完整 release 绑定仍待实现。生产尚未导入 `0009`，升级需使用匹配迁移头的镜像。
+
+路由资产加入后，`bootstrap.audit_assets` 的范围为 `fixed_profile_prompt_route_baseline`：额外比较 1 个 route/revision 的完整定义及指纹，并检查 Profile 的路由名称存在于基线。未导入路由会失败。该检查不选择运行时生效 revision，也不代替包含 revision/fingerprint 的完整发布清单和审批。

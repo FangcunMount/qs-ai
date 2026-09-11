@@ -189,3 +189,17 @@ prompt_assets = sa.Table(
     mysql_engine="InnoDB",
     mysql_charset="utf8mb4",
 )
+
+route_assets = sa.Table(
+    "route_assets",
+    metadata,
+    sa.Column("route", sa.String(255, collation="utf8mb4_0900_bin"), primary_key=True),
+    sa.Column("revision", sa.String(128, collation="utf8mb4_bin"), primary_key=True),
+    sa.Column("fingerprint", sa.String(71, collation="utf8mb4_bin"), nullable=False),
+    sa.Column("definition_json", mysql.LONGTEXT(collation="utf8mb4_bin"), nullable=False),
+    sa.Column("source_ref", sa.String(255, collation="utf8mb4_bin"), nullable=False),
+    sa.Column("imported_by", sa.String(255, collation="utf8mb4_bin"), nullable=False),
+    sa.Column("created_at", mysql.DATETIME(fsp=6), server_default=sa.text("CURRENT_TIMESTAMP(6)")),
+    mysql_engine="InnoDB",
+    mysql_charset="utf8mb4",
+)

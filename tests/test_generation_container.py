@@ -63,3 +63,29 @@ def test_model_key_cannot_enter_yaml(tmp_path):
     path.write_text("model_api_key: synthetic-test-only\n")
     with pytest.raises(ValueError, match="Reserved configuration key"):
         read_yaml(path)
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"model": "different-model"},
+        {"max_output_tokens": 8000},
+        {"timeout_milliseconds": 60000},
+        {"reasoning_effort": "low"},
+        {"revision": "v9"},
+    ],
+)
+async def test_generation_rejects_unregistered_or_changed_route_before_network(change):
+    container = create_container(
+        Settings(
+            generation={"enabled": True, "endpoint": "https://model.invalid/responses", **change},
+            model_api_key="synthetic-test-only",
+            grpc={"access_address": "qs.invalid:9090"},
+        )
+    )
+    try:
+        async with container() as request:
+            with pytest.raises(ValueError, match="model route"):
+                await request.get(Workflow)
+    finally:
+        await container.close()

@@ -36,3 +36,11 @@ ReportWorkflow 已组合准备输入、持久生成、成果校验并返回 Work
 生产发布脚本支持 GitHub Variable `QS_AI_EXECUTION_ENABLED=true` 时合并 deploy/serverA/execution.yaml，增加 worker/delivery；默认 false 时只保留 API/gRPC。启用还要求 Variable `QS_AI_MODEL_ENDPOINT`、Secret `QS_AI_MODEL_API_KEY`；QS 地址由 `QS_AI_QS_ADDRESS` 指定，工作流默认 qs-apiserver:9090。模型密钥只写入 worker 的私有 runtime.json 环境覆盖，不传给 API/gRPC/delivery；沿用发布目录权限和日志抑制。worker/delivery 继承三份只读 TLS 挂载与容器限制、不发布端口，各使用 pool_size=2/max_overflow=2；停止等待分别为 140/20 秒，大于进程默认收尾时间。
 
 15 项部署测试通过，包括 Compose 实际解析服务、证书、端口及健康配置；另用一次性无网络容器与纯合成值验证美元符号转义在运行时可还原。尚未设置生产启用变量或真实模型 Secret，尚未启动生产 worker/delivery。
+
+## 冻结路由版本
+
+`routes/balanced_text_v1-v8.json` 保存上述已观测的非秘密执行参数及按 QS 算法计算的 fingerprint；manifest 校验文件字节。这里的来源是前期运行配置观测，不冒充从 QS 数据库导出的新治理资产或生产审批。
+
+GenerationProvider 校验配置投影与冻结包完全相同后才装配模型调用器。同名同版改模型、超时、Token 或 reasoning 会拒绝，未登记版本也拒绝。endpoint 和 credential 仍通过外部配置提供，不写入包。新增路由必须先完成版本资产与评测/审批流程，不能只修改环境变量复用 v8。
+
+当前仅有固定 v8 基线。`0009_route_assets` 与 `bootstrap.import_routes` 已实现不可变 MySQL 保存及幂等导入，隔离 MySQL 8.4 验证首次 1 条、重放 0 条、冲突拒绝和历史读取；尚未生产导入或接管发布选择及管理界面。此保护不代表 M3 完成，也不启用生成。
