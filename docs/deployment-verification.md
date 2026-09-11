@@ -57,3 +57,12 @@ AI PR #6 合并后的提交 `0cf33ae18ecff1bb2b575ba5538f8cacba5a236a` 已通过
 QS [部署 34615668017](https://github.com/FangcunMount/qs-server/actions/runs/34615668017) 的服务替换步骤完成后，SSH 独立核验 qs-apiserver、qs-collection-server-1、qs-collection-server-2 均运行 `87edccd9a7a0f353645216c6ba31c8b621db581f` 且 healthy；当时发布后治理校验仍在运行，未据此宣称整个 CD 完成。
 
 从生产 qs-ai-grpc 容器内，以 `/run/qs-ai-tls` 的 CA、AI 证书链和私钥建立 `qs-apiserver:9090` 安全通道，调用 `AIWorkflowAccessService.Authorize`，发送空 `AIWorkflowAccessRequest`，8 秒截止时间内收到 `INVALID_ARGUMENT`。该请求不创建业务数据；它证明生产 AI 服务身份被 QS 接受且新接口已到达请求校验。它不证明真实 Testee 权限、IAM 撤权或合法报告路径，后续 M1 必须补这些业务场景。
+
+## M2 执行启用与回退门槛
+
+迁移 0005/0006 增加调用记录和成果表，旧 0004 镜像的 database_check 不认识新 head，不能直接作为升级后的回退目标。保持现有精确迁移版本检查，不放宽它，也不降级或删除业务表。
+
+1. 首先发布本批完整镜像，QS_AI_EXECUTION_ENABLED 保持 false；验证迁移 head、API/gRPC 镜像及健康，将该发布保存为执行启用前的基线。
+2. 完成 M1 真实案例、权限与凭据配置后，用同一完整提交再次部署并启用 worker/delivery。新旧发布使用同一迁移 head，前一发布的 runtime.json 仅包含 API/gRPC。
+3. 如启用失败，回退到上述基线；Compose --remove-orphans 停止 worker/delivery，保留新 API/gRPC、数据库中的任务、模型调用及成果，不重新打开 QS 旧生成路线。停止期间的新任务保留排队，恢复后仍遵守未知调用不得盲目重发。
+4. 执行启用前必须确认 state.previous 确实指向已验证且关闭执行的兼容基线；不能仅凭时间先后推断。实际回退演练仍待执行，当前文档不是回退成功证据。
