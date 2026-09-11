@@ -152,3 +152,9 @@ PR #30 精确提交 `65d67755b34df8214d3b37e5b43abf7faec1886d` 的 CI `346405774
 新增 `evaluate_candidate_assertions`，读取冻结清单并复用 QS 输出 Schema、引用/Profile 和安全校验，计算维度引用数量/组合、insight kind、建议来源、禁用来源引用、禁用文本和输出字符上限；禁用文本采用 NFC + casefold，字符数包含 Go JSON HTML 转义。按校验阶段生成 passed/failed/blocked；独立语义要求保持 pending，失败原因不回显模型内容。5 项针对性测试通过，覆盖合法输出、Schema 阻断、引用错误、案例组合/来源不满足、禁用文本和安全失败。Ruff/mypy 通过。
 
 该函数目前接受调用方提供的 PreparedExplanation，尚未从冻结 Suite 构造对应案例输入，也未接入生成接受事务；测试复用合成报告输出，不能据此证明原案例逐项一致。后续需完成固定案例输入构造、原 Go 对照与正式入口，禁止将本批视为确定性验证全面验收。
+
+### 冻结案例准备与计算后接受
+
+`prepare_evaluation_case` 绑定原 v6 Suite 的生成案例、Profile 和 Prompt 指纹，用原 provider_payload 渲染 Prompt；7 个生成案例均测试通过，预检/未知案例及 Profile/Prompt 漂移拒绝。这里的 input fingerprint 指向合成 provider payload，不冒充 QS 授权业务报告指纹。
+
+新增 `complete_evaluated_generation` 内部入口：读取本组织 Run 的冻结发布，准备对应案例并计算断言，再调用同事务生成接受；调用方不能传入固定通过的断言列表。失败终态继续原接受规则。隔离 MySQL 8.4 与案例准备共 43 项通过，包含结构正确但引用不同报告时，记录 all_references_resolve=failed 和 profile 检查 blocked。底层事务原语仍保留供测试/组合调用；常驻评测执行器尚需采用计算入口，尚未完成原 Go 全案例差异验证或真实模型质量验收。

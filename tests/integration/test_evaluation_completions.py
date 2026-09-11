@@ -26,11 +26,14 @@ pytestmark = pytest.mark.integration
 async def dispatched(setup_run):
     tx, run_id, release = setup_run
     from qs_ai.infrastructure.qs_server.semantic_assets import load_semantic_assets
+    from tests.test_evaluation_case import release as case_release
 
     bound, value, routes, schemas = assets()
     semantic = load_semantic_assets()
     release = replace(
         release,
+        profile=case_release().profile,
+        prompt=case_release().prompt,
         generation_route=bound.generation_route,
         output_schema=bound.output_schema,
         semantic_route=bound.generation_route,
@@ -341,3 +344,29 @@ async def test_second_failed_execution_exhausts_slot_and_blocks_new_preparation(
                 second.finished_at + timedelta(seconds=30),
             )
     assert len(await stored(tx, run_id)) == 2
+
+
+async def test_frozen_case_entry_computes_reference_failure_instead_of_trusting_caller(dispatched):
+    from qs_ai.infrastructure.persistence.mysql.evaluation_completions import (
+        complete_evaluated_generation,
+    )
+    from qs_ai.infrastructure.qs_server.evaluation_assertions import assertion_inventory
+    from qs_ai.infrastructure.qs_server.evaluation_suite import V6
+
+    tx, run_id, value, routes, schemas = dispatched
+    async with tx.open() as db:
+        await complete_evaluated_generation(
+            db, run_id, 5, 1, "worker:1", value, routes, schemas, candidate_id="candidate:computed"
+        )
+        await db.commit()
+    candidate = (await stored(tx, run_id))[0]["candidate_json"]
+    expected = assertion_inventory(V6, value.case_id)
+    assert len(candidate["assertions"]) == len(expected)
+    assert [(a["type"], a["scope"], a["ordinal"], a["hard"]) for a in candidate["assertions"]] == [
+        (a.type, a.scope, a.ordinal, a.hard) for a in expected
+    ]
+    # This synthetic candidate references a different report. Schema alone must not pass it.
+    checks = {a["type"]: a["status"] for a in candidate["assertions"]}
+    assert checks["output_schema_valid"] == "passed"
+    assert checks["all_references_resolve"] == "failed"
+    assert checks["profile_output_policy_satisfied"] == "blocked"
