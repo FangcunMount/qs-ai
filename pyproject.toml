@@ -47,6 +47,7 @@ packages = ["src/qs_ai"]
 "configs" = "qs_ai/configs"
 "integrations/qs_server/prompts" = "qs_ai/infrastructure/qs_server/prompt_assets"
 "integrations/qs_server/routes" = "qs_ai/infrastructure/qs_server/route_assets"
+"integrations/qs_server/evaluation" = "qs_ai/infrastructure/qs_server/evaluation_assets"
 "integrations/qs_server/schemas" = "qs_ai/infrastructure/qs_server/schema_assets"
 
 [tool.pytest.ini_options]
