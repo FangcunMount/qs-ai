@@ -138,7 +138,7 @@ M1 → M2 → M3 → M4 → M5。M3 清单分析可提前开展，生产切换�
 | M0 | 完成 | 上述发布及 mTLS 记录 |
 | M1 | 进行中 | 已修复快照执行授权、迁入输入/Prompt/输出规则并完成服务身份联调；真实案例与撤权验收待补，见下方 2026-09-12 记录 |
 | M2 | 实现进行中，未验收 | 调用持久化、成果事务、跨语言回传、Workflow/常驻进程及部署配置已提交；依赖 M1 验收后启用真实生成 |
-| M3 | 待做 | 依赖 M2；范围以 M1 清单为准 |
+| M3 | 资产基础实现中，未验收 | Profile 已合并；Prompt/对账 PR #16；发布权威切换仍依赖 M1/M2，见 m3-release-governance.md |
 | M4 | 待做 | 依赖 M3；冻结分批样本和运行阈值 |
 | M5 | 待做 | 依赖 M4；证据对账后退役 |
 
@@ -161,3 +161,12 @@ M1 → M2 → M3 → M4 → M5。M3 清单分析可提前开展，生产切换�
 - QS PR #84 增加参与者工作流成果 GET：当前授权复核、请求归属校验、正文与冻结报告来源返回，旧 Generation 接口保留。CI 文档测试发现 RPC 数量断言遗漏，已修复后重跑；尚不将未合并 PR 记为生产能力。
 - `tests/integration/test_generation.py::test_process_kill_recovers_durable_call_without_another_send` 在独立 Python 子进程中分别停在 dispatched 和 response_received，使用 OS kill 强制终止。真实隔离 MySQL 8.4 中过期租约后重领：前者恢复为结果未知、后者恢复原持久响应，两者均不再次调用模型网关。该文件 7 项测试本地通过。
 - 进程测试使用合成模型响应，租约过期由测试显式推进；不代表真实供应商断线、整套 worker/delivery 的生产恢复、最终成果展示或真实授权验证。M1–M5 验收状态保持不变。
+
+### 2026-09-12：资产迁移与生产状态复核
+
+- Profile 不可变资产 PR #12 已合并；Prompt 不可变资产、固定基线只读对账在 PR #16。MySQL 8.4 隔离验证：导入 Profile 1 条、Prompt 6 条，重复导入不覆盖；空库对账报告 7 项缺失，导入后固定基线全部匹配。这不证明生产导入、全部历史资产盘点或发布验收。
+- PR #16 首轮 CI 发现常驻心跳清理竞态；提交 `a75c582` 增加取消期间等待清理完成及确定性回归。回归在旧实现失败，修复后通过；该版本 CI `34627940543` 尚在运行，未作为合并证据。
+- 流式镜像导出 PR #15 已通过 CI `34627172341`（两版 MySQL 与镜像）并合并；减少导出临时磁盘占用不等于已修复 runner 主机。
+- 再次只读检查 serverA：AI API/gRPC 均为 `ccde2ed627171b748ff63efe5062fdc741757480` 且 healthy，无 worker/delivery；QS apiserver 与两份 collection 均为 `512e32fc2c6ed7f58f8413df288af95e7dec78dc` 且 healthy。本轮未部署，未启用真实生成。
+- 部署 `34625252116` 已终止为 failure；deploy job `103349476594` 的 GitHub 注解为 self-hosted runner lost communication。此错误本身不能证明磁盘耗尽，但此前其他运行已出现磁盘不足。`AUTO_DEPLOY_ENABLED=false` 已复核；runner 恢复、指定版本部署和现场收据验证后应恢复自动部署。
+- 当前外部缺口仍为 runner 可用登录方式及首个授权测评/测试账号标识。代码侧继续推进 route/schema 版本资产、发布证据与审批绑定；不绕过 M1 的真实授权与撤权验收，不提前退役 QS 旧实现。

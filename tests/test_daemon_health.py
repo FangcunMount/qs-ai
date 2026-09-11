@@ -71,3 +71,38 @@ asyncio.run(serve_loop(attempt, concurrency=1, idle_seconds=0.01,
         if process.returncode is None:
             process.kill()
             await process.communicate()
+
+
+async def test_cancellation_during_cleanup_still_removes_marker(tmp_path, monkeypatch):
+    import threading
+    from pathlib import Path
+
+    path = tmp_path / "health.json"
+    stop = asyncio.Event()
+    entered = threading.Event()
+    release = threading.Event()
+    original = Path.unlink
+
+    def unlink(target, *args, **kwargs):
+        if target == path.with_suffix(".tmp"):
+            entered.set()
+            release.wait(5)
+        return original(target, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "unlink", unlink)
+    pulse = asyncio.create_task(heartbeat(path, stop, 0.01))
+    try:
+        for _ in range(200):
+            if healthy(path):
+                break
+            await asyncio.sleep(0.01)
+        assert healthy(path)
+        stop.set()
+        assert await asyncio.to_thread(entered.wait, 5)
+        pulse.cancel()
+        await asyncio.sleep(0)
+        assert not pulse.done()
+    finally:
+        release.set()
+        await asyncio.gather(pulse, return_exceptions=True)
+    assert not path.exists()

@@ -45,7 +45,13 @@ async def heartbeat(path: Path, stop: asyncio.Event, interval: float = 2) -> Non
             except TimeoutError:
                 pass
     finally:
-        await asyncio.to_thread(clear)
+        clearing = asyncio.create_task(asyncio.to_thread(clear))
+        try:
+            await asyncio.shield(clearing)
+        except asyncio.CancelledError:
+            # serve_loop may cancel the pulse after stop already entered cleanup.
+            await clearing
+            raise
 
 
 def main() -> int:
