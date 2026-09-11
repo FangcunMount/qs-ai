@@ -120,3 +120,39 @@ async def test_evaluation_does_not_accept_asset_short_schema_version(assets, eva
     )
     with pytest.raises(ManifestUnavailable, match="input_schema"):
         await resolve_generation_assets(changed, *assets[0])
+
+
+async def test_semantic_route_uses_its_own_revision_without_latest_fallback(
+    assets, evaluation_release
+):
+    from qs_ai.application.evaluation.release import resolve_semantic_route
+
+    routes = assets[0][2]
+    route = routes.get.return_value
+    # Independent identity does not mandate a different provider or model in original QS.
+    release = replace(evaluation_release, semantic_route=evaluation_release.generation_route)
+    assert await resolve_semantic_route(release, routes) == route
+    routes.get.assert_awaited_with(route.route, route.revision)
+    missing = replace(release, semantic_route=replace(release.semantic_route, version="v999"))
+    with pytest.raises(ManifestUnavailable, match="semantic route"):
+        await resolve_semantic_route(missing, routes)
+    routes.get.assert_awaited_with(route.route, "v999")
+
+
+@pytest.mark.parametrize("missing", [True, False])
+async def test_semantic_route_rejects_missing_or_mismatched_fingerprint(
+    assets, evaluation_release, missing
+):
+    from qs_ai.application.evaluation.release import resolve_semantic_route
+
+    routes = assets[0][2]
+    release = replace(evaluation_release, semantic_route=evaluation_release.generation_route)
+    if missing:
+        routes.get.return_value = None
+    else:
+        release = replace(
+            release,
+            semantic_route=replace(release.semantic_route, fingerprint="sha256:" + "0" * 64),
+        )
+    with pytest.raises(ManifestUnavailable, match="semantic route"):
+        await resolve_semantic_route(release, routes)

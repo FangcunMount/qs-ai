@@ -56,3 +56,5 @@
 生成侧资产解析器 `resolve_generation_assets` 已复用不可变资产仓库解析 Profile/Prompt/route/input/output 五项引用，并逐项比较原发布身份。QS 评测 Schema 引用使用完整版本（如 `ai-explanation-input/v1`），资产表使用后缀 `v1`，此处显式转换，不能直接复制五项生成清单为评测身份。相关 13 项清单测试通过，包含每一项指纹不符拒绝。该解析器尚未串入完整创建应用入口；语义 Prompt/Schema/route 解析与主体授权仍待实现，存储创建方法仍是内部操作。
 
 语义 v2 指令与输出 Schema 已有冻结读取器 `load_semantic_assets`：按原 Markdown 三个规范文本块还原 system/task/data preamble，保留原文和原 Schema 字节及引用。原 QS `Test(V2)?ExecutablePromptMatchesNormativeMarkdownAndFrozenHashes` 在本任务独立工作区通过，确认这些文本块与实际 Go 消息常量一致；Python 3 项测试通过，包括与原 QS 文件逐字节对照、重算 manifest 后 Prompt 指纹漂移拒绝。此处不迁移语义 payload 构造、路由选择、回执解析或评分判定，尚未形成独立模型评审执行器。
+
+语义路由解析 `resolve_semantic_route` 按自身 ID/版本/指纹查询不可变路由，缺失或不符即拒绝，不使用生成路由作默认值、不选择 latest。原 QS `SemanticEvaluatorSpec.Validate` 不强制评审与生成使用不同供应商/模型，迁移保留该语义；两者即使共用模型也各自冻结引用。相关清单/引用测试现为 16 项通过。生产语义路由版本尚未确认和导入，解析函数本身不提供缺失配置，也不代表完整创建应用入口已接通。
