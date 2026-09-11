@@ -17,6 +17,7 @@ from qs_ai.infrastructure.qs_server.output import QSOutputParser
 from qs_ai.infrastructure.qs_server.profiles import load_migrated_release
 from qs_ai.infrastructure.qs_server.prompts import load_prompt
 from qs_ai.infrastructure.qs_server.responses import DeepSeekResponses
+from qs_ai.infrastructure.qs_server.routes import load_route
 
 
 class GenerationProvider(Provider):
@@ -43,6 +44,8 @@ class GenerationProvider(Provider):
         route = ModelRoute(
             **options.model_dump(exclude={"enabled", "endpoint", "profile_id", "profile_version"})
         )
+        if route != load_route(route.route, route.revision):
+            raise ValueError("Generation parameters differ from frozen model route")
         if route.route != release.provider_route:
             raise ValueError("Generation route does not match published profile")
         parser = QSOutputParser()
