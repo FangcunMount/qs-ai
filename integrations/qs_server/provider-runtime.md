@@ -32,3 +32,7 @@ ReportWorkflow 已组合准备输入、持久生成、成果校验并返回 Work
 常驻入口为 `python -m qs_ai.bootstrap.worker --serve` 和 `python -m qs_ai.bootstrap.integration deliver --continuous`，原有探针/单次执行方式保持兼容。worker/delivery 配置各自的并发、空闲等待、最大退避和退出等待；默认并发为 1。收到 SIGTERM/SIGINT 后先停止领取，在途任务继续续租与收尾，超时取消并释放请求作用域。异常日志不输出底层异常正文。首次领取前解析 Workflow/TLS 并检查数据库；尚未加入生产 Compose，也尚未完成进程健康信号及真实进程终止恢复演练。
 
 常驻进程通过 worker/delivery.health_file 配置独立心跳文件，`python -m qs_ai.bootstrap.daemon_health <path>` 检查进程存在且单调时钟心跳未过期。心跳由同一事件循环写入，退出后删除；写入失败会终止受监督的执行循环。它仅为 liveness，不把数据库不可用、持续失败或无业务流量解释为业务健康。已用真实 Python 子进程验证 SIGTERM 正常退出及心跳移除；这不替代模型在途、租约转移与生产恢复演练。
+
+生产发布脚本支持 GitHub Variable `QS_AI_EXECUTION_ENABLED=true` 时合并 deploy/serverA/execution.yaml，增加 worker/delivery；默认 false 时只保留 API/gRPC。启用还要求 Variable `QS_AI_MODEL_ENDPOINT`、Secret `QS_AI_MODEL_API_KEY`；QS 地址由 `QS_AI_QS_ADDRESS` 指定，工作流默认 qs-apiserver:9090。模型密钥只写入 worker 的私有 runtime.json 环境覆盖，不传给 API/gRPC/delivery；沿用发布目录权限和日志抑制。worker/delivery 继承三份只读 TLS 挂载与容器限制、不发布端口，各使用 pool_size=2/max_overflow=2；停止等待分别为 140/20 秒，大于进程默认收尾时间。
+
+15 项部署测试通过，包括 Compose 实际解析服务、证书、端口及健康配置；另用一次性无网络容器与纯合成值验证美元符号转义在运行时可还原。尚未设置生产启用变量或真实模型 Secret，尚未启动生产 worker/delivery。

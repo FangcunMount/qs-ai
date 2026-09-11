@@ -269,3 +269,76 @@ def test_verify_rejects_wrong_grpc_image(remote, tmp_path, monkeypatch):
     )
     with pytest.raises(remote.DeploymentError, match="Running image"):
         remote.verify(release)
+
+
+def execution_environment():
+    return {
+        "MYSQL_HOST": "mysql.internal",
+        "MYSQL_DATABASE": "qs_ai",
+        "MYSQL_USERNAME": "ai",
+        "MYSQL_PASSWORD": "synthetic-db-only",
+        "QS_AI_EXECUTION_ENABLED": "true",
+        "QS_AI_MODEL_ENDPOINT": "https://model.invalid/responses",
+        "QS_AI_MODEL_API_KEY": "synthetic-$key-only",
+        "QS_AI_QS_ADDRESS": "qs-apiserver:9090",
+    }
+
+
+def test_execution_runtime_is_opt_in_and_key_is_worker_only():
+    module = load("scripts/cd/deploy.py")
+    env = execution_environment()
+    runtime = module.runtime_config(env)["services"]
+    assert set(runtime) == {"api", "grpc", "worker", "delivery"}
+    assert runtime["worker"]["environment"]["QS_AI_MODEL_API_KEY"] == "synthetic-$$key-only"
+    for name in ("api", "grpc", "delivery"):
+        assert "QS_AI_MODEL_API_KEY" not in runtime[name]["environment"]
+    env["QS_AI_EXECUTION_ENABLED"] = "false"
+    assert set(module.runtime_config(env)["services"]) == {"api", "grpc"}
+    for key in ("QS_AI_MODEL_ENDPOINT", "QS_AI_MODEL_API_KEY", "QS_AI_QS_ADDRESS"):
+        env = execution_environment()
+        del env[key]
+        with pytest.raises(ValueError):
+            module.runtime_config(env)
+
+
+def test_execution_compose_resolves_isolation_tls_and_health(tmp_path):
+    import os
+    import shutil
+    import subprocess
+
+    if not shutil.which("docker"):
+        pytest.skip("Docker Compose is required for release configuration verification")
+    module = load("scripts/cd/deploy.py")
+    shutil.copy(ROOT / "deploy/serverA/compose.yaml", tmp_path / "compose.yaml")
+    (tmp_path / "runtime.json").write_text(
+        json.dumps(module.runtime_config(execution_environment()))
+    )
+    result = subprocess.run(
+        [
+            "docker",
+            "compose",
+            "-f",
+            str(tmp_path / "compose.yaml"),
+            "-f",
+            str(tmp_path / "runtime.json"),
+            "config",
+            "--format",
+            "json",
+        ],
+        capture_output=True,
+        text=True,
+        env={**os.environ, "QS_AI_IMAGE": "qs-ai:synthetic"},
+        check=True,
+    )
+    services = json.loads(result.stdout)["services"]
+    assert set(services) == {"api", "grpc", "worker", "delivery"}
+    for name in ("worker", "delivery"):
+        service = services[name]
+        assert not service.get("ports")
+        assert service["read_only"]
+        assert len(service["volumes"]) == 3
+        assert all(volume["read_only"] for volume in service["volumes"])
+        assert service["environment"]["QS_AI_ENVIRONMENT"] == "production"
+        assert "qs_ai.bootstrap.daemon_health" in service["healthcheck"]["test"]
+    # Canonical Compose config preserves escaping for subsequent re-parsing.
+    assert services["worker"]["environment"]["QS_AI_MODEL_API_KEY"] == "synthetic-$$key-only"

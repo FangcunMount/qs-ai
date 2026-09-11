@@ -1,0 +1,34 @@
+# Merged into runtime.json only when QS_AI_EXECUTION_ENABLED=true.
+services:
+  worker:
+    extends:
+      file: compose.yaml
+      service: grpc
+    container_name: qs-ai-worker
+    command: [/app/.venv/bin/python, -m, qs_ai.bootstrap.worker, --serve]
+    stop_grace_period: 140s
+    environment:
+      QS_AI_DATABASE__POOL_SIZE: "2"
+      QS_AI_DATABASE__MAX_OVERFLOW: "2"
+    healthcheck:
+      test: [CMD, /app/.venv/bin/python, -m, qs_ai.bootstrap.daemon_health, /tmp/qs-ai-worker-health.json]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+  delivery:
+    extends:
+      file: compose.yaml
+      service: grpc
+    container_name: qs-ai-delivery
+    command: [/app/.venv/bin/python, -m, qs_ai.bootstrap.integration, deliver, --continuous]
+    stop_grace_period: 20s
+    environment:
+      QS_AI_DATABASE__POOL_SIZE: "2"
+      QS_AI_DATABASE__MAX_OVERFLOW: "2"
+    healthcheck:
+      test: [CMD, /app/.venv/bin/python, -m, qs_ai.bootstrap.daemon_health, /tmp/qs-ai-delivery-health.json]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
