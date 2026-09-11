@@ -1,0 +1,19 @@
+{
+  "repository": "https://github.com/FangcunMount/qs-server",
+  "commit": "87f9dbea6db8c5a832d788bbb91ee8c257d47bd9",
+  "files": {
+    "policies.json": "9e60d6c8dedbb9f682120e2c27a506df0b4e9225e573ed1380a32755c012e505",
+    "ai-explanation-prompt-evaluation-cases-v1.json": "7f5393124cb09517284d590cca652803db4a2aa86f9eaa07b684f7b46953d3b7",
+    "ai-explanation-prompt-evaluation-cases-v2.json": "625633a8d376ddacd82b1f588bf71869aa6a719d0cd17cd03e1b894293fa6e3d",
+    "ai-explanation-prompt-evaluation-cases-v3.json": "efd2f670eb62766b55ccc12183914445fb0cee82026891072b1497a116b37e3f",
+    "ai-explanation-prompt-evaluation-cases-v4.json": "064946c41dfd93d6dcc2458737526b26e6fd7c3675a0177694b112dcf20be942",
+    "ai-explanation-prompt-evaluation-cases-v5.json": "dacb7c5a6f9d7a5d1ac8b9fee8b345f159d57ef064e7e45ee2658422349c23a8",
+    "ai-explanation-prompt-evaluation-cases-v6.json": "fbb84e4f2ba17f59e734d609ce1132a2704af8778048a79f08454115c84e115b",
+    "ai-explanation-semantic-evaluator-prompt-v1.md": "e0e0897f1a81090fe4369043a320361a903571cd4971700df5e104a2382fa2ca",
+    "ai-explanation-semantic-evaluator-prompt-v2.md": "1789c53a44e1be065f5d2691faacaeb65a0a264f9fb0107138c8c8004a8ab572",
+    "ai-explanation-semantic-evaluation-output-v1.schema.json": "dc0f9a6376bc2f12fe3af244f33f7d42384f1885488043ce5912447f091ad8c5",
+    "ai-explanation-evaluation-execution-policy-v1.schema.json": "2b2df4b33b3c628e677b42a1cb7653627ff7ead9ba610f8e16d9f8eaf179090a",
+    "ai-explanation-release-gate-policy-v1.schema.json": "a3d2b7041377b3280185d45cf10f1323681e6f0798834c63a954b6341969352b"
+  },
+  "status": "Source resources and executable policies only; no approval or activation"
+}
