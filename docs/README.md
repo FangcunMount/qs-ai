@@ -24,8 +24,8 @@
 
 ## 已实现与待实现
 
-已实现：分层与 DI、五个会话 API、MySQL UoW/幂等/任务/心跳、证据冻结、恢复与旧写隔离；81 项 Python 测试通过，另有 3 项 Go 数据库测试；包含真实跨语言双向 TLS 与回传重放。
+已实现：分层与 DI、五个会话 API、MySQL UoW/幂等/任务/心跳、证据冻结、恢复与旧写隔离；83 项 Python 测试通过，另有 3 项 Go 数据库测试；包含真实跨语言双向 TLS 与回传重放。
 
 设计决定：Python/FastAPI/LangGraph/MySQL，DDD + 六边形，Dishka 统一装配，gRPC 访问 qs-server，API/Worker 共库分进程。
 
-待实现：真实身份和证据接入、正式业务 Graph/模型/成果、常驻 Worker 运行策略、后续产品能力。容器和云资源验证仍需独立证据。
+待实现：真实身份和证据接入、正式业务 Graph/模型/成果、常驻 Worker 运行策略、后续产品能力。serverA 基础 API 首发与云 MySQL 迁移已验证，见发布证据；真实 AI 业务验收另行完成。
