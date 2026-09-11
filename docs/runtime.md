@@ -106,3 +106,17 @@ uv run python -m qs_ai.bootstrap.import_profiles --imported-by <操作人标识>
 该维护命令只导入仓库已固定的 `published-profile-baseline.json`，使用既有严格解析器校验定义、版本与原指纹，并记录原 QS SHA 和操作人。它没有接收任意 HTTP 上传或绕过管理权限的新入口。导入按版本持久化，失败后可重跑：完全一致的版本不重复写入，同版本异内容拒绝，不覆盖首次导入审计。多个版本中途失败时，先前成功的导入会保留，重跑可继续对账。
 
 `activated: false` 表示只完成资产保留，不能当作评测批准或运行发布。当前 GenerationProvider 继续使用冻结包；发布状态、评测证据门槛、原子激活与管理转发仍在后续批次。数据库升级后使用匹配迁移头的镜像，不将旧迁移头镜像当成自动回退方案。本轮不自动执行生产导入或删除旧资产。
+
+## 导入既有 Prompt 资产（不发布）
+
+迁移 `0008_prompt_assets` 增加不可变 Prompt 包存储。完成迁移并配置数据库后执行：
+
+```sh
+uv run python -m qs_ai.bootstrap.import_prompts --imported-by <操作人标识>
+```
+
+命令只导入已校验 manifest 的 v1–v6 固定包；原 Prompt fingerprint、GitBlobSHA 和导出 JSON 字节全部保留，另外保存 package_sha256。原指纹并不是导出 JSON 的 SHA-256，不能相互替换。相同 ID/version 的完全相同包可重复导入；异内容报冲突，不覆盖首次来源及操作人。各版本独立提交，部分导入后可重放恢复。
+
+本地隔离 MySQL 8.4 首次导入 6 条、再次 0 条，均为 `activated: false`。生产尚未导入；运行时仍读取冻结包，后续发布流程完成后才能切换资产解析来源。此命令不提供审批、激活或删除能力。
+
+导入后可运行只读对账：`uv run python -m qs_ai.bootstrap.audit_assets`。命令比较固定基线中 1 个 Profile、6 个 Prompt 的完整内容，并核对 Profile 的 Prompt 引用。缺失或不一致返回非零状态；不输出正文，不执行写入或激活。`matched` 只代表该固定基线相符，不代表全部生产资产、route/schema 或发布审批已验收。
