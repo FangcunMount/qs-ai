@@ -176,3 +176,9 @@ DeepSeek Responses 请求序列化拆出 `build_messages_request`，新增 `gene
 ### 调用错误进入冻结恢复策略
 
 新增 `classify_provider_failure`，对照 QS classifyGenerationFailureV2/classifySemanticFailureV2 与语义 diagnostics 分支：生成保留原安全错误代码，语义限流映射 semantic_provider_rate_limited，语义未知映射 semantic_result_unknown；未知结果覆盖 retryable 并强制 manual_acknowledgement。原始错误代码作为受约束 diagnostics，异常正文不写入证据。8 项测试通过，覆盖限流允许恢复、未知禁止自动重试、一般错误不越过策略白名单及错误文本隔离。现有 Python ProviderFailure 缺少 completed/no_message 诊断，因此不会凭 cardinality 错误猜测并启用对应重试；该诊断能力仍需补齐。此映射尚待持久执行器调用。
+
+### 持久模型执行步骤
+
+新增内部 `execute_step`：从已 collecting/预检通过的 Run 规划下一执行，按冻结发布准备生成或语义消息、路由与 Schema，发送预留事务提交后才调用共用 Gateway；返回后执行计算断言的生成接受或语义接受事务。ProviderFailure 进入阶段分类和冻结恢复策略，未知结果 blocked。取消/异常或调用后保存失败保留 dispatching，重入不会重新调用。当前仅解析已迁移的 balanced_text_v1/v8 路由，组织范围由受信调用者提供，尚未装配管理授权入口。
+
+隔离 MySQL 8.4 新增 4 项测试通过：生成→语义两步，Gateway 独立会话确认发送记录已提交；发送提交失败零调用；超时未知结果保存后禁止重发；接受失败保留发送检查点且禁止重发。模型为替身，没有生产调用。步骤尚未常驻轮询/心跳/恢复人工处置；非 ProviderFailure 的无效响应/输出校验异常当前保留 dispatching，需要补齐失败证据映射及恢复流程，不能宣称完整可运营执行器。
