@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0eworkflow.proto\x12\x10qsai.workflow.v1\"+\n\x05\x41\x63tor\x12\x0e\n\x06org_id\x18\x01 \x01(\t\x12\x12\n\nsubject_id\x18\x02 \x01(\t\"\x83\x01\n\x0cStartCommand\x12\x12\n\nrequest_id\x18\x01 \x01(\t\x12&\n\x05\x61\x63tor\x18\x02 \x01(\x0b\x32\x17.qsai.workflow.v1.Actor\x12\x11\n\ttestee_id\x18\x03 \x01(\t\x12\x16\n\x0e\x61ssessment_ids\x18\x04 \x03(\t\x12\x0c\n\x04goal\x18\x05 \x01(\t\"\xcc\x01\n\rChangeCommand\x12\x12\n\ncommand_id\x18\x01 \x01(\t\x12\x12\n\nsession_id\x18\x02 \x01(\t\x12&\n\x05\x61\x63tor\x18\x03 \x01(\x0b\x32\x17.qsai.workflow.v1.Actor\x12\x0e\n\x06\x61\x63tion\x18\x04 \x01(\t\x12\x18\n\x10\x65xpected_version\x18\x05 \x01(\x03\x12\x13\n\x0bquestion_id\x18\x06 \x01(\t\x12\x13\n\x06\x61nswer\x18\x07 \x01(\tH\x00\x88\x01\x01\x12\x0c\n\x04skip\x18\x08 \x01(\x08\x42\t\n\x07_answer\"N\n\x07Receipt\x12\x12\n\nsession_id\x18\x01 \x01(\t\x12\x0e\n\x06run_id\x18\x02 \x01(\t\x12\x0e\n\x06status\x18\x03 \x01(\t\x12\x0f\n\x07version\x18\x04 \x01(\x03\"\xf1\x01\n\nStateEvent\x12\x10\n\x08\x65vent_id\x18\x01 \x01(\t\x12\x12\n\nrequest_id\x18\x02 \x01(\t\x12\x12\n\nsession_id\x18\x03 \x01(\t\x12&\n\x05\x61\x63tor\x18\x04 \x01(\x0b\x32\x17.qsai.workflow.v1.Actor\x12\x11\n\ttestee_id\x18\x05 \x01(\t\x12\x0f\n\x07version\x18\x06 \x01(\x03\x12\x0e\n\x06status\x18\x07 \x01(\t\x12\x13\n\x0bquestion_id\x18\x08 \x01(\t\x12\x10\n\x08question\x18\t \x01(\t\x12\x10\n\x08\x63\x61n_skip\x18\n \x01(\x08\x12\x14\n\x0c\x66\x61ilure_code\x18\x0b \x01(\t\"#\n\x0f\x41\x63knowledgement\x12\x10\n\x08\x65vent_id\x18\x01 \x01(\t2\x94\x01\n\x08\x43ommands\x12\x42\n\x05Start\x12\x1e.qsai.workflow.v1.StartCommand\x1a\x19.qsai.workflow.v1.Receipt\x12\x44\n\x06\x43hange\x12\x1f.qsai.workflow.v1.ChangeCommand\x1a\x19.qsai.workflow.v1.Receipt2T\n\x07Results\x12I\n\x06\x41\x63\x63\x65pt\x12\x1c.qsai.workflow.v1.StateEvent\x1a!.qsai.workflow.v1.AcknowledgementB;Z9github.com/FangcunMount/qs-server/api/grpc/gen/aiworkflowb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0eworkflow.proto\x12\x10qsai.workflow.v1\"+\n\x05\x41\x63tor\x12\x0e\n\x06org_id\x18\x01 \x01(\t\x12\x12\n\nsubject_id\x18\x02 \x01(\t\"\xb5\x01\n\x0cStartCommand\x12\x12\n\nrequest_id\x18\x01 \x01(\t\x12&\n\x05\x61\x63tor\x18\x02 \x01(\x0b\x32\x17.qsai.workflow.v1.Actor\x12\x11\n\ttestee_id\x18\x03 \x01(\t\x12\x16\n\x0e\x61ssessment_ids\x18\x04 \x03(\t\x12\x0c\n\x04goal\x18\x05 \x01(\t\x12\x30\n\x08\x65vidence\x18\x06 \x03(\x0b\x32\x1e.qsai.workflow.v1.EvidenceItem\"\xcc\x01\n\rChangeCommand\x12\x12\n\ncommand_id\x18\x01 \x01(\t\x12\x12\n\nsession_id\x18\x02 \x01(\t\x12&\n\x05\x61\x63tor\x18\x03 \x01(\x0b\x32\x17.qsai.workflow.v1.Actor\x12\x0e\n\x06\x61\x63tion\x18\x04 \x01(\t\x12\x18\n\x10\x65xpected_version\x18\x05 \x01(\x03\x12\x13\n\x0bquestion_id\x18\x06 \x01(\t\x12\x13\n\x06\x61nswer\x18\x07 \x01(\tH\x00\x88\x01\x01\x12\x0c\n\x04skip\x18\x08 \x01(\x08\x42\t\n\x07_answer\"N\n\x07Receipt\x12\x12\n\nsession_id\x18\x01 \x01(\t\x12\x0e\n\x06run_id\x18\x02 \x01(\t\x12\x0e\n\x06status\x18\x03 \x01(\t\x12\x0f\n\x07version\x18\x04 \x01(\x03\"\xf1\x01\n\nStateEvent\x12\x10\n\x08\x65vent_id\x18\x01 \x01(\t\x12\x12\n\nrequest_id\x18\x02 \x01(\t\x12\x12\n\nsession_id\x18\x03 \x01(\t\x12&\n\x05\x61\x63tor\x18\x04 \x01(\x0b\x32\x17.qsai.workflow.v1.Actor\x12\x11\n\ttestee_id\x18\x05 \x01(\t\x12\x0f\n\x07version\x18\x06 \x01(\x03\x12\x0e\n\x06status\x18\x07 \x01(\t\x12\x13\n\x0bquestion_id\x18\x08 \x01(\t\x12\x10\n\x08question\x18\t \x01(\t\x12\x10\n\x08\x63\x61n_skip\x18\n \x01(\x08\x12\x14\n\x0c\x66\x61ilure_code\x18\x0b \x01(\t\"#\n\x0f\x41\x63knowledgement\x12\x10\n\x08\x65vent_id\x18\x01 \x01(\t\"\"\n\x04\x46\x61\x63t\x12\x0b\n\x03ref\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t\"\x8a\x01\n\x0c\x45videnceItem\x12\x15\n\rassessment_id\x18\x01 \x01(\t\x12\x11\n\ttestee_id\x18\x02 \x01(\t\x12\x11\n\treport_id\x18\x03 \x01(\t\x12\x16\n\x0esource_version\x18\x04 \x01(\t\x12%\n\x05\x66\x61\x63ts\x18\x05 \x03(\x0b\x32\x16.qsai.workflow.v1.Fact2\x94\x01\n\x08\x43ommands\x12\x42\n\x05Start\x12\x1e.qsai.workflow.v1.StartCommand\x1a\x19.qsai.workflow.v1.Receipt\x12\x44\n\x06\x43hange\x12\x1f.qsai.workflow.v1.ChangeCommand\x1a\x19.qsai.workflow.v1.Receipt2T\n\x07Results\x12I\n\x06\x41\x63\x63\x65pt\x12\x1c.qsai.workflow.v1.StateEvent\x1a!.qsai.workflow.v1.AcknowledgementB;Z9github.com/FangcunMount/qs-server/api/grpc/gen/aiworkflowb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -35,17 +35,21 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_ACTOR']._serialized_start=36
   _globals['_ACTOR']._serialized_end=79
   _globals['_STARTCOMMAND']._serialized_start=82
-  _globals['_STARTCOMMAND']._serialized_end=213
-  _globals['_CHANGECOMMAND']._serialized_start=216
-  _globals['_CHANGECOMMAND']._serialized_end=420
-  _globals['_RECEIPT']._serialized_start=422
-  _globals['_RECEIPT']._serialized_end=500
-  _globals['_STATEEVENT']._serialized_start=503
-  _globals['_STATEEVENT']._serialized_end=744
-  _globals['_ACKNOWLEDGEMENT']._serialized_start=746
-  _globals['_ACKNOWLEDGEMENT']._serialized_end=781
-  _globals['_COMMANDS']._serialized_start=784
-  _globals['_COMMANDS']._serialized_end=932
-  _globals['_RESULTS']._serialized_start=934
-  _globals['_RESULTS']._serialized_end=1018
+  _globals['_STARTCOMMAND']._serialized_end=263
+  _globals['_CHANGECOMMAND']._serialized_start=266
+  _globals['_CHANGECOMMAND']._serialized_end=470
+  _globals['_RECEIPT']._serialized_start=472
+  _globals['_RECEIPT']._serialized_end=550
+  _globals['_STATEEVENT']._serialized_start=553
+  _globals['_STATEEVENT']._serialized_end=794
+  _globals['_ACKNOWLEDGEMENT']._serialized_start=796
+  _globals['_ACKNOWLEDGEMENT']._serialized_end=831
+  _globals['_FACT']._serialized_start=833
+  _globals['_FACT']._serialized_end=867
+  _globals['_EVIDENCEITEM']._serialized_start=870
+  _globals['_EVIDENCEITEM']._serialized_end=1008
+  _globals['_COMMANDS']._serialized_start=1011
+  _globals['_COMMANDS']._serialized_end=1159
+  _globals['_RESULTS']._serialized_start=1161
+  _globals['_RESULTS']._serialized_end=1245
 # @@protoc_insertion_point(module_scope)

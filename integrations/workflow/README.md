@@ -12,7 +12,7 @@ QS 使用自身 `scripts/proto/generate.sh` 生成 Go 代码。当前版本是�
 ## 协议语义
 
 - Start 的 request_id、Change 的 command_id 是稳定 UUID，重试不能重新生成。相同 ID 不同输入拒绝。
-- Actor 只接受可信 QS 服务委托；服务证书不代替资源授权。真实 EvidenceSource 未配置时拒绝请求。
+- Actor 只接受可信 QS 服务委托；服务证书不代替资源授权。带 evidence 的可信 QS 请求按提交时授权，快照与任务原子保存；不带快照的动态路径仍要求 EvidenceSource。
 - AI 在同一事务保存外部请求关联、会话、任务和状态 outbox，提交后回复 Receipt。
 - QS 在同一事务保存请求及 command outbox。网络调用发生在事务外，未确认可重投。
 - StateEvent 的 event_id 和 session/version 不可变；QS 校验请求、主体、会话关联，并原子保存接收凭证及投影。只接受较新版本更新投影，旧事件仍可确认。
@@ -29,7 +29,7 @@ uv run python -m qs_ai.bootstrap.worker --once
 uv run python -m qs_ai.bootstrap.integration deliver --address localhost:50062 --ca "$CA_FILE" --cert "$AI_CERT_FILE" --key "$AI_KEY_FILE"
 ```
 
-`serve` 常驻；Worker 和 `deliver` 是单次有界运行，需外部调度反复执行。默认授权源和业务工作流仍不可用；合成实现仅在测试中注入。QS 对应入口为 `cmd/qs-ai-bridge`，尚未接入现有用户路由。
+`serve` 常驻；Worker 和 `deliver` 是单次有界运行，需外部调度反复执行。动态授权源和业务工作流仍不可用；可信 QS 快照任务可被接收并保存。QS 新入口为 POST /api/v1/assessments/{id}/ai-workflows，独立开关默认关闭；cmd/qs-ai-bridge 负责持久命令投递。
 
 投递失败持久保留并指数退避，最大间隔 60 秒；当前没有死信队列、告警或运维重放入口。上线前需补齐这些运行能力。
 

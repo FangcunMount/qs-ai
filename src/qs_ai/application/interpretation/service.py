@@ -12,7 +12,13 @@ from qs_ai.application.interpretation.ports import (
     UnitOfWork,
     UnitOfWorkFactory,
 )
-from qs_ai.domain.interpretation.model import Actor, RuleViolation, Session
+from qs_ai.domain.interpretation.model import (
+    Actor,
+    EvidenceItem,
+    EvidenceSet,
+    RuleViolation,
+    Session,
+)
 
 
 def fingerprint(value: object) -> str:
@@ -53,7 +59,8 @@ class InterpretationService:
             session = await uow.get(session_id)
         if session.actor != actor:
             raise AccessDenied
-        await self.source.authorize(actor, session.testee_id, session.assessment_ids)
+        if session.workflow_version != "qs-snapshot-v1":
+            await self.source.authorize(actor, session.testee_id, session.assessment_ids)
         return session
 
     async def get(self, actor: Actor, session_id: str) -> SessionView:
@@ -176,6 +183,7 @@ class InterpretationService:
         assessment_ids: tuple[str, ...],
         goal: str,
         request_id: str,
+        evidence: tuple[EvidenceItem, ...] = (),
     ) -> Receipt:
         # Global request scope: reusing an ID for another actor also conflicts.
         if str(UUID(request_id)) != request_id:
@@ -183,9 +191,15 @@ class InterpretationService:
         if not external_id(actor.org_id) or not actor.subject_id or len(actor.subject_id) > 128:
             raise RuleViolation("invalid_session_input")
         validate_session_input(testee_id, assessment_ids, goal)
-        await self.source.authorize(actor, testee_id, assessment_ids)
+        if evidence:
+            EvidenceSet("", "", "", evidence).validate(testee_id, assessment_ids)
+        else:
+            await self.source.authorize(actor, testee_id, assessment_ids)
         scope = fingerprint(["qs-server", "external-start-v1"])
-        request_hash = fingerprint([asdict(actor), testee_id, assessment_ids, goal])
+        request_hash = fingerprint(
+            [asdict(actor), testee_id, assessment_ids, goal]
+            + ([asdict(item) for item in evidence] if evidence else [])
+        )
         async with self.uows.open() as uow:
             previous = await uow.reserve(scope, request_id, request_hash)
             if previous:
@@ -193,6 +207,16 @@ class InterpretationService:
             session = Session(str(uuid4()), actor, testee_id, assessment_ids, goal)
             session.queue(str(uuid4()))
             await uow.add(session)
+            if evidence:
+                session.workflow_version = "qs-snapshot-v1"
+                frozen = EvidenceSet(
+                    str(uuid4()),
+                    session.id,
+                    fingerprint([asdict(item) for item in evidence]),
+                    evidence,
+                )
+                await uow.add_evidence(frozen)
+                session.evidence_set_id = frozen.id
             await uow.bind_request(session.id, request_id)
             await uow.enqueue(session, None, False, None)
             await uow.save(session)

@@ -24,8 +24,13 @@ class ExecuteNext:
     async def _execute(self, claim: Claim) -> None:
         session = claim.session
         try:
-            await self.source.authorize(session.actor, session.testee_id, session.assessment_ids)
+            if session.workflow_version != "qs-snapshot-v1":
+                await self.source.authorize(
+                    session.actor, session.testee_id, session.assessment_ids
+                )
             evidence = await self.store.evidence(claim)
+            if evidence is None and session.workflow_version == "qs-snapshot-v1":
+                raise RuleViolation("evidence_missing")
             if evidence is None:
                 items = await self.source.read(
                     session.actor, session.testee_id, session.assessment_ids
@@ -36,8 +41,11 @@ class ExecuteNext:
                 evidence.validate(session.testee_id, session.assessment_ids)
                 evidence = await self.store.freeze(claim, evidence)
             result = await self.workflow.execute(claim, evidence)
-            # Recheck access before publishing even if a workflow took a long time.
-            await self.source.authorize(session.actor, session.testee_id, session.assessment_ids)
+            # QS snapshots were authorized at submission. Dynamic sources recheck access.
+            if session.workflow_version != "qs-snapshot-v1":
+                await self.source.authorize(
+                    session.actor, session.testee_id, session.assessment_ids
+                )
         except AccessDenied:
             result = WorkflowResult("", failure_code="access_revoked")
         except DependencyUnavailable:

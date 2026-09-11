@@ -73,7 +73,8 @@ async def stop(process):
     await process.communicate()
 
 
-async def test_go_python_durable_round_trip(kit, tmp_path):  # noqa: F811
+@pytest.mark.parametrize("snapshot", [False, True])
+async def test_go_python_durable_round_trip(kit, tmp_path, snapshot):  # noqa: F811
     binary = os.getenv("QS_AI_BRIDGE_BIN")
     qs_dsn = os.getenv("QS_AI_TEST_QS_MYSQL_DSN")
     if not binary or not qs_dsn or not os.getenv("QS_AI_TEST_QS_GO_DSN"):
@@ -93,6 +94,16 @@ async def test_go_python_durable_round_trip(kit, tmp_path):  # noqa: F811
         "assessment_ids": ["42"],
         "goal": "Synthetic delivery verification",
     }
+    if snapshot:
+        start["evidence"] = [
+            {
+                "assessment_id": "42",
+                "testee_id": "7",
+                "report_id": "99",
+                "source_version": "standard-v1:100",
+                "facts": [{"ref": "standard_report", "value": '{"score":12}'}],
+            }
+        ]
     input_path = tmp_path / "command.json"
     input_path.write_text(json.dumps(start))
     env = {**os.environ, "QS_AI_BRIDGE_DSN": os.environ["QS_AI_TEST_QS_GO_DSN"]}
@@ -118,6 +129,7 @@ async def test_go_python_durable_round_trip(kit, tmp_path):  # noqa: F811
         str(ai_key),
         env={
             **os.environ,
+            "QS_AI_TEST_SNAPSHOT": "1" if snapshot else "0",
             "QS_AI_DATABASE_URL": kit.dsn.replace("mysql://", "mysql+asyncmy://", 1),
         },
         stdout=asyncio.subprocess.PIPE,
@@ -180,6 +192,20 @@ async def test_go_python_durable_round_trip(kit, tmp_path):  # noqa: F811
                 )
                 == 1
             )
+        if snapshot:
+            async with kit.transactions.open() as db:
+                from qs_ai.infrastructure.persistence.mysql.schema import evidence_sets
+
+                frozen = (
+                    (
+                        await db.execute(
+                            select(evidence_sets).where(evidence_sets.c.session_id == session_id)
+                        )
+                    )
+                    .mappings()
+                    .one()
+                )
+                assert frozen["items"] == start["evidence"]
         outbox = MySQLResultOutbox(kit.transactions)
         async with mtls_channel(
             target, ca.read_bytes(), ai_key.read_bytes(), ai_cert.read_bytes()

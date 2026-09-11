@@ -1,6 +1,7 @@
 """Real internal server with test-only dependencies and one lost acknowledgement."""
 
 import asyncio
+import os
 import sys
 from pathlib import Path
 
@@ -12,6 +13,7 @@ from qs_ai.application.interpretation.ports import EvidenceSource
 from qs_ai.bootstrap.worker import worker_container
 from qs_ai.config import Settings
 from qs_ai.contracts.workflow import workflow_pb2_grpc as rpc
+from qs_ai.infrastructure.interpretation.unconfigured import UnconfiguredEvidenceSource
 from qs_ai.transport.grpc.commands import Commands
 from tests.probes.p1_runtime import SyntheticEvidence
 
@@ -19,6 +21,8 @@ from tests.probes.p1_runtime import SyntheticEvidence
 class Fixtures(Provider):
     @provide(scope=Scope.APP, provides=EvidenceSource, override=True)
     def source(self) -> EvidenceSource:
+        if os.getenv("QS_AI_TEST_SNAPSHOT") == "1":
+            return UnconfiguredEvidenceSource()
         return SyntheticEvidence()
 
 

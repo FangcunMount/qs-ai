@@ -15,18 +15,20 @@ class Actor(_message.Message):
     def __init__(self, org_id: _Optional[str] = ..., subject_id: _Optional[str] = ...) -> None: ...
 
 class StartCommand(_message.Message):
-    __slots__ = ("request_id", "actor", "testee_id", "assessment_ids", "goal")
+    __slots__ = ("request_id", "actor", "testee_id", "assessment_ids", "goal", "evidence")
     REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
     ACTOR_FIELD_NUMBER: _ClassVar[int]
     TESTEE_ID_FIELD_NUMBER: _ClassVar[int]
     ASSESSMENT_IDS_FIELD_NUMBER: _ClassVar[int]
     GOAL_FIELD_NUMBER: _ClassVar[int]
+    EVIDENCE_FIELD_NUMBER: _ClassVar[int]
     request_id: str
     actor: Actor
     testee_id: str
     assessment_ids: _containers.RepeatedScalarFieldContainer[str]
     goal: str
-    def __init__(self, request_id: _Optional[str] = ..., actor: _Optional[_Union[Actor, _Mapping]] = ..., testee_id: _Optional[str] = ..., assessment_ids: _Optional[_Iterable[str]] = ..., goal: _Optional[str] = ...) -> None: ...
+    evidence: _containers.RepeatedCompositeFieldContainer[EvidenceItem]
+    def __init__(self, request_id: _Optional[str] = ..., actor: _Optional[_Union[Actor, _Mapping]] = ..., testee_id: _Optional[str] = ..., assessment_ids: _Optional[_Iterable[str]] = ..., goal: _Optional[str] = ..., evidence: _Optional[_Iterable[_Union[EvidenceItem, _Mapping]]] = ...) -> None: ...
 
 class ChangeCommand(_message.Message):
     __slots__ = ("command_id", "session_id", "actor", "action", "expected_version", "question_id", "answer", "skip")
@@ -91,3 +93,25 @@ class Acknowledgement(_message.Message):
     EVENT_ID_FIELD_NUMBER: _ClassVar[int]
     event_id: str
     def __init__(self, event_id: _Optional[str] = ...) -> None: ...
+
+class Fact(_message.Message):
+    __slots__ = ("ref", "value")
+    REF_FIELD_NUMBER: _ClassVar[int]
+    VALUE_FIELD_NUMBER: _ClassVar[int]
+    ref: str
+    value: str
+    def __init__(self, ref: _Optional[str] = ..., value: _Optional[str] = ...) -> None: ...
+
+class EvidenceItem(_message.Message):
+    __slots__ = ("assessment_id", "testee_id", "report_id", "source_version", "facts")
+    ASSESSMENT_ID_FIELD_NUMBER: _ClassVar[int]
+    TESTEE_ID_FIELD_NUMBER: _ClassVar[int]
+    REPORT_ID_FIELD_NUMBER: _ClassVar[int]
+    SOURCE_VERSION_FIELD_NUMBER: _ClassVar[int]
+    FACTS_FIELD_NUMBER: _ClassVar[int]
+    assessment_id: str
+    testee_id: str
+    report_id: str
+    source_version: str
+    facts: _containers.RepeatedCompositeFieldContainer[Fact]
+    def __init__(self, assessment_id: _Optional[str] = ..., testee_id: _Optional[str] = ..., report_id: _Optional[str] = ..., source_version: _Optional[str] = ..., facts: _Optional[_Iterable[_Union[Fact, _Mapping]]] = ...) -> None: ...

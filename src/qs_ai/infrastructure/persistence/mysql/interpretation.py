@@ -9,10 +9,18 @@ from sqlalchemy.dialects.mysql import insert as mysql_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from qs_ai.application.interpretation.ports import NotFound, Receipt, UnitOfWork
-from qs_ai.domain.interpretation.model import Actor, Question, RuleViolation, Session, Status
+from qs_ai.domain.interpretation.model import (
+    Actor,
+    EvidenceSet,
+    Question,
+    RuleViolation,
+    Session,
+    Status,
+)
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
 from qs_ai.infrastructure.persistence.mysql.result_outbox import stage_state
 from qs_ai.infrastructure.persistence.mysql.schema import (
+    evidence_sets,
     external_requests,
     idempotency,
     jobs,
@@ -101,6 +109,17 @@ class MySQLUnitOfWork:
 
     async def add(self, session: Session) -> None:
         await self.db.execute(insert(sessions).values(**session_values(session)))
+
+    async def add_evidence(self, evidence: EvidenceSet) -> None:
+        await self.db.execute(
+            insert(evidence_sets).values(
+                id=evidence.id,
+                session_id=evidence.session_id,
+                fingerprint=evidence.fingerprint,
+                schema_version="evidence-v1",
+                items=[asdict(item) for item in evidence.items],
+            )
+        )
 
     async def save(self, session: Session) -> None:
         await self.db.execute(
