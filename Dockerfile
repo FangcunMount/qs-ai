@@ -6,6 +6,7 @@ COPY configs ./configs
 COPY integrations/qs_server/prompts ./integrations/qs_server/prompts
 COPY integrations/qs_server/schemas ./integrations/qs_server/schemas
 COPY integrations/qs_server/routes ./integrations/qs_server/routes
+COPY integrations/qs_server/evaluation ./integrations/qs_server/evaluation
 COPY --from=ghcr.io/astral-sh/uv:0.12.13 /uv /usr/local/bin/uv
 RUN uv sync --frozen --no-dev --no-editable
 COPY alembic.ini ./
