@@ -13,6 +13,7 @@ from qs_ai.infrastructure.persistence.mysql.database import Database, Transactio
 from qs_ai.infrastructure.persistence.mysql.evaluation_runs import create_run
 from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_checkpoints,
+    evaluation_dispatches,
     evaluation_run_policies,
     evaluation_runs,
 )
@@ -51,7 +52,12 @@ async def setup_run():
         yield tx, run_id, release
     finally:
         async with tx.open() as db:
-            for table in (evaluation_checkpoints, evaluation_run_policies, evaluation_runs):
+            for table in (
+                evaluation_dispatches,
+                evaluation_checkpoints,
+                evaluation_run_policies,
+                evaluation_runs,
+            ):
                 await db.execute(delete(table).where(table.c.run_id == str(run_id)))
             await db.commit()
         await database.close()
@@ -338,3 +344,61 @@ async def test_registered_preflight_computes_evidence_before_persistence(setup_r
         "provider_call_count": "0",
         "rejection_reason": "insufficient_eligible_dimensions",
     }
+
+
+async def test_planned_preparation_competition_then_dispatch_uses_first_frozen_slot(setup_run):
+    import asyncio
+    from datetime import timedelta
+
+    from qs_ai.application.evaluation.checkpoints import CheckpointConflict, CheckpointState
+    from qs_ai.infrastructure.persistence.mysql.evaluation_dispatches import reserve_dispatch
+    from qs_ai.infrastructure.persistence.mysql.evaluation_preparation import prepare_execution
+    from qs_ai.infrastructure.persistence.mysql.evaluation_progress import (
+        execute_preflight,
+        transition_requested,
+    )
+
+    tx, run_id, release = setup_run
+    at = datetime(2026, 9, 12, tzinfo=UTC)
+    async with tx.open() as db:
+        await create(db, run_id, release)
+        await transition_requested(db, run_id, 1, 1, "collecting", "actor:1", "开始", at)
+        await execute_preflight(db, run_id, 2, 1, at)
+        await db.commit()
+
+    async def prepare(index):
+        async with tx.open() as db:
+            result = await prepare_execution(
+                db,
+                run_id,
+                3,
+                1,
+                f"worker:{index}",
+                f"execution:{index}",
+                f"invocation:{index}",
+                at,
+                at + timedelta(seconds=30),
+            )
+            await db.commit()
+            return result
+
+    results = await asyncio.gather(prepare(1), prepare(2), return_exceptions=True)
+    assert sum(isinstance(x, CheckpointConflict) for x in results) == 1
+    winner = next(x for x in results if isinstance(x, CheckpointState))
+    cp = winner.checkpoint
+    assert (cp.kind, cp.case_id, cp.slot_ordinal, cp.execution_ordinal) == (
+        "generation",
+        "PROMPT-EVAL-001",
+        1,
+        1,
+    )
+    assert cp.phase == "prepared" and winner.version == 4
+    async with tx.open() as db:
+        assert (
+            await db.execute(
+                select(evaluation_dispatches).where(evaluation_dispatches.c.run_id == str(run_id))
+            )
+        ).first() is None
+        dispatched = await reserve_dispatch(db, run_id, 4, cp.owner, at)
+        await db.commit()
+    assert dispatched.version == 5 and dispatched.checkpoint.phase == "dispatching"
