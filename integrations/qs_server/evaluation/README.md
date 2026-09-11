@@ -26,3 +26,9 @@
 `ExecutionCheckpoint` 保留 execution/case/slot/candidate/owner/invocation、阶段及带时区租约时间。generation 不允许提前关联 candidate，semantic 必须关联；槽位 1–5、执行序号 1–2 与原固定 QS v2 约束相同。
 
 prepared → dispatching 要求 owner 匹配和原租约内时间；恢复只允许扫描到的相同 invocation、相同 expiry 的过期 prepared，dispatching 永远不能按此路径自动重放。保留 QS 的 inclusive dispatch endpoint：恰好到期时发送和回收检查都可能成立，持久化层必须用同一聚合版本 CAS 决定唯一赢家。本轮只迁移领域检查，没有实现该 CAS、预算预留、租约续期或完整 NextAction，不能当作并发执行已验收。
+
+## 检查点版本条件写入
+
+`0011_evaluation_checkpoints` 和 `MySQLCheckpoints` 保存 run UUID、版本和完整在途检查点 JSON。create 不覆盖已有记录，save 要求新版本恰为旧版本加一，UPDATE 的 run_id/version 条件不匹配即冲突。解析时重新执行领域约束，时间保留时区。
+
+隔离 MySQL 8.4 并发发送/回收测试证明同一版本仅一个提交成功，旧 worker 写入和跳版本被拒绝，重新创建仓库读取仍为胜出状态。此表是内部检查点存储原语，不是完整评测 Run，也不校验外部调用者权限或替代 NextAction 决策。预算、候选、回执与检查点的联合事务仍待实现；在联合事务实现前不接入评测执行器。生产尚未迁移该表。

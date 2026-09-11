@@ -217,3 +217,13 @@ schema_assets = sa.Table(
     mysql_engine="InnoDB",
     mysql_charset="utf8mb4",
 )
+
+evaluation_checkpoints = sa.Table(
+    "evaluation_checkpoints",
+    metadata,
+    sa.Column("run_id", sa.CHAR(36), primary_key=True),
+    sa.Column("version", sa.BigInteger, nullable=False),
+    sa.Column("checkpoint_json", mysql.JSON),
+    mysql_engine="InnoDB",
+    mysql_charset="utf8mb4",
+)
