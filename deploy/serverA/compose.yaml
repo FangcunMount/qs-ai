@@ -1,0 +1,36 @@
+name: qs-ai
+services:
+  api:
+    image: ${QS_AI_IMAGE:?Set the immutable image tag}
+    container_name: qs-ai-api
+    restart: unless-stopped
+    env_file:
+      - ${QS_AI_ENV_FILE:-/opt/qs-ai/.env}
+    ports:
+      - "127.0.0.1:18080:8000"
+    networks:
+      - backend
+    mem_limit: 512m
+    cpus: "1.0"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD", "/app/.venv/bin/python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/readyz', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 4
+      start_period: 15s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+networks:
+  backend:
+    external: true
+    name: infra-network
