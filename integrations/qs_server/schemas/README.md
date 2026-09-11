@@ -15,3 +15,11 @@ QSOutputParser 使用该 Schema 严格解析；应用层 validate_output 再应�
 QS 现有执行流水线在确定性校验后调用 SafetyEvaluator，实际绑定 safety.DeterministicGate，而非在线语义模型。该门槛现已迁移到 application/interpretation/safety.py：保留七类中英文禁用表述、空白/大小写归一化、64 字符否定窗口与转折边界，版本保留 ai-explanation-safety-deterministic-zh-en/v2。check_safety 接收 DeterministicOutput，返回带双重校验版本的 SafetyCheckedOutput；仍未持久接受 Artifact。
 
 原 Go 对照增加完整候选的合法/禁用因果表述/缺少边界/转折推翻边界四类。语义评测与人工证据仍属于后续 Prompt 发布验证体系；此规则门槛不是完整语义安全保证。此前将运行时 SafetyEvaluator 笼统称为语义安全门槛不准确，以此处源码核对为准。当前未调用模型、未完成生产输出验收。
+
+## 输入规范迁移及已知差异
+
+`ai-explanation-input-v1.schema.json` 从同一固定 QS 提交 `1b52081ea42c94dc5653ce91e8c7a1db9f85fc44` 原样提取；manifest 的 `input` 记录来源及 SHA-256。`load_input_schema` 校验字节与 schema_version，未接入运行时强制校验。
+
+现有 QS assembler 在绑定建议时使用 `append([]string(nil), refs...)`，空 refs 会序列化为 null。Python 为保持原输入及指纹一致保留相同行为。原 Schema 的 standard_suggestion_refs 只允许 array；固定输入样本中有两个维度因此不符合规范。测试明确断言这两个差异，在测试副本上转成空数组后通过原规范，未修改真实构造逻辑。
+
+这是一项待解决的发布兼容性问题，不是“输入 Schema 验收通过”。后续完整 release 必须显式选择兼容规范或新的输入构造版本，并覆盖历史 fingerprint/recovery；不能原地把原 v1 输入由 null 改为空数组而继续声称版本未变。provider_payload 仍仅含 context/facts，完整输入规范不应直接套在该投影上。
