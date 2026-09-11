@@ -6,6 +6,7 @@ from uuid import UUID
 from sqlalchemy import insert, select, update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict, CheckpointState
 from qs_ai.domain.evaluation.checkpoint import ExecutionCheckpoint
@@ -60,18 +61,23 @@ class MySQLCheckpoints:
         return CheckpointState(run_id, row["version"], decode(row["checkpoint_json"]))
 
     async def save(self, state: CheckpointState, expected_version: int) -> None:
-        if (
-            type(expected_version) is not int
-            or expected_version < 0
-            or state.version != expected_version + 1
-        ):
-            raise ValueError("Checkpoint updates must advance exactly one version")
         async with self.transactions.open() as db:
-            result = await db.execute(
-                update(table)
-                .where(table.c.run_id == str(state.run_id), table.c.version == expected_version)
-                .values(version=state.version, checkpoint_json=encode(state.checkpoint))
-            )
-            if cast(CursorResult, result).rowcount != 1:
-                raise CheckpointConflict("Checkpoint state changed concurrently")
+            await save_checkpoint(db, state, expected_version)
             await db.commit()
+
+
+async def save_checkpoint(db: AsyncSession, state: CheckpointState, expected_version: int) -> None:
+    """Participate in the caller's transaction; never commit or roll back other aggregate writes."""
+    if (
+        type(expected_version) is not int
+        or expected_version < 0
+        or state.version != expected_version + 1
+    ):
+        raise ValueError("Checkpoint updates must advance exactly one version")
+    result = await db.execute(
+        update(table)
+        .where(table.c.run_id == str(state.run_id), table.c.version == expected_version)
+        .values(version=state.version, checkpoint_json=encode(state.checkpoint))
+    )
+    if cast(CursorResult, result).rowcount != 1:
+        raise CheckpointConflict("Checkpoint state changed concurrently")

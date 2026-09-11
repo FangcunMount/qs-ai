@@ -67,3 +67,39 @@ async def test_dispatch_and_expired_recovery_have_exactly_one_persisted_winner()
             )
             await db.commit()
         await database.close()
+
+
+async def test_caller_transaction_rolls_back_checkpoint_when_later_write_conflicts():
+    from qs_ai.infrastructure.persistence.mysql.evaluation_checkpoints import save_checkpoint
+
+    dsn = os.getenv("QS_AI_TEST_MYSQL_DSN")
+    if not dsn:
+        pytest.skip("Requires migrated disposable MySQL")
+    database = Database(dsn.replace("mysql://", "mysql+asyncmy://", 1))
+    transactions = Transactions(database)
+    store = MySQLCheckpoints(transactions)
+    first, second = uuid4(), uuid4()
+    try:
+        await store.create(first)
+        await store.create(second)
+        with pytest.raises(CheckpointConflict):
+            async with transactions.open() as db:
+                await save_checkpoint(db, CheckpointState(first, 1, None), 0)
+                await save_checkpoint(db, CheckpointState(second, 2, None), 1)
+                await db.commit()
+        assert await store.get(first) == CheckpointState(first, 0, None)
+        assert await store.get(second) == CheckpointState(second, 0, None)
+        async with transactions.open() as db:
+            await save_checkpoint(db, CheckpointState(first, 1, None), 0)
+            await save_checkpoint(db, CheckpointState(second, 1, None), 0)
+            await db.commit()
+        assert (await store.get(first)).version == (await store.get(second)).version == 1
+    finally:
+        async with transactions.open() as db:
+            await db.execute(
+                delete(evaluation_checkpoints).where(
+                    evaluation_checkpoints.c.run_id.in_([str(first), str(second)])
+                )
+            )
+            await db.commit()
+        await database.close()
