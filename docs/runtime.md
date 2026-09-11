@@ -156,3 +156,9 @@ uv run python -m qs_ai.bootstrap.build_manifest \
 循环参数集中在 `configs/default.yaml` 的 `evaluation`：并发、空闲等待、异常退避、退出排空时限和独立健康文件。模型连接复用 `generation.endpoint` 与环境变量 `QS_AI_MODEL_API_KEY`，数据库使用 `QS_AI_DATABASE_URL`；实际模型路由和输出规范来自 Run 冻结身份及已导入资产。启动检查 HTTPS 地址、非空凭据和数据库配置；每轮独立 Dishka 作用域，关闭连接后再进入下一轮。配置检查与数据库连通不能替代资产完整性和真实业务验收。
 
 轮询先接受预检，再推进生成或语义步骤。每轮先扫描至多 64 条 collecting Run 的活动检查点，使用进程内游标跨轮次遍历并在末尾回绕。过期 prepared 经版本校验后释放，过期 dispatching 保存结果未知并阻断；恢复和新发送不在同一轮进行。任何活动检查点都不直接重发。游标不代表执行权，进程重启后重新扫描仍由数据库 CAS 防止重复接受。收到 SIGTERM/SIGINT 后停止领取、限时等待在途工作，超时取消时保留持久检查点。尚未配置生产 Compose/CI 开关，真实进程崩溃恢复验收、未知结果人工处置、管理授权、人工审核及发布门禁仍需继续建设。
+
+### 内部评测管理接口（默认不注册）
+
+`EvaluationManagement.Get` 返回 Run 版本、状态、未知数量与处置审计，`ResolveUnknown` 接受人工决定。`grpc.governance_enabled` 默认 false；在 QS 的治理转发完成并验收前保持关闭。接口只接受 mTLS 认证的 `qs-apiserver.svc` 工作负载；QS 必须从当前用户授权上下文验证 OrgAdmin，再传递组织和操作人 ID。qs-ai 校验 Run 组织、版本与持久证据，不建立自己的用户/角色库。用户不能直接向此接口声明管理员身份。
+
+审计 actor 按 QS 现有 `user:<operator_user_id>` 规则生成，处置时间由服务端生成。回读只包含处置审计，不包含报告、Prompt 或模型正文。调用结果不明时先回读核对版本和决定；重复提交旧版本会冲突，不能据网络错误创建新的人工授权。当前仅完成 AI 侧接口与替身鉴权上下文测试，QS 协议同步、OrgAdmin 转发和跨服务真实 mTLS 管理验收待完成。

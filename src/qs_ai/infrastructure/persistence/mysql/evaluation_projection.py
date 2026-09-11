@@ -8,8 +8,14 @@ from qs_ai.application.evaluation.checkpoints import CheckpointConflict
 from qs_ai.domain.evaluation.actions import CandidateProgress, ExecutionResult, SlotProgress
 from qs_ai.domain.evaluation.completion import GenerationCompletion, ProviderReceipt
 from qs_ai.domain.evaluation.failure import ClassifiedFailure, ProviderDiagnostics
+from qs_ai.domain.evaluation.resolution import (
+    ResultUnknownResolution,
+    UnknownExecution,
+    resolve_unknown,
+)
 from qs_ai.domain.evaluation.semantic_completion import SemanticCompletion
 from qs_ai.infrastructure.persistence.mysql.evaluation_checkpoints import decode
+from qs_ai.infrastructure.qs_server.evaluation_policies import load_execution_policy
 
 
 def decode_completion(row: Any) -> GenerationCompletion:
@@ -38,9 +44,34 @@ def project_slots(
     records: list[Any],
     dispatches: list[Any],
     semantic_records: list[Any] | None = None,
+    resolutions: list[dict] | None = None,
 ) -> tuple[SlotProgress, ...]:
     """Every dispatch must have terminal evidence before new preparation."""
     semantic_records = semantic_records or []
+    authorized: set[str] = set()
+    if resolutions:
+        unknowns = tuple(
+            UnknownExecution(
+                r["execution_id"],
+                kind,
+                r["execution_ordinal"],
+                datetime.fromisoformat(r["evidence_json"]["finished_at"]),
+            )
+            for kind, rows in (("generation", records), ("semantic", semantic_records))
+            for r in rows
+            if r["evidence_json"]["status"] == "result_unknown"
+        )
+        prior: tuple[ResultUnknownResolution, ...] = ()
+        for raw in resolutions:
+            resolution = ResultUnknownResolution(
+                **{**raw, "resolved_at": datetime.fromisoformat(raw["resolved_at"])}
+            )
+            result = resolve_unknown(
+                "blocked", unknowns, prior, resolution, load_execution_policy()
+            )
+            prior = result.resolutions
+            if resolution.decision == "authorize_replacement":
+                authorized.add(resolution.execution_id)
     ledger = {row["invocation_id"]: row for row in dispatches}
     if len(ledger) != len(dispatches) or len(records) + len(semantic_records) != len(ledger):
         raise CheckpointConflict("Dispatch and terminal evidence require reconciliation")
@@ -103,10 +134,14 @@ def project_slots(
                     or not stored.get("assertions")
                 ):
                     raise CheckpointConflict("Successful generation missing matching candidate")
-                candidate = project_candidate(stored, value, semantic_records, ledger, seen)
+                candidate = project_candidate(
+                    stored, value, semantic_records, ledger, seen, authorized
+                )
             elif stored is not None or row["candidate_id"] is not None:
                 raise CheckpointConflict("Failed execution cannot own candidate")
-            executions.append(ExecutionResult(value.status, value.failure))
+            executions.append(
+                ExecutionResult(value.status, value.failure, value.execution_id in authorized)
+            )
         slots.append(SlotProgress(slot["case_id"], slot["ordinal"], tuple(executions), candidate))
     if seen != ledger.keys():
         raise CheckpointConflict("Unmatched dispatch or semantic candidate")
@@ -114,7 +149,12 @@ def project_slots(
 
 
 def project_candidate(
-    stored: dict, generated: GenerationCompletion, records: list[Any], ledger: dict, seen: set[str]
+    stored: dict,
+    generated: GenerationCompletion,
+    records: list[Any],
+    ledger: dict,
+    seen: set[str],
+    authorized: set[str],
 ) -> CandidateProgress:
     history = sorted(
         (r for r in records if r["candidate_id"] == stored["id"]),
@@ -206,7 +246,9 @@ def project_candidate(
             accepted = value.execution_id
         elif result is not None:
             raise CheckpointConflict("Failed semantic execution cannot contain result")
-        executions.append(ExecutionResult(value.status, value.failure))
+        executions.append(
+            ExecutionResult(value.status, value.failure, value.execution_id in authorized)
+        )
     if (
         stored["review_ready"] != (accepted is not None)
         or stored.get("accepted_semantic_execution_id") != accepted

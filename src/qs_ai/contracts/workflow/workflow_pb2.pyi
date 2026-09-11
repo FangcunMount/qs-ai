@@ -117,3 +117,45 @@ class EvidenceItem(_message.Message):
     source_version: str
     facts: _containers.RepeatedCompositeFieldContainer[Fact]
     def __init__(self, assessment_id: _Optional[str] = ..., testee_id: _Optional[str] = ..., report_id: _Optional[str] = ..., source_version: _Optional[str] = ..., facts: _Optional[_Iterable[_Union[Fact, _Mapping]]] = ...) -> None: ...
+
+class EvaluationQuery(_message.Message):
+    __slots__ = ("run_id", "organization_id", "operator_user_id")
+    RUN_ID_FIELD_NUMBER: _ClassVar[int]
+    ORGANIZATION_ID_FIELD_NUMBER: _ClassVar[int]
+    OPERATOR_USER_ID_FIELD_NUMBER: _ClassVar[int]
+    run_id: str
+    organization_id: int
+    operator_user_id: int
+    def __init__(self, run_id: _Optional[str] = ..., organization_id: _Optional[int] = ..., operator_user_id: _Optional[int] = ...) -> None: ...
+
+class UnknownResolutionCommand(_message.Message):
+    __slots__ = ("scope", "expected_version", "execution_id", "decision", "reason", "confirm", "acknowledged_duplicate_call_and_cost_risk")
+    SCOPE_FIELD_NUMBER: _ClassVar[int]
+    EXPECTED_VERSION_FIELD_NUMBER: _ClassVar[int]
+    EXECUTION_ID_FIELD_NUMBER: _ClassVar[int]
+    DECISION_FIELD_NUMBER: _ClassVar[int]
+    REASON_FIELD_NUMBER: _ClassVar[int]
+    CONFIRM_FIELD_NUMBER: _ClassVar[int]
+    ACKNOWLEDGED_DUPLICATE_CALL_AND_COST_RISK_FIELD_NUMBER: _ClassVar[int]
+    scope: EvaluationQuery
+    expected_version: int
+    execution_id: str
+    decision: str
+    reason: str
+    confirm: bool
+    acknowledged_duplicate_call_and_cost_risk: bool
+    def __init__(self, scope: _Optional[_Union[EvaluationQuery, _Mapping]] = ..., expected_version: _Optional[int] = ..., execution_id: _Optional[str] = ..., decision: _Optional[str] = ..., reason: _Optional[str] = ..., confirm: _Optional[bool] = ..., acknowledged_duplicate_call_and_cost_risk: _Optional[bool] = ...) -> None: ...
+
+class EvaluationState(_message.Message):
+    __slots__ = ("run_id", "version", "status", "unresolved_result_unknown_count", "resolutions_json")
+    RUN_ID_FIELD_NUMBER: _ClassVar[int]
+    VERSION_FIELD_NUMBER: _ClassVar[int]
+    STATUS_FIELD_NUMBER: _ClassVar[int]
+    UNRESOLVED_RESULT_UNKNOWN_COUNT_FIELD_NUMBER: _ClassVar[int]
+    RESOLUTIONS_JSON_FIELD_NUMBER: _ClassVar[int]
+    run_id: str
+    version: int
+    status: str
+    unresolved_result_unknown_count: int
+    resolutions_json: str
+    def __init__(self, run_id: _Optional[str] = ..., version: _Optional[int] = ..., status: _Optional[str] = ..., unresolved_result_unknown_count: _Optional[int] = ..., resolutions_json: _Optional[str] = ...) -> None: ...

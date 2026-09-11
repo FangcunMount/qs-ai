@@ -265,7 +265,11 @@ async def complete_semantic(
             .all()
         )
         slots = project_slots(
-            creation["slots"], list(generations), list(dispatches), list(semantics)
+            creation["slots"],
+            list(generations),
+            list(dispatches),
+            list(semantics),
+            progress.get("result_unknown_resolutions", []),
         )
         preflight = progress["preflight"]
         action = next_action(

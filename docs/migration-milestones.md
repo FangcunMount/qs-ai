@@ -197,3 +197,22 @@ M1 → M2 → M3 → M4 → M5。M3 清单分析可提前开展，生产切换�
 - 过期恢复后续已接入常驻轮询：每轮先扫描最多 64 条活动检查点，进程级游标跨 request scope 保留；末尾回绕，不把游标当作执行权。仅释放未发送准备或接受未知结果，不在恢复轮次调用模型。隔离 MySQL 扫描/恢复/轮询与容器专项合计 38 项通过，新增边界覆盖未到期不恢复、游标回绕、前置未到期/损坏记录不阻塞后续遍历、开关关闭不恢复、准备释放后下一轮执行。损坏记录仍抛出异常交由 daemon 记录与退避，未静默吞掉。尚需真实进程 kill 验证、人工处置和授权入口，未部署生产。
 
 - 进程恢复增量：新增独立 Python 子进程探针，分别停在显式提交的 prepared、execute_step 已提交发送后进入生成网关、进入语义网关三个位置。父进程从独立数据库会话确认检查点后执行 OS kill，再启动另一个 Python 进程通过 EvaluationWorker 恢复。隔离 MySQL 8.4 三项通过：版本仅推进一次、恢复审计一条、准备回到 collecting，发送中的生成/语义进入 blocked，恢复网关禁止任何模型调用。租约由探针时钟显式推进；prepared 由事务探针构造，并非声称当前 execute_step 在准备与发送预留之间存在提交边界。该证据证明跨进程恢复机制，不证明真实供应商断线、生产 Compose 重启或 M1–M5 验收。
+
+### 2026-09-12：恢复合并，人工决定规则迁移开始
+
+- PR #33 源提交 `a217b7204bd187b517331450afeb2745573ff00e` 的 CI [34646680730](https://github.com/FangcunMount/qs-ai/actions/runs/34646680730) 全部通过，合并至 `8e800ad5f821f6622f2adf3dabe7b654afa74c1f`。仅代码合并，未部署生产。
+- 在 QS 独立工作区只读核对 ResolveResultUnknownV2 与领域 ResolveResultUnknown：保留 authorize_replacement/cancel_run 两种决定，必须明确确认重复调用和费用风险、保留操作人与原因、拒绝已处置或无未知结果的执行；替代执行不能突破冻结次数预算，多个未知结果需逐一处置后才恢复 collecting。
+- `codex/evaluation-manual-resolution` 开始迁移不可变人工决定与状态推导，15 项领域测试通过。尚未接入数据库接受事务、执行投影、管理授权或 API；当前运行时仍阻断所有未处置未知结果，不存在通过该领域函数直接恢复生产执行的入口。后续必须将原始未知证据与独立处置记录同时保留，投影识别精确执行授权，并在发送时继续检查预算；M1–M5 未验收。
+
+- 人工处置持久化增量：accept_resolution 在 Run/检查点锁及版本校验下核对原始生成/语义终态、发送流水、未知计数和冻结策略；决定、计数、状态转换同事务保存，原终态与输出不修改。投影逐条核对人工决定与精确未知执行，仅该执行获得替代许可，发送预留仍检查原预算。生成替代使用下一执行序号，语义替代保持同一候选。
+- 隔离 MySQL 8.4 两组相关集成测试共 64 项通过，覆盖决定回滚/并发唯一接受、错组织/目标/版本/未确认拒绝、原记录不变、生成与语义实际推进、第二次未知不能继续授权但可取消，以及原有 35 候选流程。非集成回归 502 项通过、3 项跳过；Ruff、mypy、文档检查通过。管理身份认证与治理授权、HTTP/gRPC 管理入口仍未接入，因此 PR #34 保持草稿；未部署或启用生产执行，M1–M5 未验收。
+
+- 管理入口增量：新增内部 EvaluationManagement Get/ResolveUnknown 契约与处理器，复用强制客户端证书的 gRPC 服务，额外核对 QS 工作负载 CN；默认通过 grpc.governance_enabled=false 不注册。QS 的 OrgAdmin 判断继续由现有授权快照负责；AI 只接受可信 QS 转发身份并检查 Run 组织/版本，操作人审计与 QS 的 user:<id> 一致。持久化返回已提交状态，支持网络结果不明后的回读对账。
+- 本地管理接口/容器/配置专项 43 项、MySQL 管理决定与回读 10 项、非集成回归 514 项通过（3 项跳过），生成契约漂移检查通过。接口鉴权测试使用替身 gRPC 上下文，不是新增管理方法的跨服务 mTLS 验收。QS 专属工作区本轮仅读取、未修改；协议同步与经过 OrgAdmin 检查的 QS 转发仍待下一批，PR #34 保持草稿，生产不开启管理接口。
+
+- QS 转发增量位于独立工作区 `qs-server-ai-governance`、分支 `codex/ai-evaluation-governance`，从 origin/main 的 `3be1c3705` 创建。QS 草稿 [PR #86](https://github.com/FangcunMount/qs-server/pull/86) 提交 `f852436d9` 同步管理协议与 Go 客户端，应用层每次从当前授权上下文判断 OrgAdmin，缺失/撤销权限或缺少风险确认时不调用 AI；写调用五秒超时且不自动重试。application/aibridge、infra/aibridge、transport/grpc 三包测试通过，两仓 proto 字节一致。尚未装配 mTLS 连接或注册 HTTP 路由，后续需从认证上下文获取身份并完成跨服务验收；原 QS 工作区未改动，生产未发布。
+
+- QS PR #86 后续提交 `51f248bcf` 已装配默认关闭的 workflow_management：internal v2 管理 GET/POST 从 RequireProtectedScope 读取身份、应用层每次检查 OrgAdmin；模块构造 TLS 1.3 双向认证连接，Cleanup 关闭连接。相关配置、模块、容器、REST 与客户端包测试通过，本地 Go mTLS 服务验证 QS 证书身份及关闭后不可调用。`f8a7ebf45` 同步机器契约清单和源基线，修复 CI 的服务/RPC 数量漂移；完整本地 docs-check 通过。该握手测试不是 Go/Python 跨进程或生产验收，正式 API 文档和跨服务测试仍待完成；两端开关关闭，未发布。
+
+- 跨语言管理增量：在 QS 独立工作区提交 `f8a7ebf45e98dc16e004dcac6177d9b4edab52bc` 编译真实应用服务与 mTLS 客户端探针，调用 Python EvaluationManagement 处理器及真实 MySQL 管理事务。两项场景分别覆盖 cancel_run、authorize_replacement：错误工作负载证书/错误组织拒绝、缺少确认或撤权不转发、决定成功落库、状态回读一致、重复旧版本冲突，审计 actor 为 user:42。测试执行由正常创建/预检/发送/过期恢复路径产生过去时间的证据，服务端采用真实时钟。
+- 使用临时 CA/证书及隔离 MySQL 8.4，IAM 授权快照为测试构造；调用跨 Go/Python 进程，但没有生产 IAM/HTTP 入口、真实报告或模型流量，不构成 M1–M5 生产验收。互操作测试需显式设置 QS_AI_GOVERNANCE_SOURCE 指向包含管理桥接的独立 QS checkout；临时 Go 源目录结束后自动清理，QS 工作区保持干净。下一批完善正式 API 文档并检查两份草稿的精确 CI 状态。
