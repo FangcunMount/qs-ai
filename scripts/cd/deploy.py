@@ -64,6 +64,7 @@ def main() -> None:
     action = env.get("DEPLOY_OPERATION", "deploy")
     if action not in ("deploy", "rollback"):
         raise ValueError("Invalid operation")
+    config = runtime_config(env) if action == "deploy" else None
     revision = required(env, "DEPLOY_SHA")
     if not re.fullmatch(r"[0-9a-f]{40}", revision):
         raise ValueError("Invalid commit")
@@ -114,7 +115,6 @@ def main() -> None:
             if action == "rollback":
                 print(run("rollback", [*ssh, f"python3 {remote_script} rollback"]), end="")
                 return
-            config = runtime_config(env)
             docker_config = work / "docker"
             docker_config.mkdir()
             docker_env = {**env, "DOCKER_CONFIG": str(docker_config)}
