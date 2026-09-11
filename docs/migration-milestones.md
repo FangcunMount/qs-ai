@@ -209,3 +209,5 @@ M1 → M2 → M3 → M4 → M5。M3 清单分析可提前开展，生产切换�
 
 - 管理入口增量：新增内部 EvaluationManagement Get/ResolveUnknown 契约与处理器，复用强制客户端证书的 gRPC 服务，额外核对 QS 工作负载 CN；默认通过 grpc.governance_enabled=false 不注册。QS 的 OrgAdmin 判断继续由现有授权快照负责；AI 只接受可信 QS 转发身份并检查 Run 组织/版本，操作人审计与 QS 的 user:<id> 一致。持久化返回已提交状态，支持网络结果不明后的回读对账。
 - 本地管理接口/容器/配置专项 43 项、MySQL 管理决定与回读 10 项、非集成回归 514 项通过（3 项跳过），生成契约漂移检查通过。接口鉴权测试使用替身 gRPC 上下文，不是新增管理方法的跨服务 mTLS 验收。QS 专属工作区本轮仅读取、未修改；协议同步与经过 OrgAdmin 检查的 QS 转发仍待下一批，PR #34 保持草稿，生产不开启管理接口。
+
+- QS 转发增量位于独立工作区 `qs-server-ai-governance`、分支 `codex/ai-evaluation-governance`，从 origin/main 的 `3be1c3705` 创建。QS 草稿 [PR #86](https://github.com/FangcunMount/qs-server/pull/86) 提交 `f852436d9` 同步管理协议与 Go 客户端，应用层每次从当前授权上下文判断 OrgAdmin，缺失/撤销权限或缺少风险确认时不调用 AI；写调用五秒超时且不自动重试。application/aibridge、infra/aibridge、transport/grpc 三包测试通过，两仓 proto 字节一致。尚未装配 mTLS 连接或注册 HTTP 路由，后续需从认证上下文获取身份并完成跨服务验收；原 QS 工作区未改动，生产未发布。
