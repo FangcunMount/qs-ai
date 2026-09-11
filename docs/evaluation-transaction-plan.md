@@ -80,3 +80,5 @@ PR #27 的精确提交 `9140a9e80ab433339b480e3ef2443c6e3f1d2249` 已通过 CI `
 预检终态证据已迁入：必须零模型调用，通过需包含 provider_call_count/rejection_reason 两项 passed 断言，保留原断言身份、作用域、序号和结果。`complete_preflight` 同事务写证据/进度/版本；失败进入 blocked，通过保留 collecting，重复提交拒绝。隔离 MySQL 8.4 创建/进度测试与预检领域测试共 10 项通过，包含两类预检结果、提交前回滚和重放拒绝。测试为构造证据，尚未实现实际预检执行器及 NextAction/发送许可对该证据的联动，不能视为生成前门槛已完整接通。
 
 发送许可已接入 Run 门槛：`reserve_dispatch` 在同一检查点锁下读取冻结 Run/当前进度，要求 collecting、预检 passed 且目标属于冻结槽位；不存在 Run、未通过预检、已取消或越界目标均拒绝，不更新检查点和流水。旧独立预算测试改用显式合成 Run 进度，避免保留无 Run 的发送旁路。隔离 MySQL 8.4 的发送/创建/进度共 24 项测试通过。尚未接入完整 NextAction（候选顺序、语义候选归属、结果未知处理）或真实预检执行器，这些仍是模型调用前的未完成条件。
+
+固定预检执行器 `run_preflight` 现从已校验 v6 suite 读取原单维度输入与 Profile eligibility，按原 QS 规则计算拒绝原因，并与原用例期望比较后生成断言；无模型依赖。`execute_preflight` 按 Run 冻结 suite 执行后，通过共享版本的 `complete_preflight` 保存。隔离 MySQL 8.4 创建/预检/发送共 25 项测试通过，新增覆盖实际计算拒绝原因与持久化断言。仅支持原已注册预检用例，不覆盖所有生成用例的输入/渲染预检或真实报告授权；完整 NextAction 尚未实现。

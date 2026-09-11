@@ -179,3 +179,29 @@ async def complete_preflight(
         .values(progress_json=progress)
     )
     return state
+
+
+async def execute_preflight(
+    db: AsyncSession,
+    run_id: UUID,
+    expected_version: int,
+    organization_id: int,
+    at: datetime,
+) -> CheckpointState:
+    """Compute registered evidence, then accept it under the shared Run version."""
+    from qs_ai.domain.evaluation.identity import FrozenContractRef
+    from qs_ai.infrastructure.qs_server.preflight import run_preflight
+
+    raw = (
+        await db.execute(
+            select(evaluation_runs.c.definition_json).where(
+                evaluation_runs.c.run_id == str(run_id),
+                evaluation_runs.c.organization_id == organization_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if raw is None:
+        raise CheckpointConflict("Run unavailable in organization")
+    creation = json.loads(raw)
+    evidence = run_preflight(FrozenContractRef(**creation["release"]["suite"]), at)
+    return await complete_preflight(db, run_id, expected_version, organization_id, evidence)

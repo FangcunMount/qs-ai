@@ -313,3 +313,28 @@ async def test_preflight_evidence_commits_with_progress_and_rejects_replay(setup
         async with tx.open() as db:
             await complete_preflight(db, run_id, 3, 1, evidence)
             await db.commit()
+
+
+async def test_registered_preflight_computes_evidence_before_persistence(setup_run):
+    from qs_ai.infrastructure.persistence.mysql.evaluation_progress import (
+        execute_preflight,
+        transition_requested,
+    )
+
+    tx, run_id, release = setup_run
+    at = datetime(2026, 9, 12, tzinfo=UTC)
+    async with tx.open() as db:
+        await create(db, run_id, release)
+        await transition_requested(db, run_id, 1, 1, "collecting", "actor:1", "预检", at)
+        await execute_preflight(db, run_id, 2, 1, at)
+        await db.commit()
+    run, _, checkpoint = await rows(tx, run_id)
+    evidence = run["progress_json"]["preflight"]
+    assert checkpoint["version"] == 3
+    assert evidence["status"] == "passed"
+    assert evidence["rejection_reason"] == "insufficient_eligible_dimensions"
+    assert evidence["provider_call_count"] == 0
+    assert {r["type"]: r["detail"] for r in evidence["assertions"]} == {
+        "provider_call_count": "0",
+        "rejection_reason": "insufficient_eligible_dimensions",
+    }
