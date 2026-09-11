@@ -62,3 +62,29 @@
 `MySQLRunCreator.create` 现先调用统一 `validate_release_assets`，完成全部 11 项引用解析及 suite Profile/Prompt 对齐，成功后再打开 Run 创建事务。生成侧从不可变资产仓库读取；语义指令/Schema、suite 和策略来自固定资源，语义路由按显式引用读取。相关 23 项资产测试通过，包含六类非生成引用错误在事务打开前拒绝；五项生成引用错误已有对应测试。测试资产仓库使用替身及原资产包，尚未作为完整 MySQL 创建适配器端到端验收。此为内部适配器，调用方仍须完成管理授权；尚未接入 HTTP/gRPC/CLI 入口、依赖注入或 worker，不能将其视为生产可用管理功能。
 
 完整创建适配器现补充隔离 MySQL 8.4 验证：导入原 Profile/Prompt/route/schema 到真实资产表，经真实资产仓库解析完整引用，再由 `MySQLRunCreator` 创建 Run；核对 35 槽位、策略原文、发布指纹与 version=1，并验证重复创建不改变版本。该文件共 5 项集成测试通过。测试明确选择生成路由同时作为评审路由，不声称这就是生产评审配置；没有模型调用、管理授权或公开入口验收。清理只删除本测试实际新增的资产及自身 Run，不删除已存在基线。
+
+## 下一批：Run 状态与单一版本
+
+PR #27 的精确提交 `9140a9e80ab433339b480e3ef2443c6e3f1d2249` 已通过 CI `34636173015`（MySQL 8.0.36、8.4 和镜像），随后合并。生产未部署这些增量。
+
+下一批保留创建记录不变，另存当前进度；所有状态变更仍以已有 checkpoint version 为唯一条件锁，不能新增彼此独立的 Run version。普通推进遵循原 requested→collecting/canceled、collecting→blocked/awaiting_review/canceled、blocked→collecting/canceled、awaiting_review→approved/rejected/canceled；有在途执行时不能直接离开 collecting。允许边并不等于满足前置条件，仍须校验候选完整性、未知结果、评审及门槛。
+
+特别保留原 `review_reopening.go` 的拒绝后重开规则：不能用普通 Transition 从 rejected 重回执行。只有 v2 且特定 G4 判定争议等完整条件满足时，允许最多三次带审计的评审重开；原评审、门槛和最终时间必须归档保留。该规则尚未迁移，不能把状态邻接表当成完整业务状态机。
+
+### 初始状态推进实现
+
+`0014_evaluation_progress` 为 Run 增加独立 progress JSON，保留创建 definition 原文不变。创建时写 requested 进度；旧记录只有在 checkpoint version=1 且空检查点时才可从创建记录初始化进度，更高版本须对账。`transition_requested` 在调用方事务中锁定同一 checkpoint version，按组织定位 Run，仅处理 requested→collecting/canceled，并同事务更新进度、审计和版本。已有在途检查点、非 requested 状态或旧版本均拒绝。
+
+隔离 MySQL 8.4 迁移/元数据检查与创建/状态相关 7 项测试通过：开始与取消并发只能一方成功，创建原文不变；提交前异常和错误组织保持全部记录不变。尚未覆盖完整 collecting 生命周期、预检/候选/回执、管理授权、公开入口或生产执行；初始推进函数仍为内部原语，不替代完整 Run 状态机。
+
+预检终态证据已迁入：必须零模型调用，通过需包含 provider_call_count/rejection_reason 两项 passed 断言，保留原断言身份、作用域、序号和结果。`complete_preflight` 同事务写证据/进度/版本；失败进入 blocked，通过保留 collecting，重复提交拒绝。隔离 MySQL 8.4 创建/进度测试与预检领域测试共 10 项通过，包含两类预检结果、提交前回滚和重放拒绝。测试为构造证据，尚未实现实际预检执行器及 NextAction/发送许可对该证据的联动，不能视为生成前门槛已完整接通。
+
+发送许可已接入 Run 门槛：`reserve_dispatch` 在同一检查点锁下读取冻结 Run/当前进度，要求 collecting、预检 passed 且目标属于冻结槽位；不存在 Run、未通过预检、已取消或越界目标均拒绝，不更新检查点和流水。旧独立预算测试改用显式合成 Run 进度，避免保留无 Run 的发送旁路。隔离 MySQL 8.4 的发送/创建/进度共 24 项测试通过。尚未接入完整 NextAction（候选顺序、语义候选归属、结果未知处理）或真实预检执行器，这些仍是模型调用前的未完成条件。
+
+固定预检执行器 `run_preflight` 现从已校验 v6 suite 读取原单维度输入与 Profile eligibility，按原 QS 规则计算拒绝原因，并与原用例期望比较后生成断言；无模型依赖。`execute_preflight` 按 Run 冻结 suite 执行后，通过共享版本的 `complete_preflight` 保存。隔离 MySQL 8.4 创建/预检/发送共 25 项测试通过，新增覆盖实际计算拒绝原因与持久化断言。仅支持原已注册预检用例，不覆盖所有生成用例的输入/渲染预检或真实报告授权；完整 NextAction 尚未实现。
+
+自动 NextAction 计算已迁入 `domain/evaluation/actions.py`，按原顺序处理非 collecting、在途恢复、未知结果、预检、逐槽位生成/语义及候选就绪；使用已迁移的自动恢复策略，不提供任意 manual-authorized 布尔旁路。3 项测试覆盖未知/预检优先、失败不跳槽、允许的限流重试、已有候选只进入语义阶段。本函数输入是进度投影，尚未与完整 Run 证据校验及数据库加载接通；人工恢复和完整证据身份/顺序约束仍待实现，当前不可把该计算器直接作为模型发送授权。
+
+NextAction 输入投影增加结构约束：冻结槽位须按每 case 的完整序号排列、case 不重复；候选须有成功生成记录，review_ready 须有成功语义记录，同一候选不能跨槽位复用。非法终态也拒绝。4 项规划测试通过，包含重复槽位、无证据就绪和候选重复归属拒绝。此为投影结构校验，仍不等于回执内容/调用身份/事实引用或人工恢复证据的完整验证。
+
+自动规划现在同时扫描全部槽位的生成/语义历史，调用方传入未知计数 0 不能遮蔽其他槽位或已标记 review_ready 候选中的 result_unknown。6 项规划测试通过。由于当前投影尚不承载人工确认记录，含未知历史的投影仍阻止自动调用；后续须以具体执行身份及已校验审计记录解除，不通过全局布尔值或清除历史解除。

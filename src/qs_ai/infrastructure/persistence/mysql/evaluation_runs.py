@@ -94,6 +94,7 @@ async def create_run(
             organization_id=organization_id,
             requested_by=requested_by,
             definition_json=json.dumps(definition, ensure_ascii=False, separators=(",", ":")),
+            progress_json={"status": "requested", "transitions": definition["transitions"]},
         )
     )
     await freeze_policy(db, run_id, policy)

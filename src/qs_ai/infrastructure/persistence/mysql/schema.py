@@ -260,6 +260,7 @@ evaluation_runs = sa.Table(
     sa.Column("organization_id", sa.BigInteger, nullable=False),
     sa.Column("requested_by", sa.String(128, collation="utf8mb4_bin"), nullable=False),
     sa.Column("definition_json", mysql.LONGTEXT, nullable=False),
+    sa.Column("progress_json", mysql.JSON, nullable=True),
     mysql_engine="InnoDB",
     mysql_charset="utf8mb4",
 )

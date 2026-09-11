@@ -203,3 +203,138 @@ async def test_creation_resolves_real_mysql_assets_and_freezes_complete_release(
             for table, condition in reversed(created):
                 await db.execute(delete(table).where(condition))
             await db.commit()
+
+
+async def test_start_and_cancel_compete_on_same_run_version(setup_run):
+    import asyncio
+
+    from qs_ai.application.evaluation.checkpoints import CheckpointConflict, CheckpointState
+    from qs_ai.infrastructure.persistence.mysql.evaluation_progress import transition_requested
+
+    tx, run_id, release = setup_run
+    async with tx.open() as db:
+        await create(db, run_id, release)
+        await db.commit()
+    frozen = (await rows(tx, run_id))[0]["definition_json"]
+
+    async def transition(target):
+        async with tx.open() as db:
+            state = await transition_requested(
+                db, run_id, 1, 1, target, "actor:1", "开始或取消", datetime(2026, 9, 12, tzinfo=UTC)
+            )
+            await db.commit()
+            return state
+
+    results = await asyncio.gather(
+        transition("collecting"), transition("canceled"), return_exceptions=True
+    )
+    assert sum(isinstance(x, CheckpointState) for x in results) == 1
+    assert sum(isinstance(x, CheckpointConflict) for x in results) == 1
+    run, _, checkpoint = await rows(tx, run_id)
+    assert run["definition_json"] == frozen
+    assert checkpoint["version"] == 2
+    assert run["progress_json"]["status"] in ("collecting", "canceled")
+    assert len(run["progress_json"]["transitions"]) == 2
+    with pytest.raises(CheckpointConflict):
+        async with tx.open() as db:
+            await transition_requested(
+                db, run_id, 2, 1, "collecting", "actor:1", "重放", datetime(2026, 9, 12, tzinfo=UTC)
+            )
+
+
+async def test_initial_transition_rollback_and_wrong_organization_preserve_progress(setup_run):
+    from qs_ai.application.evaluation.checkpoints import CheckpointConflict
+    from qs_ai.infrastructure.persistence.mysql.evaluation_progress import transition_requested
+
+    tx, run_id, release = setup_run
+    async with tx.open() as db:
+        await create(db, run_id, release)
+        await db.commit()
+    before = await rows(tx, run_id)
+    with pytest.raises(RuntimeError):
+        async with tx.open() as db:
+            await transition_requested(
+                db, run_id, 1, 1, "collecting", "actor:1", "开始", datetime(2026, 9, 12, tzinfo=UTC)
+            )
+            raise RuntimeError("before commit")
+    assert await rows(tx, run_id) == before
+    with pytest.raises(CheckpointConflict):
+        async with tx.open() as db:
+            await transition_requested(
+                db, run_id, 1, 2, "canceled", "actor:1", "取消", datetime(2026, 9, 12, tzinfo=UTC)
+            )
+            await db.commit()
+    assert await rows(tx, run_id) == before
+
+
+@pytest.mark.parametrize("passed", [True, False])
+async def test_preflight_evidence_commits_with_progress_and_rejects_replay(setup_run, passed):
+    from qs_ai.application.evaluation.checkpoints import CheckpointConflict
+    from qs_ai.domain.evaluation.preflight import AssertionReceipt, PreflightEvidence
+    from qs_ai.infrastructure.persistence.mysql.evaluation_progress import (
+        complete_preflight,
+        transition_requested,
+    )
+
+    tx, run_id, release = setup_run
+    at = datetime(2026, 9, 12, tzinfo=UTC)
+    async with tx.open() as db:
+        await create(db, run_id, release)
+        await transition_requested(db, run_id, 1, 1, "collecting", "actor:1", "预检", at)
+        await db.commit()
+    assertions = tuple(
+        AssertionReceipt(
+            name, "case", 1, True, "preflight", "passed" if passed else "failed", "checked"
+        )
+        for name in ("provider_call_count", "rejection_reason")
+    )
+    evidence = PreflightEvidence(
+        "PROMPT-EVAL-008",
+        "passed" if passed else "failed",
+        at,
+        0,
+        "insufficient_dimensions",
+        assertions,
+    )
+    before = await rows(tx, run_id)
+    with pytest.raises(RuntimeError):
+        async with tx.open() as db:
+            await complete_preflight(db, run_id, 2, 1, evidence)
+            raise RuntimeError("before commit")
+    assert await rows(tx, run_id) == before
+    async with tx.open() as db:
+        await complete_preflight(db, run_id, 2, 1, evidence)
+        await db.commit()
+    run, _, checkpoint = await rows(tx, run_id)
+    assert checkpoint["version"] == 3
+    assert run["progress_json"]["status"] == ("collecting" if passed else "blocked")
+    assert run["progress_json"]["preflight"]["provider_call_count"] == 0
+    with pytest.raises(CheckpointConflict):
+        async with tx.open() as db:
+            await complete_preflight(db, run_id, 3, 1, evidence)
+            await db.commit()
+
+
+async def test_registered_preflight_computes_evidence_before_persistence(setup_run):
+    from qs_ai.infrastructure.persistence.mysql.evaluation_progress import (
+        execute_preflight,
+        transition_requested,
+    )
+
+    tx, run_id, release = setup_run
+    at = datetime(2026, 9, 12, tzinfo=UTC)
+    async with tx.open() as db:
+        await create(db, run_id, release)
+        await transition_requested(db, run_id, 1, 1, "collecting", "actor:1", "预检", at)
+        await execute_preflight(db, run_id, 2, 1, at)
+        await db.commit()
+    run, _, checkpoint = await rows(tx, run_id)
+    evidence = run["progress_json"]["preflight"]
+    assert checkpoint["version"] == 3
+    assert evidence["status"] == "passed"
+    assert evidence["rejection_reason"] == "insufficient_eligible_dimensions"
+    assert evidence["provider_call_count"] == 0
+    assert {r["type"]: r["detail"] for r in evidence["assertions"]} == {
+        "provider_call_count": "0",
+        "rejection_reason": "insufficient_eligible_dimensions",
+    }

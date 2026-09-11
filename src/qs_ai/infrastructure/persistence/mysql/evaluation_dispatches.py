@@ -24,6 +24,7 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
 from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_run_policies as policies,
 )
+from qs_ai.infrastructure.persistence.mysql.schema import evaluation_runs
 from qs_ai.infrastructure.qs_server.evaluation_policies import load_execution_policy
 
 
@@ -63,6 +64,32 @@ async def reserve_dispatch(
     checkpoint = decode(row["checkpoint_json"])
     if checkpoint is None:
         raise CheckpointConflict("Prepared checkpoint required")
+    run = (
+        (
+            await db.execute(
+                select(evaluation_runs)
+                .where(evaluation_runs.c.run_id == str(run_id))
+                .with_for_update()
+            )
+        )
+        .mappings()
+        .one_or_none()
+    )
+    if run is None:
+        raise CheckpointConflict("Frozen evaluation Run required")
+    progress = run["progress_json"]
+    if (
+        not progress
+        or progress.get("status") != "collecting"
+        or progress.get("preflight", {}).get("status") != "passed"
+    ):
+        raise CheckpointConflict("Collecting Run with passed preflight required")
+    creation = json.loads(run["definition_json"])
+    if not any(
+        slot["case_id"] == checkpoint.case_id and slot["ordinal"] == checkpoint.slot_ordinal
+        for slot in creation["slots"]
+    ):
+        raise CheckpointConflict("Checkpoint target is outside frozen Run slots")
     dispatched = checkpoint.mark_dispatching(owner, at)
     policy = (
         await db.execute(select(policies.c.definition_json).where(policies.c.run_id == str(run_id)))
