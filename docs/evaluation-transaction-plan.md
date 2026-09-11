@@ -158,3 +158,9 @@ PR #30 精确提交 `65d67755b34df8214d3b37e5b43abf7faec1886d` 的 CI `346405774
 `prepare_evaluation_case` 绑定原 v6 Suite 的生成案例、Profile 和 Prompt 指纹，用原 provider_payload 渲染 Prompt；7 个生成案例均测试通过，预检/未知案例及 Profile/Prompt 漂移拒绝。这里的 input fingerprint 指向合成 provider payload，不冒充 QS 授权业务报告指纹。
 
 新增 `complete_evaluated_generation` 内部入口：读取本组织 Run 的冻结发布，准备对应案例并计算断言，再调用同事务生成接受；调用方不能传入固定通过的断言列表。失败终态继续原接受规则。隔离 MySQL 8.4 与案例准备共 43 项通过，包含结构正确但引用不同报告时，记录 all_references_resolve=failed 和 profile 检查 blocked。底层事务原语仍保留供测试/组合调用；常驻评测执行器尚需采用计算入口，尚未完成原 Go 全案例差异验证或真实模型质量验收。
+
+### 原 Go 断言状态对照
+
+新增测试桥接原 QS `EvaluateCandidate` 与真实 DeterministicGate，使用本任务独立 QS worktree（`87f9dbea6db8c5a832d788bbb91ee8c257d47bd9`），临时测试程序运行后自动清理。7 个原生成案例 × 正常/Schema/引用/安全/Profile/禁用文本共 42 组构造输出，逐条比较全部断言状态，Go/Python 一致；interop 测试通过。双方使用同一冻结 Profile、案例 facts 和断言参数，没有外部模型调用。
+
+该证据证明所选 42 组输入的状态一致，不证明全部文本边界、故障分类、发布门槛或真实结果质量。仍需常驻评测执行器调用准备/发送/接受链路、人工审核与发布治理，M1–M5 未验收。
