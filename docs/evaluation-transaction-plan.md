@@ -70,3 +70,9 @@ PR #27 的精确提交 `9140a9e80ab433339b480e3ef2443c6e3f1d2249` 已通过 CI `
 下一批保留创建记录不变，另存当前进度；所有状态变更仍以已有 checkpoint version 为唯一条件锁，不能新增彼此独立的 Run version。普通推进遵循原 requested→collecting/canceled、collecting→blocked/awaiting_review/canceled、blocked→collecting/canceled、awaiting_review→approved/rejected/canceled；有在途执行时不能直接离开 collecting。允许边并不等于满足前置条件，仍须校验候选完整性、未知结果、评审及门槛。
 
 特别保留原 `review_reopening.go` 的拒绝后重开规则：不能用普通 Transition 从 rejected 重回执行。只有 v2 且特定 G4 判定争议等完整条件满足时，允许最多三次带审计的评审重开；原评审、门槛和最终时间必须归档保留。该规则尚未迁移，不能把状态邻接表当成完整业务状态机。
+
+### 初始状态推进实现
+
+`0014_evaluation_progress` 为 Run 增加独立 progress JSON，保留创建 definition 原文不变。创建时写 requested 进度；旧记录只有在 checkpoint version=1 且空检查点时才可从创建记录初始化进度，更高版本须对账。`transition_requested` 在调用方事务中锁定同一 checkpoint version，按组织定位 Run，仅处理 requested→collecting/canceled，并同事务更新进度、审计和版本。已有在途检查点、非 requested 状态或旧版本均拒绝。
+
+隔离 MySQL 8.4 迁移/元数据检查与创建/状态相关 7 项测试通过：开始与取消并发只能一方成功，创建原文不变；提交前异常和错误组织保持全部记录不变。尚未覆盖完整 collecting 生命周期、预检/候选/回执、管理授权、公开入口或生产执行；初始推进函数仍为内部原语，不替代完整 Run 状态机。
