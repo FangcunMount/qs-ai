@@ -1,5 +1,6 @@
 """Internal QS-delegated governance. Never accepts direct public user identity claims."""
 
+import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import asdict, fields
@@ -166,6 +167,33 @@ class EvaluationManagement(rpc.EvaluationManagementServicer):
                 store = await operation.get(EvaluationManagementStore)
                 view = await store.review(scope, request.expected_version, tuple(values))
             return pb.EvaluationState(**asdict(view))
+        raise AssertionError("abort must raise")
+
+    async def PreviewGates(
+        self, request: pb.EvaluationGateQuery, context: aio.ServicerContext[Any, Any]
+    ) -> pb.EvaluationGatePreview:
+        async with self.operation(context):
+            scope = scope_from(request.scope)
+            if request.expected_version < 1:
+                raise ValueError("Explicit Run version required")
+            async with self.container() as operation:
+                store = await operation.get(EvaluationManagementStore)
+                view = await store.preview_gates(scope, request.expected_version, datetime.now(UTC))
+            body = {
+                **asdict(view.quality),
+                "schema_version": "qs-ai-evaluation-gate-preview/v1",
+                "evaluated_at": view.quality.evaluated_at.isoformat(),
+                "gate_passes": dict(view.gate_passes),
+            }
+            payload = json.dumps(body, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
+            if len(payload.encode()) > 256 * 1024:
+                raise ValueError("Gate preview exceeds response bound")
+            return pb.EvaluationGatePreview(
+                run_id=view.run_id,
+                version=view.version,
+                release_fingerprint=view.release_fingerprint,
+                gate_result_json=payload,
+            )
         raise AssertionError("abort must raise")
 
     async def ResolveUnknown(
