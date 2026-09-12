@@ -246,3 +246,11 @@ M1 → M2 → M3 → M4 → M5。M3 清单分析可提前开展，生产切换�
 - 现场确认 QS `b191a6bb72fe348072e2720beb31fb40aa184dd0` 健康；此前成功部署确由 qlume 组 macOS/ARM64 runner 执行，故重新尝试 AI 正式发布 [34697860032](https://github.com/FangcunMount/qs-ai/actions/runs/34697860032)。构建成功，runner6 成功连接 serverA 并拉取镜像，但 docker save/gzip 导出步骤失败；本次不是 runner 失联。旧脚本仅输出 Image export failed，不能据此断言磁盘不足或具体 Docker 错误。
 - 失败后现场复核：AI API/gRPC 仍为 `ccde2ed627171b748ff63efe5062fdc741757480` 且 healthy，数据库仍 `0006_artifacts`，未上传新镜像或执行迁移。serverA 可用磁盘约 36 GB 不代表 runner/Docker 存储充足。执行开关 false；自动部署仍关闭。
 - `codex/deployment-export-diagnostics` 补充导出错误的允许列表分类、Docker/gzip 退出码和归档目录剩余空间；不输出原始 stderr、凭据或私有路径。28 项导出/部署测试通过，包含诊断脱敏、子进程回收和失败不覆盖既有归档。此为诊断准备，尚未证明根因或修复成功。首个真实测评/报告与测试账号标识已再次请求，等待用户回复；M1–M5 未验收。
+
+### 2026-09-12：runner 磁盘故障确认与人工评审规则
+
+- AI PR #37 合并至 `e8740611cfcbce03ee594213ed26b2b75a985eef`，主分支 CI [34698508008](https://github.com/FangcunMount/qs-ai/actions/runs/34698508008) 三项检查通过。随后部署 [34698818029](https://github.com/FangcunMount/qs-ai/actions/runs/34698818029) 的镜像构建成功，但 Mac mini runner3 在下载 setup-uv Action 时明确报告 `No space left on device`；尚未执行部署脚本，不存在本次迁移或容器切换证据。此错误不能反向证明此前 runner6 镜像导出失败的具体原因。
+- 用户授权清理 Mac mini。Tailscale 确认主机在线；已配置的两把本地候选 SSH 密钥均未获授权，没有删除文件。PR #38 提供仅手动触发、无外部 Action 下载的只读磁盘检查，精确源提交 `d71ac0d3044ce655eaf6c5f462d9755ecf23d963` 通过 CI [34699171370](https://github.com/FangcunMount/qs-ai/actions/runs/34699171370) 并合并；检查 [34699361707](https://github.com/FangcunMount/qs-ai/actions/runs/34699361707) 已由 runner4 领取，截至本记录尚无步骤日志。等待该运行或可用 SSH 登录方式，不将排队/领取视为清理成功。
+- QS PR #87 合并后主分支文档门禁发现 source baseline 仍引用合并前提交；PR #88 只修正该元数据，本地文档门禁及精确提交 PR CI 全部通过，合并至 `c46f9b0e948a4a4fe81824fde9976e907d6ef2a7`。未改检查规则，未手动发起文档发布；合并后 CI 继续跟踪。
+- `codex/evaluation-human-review` 对照 QS 源码 `983132ffb2355ce33919bb7d9650dc98ce05c9da` 的 AddHumanReviews 与 validateSemanticReviews，新增不可变候选人工评审规则：只能审核完成语义证据的候选；每个候选两个职责不得由同一审核人承担；完整批次校验后才返回新历史。语义误判复核必须绑定 v2 策略、原执行和输出摘要、原始失败断言及候选原文；原始判断和输出不修改。
+- 人工评审专项 30 项、与语义终态及未知处置合计 57 项本地测试通过，mypy 158 个源文件通过。尚未接入审核接受事务、管理授权、审核 API 或发布门槛，也未实现双人语义复核后的有效判断投影；不能作为完整审核、发布或 M3 验收。生产执行开关没有修改。
