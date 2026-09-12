@@ -191,4 +191,6 @@ QS 转发路径为 `POST /internal/v2/interpretation/ai-workflow/evaluations/{ru
 
 旧 `qs-snapshot-v1` 继续通过固定迁移基线执行，保留旧输入与持久调用恢复行为；部署回退不得运行不识别新工作流版本的旧引擎。单独关闭 use_publications 仅停止新请求绑定，已有绑定任务仍由支持该版本的 worker 处理。生产只读保留 0018 数据，迁移 downgrade 仅用于空的隔离验证库。
 
-当前仅支持既有 participant scale/score_range、DeepSeek Responses/json_schema 路线。业务配置来自冻结资产，访问地址和凭据来自私有部署设置。接单开关仍关闭；修改草稿、新套件与新输入构造版本评测绑定、真实管理/生成/回退验收尚未完成，不能将本地发布执行测试作为 M3 验收。
+当前仅支持既有 participant scale/score_range、DeepSeek Responses/json_schema 路线。业务配置来自冻结资产，访问地址和凭据来自私有部署设置。接单开关仍关闭；新输入构造版本的独立套件绑定已实现，必须通过新 Run 重新评测和批准；修改草稿与任意新套件管理、真实管理/生成/回退验收尚未完成，不能将本地发布执行测试作为 M3 验收。
+
+发布执行必须使用声明 `qs-published-snapshot-v1` 的套件批准；原 v6 Run 仍可查询和保留审计，但不能通过新接单配置检查。当前注册的派生套件及完整身份见 [评测资源](../integrations/qs_server/evaluation/README.md#发布执行输入契约套件)。实际管理客户端可创建该新 release，创建前检查规范投影，发送前再次检查；不会将旧 Run 原地改成新输入版本。

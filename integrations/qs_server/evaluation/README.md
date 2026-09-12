@@ -32,3 +32,13 @@ prepared → dispatching 要求 owner 匹配和原租约内时间；恢复只允
 `0011_evaluation_checkpoints` 和 `MySQLCheckpoints` 保存 run UUID、版本和完整在途检查点 JSON。create 不覆盖已有记录，save 要求新版本恰为旧版本加一，UPDATE 的 run_id/version 条件不匹配即冲突。解析时重新执行领域约束，时间保留时区。
 
 隔离 MySQL 8.4 并发发送/回收测试证明同一版本仅一个提交成功，旧 worker 写入和跳版本被拒绝，重新创建仓库读取仍为胜出状态。此表是内部检查点存储原语，不是完整评测 Run，也不校验外部调用者权限或替代 NextAction 决策。预算、候选、回执与检查点的联合事务仍待实现；在联合事务实现前不接入评测执行器。生产尚未迁移该表。
+
+## 发布执行输入契约套件
+
+`qs-ai-published-input-cases-v1.json` 是 qs-ai 自有的派生套件，不是对原六版 QS 导出资源的覆盖。其身份为 `cross-dimension-participant-scale-v6-published` / `qs-ai-evaluation-cases/v1`，SHA-256 为 `42afcc73db6fa272ab54aa17bcb9b30dc8797a382ee9329d9453aa9c9953e382`。`derived_from` 固定原 v6 的完整身份；`input_contract` 固定 `qs-published-snapshot-v1` 和原输入规范的版本、摘要。
+
+原 v6 的 7 个生成案例、1 个预检案例、Profile、Prompt、执行次数和全部断言保持不变。原案例本身已有空引用数组；新增的是可追溯的执行输入版本身份，不是自动将旧批准升级成新批准。新身份导致 release fingerprint 变化，必须创建新的 Run，重新生成、语义评测、双职责人工审核并完成 G1–G5 批准后才可用于该执行版本。
+
+创建 Run 前和准备生成消息时，根据冻结规范只校验发送给模型的 context/facts 投影，保留原 `$defs` 与字段约束，不虚构 QS report/source 身份，不在发送前偷偷修正案例数据。预检案例故意违反维度数下限，仍由 preflight 证明 provider_call_count 为 0；不能为通过输入验证而削弱该拒绝案例。
+
+发布绑定执行拒绝缺少该输入构造版本或 Schema 身份不匹配的 publication；旧 Run、publication、确认回执及原始资源仍可查询。注册派生套件不会调模型、批准 Run、修改发布指针或启用生产开关。当前仍是有界注册目录；任意新 Prompt/套件的草稿、校验、版本化和管理入口仍待建设。
