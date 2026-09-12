@@ -22,6 +22,7 @@ from qs_ai.contracts.workflow import workflow_pb2_grpc as rpc
 from qs_ai.domain.evaluation.identity import EvidenceReleaseIdentity, FrozenContractRef
 from qs_ai.domain.evaluation.resolution import ResultUnknownResolution
 from qs_ai.domain.evaluation.review import CandidateHumanReview, SemanticContradictionReview
+from qs_ai.transport.grpc.identity import require_qs_workload
 
 
 def scope_from(request: pb.EvaluationQuery) -> ManagementScope:
@@ -37,11 +38,7 @@ class EvaluationManagement(rpc.EvaluationManagementServicer):
 
     @asynccontextmanager
     async def operation(self, context: aio.ServicerContext[Any, Any]) -> AsyncIterator[None]:
-        auth = context.auth_context()
-        if auth.get("transport_security_type") != [b"ssl"] or auth.get("x509_common_name") != [
-            b"qs-apiserver.svc"
-        ]:
-            await context.abort(grpc.StatusCode.PERMISSION_DENIED, "Untrusted workload")
+        await require_qs_workload(context)
         try:
             yield
             return

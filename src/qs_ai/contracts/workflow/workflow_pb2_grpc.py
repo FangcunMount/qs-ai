@@ -678,3 +678,254 @@ class EvaluationManagement:
             timeout,
             metadata,
             _registered_method=True)
+
+
+class PublicationManagementStub:
+    """Shared configuration catalog. QS authorizes each operator before delegation.
+    Server timestamps and immutable evaluation proof are never supplied by callers.
+    """
+
+    def __init__(self, channel):
+        """Constructor.
+
+        Args:
+            channel: A grpc.Channel.
+        """
+        self.Publish = channel.unary_unary(
+                '/qsai.workflow.v1.PublicationManagement/Publish',
+                request_serializer=workflow__pb2.PublicationPublishCommand.SerializeToString,
+                response_deserializer=workflow__pb2.PublicationReceipt.FromString,
+                _registered_method=True)
+        self.Rollback = channel.unary_unary(
+                '/qsai.workflow.v1.PublicationManagement/Rollback',
+                request_serializer=workflow__pb2.PublicationRollbackCommand.SerializeToString,
+                response_deserializer=workflow__pb2.PublicationReceipt.FromString,
+                _registered_method=True)
+        self.Disable = channel.unary_unary(
+                '/qsai.workflow.v1.PublicationManagement/Disable',
+                request_serializer=workflow__pb2.PublicationDisableCommand.SerializeToString,
+                response_deserializer=workflow__pb2.PublicationReceipt.FromString,
+                _registered_method=True)
+        self.Get = channel.unary_unary(
+                '/qsai.workflow.v1.PublicationManagement/Get',
+                request_serializer=workflow__pb2.PublicationQuery.SerializeToString,
+                response_deserializer=workflow__pb2.PublicationState.FromString,
+                _registered_method=True)
+        self.GetReceipt = channel.unary_unary(
+                '/qsai.workflow.v1.PublicationManagement/GetReceipt',
+                request_serializer=workflow__pb2.PublicationReceiptQuery.SerializeToString,
+                response_deserializer=workflow__pb2.PublicationReceipt.FromString,
+                _registered_method=True)
+
+
+class PublicationManagementServicer:
+    """Shared configuration catalog. QS authorizes each operator before delegation.
+    Server timestamps and immutable evaluation proof are never supplied by callers.
+    """
+
+    def Publish(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def Rollback(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def Disable(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def Get(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetReceipt(self, request, context):
+        """Same authorized organization/operator that submitted the command; read-only.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+
+def add_PublicationManagementServicer_to_server(servicer, server):
+    rpc_method_handlers = {
+            'Publish': grpc.unary_unary_rpc_method_handler(
+                    servicer.Publish,
+                    request_deserializer=workflow__pb2.PublicationPublishCommand.FromString,
+                    response_serializer=workflow__pb2.PublicationReceipt.SerializeToString,
+            ),
+            'Rollback': grpc.unary_unary_rpc_method_handler(
+                    servicer.Rollback,
+                    request_deserializer=workflow__pb2.PublicationRollbackCommand.FromString,
+                    response_serializer=workflow__pb2.PublicationReceipt.SerializeToString,
+            ),
+            'Disable': grpc.unary_unary_rpc_method_handler(
+                    servicer.Disable,
+                    request_deserializer=workflow__pb2.PublicationDisableCommand.FromString,
+                    response_serializer=workflow__pb2.PublicationReceipt.SerializeToString,
+            ),
+            'Get': grpc.unary_unary_rpc_method_handler(
+                    servicer.Get,
+                    request_deserializer=workflow__pb2.PublicationQuery.FromString,
+                    response_serializer=workflow__pb2.PublicationState.SerializeToString,
+            ),
+            'GetReceipt': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetReceipt,
+                    request_deserializer=workflow__pb2.PublicationReceiptQuery.FromString,
+                    response_serializer=workflow__pb2.PublicationReceipt.SerializeToString,
+            ),
+    }
+    generic_handler = grpc.method_handlers_generic_handler(
+            'qsai.workflow.v1.PublicationManagement', rpc_method_handlers)
+    server.add_generic_rpc_handlers((generic_handler,))
+    server.add_registered_method_handlers('qsai.workflow.v1.PublicationManagement', rpc_method_handlers)
+
+
+ # This class is part of an EXPERIMENTAL API.
+class PublicationManagement:
+    """Shared configuration catalog. QS authorizes each operator before delegation.
+    Server timestamps and immutable evaluation proof are never supplied by callers.
+    """
+
+    @staticmethod
+    def Publish(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.PublicationManagement/Publish',
+            workflow__pb2.PublicationPublishCommand.SerializeToString,
+            workflow__pb2.PublicationReceipt.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def Rollback(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.PublicationManagement/Rollback',
+            workflow__pb2.PublicationRollbackCommand.SerializeToString,
+            workflow__pb2.PublicationReceipt.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def Disable(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.PublicationManagement/Disable',
+            workflow__pb2.PublicationDisableCommand.SerializeToString,
+            workflow__pb2.PublicationReceipt.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def Get(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.PublicationManagement/Get',
+            workflow__pb2.PublicationQuery.SerializeToString,
+            workflow__pb2.PublicationState.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetReceipt(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.PublicationManagement/GetReceipt',
+            workflow__pb2.PublicationReceiptQuery.SerializeToString,
+            workflow__pb2.PublicationReceipt.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)

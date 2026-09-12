@@ -359,3 +359,133 @@ class EvaluationCreateCommand(_message.Message):
     reason: str
     confirm: bool
     def __init__(self, scope: _Optional[_Union[EvaluationQuery, _Mapping]] = ..., release: _Optional[_Union[EvaluationRelease, _Mapping]] = ..., reason: _Optional[str] = ..., confirm: _Optional[bool] = ...) -> None: ...
+
+class PublicationScope(_message.Message):
+    __slots__ = ("organization_id", "operator_user_id")
+    ORGANIZATION_ID_FIELD_NUMBER: _ClassVar[int]
+    OPERATOR_USER_ID_FIELD_NUMBER: _ClassVar[int]
+    organization_id: int
+    operator_user_id: int
+    def __init__(self, organization_id: _Optional[int] = ..., operator_user_id: _Optional[int] = ...) -> None: ...
+
+class PublicationSelector(_message.Message):
+    __slots__ = ("audience", "model_kind", "decision_kind", "model_code", "model_version")
+    AUDIENCE_FIELD_NUMBER: _ClassVar[int]
+    MODEL_KIND_FIELD_NUMBER: _ClassVar[int]
+    DECISION_KIND_FIELD_NUMBER: _ClassVar[int]
+    MODEL_CODE_FIELD_NUMBER: _ClassVar[int]
+    MODEL_VERSION_FIELD_NUMBER: _ClassVar[int]
+    audience: str
+    model_kind: str
+    decision_kind: str
+    model_code: str
+    model_version: str
+    def __init__(self, audience: _Optional[str] = ..., model_kind: _Optional[str] = ..., decision_kind: _Optional[str] = ..., model_code: _Optional[str] = ..., model_version: _Optional[str] = ...) -> None: ...
+
+class PublicationExpectation(_message.Message):
+    __slots__ = ("selector", "version", "active_publication_id")
+    SELECTOR_FIELD_NUMBER: _ClassVar[int]
+    VERSION_FIELD_NUMBER: _ClassVar[int]
+    ACTIVE_PUBLICATION_ID_FIELD_NUMBER: _ClassVar[int]
+    selector: PublicationSelector
+    version: int
+    active_publication_id: str
+    def __init__(self, selector: _Optional[_Union[PublicationSelector, _Mapping]] = ..., version: _Optional[int] = ..., active_publication_id: _Optional[str] = ...) -> None: ...
+
+class PublicationPublishCommand(_message.Message):
+    __slots__ = ("scope", "command_id", "expected", "reason", "confirm", "run_id", "run_version", "release_fingerprint")
+    SCOPE_FIELD_NUMBER: _ClassVar[int]
+    COMMAND_ID_FIELD_NUMBER: _ClassVar[int]
+    EXPECTED_FIELD_NUMBER: _ClassVar[int]
+    REASON_FIELD_NUMBER: _ClassVar[int]
+    CONFIRM_FIELD_NUMBER: _ClassVar[int]
+    RUN_ID_FIELD_NUMBER: _ClassVar[int]
+    RUN_VERSION_FIELD_NUMBER: _ClassVar[int]
+    RELEASE_FINGERPRINT_FIELD_NUMBER: _ClassVar[int]
+    scope: PublicationScope
+    command_id: str
+    expected: PublicationExpectation
+    reason: str
+    confirm: bool
+    run_id: str
+    run_version: int
+    release_fingerprint: str
+    def __init__(self, scope: _Optional[_Union[PublicationScope, _Mapping]] = ..., command_id: _Optional[str] = ..., expected: _Optional[_Union[PublicationExpectation, _Mapping]] = ..., reason: _Optional[str] = ..., confirm: _Optional[bool] = ..., run_id: _Optional[str] = ..., run_version: _Optional[int] = ..., release_fingerprint: _Optional[str] = ...) -> None: ...
+
+class PublicationRollbackCommand(_message.Message):
+    __slots__ = ("scope", "command_id", "expected", "reason", "confirm", "target_publication_id")
+    SCOPE_FIELD_NUMBER: _ClassVar[int]
+    COMMAND_ID_FIELD_NUMBER: _ClassVar[int]
+    EXPECTED_FIELD_NUMBER: _ClassVar[int]
+    REASON_FIELD_NUMBER: _ClassVar[int]
+    CONFIRM_FIELD_NUMBER: _ClassVar[int]
+    TARGET_PUBLICATION_ID_FIELD_NUMBER: _ClassVar[int]
+    scope: PublicationScope
+    command_id: str
+    expected: PublicationExpectation
+    reason: str
+    confirm: bool
+    target_publication_id: str
+    def __init__(self, scope: _Optional[_Union[PublicationScope, _Mapping]] = ..., command_id: _Optional[str] = ..., expected: _Optional[_Union[PublicationExpectation, _Mapping]] = ..., reason: _Optional[str] = ..., confirm: _Optional[bool] = ..., target_publication_id: _Optional[str] = ...) -> None: ...
+
+class PublicationDisableCommand(_message.Message):
+    __slots__ = ("scope", "command_id", "expected", "reason", "confirm")
+    SCOPE_FIELD_NUMBER: _ClassVar[int]
+    COMMAND_ID_FIELD_NUMBER: _ClassVar[int]
+    EXPECTED_FIELD_NUMBER: _ClassVar[int]
+    REASON_FIELD_NUMBER: _ClassVar[int]
+    CONFIRM_FIELD_NUMBER: _ClassVar[int]
+    scope: PublicationScope
+    command_id: str
+    expected: PublicationExpectation
+    reason: str
+    confirm: bool
+    def __init__(self, scope: _Optional[_Union[PublicationScope, _Mapping]] = ..., command_id: _Optional[str] = ..., expected: _Optional[_Union[PublicationExpectation, _Mapping]] = ..., reason: _Optional[str] = ..., confirm: _Optional[bool] = ...) -> None: ...
+
+class PublicationQuery(_message.Message):
+    __slots__ = ("scope", "selector")
+    SCOPE_FIELD_NUMBER: _ClassVar[int]
+    SELECTOR_FIELD_NUMBER: _ClassVar[int]
+    scope: PublicationScope
+    selector: PublicationSelector
+    def __init__(self, scope: _Optional[_Union[PublicationScope, _Mapping]] = ..., selector: _Optional[_Union[PublicationSelector, _Mapping]] = ...) -> None: ...
+
+class PublicationReceiptQuery(_message.Message):
+    __slots__ = ("scope", "command_id")
+    SCOPE_FIELD_NUMBER: _ClassVar[int]
+    COMMAND_ID_FIELD_NUMBER: _ClassVar[int]
+    scope: PublicationScope
+    command_id: str
+    def __init__(self, scope: _Optional[_Union[PublicationScope, _Mapping]] = ..., command_id: _Optional[str] = ...) -> None: ...
+
+class PublicationState(_message.Message):
+    __slots__ = ("selector", "version", "active_publication_id", "publication_json", "changed_at")
+    SELECTOR_FIELD_NUMBER: _ClassVar[int]
+    VERSION_FIELD_NUMBER: _ClassVar[int]
+    ACTIVE_PUBLICATION_ID_FIELD_NUMBER: _ClassVar[int]
+    PUBLICATION_JSON_FIELD_NUMBER: _ClassVar[int]
+    CHANGED_AT_FIELD_NUMBER: _ClassVar[int]
+    selector: PublicationSelector
+    version: int
+    active_publication_id: str
+    publication_json: str
+    changed_at: str
+    def __init__(self, selector: _Optional[_Union[PublicationSelector, _Mapping]] = ..., version: _Optional[int] = ..., active_publication_id: _Optional[str] = ..., publication_json: _Optional[str] = ..., changed_at: _Optional[str] = ...) -> None: ...
+
+class PublicationReceipt(_message.Message):
+    __slots__ = ("command_id", "previous", "current", "action", "actor", "reason", "changed_at")
+    COMMAND_ID_FIELD_NUMBER: _ClassVar[int]
+    PREVIOUS_FIELD_NUMBER: _ClassVar[int]
+    CURRENT_FIELD_NUMBER: _ClassVar[int]
+    ACTION_FIELD_NUMBER: _ClassVar[int]
+    ACTOR_FIELD_NUMBER: _ClassVar[int]
+    REASON_FIELD_NUMBER: _ClassVar[int]
+    CHANGED_AT_FIELD_NUMBER: _ClassVar[int]
+    command_id: str
+    previous: PublicationState
+    current: PublicationState
+    action: str
+    actor: str
+    reason: str
+    changed_at: str
+    def __init__(self, command_id: _Optional[str] = ..., previous: _Optional[_Union[PublicationState, _Mapping]] = ..., current: _Optional[_Union[PublicationState, _Mapping]] = ..., action: _Optional[str] = ..., actor: _Optional[str] = ..., reason: _Optional[str] = ..., changed_at: _Optional[str] = ...) -> None: ...

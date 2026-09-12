@@ -9,7 +9,7 @@ import hashlib
 from dataclasses import asdict
 from datetime import datetime
 from typing import Literal
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from sqlalchemy import insert, select, update
 from sqlalchemy.dialects.mysql import insert as mysql_insert
@@ -22,8 +22,10 @@ from qs_ai.application.governance.publication import (
     PublicationReceipt,
     PublicationScope,
     PublishConfiguration,
+    valid_uuid,
 )
 from qs_ai.application.governance.publication_codec import canonical, publication_json, request_json
+from qs_ai.application.interpretation.ports import NotFound
 from qs_ai.domain.governance.publication import (
     PublicationAudit,
     PublicationConflict,
@@ -198,6 +200,29 @@ class MySQLPublications:
                 ):
                     return await load_receipt(db, accepted)
             raise PublicationConflict("Concurrent publication command conflict") from None
+
+    async def get_receipt(self, scope: PublicationScope, command_id: UUID) -> PublicationReceipt:
+        """Reconcile an unknown outcome without accepting a new mutation."""
+        if not valid_uuid(command_id):
+            raise ValueError("Canonical publication command identity required")
+        async with self.transactions.open() as db:
+            await db.connection(execution_options={"isolation_level": "REPEATABLE READ"})
+            row = (
+                (
+                    await db.execute(
+                        select(changes).where(
+                            changes.c.command_id == str(command_id),
+                            changes.c.organization_id == scope.organization_id,
+                            changes.c.operator_user_id == scope.operator_user_id,
+                        )
+                    )
+                )
+                .mappings()
+                .one_or_none()
+            )
+            if row is None:
+                raise NotFound("Publication command unavailable in operator scope")
+            return await load_receipt(db, row)
 
     async def get(self, selector: ReleaseSelector) -> PublicationPointer:
         """Read the global management catalog; this does not authorize generation."""
