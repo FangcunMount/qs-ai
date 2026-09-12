@@ -16,6 +16,7 @@ func main() {
 	var input struct {
 		RunID, Action, Decision, Reason string
 		Release                         app.EvaluationRelease
+		Review                          app.EvaluationReview
 		UserID                          int64
 		OrgID, Version                  int64
 		Allowed, Confirm                bool
@@ -40,7 +41,10 @@ func main() {
 	}
 	scope := app.EvaluationScope{RunID: input.RunID, OrganizationID: input.OrgID, OperatorUserID: input.UserID}
 	var result app.EvaluationState
-	if input.Action == "create" {
+	if input.Action == "review" {
+		input.Review.ExpectedVersion = input.Version
+		result, err = service.Review(ctx, scope, input.Review)
+	} else if input.Action == "create" {
 		result, err = service.Create(ctx, scope, app.EvaluationCreate{Release: input.Release, Reason: input.Reason, Confirm: input.Confirm})
 	} else if input.Action == "resolve" {
 		result, err = service.Resolve(ctx, scope, app.UnknownResolution{ExpectedVersion: input.Version, ExecutionID: "execution:dead", Decision: input.Decision, Reason: "跨进程管理测试", Confirm: input.Confirm, AcknowledgedDuplicateCallAndCostRisk: input.Confirm})
