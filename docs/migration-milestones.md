@@ -236,3 +236,6 @@ M1 → M2 → M3 → M4 → M5。M3 清单分析可提前开展，生产切换�
 - 非集成回归 524 项通过、11 项跳过；Ruff、mypy、协议生成和文档检查通过，临时数据库已清理。本批尚未接入 QS Create 转发或跨语言创建验收，未部署，M1–M5 验收状态不变。
 
 - QS Create 转发已提交草稿 [PR #87](https://github.com/FangcunMount/qs-server/pull/87)。独立分支 `codex/ai-evaluation-create` 基于最新主分支 `b191a6bb72fe348072e2720beb31fb40aa184dd0`，源提交 `890375426565`、文档基线提交 `c50aa94e6`。新增 POST `/{run_id}/create`，通过现有授权及身份上下文传递十一项冻结引用；Go 应用/客户端/REST/grpc 包测试、fmt-check、API 生成一致性和 docs-check 通过。当前清单为 66 RPC、206 apiserver REST operations / 184 paths，保留其他任务的接口与迁移更新；跨语言创建验收及最新 QS CI 仍待完成。
+
+- 创建跨语言验收增量：使用 QS 精确提交 `c50aa94e6605b3953362841a76422f1efcaaf6f7` 编译 Go 探针，调用实际 QS 应用/客户端、Python gRPC、依赖注入容器、MySQL 资产存储和 Run 事务。创建场景与启动/取消/授权替代回归共 4 项通过。基线 Profile/Prompt/route/schema 均先写入隔离 MySQL，十一项引用原样落库；并发相同创建返回同一 requested Run，机构/操作者/原因冲突拒绝，错误资产摘要不产生部分记录，启动后重放返回 collecting/version 2 且不改审计。
+- 此验证使用临时 CA/证书和合成 IAM 快照，没有生产 IAM/HTTP 页面或真实模型流量；不能视为 M1–M5 生产验收。临时数据库与 Go 源目录已清理，QS 工作区无测试残留；两份草稿继续等待精确提交 CI。

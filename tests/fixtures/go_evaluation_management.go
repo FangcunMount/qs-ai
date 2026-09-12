@@ -14,9 +14,11 @@ import (
 
 func main() {
 	var input struct {
-		RunID, Action, Decision string
-		OrgID, Version          int64
-		Allowed, Confirm        bool
+		RunID, Action, Decision, Reason string
+		Release                         app.EvaluationRelease
+		UserID                          int64
+		OrgID, Version                  int64
+		Allowed, Confirm                bool
 	}
 	if json.NewDecoder(os.Stdin).Decode(&input) != nil {
 		os.Exit(2)
@@ -33,9 +35,14 @@ func main() {
 	}
 	ctx := authz.WithSnapshot(context.Background(), snapshot)
 	service := &app.EvaluationAdministration{Gateway: client}
-	scope := app.EvaluationScope{RunID: input.RunID, OrganizationID: input.OrgID, OperatorUserID: 42}
+	if input.UserID == 0 {
+		input.UserID = 42
+	}
+	scope := app.EvaluationScope{RunID: input.RunID, OrganizationID: input.OrgID, OperatorUserID: input.UserID}
 	var result app.EvaluationState
-	if input.Action == "resolve" {
+	if input.Action == "create" {
+		result, err = service.Create(ctx, scope, app.EvaluationCreate{Release: input.Release, Reason: input.Reason, Confirm: input.Confirm})
+	} else if input.Action == "resolve" {
 		result, err = service.Resolve(ctx, scope, app.UnknownResolution{ExpectedVersion: input.Version, ExecutionID: "execution:dead", Decision: input.Decision, Reason: "跨进程管理测试", Confirm: input.Confirm, AcknowledgedDuplicateCallAndCostRisk: input.Confirm})
 	} else if input.Action == "start" {
 		result, err = service.Start(ctx, scope, app.EvaluationStart{ExpectedVersion: input.Version, Reason: "跨进程管理测试", Confirm: input.Confirm})
