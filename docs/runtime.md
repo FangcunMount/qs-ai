@@ -197,7 +197,7 @@ QS 转发路径为 `POST /internal/v2/interpretation/ai-workflow/evaluations/{ru
 
 ## Prompt 草稿与修订历史
 
-`PromptDraftManagement` 的 Create、Revise、Get、GetReceipt 管理编辑修订，Freeze、GetFreezeReceipt 管理原生资产冻结。全部受默认关闭的 `grpc.governance_enabled` 控制，并要求可信 QS mTLS 身份和组织/操作者上下文。QS 仍负责每次管理授权；草稿按机构隔离，同机构获授权管理员可读取历史，命令回执仅向原机构/操作者返回。QS 草稿四项代理已实现，冻结代理及页面尚未接入。
+`PromptDraftManagement` 的 Create、Revise、Get、GetReceipt 管理编辑修订，Freeze、GetFreezeReceipt 管理原生资产冻结。全部受默认关闭的 `grpc.governance_enabled` 控制，并要求可信 QS mTLS 身份和组织/操作者上下文。QS 仍负责每次管理授权；草稿按机构隔离，同机构获授权管理员可读取历史，命令回执仅向原机构/操作者返回。QS 草稿四项代理及冻结/冻结回执两项代理已实现，管理页面尚未接入。
 
 Create 必须提供原不可变 Prompt 的完整身份及包摘要，并指定尚不存在的目标模板/版本。服务端从已验证原包复制内容，不接受调用者伪造源正文；来源引用保留在每个修订快照中。新的编辑内容属于原生草稿，不能继续拿源 Git blob 或 Prompt fingerprint 作为编辑后内容的身份。
 
@@ -208,6 +208,8 @@ Revise 必须携带正数 expected_revision、唯一 command_id、完整编辑�
 迁移回退仅用于隔离测试库；生产修订记录和源资产保留。维护者可按 draft_id 与 revision 读取完整正文、源引用、command_id、操作者、时间和原因；修订正文摘要、索引及原命令审计不一致时读取失败，不返回一个看似正常的草稿。
 
 ## 原生 Prompt 冻结
+
+QS 通过 `POST /internal/v2/interpretation/ai-workflow/prompt-drafts/{draft_id}/freeze` 发起冻结，通过 `GET /internal/v2/interpretation/ai-workflow/prompt-drafts/freeze-commands/{command_id}` 查询原回执。写操作复用 OrgAdmin，读操作复用 AuditInterpretation；组织与操作人来自认证上下文。代理限制 RPC 为 5 秒且不自动重试，确认回执的机构、操作者、命令、草稿修订及资产摘要格式；超时后查询原命令，不能推断冻结失败后新建另一命令。
 
 Freeze 必须提供草稿 ID、expected_revision、原命令 ID 和原因。服务端在草稿 head 锁内校验三个非空正文、静态 system/data preamble、受支持且不重复的占位符声明，以及任务模板所有占位符已声明且语法完整。检查版本固定为 `qs-ai-prompt-syntax/v1`；不调用模型，也不声称临床、产品语义或 Profile 规则已经通过。
 

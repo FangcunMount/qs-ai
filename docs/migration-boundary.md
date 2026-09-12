@@ -135,4 +135,4 @@ AI 端五个管理 RPC（Publish/Rollback/Disable/Get/GetReceipt）和依赖注�
 
 ### Prompt 草稿的编辑边界
 
-新增独立的 Prompt 草稿及修订历史，不把不可变 PromptAssets 改成可覆盖仓储。创建从确切源包复制，后续编辑只追加草稿快照；头指针、修订正文与命令回执原子提交，机构隔离和操作者审计独立于共享发布目录。草稿可保存未完成文本，因此保存结果不能作为 validate 或 approved。四个内部草稿 RPC 与 QS 授权代理已实现；新增 Freeze/GetFreezeReceipt 在原子事务中校验语法并形成不含伪造 Git 来源的 qs-ai 原生资产。冻结代理、管理页面及“新 Profile/套件评测→批准发布”的后续链路仍待完成，现有质量门槛不会因冻结而绕过。完整接口边界见 [运行说明](runtime.md#原生-prompt-冻结)。
+新增独立的 Prompt 草稿及修订历史，不把不可变 PromptAssets 改成可覆盖仓储。创建从确切源包复制，后续编辑只追加草稿快照；头指针、修订正文与命令回执原子提交，机构隔离和操作者审计独立于共享发布目录。草稿可保存未完成文本，因此保存结果不能作为 validate 或 approved。四个内部草稿 RPC 与 QS 授权代理已实现；新增 Freeze/GetFreezeReceipt 在原子事务中校验语法并形成不含伪造 Git 来源的 qs-ai 原生资产。QS 冻结和冻结回执授权代理已实现；管理页面及“新 Profile/套件评测→批准发布”的后续链路仍待完成，现有质量门槛不会因冻结而绕过。完整接口边界见 [运行说明](runtime.md#原生-prompt-冻结)。

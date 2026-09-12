@@ -442,3 +442,11 @@ M1 → M2 → M3 → M4 → M5。M3 清单分析可提前开展，生产切换�
 - 821 项非集成回归通过、11 项跳过；Ruff、格式、mypy 195 源文件、协议与文档检查通过。隔离 MySQL 8.4 编辑/冻结/RPC 初始组合 24 项通过（4.23 秒）；补充编辑与冻结竞争、两个草稿争用相同目标及从原生资产继续修订后，原生专项共 33 项通过（19 项语法/渲染、14 项 MySQL/mTLS，2.20 秒）。已有发布执行绑定 15 项集成回归通过（77.93 秒）。0019→0020→0019→0020 及结构对账通过，降级前确认测试库冻结表为空，未操作生产历史。
 - 原生资产冻结只证明语法和来源，不是 Profile 策略兼容、模型质量或发布审批。当前评测仍有固定迁移 Profile/Prompt/套件加载路径；下一步须接入 QS 冻结代理及新 Profile/套件版本、按真实冻结资产评测，不允许用旧批准替新正文背书。完整边界见 [原生 Prompt 冻结](runtime.md#原生-prompt-冻结)。
 - 输入构造套件版主分支 CI 34718434429 和部署 34719191509 成功；SSH 核实 AI API/gRPC 实际为 `a1ba1082f0fb256d057d2a833a1262f1b2b501b6` 且 healthy，MySQL 8.0.36 / 0018、readyz connected、mTLS 身份拒绝探针通过。QS serverA 三个业务容器仍为 `3e297f525df0b6434506472bf8a0a15246ab46f4`。该 AI 版本不含草稿或本批原生冻结；M1–M5 仍未验收，生产生成和治理不启用。
+
+### 2026-09-13：QS 冻结代理与跨语言回执验证
+
+- 本任务 QS 独立分支 `codex/ai-prompt-freeze-management` 的源码提交 `1856d89ac6b6b7bc38ae2124f91f54111026d3a3` 新增冻结与原命令回执 REST 代理，写入复用 OrgAdmin、查询复用 AuditInterpretation。5 秒 RPC 时限、无自动重试，回执必须匹配原机构、操作者及命令；冻结响应还须匹配草稿修订和原因。同步 AI `746a376` 的协议与生成代码，源码基线另行提交锁定。未维护其他任务的 QS 原工作区。
+- 修正草稿写入的 JSON 类型/语法错误被映射为 500 的问题，改为 400 且不调用 RPC。QS 应用、适配器、REST、gRPC 和容器模块回归通过；参数错误专项、格式与 lint 通过。80 项文档测试、文档事实及 API 对齐检查通过，当前 apiserver 为 223 operations / 201 paths，gRPC 为 83 项 RPC。
+- AI Go fixture 增加 Freeze/GetFreezeReceipt，CI 固定上述 QS 源码。隔离 MySQL 8.4 迁移到 0020，实际 Go→临时 mTLS→Python→MySQL 共 7 项验证通过（16.12 秒）：编辑后冻结、重放、新进程查询原回执、冻结后禁止修订、跨机构/操作者与无权限拒绝、未完成模板不落资产。权限快照是合成输入，不等于真实 IAM 或页面验收；没有调用模型。
+- AI 草稿基础主分支 CI 34719615120 已完成成功；自动部署 34720405500 完成成功。虽然后者 workflow head 为 `9880f14b0e1ba9b5b81e81b4881607a2032eb667`，独立 SSH 核实实际 API/gRPC 镜像均为 `6999edc61ac0c03796809789ba8fd633c8a3f8bf` 且 healthy，MySQL 8.0.36 当前/预期头为 0019；readyz connected、mTLS 自身份拒绝探针通过。generation/evaluation/grpc.governance_enabled/use_publications 四项均为 false。QS serverA 三个容器仍为 `3e297f525df0b6434506472bf8a0a15246ab46f4`。未把工作流 SHA 当成部署 SHA。
+- 本批冻结代理及交互增量尚待精确提交 CI；AI 原生冻结 PR #53 的 CI 34720108634 已通过镜像与 MySQL 8.4，8.0.36 验证仍运行。下一步继续这些精确提交的 CI/部署，以及原生 Profile/套件到实际评测加载路径。合法报告/测试主体缺口仍存在，M1–M5 均未验收，不启用生产流量。
