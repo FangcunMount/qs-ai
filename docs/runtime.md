@@ -169,6 +169,14 @@ uv run python -m qs_ai.bootstrap.build_manifest \
 
 `EvaluationManagement.Finalize` 接受同一可信 QS scope、显式 `expected_version`、有存在性检查的布尔 `expected_passed`、原因及 `confirm=true`。时间和 actor 由服务端确定；预期结果仅确认预览，不能指定批准。事务先锁定共享 checkpoint 和 scoped Run，再建立证据快照、重算 G1–G5。未收齐冻结要求的 70 条有效人工评审时不能最终拒绝；结果与确认不同或版本已变时返回 ABORTED。
 
-接受后，在同一事务内保存 approved/rejected、完整门槛、冻结发布摘要、原版本/新版本、操作人/原因/时间及最终状态迁移，并将 checkpoint 版本精确加一。原始生成/语义输出、调用账本和审核历史保持原样。`Get` 增加可选 `finalization_json`，回读时从原始证据重算并验证最终门槛与审计一致，损坏状态不能作为审批证据。尚未实现评审重开、配置发布指针或旧管理退役；最终批准也不会开启生成或发布配置。
+接受后，在同一事务内保存 approved/rejected、完整门槛、冻结发布摘要、原版本/新版本、操作人/原因/时间及最终状态迁移，并将 checkpoint 版本精确加一。原始生成/语义输出、调用账本和审核历史保持原样。`Get` 增加可选 `finalization_json`，回读时从原始证据重算并验证最终门槛与审计一致，损坏状态不能作为审批证据。配置发布指针及旧管理退役仍待实现；最终批准也不会开启生成或发布配置。
 
 QS 转发路径为 `POST /internal/v2/interpretation/ai-workflow/evaluations/{run_id}/finalize`，要求现有机构 OrgAdmin；只读审计权限不能执行。两端写调用不自动重试，结果未知时先回读。新增字段保持旧的非终态响应兼容。所有生产治理、生成和评测开关继续关闭，真实管理入口验收与发布仍需按 M1–M5 顺序推进。
+
+### 语义复核重开（默认关闭）
+
+`EvaluationManagement.ReopenReview` 接受可信 scope、当前 `expected_version`、理由及 `confirm=true`。仅允许已拒绝且 G3/G5 通过、G4 只因可双人复核的 `failed/default/forbidden_claims_absent` 失败的 Run，最多三轮。基础调用失败、分数不足、确定性失败及人工拒绝不能通过此路径重开。QS 的 `POST /internal/v2/interpretation/ai-workflow/evaluations/{run_id}/reopen-review` 复用 OrgAdmin，操作者来自受保护身份，时间由 AI 生成。
+
+事务先锁定共享 checkpoint 与 Run，重算旧最终门槛，保存上一轮完整审核、门槛、版本和迁移边界后，移出本轮需要重新签名的候选审核，返回 awaiting_review 并加一版本。其他候选签名保持不变，原始模型输出不变，不重新调用模型。当前轮的签名不得早于重开时间；完整双职责审核后须再次 Finalize。
+
+状态新增 `reopenings_json`（QS JSON 为 `review_reopenings`），保存至多三轮、合计不超过 2 MiB 的完整历史。读取状态、候选详情、预览和再次写入时，逐轮以原始候选/调用重算旧门槛，核对保留签名及版本/迁移边界；清空历史而遗留重开迁移也会被拒绝。旧 AI 未返回该字段时 QS 兼容为空数组。超时后先回读，不自动重试重开。该能力尚需精确提交 CI、发布及真实管理验收，不改变 M1–M5 的生产准入要求。

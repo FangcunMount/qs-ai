@@ -98,3 +98,9 @@ Mac mini 已通过 SSH 连接；清理前数据卷可用约 88 GiB。经核对�
 - 已下载并校验本次 deployment-receipt：revision 为上述 SHA，release 为 `177f071b4d0a59cc68df799ca70b44e4e89824c2-34703453948-1`。随后恢复 AUTO_DEPLOY_ENABLED=true；纯文档范围过滤仍适用。
 
 此次完成此前积压的资产、评测及管理基础镜像发布；草稿 PR #39 的人工审核及候选查询不包含在该生产镜像中。M1 真实报告及撤权、M2 模型闭环与回退演练、M3 管理业务验收仍未完成。
+
+## 2026-09-13 最终评审版本部署核验
+
+AI 主分支 `9b19e6ce0ff001c7df283cade6bfd9574b224142` 的 [CI 34709398643](https://github.com/FangcunMount/qs-ai/actions/runs/34709398643) 与 [部署 34709815870](https://github.com/FangcunMount/qs-ai/actions/runs/34709815870) 均成功。独立 SSH 检查确认 qs-ai-api / qs-ai-grpc 使用该镜像且 healthy，MySQL 8.0.36 当前/预期迁移头均为 `0016_semantic_completions`，readyz 为 ready/database connected，gRPC 自身份探针取得预期 PERMISSION_DENIED。该探针证明通信和身份拒绝，不是授权主体业务验收。
+
+QS 的 [CI 34709501962](https://github.com/FangcunMount/qs-server/actions/runs/34709501962) 与 [部署 34710122753](https://github.com/FangcunMount/qs-server/actions/runs/34710122753) 成功；现场 apiserver 及两个 collection 的 SHA 为 `a35a84e3f8a046154fda5050e37d54a45bfe172b`，均 healthy。本次只核实已合并最终评审版，没有部署本轮重开增量、开启治理/生成或宣称 M1–M5 真实验收通过。
