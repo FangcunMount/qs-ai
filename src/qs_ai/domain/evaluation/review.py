@@ -79,6 +79,8 @@ class ReviewCandidate:
     accepted_at: datetime
     normalized_output: bytes
     semantic: SemanticCompletion
+    semantic_evaluator: str
+    assertions: tuple[AssertionReceipt, ...]
     semantic_assertions: tuple[AssertionReceipt, ...]
 
     def __post_init__(self) -> None:
@@ -93,7 +95,13 @@ class ReviewCandidate:
             != self.semantic.candidate_output_fingerprint
             or not isinstance(self.semantic_assertions, tuple)
             or not self.semantic_assertions
-            or any(not isinstance(a, AssertionReceipt) for a in self.semantic_assertions)
+            or not self.semantic_evaluator.strip()
+            or not isinstance(self.assertions, tuple)
+            or not self.assertions
+            or any(
+                not isinstance(a, AssertionReceipt)
+                for a in (*self.assertions, *self.semantic_assertions)
+            )
         ):
             raise ValueError("Review candidate lacks accepted evidence")
 
@@ -125,12 +133,20 @@ def _validate_semantic_review(
     original = json.loads(semantic.normalized_output)
     matches = [
         a
+        for a in candidate.assertions
+        if (a.type, a.scope, a.ordinal, a.status, a.detail) == expected
+        and a.evaluator == candidate.semantic_evaluator
+    ]
+    semantic_matches = [
+        a
         for a in candidate.semantic_assertions
         if (a.type, a.scope, a.ordinal, a.status, a.detail) == expected
+        and a.evaluator == candidate.semantic_evaluator
     ]
     decisions = original.get("decisions", [])
     if (
         len(matches) != 1
+        or len(semantic_matches) != 1
         or sum(
             (a.get("type"), a.get("scope"), a.get("ordinal"), a.get("status"), a.get("detail"))
             == expected

@@ -53,7 +53,7 @@ def candidate(identity="candidate:1"):
         normalized,
         normalized,
     )
-    return ReviewCandidate(identity, AT, output, semantic, (assertion,))
+    return ReviewCandidate(identity, AT, output, semantic, "judge/v2", (assertion,), (assertion,))
 
 
 def review(**changes):
@@ -212,3 +212,19 @@ def test_contradiction_requires_v2_approval_and_original_failed_source_in_both_p
 def test_candidate_output_cannot_be_replaced_under_old_semantic_evidence():
     with pytest.raises(ValueError):
         replace(candidate(), normalized_output=b'{"interpretation":"different"}')
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"status": "passed"},
+        {"evaluator": "another-judge/v2"},
+        {"scope": "case"},
+        {"detail": "不同的判断"},
+    ],
+)
+def test_contradiction_cannot_override_an_unmatched_final_candidate_assertion(changes):
+    target = candidate()
+    changed = replace(target, assertions=(replace(target.assertions[0], **changes),))
+    with pytest.raises(ValueError):
+        append((review(semantic_review=contradiction()),), candidates=(changed,))
