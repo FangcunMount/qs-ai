@@ -148,6 +148,30 @@ def project_slots(
     return tuple(slots)
 
 
+def decode_semantic_completion(row: Any) -> SemanticCompletion:
+    fields = dict(row["evidence_json"])
+    fingerprint = fields.pop("output_fingerprint")
+    for key in ("started_at", "finished_at"):
+        fields[key] = datetime.fromisoformat(fields[key])
+    if fields["receipt"] is not None:
+        fields["receipt"] = ProviderReceipt(**fields["receipt"])
+    if fields["failure"] is not None:
+        failure = dict(fields["failure"])
+        failure["evidence_refs"] = tuple(failure["evidence_refs"])
+        if failure["provider_diagnostics"] is not None:
+            failure["provider_diagnostics"] = ProviderDiagnostics(**failure["provider_diagnostics"])
+        fields["failure"] = ClassifiedFailure(**failure)
+    value = SemanticCompletion(
+        **fields, raw_output=row["raw_output"], normalized_output=row["normalized_output"]
+    )
+    if value.output_fingerprint != fingerprint or any(
+        getattr(value, k) != row[k]
+        for k in ("execution_id", "invocation_id", "candidate_id", "execution_ordinal")
+    ):
+        raise CheckpointConflict("Semantic bytes or index differ from evidence")
+    return value
+
+
 def project_candidate(
     stored: dict,
     generated: GenerationCompletion,
@@ -167,28 +191,8 @@ def project_candidate(
     for row in history:
         if accepted is not None:
             raise CheckpointConflict("Semantic execution continued after accepted result")
-        fields = dict(row["evidence_json"])
-        fingerprint = fields.pop("output_fingerprint")
-        for key in ("started_at", "finished_at"):
-            fields[key] = datetime.fromisoformat(fields[key])
-        if fields["receipt"] is not None:
-            fields["receipt"] = ProviderReceipt(**fields["receipt"])
-        if fields["failure"] is not None:
-            failure = dict(fields["failure"])
-            failure["evidence_refs"] = tuple(failure["evidence_refs"])
-            if failure["provider_diagnostics"] is not None:
-                failure["provider_diagnostics"] = ProviderDiagnostics(
-                    **failure["provider_diagnostics"]
-                )
-            fields["failure"] = ClassifiedFailure(**failure)
-        value = SemanticCompletion(
-            **fields, raw_output=row["raw_output"], normalized_output=row["normalized_output"]
-        )
-        if value.output_fingerprint != fingerprint or any(
-            getattr(value, k) != row[k]
-            for k in ("execution_id", "invocation_id", "candidate_id", "execution_ordinal")
-        ):
-            raise CheckpointConflict("Semantic bytes or index differ from evidence")
+        value = decode_semantic_completion(row)
+        fingerprint = value.output_fingerprint
         entry = ledger.get(value.invocation_id)
         cp = decode(entry["checkpoint_json"]) if entry is not None else None
         if (
