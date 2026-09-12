@@ -26,6 +26,13 @@ async def resolve_generation_assets(
         profile_version=release.profile.version,
         route_revision=release.generation_route.version,
     )
+    validate_generation_manifest(release, manifest)
+    return manifest
+
+
+def validate_generation_manifest(
+    release: EvidenceReleaseIdentity, manifest: GenerationManifest
+) -> None:
     for name in ("profile", "prompt", "generation_route", "input_schema", "output_schema"):
         asset = getattr(manifest, name)
         # QS evaluation uses full schema versions; asset storage uses the suffix.
@@ -33,7 +40,6 @@ async def resolve_generation_assets(
         expected = FrozenContractRef(asset.identity, version, asset.fingerprint)
         if getattr(release, name) != expected:
             raise ManifestUnavailable(f"Evaluation {name} reference does not match frozen asset")
-    return manifest
 
 
 async def resolve_semantic_route(
