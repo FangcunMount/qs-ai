@@ -46,7 +46,7 @@ def prepare_report_input(
     # use case must still check QS authorization before generation and acceptance.
     evidence.validate(session.testee_id, session.assessment_ids)
     if (
-        session.workflow_version != "qs-snapshot-v1"
+        not session.uses_qs_snapshot
         or evidence.session_id != session.id
         or session.evidence_set_id != evidence.id
         or evidence.fingerprint != fingerprint([asdict(item) for item in evidence.items])
@@ -57,7 +57,13 @@ def prepare_report_input(
     item = evidence.items[0]
     if len(item.facts) != 1 or item.facts[0].ref != "standard_report":
         raise RuleViolation("report_fact_missing")
-    assembled = assemble_input(item.facts[0].value, policy, locale=locale, focus_areas=focus_areas)
+    assembled = assemble_input(
+        item.facts[0].value,
+        policy,
+        locale=locale,
+        focus_areas=focus_areas,
+        empty_reference_arrays=session.workflow_version == "qs-published-snapshot-v1",
+    )
     source = json.loads(assembled.canonical_json)["source"]
     if (
         source["report_id"] != item.report_id

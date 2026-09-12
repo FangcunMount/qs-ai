@@ -28,6 +28,7 @@ from qs_ai.infrastructure.persistence.mysql.leases import LeaseLost
 from qs_ai.infrastructure.persistence.mysql.schema import (
     artifacts,
     evidence_sets,
+    execution_configurations,
     external_requests,
     idempotency,
     jobs,
@@ -100,6 +101,7 @@ async def kit():
                 )
             )
             for table in (
+                execution_configurations,
                 result_outbox,
                 external_requests,
                 artifacts,

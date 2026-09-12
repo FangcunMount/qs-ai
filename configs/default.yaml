@@ -17,6 +17,7 @@ worker:
   shutdown_seconds: 130
 generation:
   enabled: false
+  use_publications: false
   profile_id: participant-scale-score-range-default
   profile_version: v6
   endpoint: null

@@ -18,8 +18,10 @@ QS 现有执行流水线在确定性校验后调用 SafetyEvaluator，实际绑�
 
 ## 输入规范迁移及已知差异
 
-`ai-explanation-input-v1.schema.json` 从同一固定 QS 提交 `1b52081ea42c94dc5653ce91e8c7a1db9f85fc44` 原样提取；manifest 的 `input` 记录来源及 SHA-256。`load_input_schema` 校验字节与 schema_version，未接入运行时强制校验。
+`ai-explanation-input-v1.schema.json` 从同一固定 QS 提交 `1b52081ea42c94dc5653ce91e8c7a1db9f85fc44` 原样提取；manifest 的 `input` 记录来源及 SHA-256。`load_input_schema` 校验字节与 schema_version。发布绑定执行从原 publication 的资产读取规范，并在接单、生成及持久成果接受时校验完整输入。
 
-现有 QS assembler 在绑定建议时使用 `append([]string(nil), refs...)`，空 refs 会序列化为 null。Python 为保持原输入及指纹一致保留相同行为。原 Schema 的 standard_suggestion_refs 只允许 array；固定输入样本中有两个维度因此不符合规范。测试明确断言这两个差异，在测试副本上转成空数组后通过原规范，未修改真实构造逻辑。
+现有 QS assembler 在绑定建议时使用 `append([]string(nil), refs...)`，空 refs 会序列化为 null。原 Schema 的 standard_suggestion_refs 只允许 array；固定输入样本中有两个维度因此不符合规范。`qs-snapshot-v1` 会话及默认基线组装保留原编码，以便已有调用恢复时可重建同一输入和指纹。
 
-这是一项待解决的发布兼容性问题，不是“输入 Schema 验收通过”。后续完整 release 必须显式选择兼容规范或新的输入构造版本，并覆盖历史 fingerprint/recovery；不能原地把原 v1 输入由 null 改为空数组而继续声称版本未变。provider_payload 仍仅含 context/facts，完整输入规范不应直接套在该投影上。
+新接单标记 `qs-published-snapshot-v1`，仅该执行版本将空引用编码为 `[]`。输入规范文件、已有会话及调用 JSON 均不改写；新输入指纹随内容变化。测试同时保留旧 Go 完整输入对照，并显式验证新版本仅有这项集合编码差异、满足原规范。切回接单开关不改变已接受会话的执行版本。provider_payload 仍仅含 context/facts，完整输入规范不直接套在该投影上。
+
+这是可审查的代码契约修正，尚无真实模型质量与历史生产恢复验收。固定评测套件仍保留原输入字节；新输入构造版本对应的案例、套件版本及质量对账必须在生产发布准入前补齐，不能沿用旧 Run 的批准声称新映射已经通过业务验收。

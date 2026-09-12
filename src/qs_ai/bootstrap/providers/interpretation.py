@@ -46,5 +46,13 @@ class InterpretationProvider(Provider):
 
     uows = provide(MySQLUnitOfWorkFactory, provides=UnitOfWorkFactory, scope=Scope.REQUEST)
     store = provide(MySQLExecutionStore, provides=ExecutionStore, scope=Scope.REQUEST)
-    service = provide(InterpretationService, scope=Scope.REQUEST)
+
+    @provide(scope=Scope.REQUEST)
+    def service(
+        self, settings: Settings, uows: UnitOfWorkFactory, source: EvidenceSource
+    ) -> InterpretationService:
+        return InterpretationService(
+            uows, source, use_publications=settings.generation.use_publications
+        )
+
     worker = provide(ExecuteNext, scope=Scope.REQUEST)

@@ -120,10 +120,11 @@ def assemble_input(
     *,
     locale: str = "zh-CN",
     focus_areas: tuple[str, ...] = (),
+    empty_reference_arrays: bool = False,
 ) -> AssembledInput:
     try:
         snapshot = json.loads(raw_snapshot, object_pairs_hook=_object)
-        return _assemble(snapshot, policy, locale, focus_areas)
+        return _assemble(snapshot, policy, locale, focus_areas, empty_reference_arrays)
     except (KeyError, TypeError, AttributeError, ValueError) as error:
         if isinstance(error, InvalidInput):
             raise
@@ -136,6 +137,7 @@ def _assemble(
     policy: InputPolicy,
     locale: str,
     focus: tuple[str, ...],
+    empty_reference_arrays: bool,
 ) -> AssembledInput:
     if snapshot["schema_version"] != "qs-report-snapshot/v1":
         raise InvalidInput("Unsupported report snapshot version")
@@ -221,8 +223,11 @@ def _assemble(
                 "level": _level(d["level"]),
                 "norm_context": _norm(d["norm_reference"]) if policy.include_norm_context else None,
                 "standard_description": _plain(d["description"], 4000, False),
-                # QS currently encodes an absent suggestion list as null here.
-                "standard_suggestion_refs": by_dimension.get(d["code"]),
+                # Published execution follows Input v1; legacy sessions preserve
+                # their original bytes for durable response recovery.
+                "standard_suggestion_refs": by_dimension.get(
+                    d["code"], [] if empty_reference_arrays else None
+                ),
             }
         )
     projected.sort(key=lambda d: (d["sort_order"], d["code"]))

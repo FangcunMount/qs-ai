@@ -11,22 +11,22 @@ from qs_ai.infrastructure.qs_server.output import schema_directory
 from qs_ai.infrastructure.qs_server.profiles import load_migrated_release
 
 
-def test_original_schema_exposes_existing_null_array_contract_gap():
+def test_prepared_input_satisfies_frozen_schema_with_empty_reference_arrays():
     release = load_migrated_release("participant-scale-score-range-default", "v6")
     raw = (Path(__file__).parent / "fixtures/report_snapshot.json").read_text()
-    result = assemble_input(raw, release.input_policy)
+    result = assemble_input(raw, release.input_policy, empty_reference_arrays=True)
     validator = Draft202012Validator(load_input_schema())
     document = json.loads(result.canonical_json)
-    errors = list(validator.iter_errors(document))
+    assert document["facts"]["dimensions"][0]["standard_suggestion_refs"] == []
+    assert document["facts"]["dimensions"][1]["standard_suggestion_refs"] == []
+    validator.validate(document)
+    legacy = assemble_input(raw, release.input_policy)
+    errors = list(validator.iter_errors(json.loads(legacy.canonical_json)))
     assert [(list(e.absolute_path), e.validator) for e in errors] == [
         (["facts", "dimensions", 0, "standard_suggestion_refs"], "type"),
         (["facts", "dimensions", 1, "standard_suggestion_refs"], "type"),
     ]
-    # Demonstrate the exact gap without altering production assembly or its fingerprint.
-    for dimension in document["facts"]["dimensions"]:
-        if dimension["standard_suggestion_refs"] is None:
-            dimension["standard_suggestion_refs"] = []
-    validator.validate(document)
+    assert legacy.fingerprint != result.fingerprint
     # The provider projection intentionally lacks server-only source and Profile metadata.
     assert not validator.is_valid(json.loads(result.provider_payload))
 

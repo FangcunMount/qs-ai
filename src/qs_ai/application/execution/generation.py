@@ -43,6 +43,8 @@ class FrozenGeneration:
     route: ModelRoute
     schema: dict[str, Any]
     version: Literal["qs-ai-generation/v1"] = "qs-ai-generation/v1"
+    publication_id: str | None = None
+    manifest_fingerprint: str | None = None
 
 
 @dataclass(frozen=True)
@@ -71,6 +73,8 @@ class DurableGeneration:
             frozen = self.codec.decode_request(call.request_json)
         except ValueError:
             raise ProviderFailure("model_call_record_invalid") from None
+        if request.publication_id is not None and frozen != request:
+            raise ProviderFailure("model_call_configuration_mismatch")
         if not created:
             if call.status == "response_received" and call.response_json is not None:
                 try:

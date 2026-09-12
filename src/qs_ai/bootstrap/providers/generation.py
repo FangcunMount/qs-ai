@@ -4,6 +4,7 @@ from urllib.parse import urlsplit
 import httpx
 from dishka import Provider, Scope, provide
 
+from qs_ai.application.execution.configuration import PublishedReportWorkflow
 from qs_ai.application.execution.generation import DurableGeneration
 from qs_ai.application.execution.report_workflow import ReportWorkflow
 from qs_ai.application.interpretation.ports import Workflow
@@ -13,6 +14,9 @@ from qs_ai.infrastructure.interpretation.unconfigured import UnconfiguredWorkflo
 from qs_ai.infrastructure.persistence.model_call_codec import JSONModelCallCodec
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
 from qs_ai.infrastructure.persistence.mysql.execution import MySQLExecutionStore
+from qs_ai.infrastructure.persistence.mysql.execution_configurations import (
+    MySQLExecutionConfigurations,
+)
 from qs_ai.infrastructure.qs_server.output import QSOutputParser
 from qs_ai.infrastructure.qs_server.profiles import load_migrated_release
 from qs_ai.infrastructure.qs_server.prompts import load_prompt
@@ -42,7 +46,9 @@ class GenerationProvider(Provider):
         release = load_migrated_release(options.profile_id, options.profile_version)
         package = load_prompt(release.render_policy.template_id, release.render_policy.version)
         route = ModelRoute(
-            **options.model_dump(exclude={"enabled", "endpoint", "profile_id", "profile_version"})
+            **options.model_dump(
+                exclude={"enabled", "endpoint", "profile_id", "profile_version", "use_publications"}
+            )
         )
         if route != load_route(route.route, route.revision):
             raise ValueError("Generation parameters differ from frozen model route")
@@ -56,4 +62,7 @@ class GenerationProvider(Provider):
             generation = DurableGeneration(
                 MySQLExecutionStore(transactions), gateway, JSONModelCallCodec()
             )
-            yield ReportWorkflow(generation, release, package, route, parser.schema(), parser)
+            legacy = ReportWorkflow(generation, release, package, route, parser.schema(), parser)
+            yield PublishedReportWorkflow(
+                MySQLExecutionConfigurations(transactions), generation, legacy
+            )

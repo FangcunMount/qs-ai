@@ -359,3 +359,22 @@ configuration_publication_changes = sa.Table(
     mysql_engine="InnoDB",
     mysql_charset="utf8mb4",
 )
+
+execution_configurations = sa.Table(
+    "execution_configurations",
+    metadata,
+    sa.Column("session_id", ID, sa.ForeignKey(sessions.c.id), primary_key=True),
+    sa.Column("evidence_set_id", ID, sa.ForeignKey(evidence_sets.c.id), nullable=False),
+    sa.Column("evidence_fingerprint", sa.CHAR(64), nullable=False),
+    sa.Column(
+        "publication_id",
+        sa.CHAR(36),
+        sa.ForeignKey(configuration_publications.c.publication_id),
+        nullable=False,
+    ),
+    sa.Column("publication_sha256", sa.CHAR(64), nullable=False),
+    sa.Column("pointer_version", sa.BigInteger, nullable=False),
+    sa.Column("selector_query", mysql.TEXT, nullable=False),
+    mysql_engine="InnoDB",
+    mysql_charset="utf8mb4",
+)
