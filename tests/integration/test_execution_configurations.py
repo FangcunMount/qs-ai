@@ -31,6 +31,7 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
     model_calls,
     sessions,
 )
+from qs_ai.infrastructure.qs_server.evaluation_suite import V6_PUBLISHED
 from tests.integration.test_generation import Gateway
 from tests.integration.test_interpretation import expire
 from tests.integration.test_interpretation import kit as kit
@@ -46,7 +47,10 @@ from tests.integration.test_publications import setup_run as setup_run
 from tests.test_input_binding import bound_case
 from tests.test_output_validation import candidate
 
-pytestmark = pytest.mark.integration
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.parametrize("freeze_creation", [V6_PUBLISHED], indirect=True),
+]
 
 
 @pytest.fixture

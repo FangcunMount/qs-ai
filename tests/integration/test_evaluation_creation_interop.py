@@ -4,7 +4,7 @@ import asyncio
 import copy
 import json
 import os
-from dataclasses import asdict
+from dataclasses import asdict, replace
 
 import grpc
 import pytest
@@ -27,6 +27,7 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
     schema_assets,
 )
 from qs_ai.infrastructure.persistence.mysql.schema_assets import MySQLSchemaAssets
+from qs_ai.infrastructure.qs_server.evaluation_suite import V6, V6_PUBLISHED
 from qs_ai.transport.grpc.evaluation import EvaluationManagement
 from tests.integration.test_delivery import certificates
 from tests.integration.test_evaluation_management_interop import go_management as go_management
@@ -66,9 +67,11 @@ async def persisted_assets(setup_run):
             await db.commit()
 
 
+@pytest.mark.parametrize("suite", [V6, V6_PUBLISHED])
 async def test_create_replay_conflicts_and_start_use_real_asset_storage(
-    setup_run, persisted_assets, complete_release, go_management, tmp_path
+    setup_run, persisted_assets, complete_release, go_management, tmp_path, suite
 ):
+    complete_release = replace(complete_release, suite=suite)
     tx, run_id, _ = setup_run
     certificates(tmp_path)
     container = create_container(

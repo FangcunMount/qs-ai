@@ -50,13 +50,14 @@ pytestmark = pytest.mark.integration
 
 
 @pytest.fixture(autouse=True)
-async def freeze_creation(setup_run, persisted_assets, monkeypatch):
+async def freeze_creation(setup_run, persisted_assets, monkeypatch, request):
     from tests.integration import test_evaluation_completions as fixtures
 
     async def create(db, run_id, release):
         schema = schemas()[1][0]
         release = replace(
             release,
+            suite=getattr(request, "param", release.suite),
             input_schema=FrozenContractRef(
                 schema.schema_id,
                 schema.schema_id + "/" + schema.version,

@@ -52,6 +52,7 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
     route_assets,
     schema_assets,
 )
+from qs_ai.infrastructure.qs_server.evaluation_suite import PUBLISHED_INPUT_VERSION, load_suite
 from qs_ai.infrastructure.qs_server.output import QSOutputParser
 from qs_ai.infrastructure.qs_server.profiles import decode_published_profile
 
@@ -64,6 +65,12 @@ async def compile_configuration(
     db: AsyncSession, publication: PublishedConfiguration
 ) -> ExecutionConfiguration:
     proof = publication.evidence
+    suite = load_suite(proof.release.suite)
+    if (
+        suite.input_construction_version != PUBLISHED_INPUT_VERSION
+        or suite.input_schema != proof.release.input_schema
+    ):
+        raise ConfigurationUnavailable("Publication was not evaluated for this input construction")
     profile, manifest = await generation_snapshot(db, proof.release)
     if profile != proof.profile or manifest != proof.manifest:
         raise ConfigurationUnavailable("Published assets changed")

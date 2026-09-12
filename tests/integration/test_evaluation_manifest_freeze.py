@@ -12,6 +12,7 @@ from qs_ai.infrastructure.persistence.mysql.profile_assets import MySQLProfileAs
 from qs_ai.infrastructure.persistence.mysql.prompt_assets import MySQLPromptAssets
 from qs_ai.infrastructure.persistence.mysql.route_assets import MySQLRouteAssets
 from qs_ai.infrastructure.persistence.mysql.schema_assets import MySQLSchemaAssets
+from qs_ai.infrastructure.qs_server.evaluation_suite import V6, V6_PUBLISHED, load_suite
 from tests.integration.test_evaluation_creation_interop import persisted_assets as persisted_assets
 from tests.integration.test_evaluation_runs import rows
 from tests.integration.test_evaluation_runs import setup_run as setup_run
@@ -22,9 +23,11 @@ from tests.test_generation_manifest import evaluation_release as evaluation_rele
 pytestmark = pytest.mark.integration
 
 
+@pytest.mark.parametrize("suite", [V6, V6_PUBLISHED])
 async def test_public_creator_freezes_actual_asset_bytes_with_run_transaction(
-    setup_run, persisted_assets, complete_release
+    setup_run, persisted_assets, complete_release, suite
 ):
+    complete_release = replace(complete_release, suite=suite)
     tx, run_id, _ = setup_run
     stores = (
         MySQLProfileAssets(tx),
@@ -42,6 +45,7 @@ async def test_public_creator_freezes_actual_asset_bytes_with_run_transaction(
     assert definition["generation_manifest_json"] == manifest.canonical_json()
     assert definition["generation_manifest_fingerprint"] == manifest.fingerprint()
     assert definition["release_fingerprint"] == complete_release.fingerprint()
+    assert definition["suite_json"] == load_suite(suite).definition_json
 
 
 async def test_manifest_mismatch_and_rollback_never_leave_partial_run(
