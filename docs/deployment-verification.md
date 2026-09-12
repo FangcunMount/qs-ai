@@ -111,3 +111,9 @@ QS 的 [CI 34709501962](https://github.com/FangcunMount/qs-server/actions/runs/3
 AI `6b803821e4e20abd93a757aaa4995b36bf683a30` 的 [主分支 CI 34714055083](https://github.com/FangcunMount/qs-ai/actions/runs/34714055083) 和 [部署 34714737930](https://github.com/FangcunMount/qs-ai/actions/runs/34714737930) 均成功。独立 SSH 确认 API/gRPC 使用该镜像且 healthy，MySQL 8.0.36 当前及预期迁移头为 `0017_configuration_publications`；readyz 为 ready/database connected，mTLS 自身份探针取得预期 PERMISSION_DENIED。
 
 只检查三个布尔值确认 generation/evaluation/governance 均为 false，未输出凭据。QS apiserver 与两份 collection 仍为 `01fb6bb98f4bca4027e485874799d334ff21b579` 且 healthy。本次部署包含发布持久化基础，不包含未合并的管理 RPC/REST 增量；真实授权、生成、管理入口及恢复验收仍未完成。
+
+## 2026-09-13 草稿持久化版本核验
+
+自动部署 [34720405500](https://github.com/FangcunMount/qs-ai/actions/runs/34720405500) 成功，独立 SSH 确认 API/gRPC 实际镜像为 `6999edc61ac0c03796809789ba8fd633c8a3f8bf`，两者 healthy。该源码的主分支 CI 34719615120 成功；部署运行自身的 workflow head `9880f14b0e1ba9b5b81e81b4881607a2032eb667` 不代表交付镜像版本。
+
+MySQL 8.0.36 当前与预期迁移头均为 `0019_prompt_drafts`，readyz 返回 ready/database connected，自身份 mTLS 探针按预期 PERMISSION_DENIED。generation、evaluation、grpc.governance_enabled、generation.use_publications 均为 false。QS serverA 三个容器仍为 `3e297f525df0b6434506472bf8a0a15246ab46f4` 且 healthy。本次不包含原生冻结 0020、QS 冻结代理、真实管理页面或业务生成验收。

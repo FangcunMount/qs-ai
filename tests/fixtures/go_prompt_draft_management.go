@@ -19,6 +19,7 @@ func main() {
 		Allowed, AuditOnly bool
 		Create             app.CreatePromptDraft
 		Revise             app.RevisePromptDraft
+		Freeze             app.FreezePromptDraft
 		DraftID, CommandID string
 		Revision           *int64
 	}
@@ -48,6 +49,10 @@ func main() {
 		result, err = service.Revise(ctx, scope, input.DraftID, input.Revise)
 	case "get":
 		result, err = service.Get(ctx, scope, input.DraftID, input.Revision)
+	case "freeze":
+		result, err = service.Freeze(ctx, scope, input.DraftID, input.Freeze)
+	case "freeze-receipt":
+		result, err = service.GetFreezeReceipt(ctx, scope, input.CommandID)
 	case "receipt":
 		result, err = service.GetReceipt(ctx, scope, input.CommandID)
 	default:
