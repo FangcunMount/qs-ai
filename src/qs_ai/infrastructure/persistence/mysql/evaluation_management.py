@@ -9,12 +9,14 @@ from qs_ai.application.evaluation.candidates import (
     CandidateIndex,
     validate_candidate_query,
 )
+from qs_ai.application.evaluation.gates import GatePreview
 from qs_ai.application.evaluation.management import EvaluationView, ManagementScope
 from qs_ai.application.interpretation.ports import NotFound
 from qs_ai.domain.evaluation.resolution import ResultUnknownResolution
 from qs_ai.domain.evaluation.review import CandidateHumanReview
 from qs_ai.infrastructure.persistence.mysql import evaluation_candidates
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
+from qs_ai.infrastructure.persistence.mysql.evaluation_gates import preview_gates
 from qs_ai.infrastructure.persistence.mysql.evaluation_progress import transition_requested
 from qs_ai.infrastructure.persistence.mysql.evaluation_resolution import accept_resolution
 from qs_ai.infrastructure.persistence.mysql.evaluation_reviews import accept_reviews
@@ -57,6 +59,12 @@ async def read_view(db: AsyncSession, scope: ManagementScope) -> EvaluationView:
 class MySQLEvaluationManagement:
     def __init__(self, transactions: Transactions) -> None:
         self.transactions = transactions
+
+    async def preview_gates(
+        self, scope: ManagementScope, expected_version: int, at: datetime
+    ) -> GatePreview:
+        async with self.transactions.open() as db:
+            return await preview_gates(db, scope, expected_version, at)
 
     async def list_candidates(self, scope: ManagementScope) -> CandidateIndex:
         async with self.transactions.open() as db:

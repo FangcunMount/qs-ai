@@ -118,6 +118,26 @@ class EvidenceItem(_message.Message):
     facts: _containers.RepeatedCompositeFieldContainer[Fact]
     def __init__(self, assessment_id: _Optional[str] = ..., testee_id: _Optional[str] = ..., report_id: _Optional[str] = ..., source_version: _Optional[str] = ..., facts: _Optional[_Iterable[_Union[Fact, _Mapping]]] = ...) -> None: ...
 
+class EvaluationGateQuery(_message.Message):
+    __slots__ = ("scope", "expected_version")
+    SCOPE_FIELD_NUMBER: _ClassVar[int]
+    EXPECTED_VERSION_FIELD_NUMBER: _ClassVar[int]
+    scope: EvaluationQuery
+    expected_version: int
+    def __init__(self, scope: _Optional[_Union[EvaluationQuery, _Mapping]] = ..., expected_version: _Optional[int] = ...) -> None: ...
+
+class EvaluationGatePreview(_message.Message):
+    __slots__ = ("run_id", "version", "release_fingerprint", "gate_result_json")
+    RUN_ID_FIELD_NUMBER: _ClassVar[int]
+    VERSION_FIELD_NUMBER: _ClassVar[int]
+    RELEASE_FINGERPRINT_FIELD_NUMBER: _ClassVar[int]
+    GATE_RESULT_JSON_FIELD_NUMBER: _ClassVar[int]
+    run_id: str
+    version: int
+    release_fingerprint: str
+    gate_result_json: str
+    def __init__(self, run_id: _Optional[str] = ..., version: _Optional[int] = ..., release_fingerprint: _Optional[str] = ..., gate_result_json: _Optional[str] = ...) -> None: ...
+
 class EvaluationCandidateSummary(_message.Message):
     __slots__ = ("candidate_id", "case_id", "slot_ordinal")
     CANDIDATE_ID_FIELD_NUMBER: _ClassVar[int]
