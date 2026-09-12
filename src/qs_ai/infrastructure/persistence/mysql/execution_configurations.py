@@ -19,7 +19,7 @@ from qs_ai.application.governance.publication_codec import canonical, publicatio
 from qs_ai.application.interpretation.input import InvalidInput
 from qs_ai.application.interpretation.ports import Claim, NotFound
 from qs_ai.application.interpretation.preparation import prepare_explanation
-from qs_ai.application.interpretation.prompts import PromptPackage
+from qs_ai.application.interpretation.prompt_assets import executable_prompt
 from qs_ai.application.interpretation.provider import ModelRoute
 from qs_ai.application.interpretation.selection import report_selector
 from qs_ai.domain.governance.prompt import PromptAsset
@@ -92,17 +92,7 @@ async def compile_configuration(
             "status": "published",
         }
     )
-    data = json.loads(prompt.package_json)
-    package = PromptPackage(
-        prompt.template_id,
-        prompt.version,
-        prompt.fingerprint,
-        data["Ref"]["GitBlobSHA"],
-        data["SystemMessage"],
-        data["TaskTemplate"],
-        data["DataPreamble"],
-        tuple(data["AllowedPlaceholders"]),
-    )
+    package = executable_prompt(prompt)
     definition = json.loads(route.definition_json)
     structured = definition.pop("structured_output")
     definition.setdefault("protocol", "responses")

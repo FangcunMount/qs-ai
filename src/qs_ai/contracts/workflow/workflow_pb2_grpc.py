@@ -962,6 +962,16 @@ class PromptDraftManagementStub:
                 request_serializer=workflow__pb2.PromptDraftReceiptQuery.SerializeToString,
                 response_deserializer=workflow__pb2.PromptDraftState.FromString,
                 _registered_method=True)
+        self.Freeze = channel.unary_unary(
+                '/qsai.workflow.v1.PromptDraftManagement/Freeze',
+                request_serializer=workflow__pb2.PromptDraftFreezeCommand.SerializeToString,
+                response_deserializer=workflow__pb2.PromptDraftFreezeReceipt.FromString,
+                _registered_method=True)
+        self.GetFreezeReceipt = channel.unary_unary(
+                '/qsai.workflow.v1.PromptDraftManagement/GetFreezeReceipt',
+                request_serializer=workflow__pb2.PromptDraftReceiptQuery.SerializeToString,
+                response_deserializer=workflow__pb2.PromptDraftFreezeReceipt.FromString,
+                _registered_method=True)
 
 
 class PromptDraftManagementServicer:
@@ -993,6 +1003,19 @@ class PromptDraftManagementServicer:
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def Freeze(self, request, context):
+        """Freeze validated template syntax into a native immutable asset, not a release.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetFreezeReceipt(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_PromptDraftManagementServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -1015,6 +1038,16 @@ def add_PromptDraftManagementServicer_to_server(servicer, server):
                     servicer.GetReceipt,
                     request_deserializer=workflow__pb2.PromptDraftReceiptQuery.FromString,
                     response_serializer=workflow__pb2.PromptDraftState.SerializeToString,
+            ),
+            'Freeze': grpc.unary_unary_rpc_method_handler(
+                    servicer.Freeze,
+                    request_deserializer=workflow__pb2.PromptDraftFreezeCommand.FromString,
+                    response_serializer=workflow__pb2.PromptDraftFreezeReceipt.SerializeToString,
+            ),
+            'GetFreezeReceipt': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetFreezeReceipt,
+                    request_deserializer=workflow__pb2.PromptDraftReceiptQuery.FromString,
+                    response_serializer=workflow__pb2.PromptDraftFreezeReceipt.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -1127,6 +1160,60 @@ class PromptDraftManagement:
             '/qsai.workflow.v1.PromptDraftManagement/GetReceipt',
             workflow__pb2.PromptDraftReceiptQuery.SerializeToString,
             workflow__pb2.PromptDraftState.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def Freeze(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.PromptDraftManagement/Freeze',
+            workflow__pb2.PromptDraftFreezeCommand.SerializeToString,
+            workflow__pb2.PromptDraftFreezeReceipt.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetFreezeReceipt(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.PromptDraftManagement/GetFreezeReceipt',
+            workflow__pb2.PromptDraftReceiptQuery.SerializeToString,
+            workflow__pb2.PromptDraftFreezeReceipt.FromString,
             options,
             channel_credentials,
             insecure,

@@ -17,6 +17,11 @@ from qs_ai.application.governance.prompt_drafts import (
     PromptDraftStore,
     RevisePromptDraft,
 )
+from qs_ai.application.governance.prompt_freeze import (
+    FreezePromptDraft,
+    FrozenPromptReceipt,
+    PromptFreezer,
+)
 from qs_ai.application.interpretation.ports import NotFound
 from qs_ai.contracts.workflow import workflow_pb2 as pb
 from qs_ai.contracts.workflow import workflow_pb2_grpc as rpc
@@ -25,6 +30,15 @@ from qs_ai.domain.governance.prompt_draft import DraftConflict, PromptDraft, Pro
 from qs_ai.transport.grpc.identity import require_qs_workload
 
 SNAPSHOT = TypeAdapter(PromptDraft)
+FREEZE_RECEIPT = TypeAdapter(FrozenPromptReceipt)
+
+
+def freeze_response(receipt: FrozenPromptReceipt) -> pb.PromptDraftFreezeReceipt:
+    return pb.PromptDraftFreezeReceipt(
+        schema_version="qs-ai-prompt-freeze/v1",
+        command_id=str(receipt.command.command_id),
+        receipt_json=FREEZE_RECEIPT.dump_json(receipt).decode(),
+    )
 
 
 def identifier(raw: str) -> UUID:
@@ -49,6 +63,34 @@ def response(draft: PromptDraft) -> pb.PromptDraftState:
 class PromptDraftManagement(rpc.PromptDraftManagementServicer):
     def __init__(self, container: AsyncContainer) -> None:
         self.container = container
+
+    async def Freeze(
+        self, request: pb.PromptDraftFreezeCommand, context: aio.ServicerContext[Any, Any]
+    ) -> pb.PromptDraftFreezeReceipt:
+        async with self.operation(context):
+            scope = DraftScope(request.scope.organization_id, request.scope.operator_user_id)
+            command = FreezePromptDraft(
+                identifier(request.draft_id),
+                identifier(request.command_id),
+                request.expected_revision,
+                request.reason,
+            )
+            async with self.container() as operation:
+                store = await operation.get(PromptFreezer)
+                receipt = await store.freeze(scope, command, datetime.now(UTC))
+            return freeze_response(receipt)
+        raise AssertionError("abort must raise")
+
+    async def GetFreezeReceipt(
+        self, request: pb.PromptDraftReceiptQuery, context: aio.ServicerContext[Any, Any]
+    ) -> pb.PromptDraftFreezeReceipt:
+        async with self.operation(context):
+            scope = DraftScope(request.scope.organization_id, request.scope.operator_user_id)
+            async with self.container() as operation:
+                store = await operation.get(PromptFreezer)
+                receipt = await store.get_receipt(scope, identifier(request.command_id))
+            return freeze_response(receipt)
+        raise AssertionError("abort must raise")
 
     @asynccontextmanager
     async def operation(self, context: aio.ServicerContext[Any, Any]) -> AsyncIterator[None]:

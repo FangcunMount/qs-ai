@@ -3,6 +3,7 @@ from dishka import Provider, Scope, provide
 from qs_ai.application.evaluation.management import EvaluationManagementStore
 from qs_ai.application.evaluation.requests import EvaluationRequests
 from qs_ai.application.governance.prompt_drafts import PromptDraftStore
+from qs_ai.application.governance.prompt_freeze import PromptFreezer
 from qs_ai.application.governance.publication import PublicationStore
 from qs_ai.application.integration.events import (
     DeliverResults,
@@ -15,12 +16,14 @@ from qs_ai.infrastructure.persistence.mysql.evaluation_management import MySQLEv
 from qs_ai.infrastructure.persistence.mysql.evaluation_requests import MySQLEvaluationRequests
 from qs_ai.infrastructure.persistence.mysql.evaluation_runs import MySQLRunCreator
 from qs_ai.infrastructure.persistence.mysql.prompt_drafts import MySQLPromptDrafts
+from qs_ai.infrastructure.persistence.mysql.prompt_freezes import MySQLPromptFreezer
 from qs_ai.infrastructure.persistence.mysql.publications import MySQLPublications
 from qs_ai.infrastructure.persistence.mysql.result_outbox import MySQLResultOutbox
 from qs_ai.infrastructure.workflow_transport.results import UnconfiguredReceiver
 
 
 class IntegrationProvider(Provider):
+    prompt_freezer = provide(MySQLPromptFreezer, provides=PromptFreezer, scope=Scope.REQUEST)
     prompt_drafts = provide(MySQLPromptDrafts, provides=PromptDraftStore, scope=Scope.REQUEST)
     publications = provide(MySQLPublications, provides=PublicationStore, scope=Scope.REQUEST)
     run_creator = provide(MySQLRunCreator, scope=Scope.REQUEST)
