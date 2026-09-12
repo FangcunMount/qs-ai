@@ -394,3 +394,12 @@ M1 → M2 → M3 → M4 → M5。M3 清单分析可提前开展，生产切换�
 
 - 核对 QS 旧 head 的 CI 34713990640，发现 PublicationManagement 缺少外部服务归属登记，以及启动测试夹具同时结束两个模拟服务导致错误/完成就绪顺序不确定。新 head 的 CI 34715160556 又指出两处嵌入字段方法选择可简化。源码 `6e03d2ea61d94b661716926d6b28d7daa68191b0` 补齐归属契约、简化方法选择，并将启动夹具的成功服务保持至 HTTP 错误返回；未修改共享 RunGroup 或生产启动逻辑。
 - Go application/infra/REST/gRPC/process 回归、100 次启动顺序测试、25 次 race 检测通过；上述包的 golangci-lint 为 0 issues，格式及文档检查通过。AI CI 的 QS 治理来源更新至这一精确源码，仍需两端新 head 的 CI 通过后才合并发布。前一版失败没有用重跑或旧绿灯代替修复。
+
+### 2026-09-13：发布管理合并与执行配置接单冻结
+
+- AI #48 精确提交 `7d94f307d0acdc79186e4ce3418d257a1fe724f8` 的 CI 34715518953 两版 MySQL 与镜像均通过，合并为 `e1f93b022d9102dca535a6753be4f0c934f7d70c`。QS #93 精确提交 `8b511ffd57e055eee80293683ba039cff4e4dc18` 的 CI 34715503593、AI bridge 34715503573 和 CodeQL 全部完成通过（文档同步按条件跳过），合并为 `3e297f525df0b6434506472bf8a0a15246ab46f4`。QS 仅操作专属 worktree，原工作区未切换或改写。
+- 主分支 AI CI 34716493238、QS CI 34716496716 继续跟踪。QS 只读兼容观察 34716607983 失败：三项 30 天窗口没有历史锚点，`qs_answersheet_legacy_idempotency_fallback_lookup_total` 缺少当前序列，不能将零增量视为完整观察。现场仍为旧 AI `6b803821e4e20abd93a757aaa4995b36bf683a30` 与 QS `01fb6bb98f4bca4027e485874799d334ff21b579`，API/gRPC/apiserver/两个 collection 均 healthy；这不是新合并版已部署的证据。
+- `codex/published-execution` 增加默认关闭的 `generation.use_publications`，在 QS 接单同一事务中保存发布/指针版本、清单引用与证据绑定。旧 request_id 重放先返回原回执，找不到配置则回滚整个接单。新 `qs-published-snapshot-v1` 执行从原发布资产构造工作流，发送前及成果接受前重新验证绑定；后者根据原响应重建并比较完整成果。当前只支持迁移基线的 participant scale/score_range 与 DeepSeek Responses/json_schema。
+- 新版本输入将没有建议的引用编码为 `[]`，满足原冻结 Schema；旧 `qs-snapshot-v1` 及已有持久调用继续保留 `null` 编码。实际 Go 组装对照 2 项通过，新旧完整输入只有这一项显式差异；新指纹自然变化，不改写旧记录。固定评测套件仍保存原输入，新的输入构造版本与新套件质量绑定需要后续独立工作，未沿用原批准声称质量验收完成。
+- 隔离 MySQL 8.4 的执行绑定、生成恢复与任务组合 43 项通过（84.36 秒），新增并发指针切换快照测试 1 项通过（6 秒）；增强接单失败回滚断言后该场景重验通过。覆盖替换/停用后的旧任务与重放、损坏绑定拒绝、发送参数偏离、成果入库前篡改及持久响应恢复不重复调用。替换仍使用同一批准 Run 的不同 publication，不能替代修改 Prompt/route 后的真实管理闭环。
+- `0018_execution_configurations` 在隔离库升级、回退至 0017、再升级和两次 Alembic 结构对账通过。Ruff、格式、mypy 187 源文件、文档链接及输入/容器回归通过。本批仍须提交 PR、完成精确 CI 及适用发布验证；M1–M5 均未验收，生产生成与发布接单开关不启用。

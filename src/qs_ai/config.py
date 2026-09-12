@@ -44,6 +44,7 @@ class WorkerOptions(LoopOptions):
 
 class GenerationOptions(Options):
     enabled: bool
+    use_publications: bool = False
     profile_id: str = Field(min_length=1)
     profile_version: str = Field(min_length=1)
     endpoint: str | None

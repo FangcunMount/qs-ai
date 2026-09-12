@@ -26,7 +26,7 @@ class ExecuteNext:
         try:
             await self.source.authorize(session.actor, session.testee_id, session.assessment_ids)
             evidence = await self.store.evidence(claim)
-            if evidence is None and session.workflow_version == "qs-snapshot-v1":
+            if evidence is None and session.uses_qs_snapshot:
                 raise RuleViolation("evidence_missing")
             if evidence is None:
                 items = await self.source.read(

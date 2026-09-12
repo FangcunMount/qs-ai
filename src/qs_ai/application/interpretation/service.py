@@ -50,16 +50,19 @@ def validate_session_input(testee_id: str, assessment_ids: tuple[str, ...], goal
 
 
 class InterpretationService:
-    def __init__(self, uows: UnitOfWorkFactory, source: EvidenceSource) -> None:
+    def __init__(
+        self, uows: UnitOfWorkFactory, source: EvidenceSource, *, use_publications: bool = False
+    ) -> None:
         self.uows = uows
         self.source = source
+        self.use_publications = use_publications
 
     async def _owned(self, actor: Actor, session_id: str) -> Session:
         async with self.uows.open() as uow:
             session = await uow.get(session_id)
         if session.actor != actor:
             raise AccessDenied
-        if session.workflow_version != "qs-snapshot-v1":
+        if not session.uses_qs_snapshot:
             await self.source.authorize(actor, session.testee_id, session.assessment_ids)
         return session
 
@@ -217,6 +220,11 @@ class InterpretationService:
                 )
                 await uow.add_evidence(frozen)
                 session.evidence_set_id = frozen.id
+            if self.use_publications:
+                if not evidence:
+                    raise RuleViolation("published_configuration_requires_snapshot")
+                session.workflow_version = "qs-published-snapshot-v1"
+                await uow.bind_configuration(session, frozen)
             await uow.bind_request(session.id, request_id)
             await uow.enqueue(session, None, False, None)
             await uow.save(session)

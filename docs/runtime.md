@@ -133,7 +133,7 @@ uv run python -m qs_ai.bootstrap.import_prompts --imported-by <操作人标识>
 
 迁移 `0010_schema_assets` 保存原规范字节、schema_id/version、SHA-256 和首次导入审计。命令为 `uv run python -m qs_ai.bootstrap.import_schemas --imported-by <操作人标识>`。两份 v1 规范从固定 QS 提交提取，先验证文件校验和及 JSON Schema，再插入不可变资产；重复导入不覆盖，同版异内容报冲突。
 
-只读对账范围现为 `fixed_profile_prompt_route_schema_baseline`，包括 1 个 Profile、6 个 Prompt、1 个 route/revision 和 2 份规范，以及 Profile 对输入/输出规范版本的引用。隔离 MySQL 8.4 整套导入后 matched；规范首次插入 2 条、再次 0 条。matched 只证明基线内容与引用相符，已知输入 null/array 契约差异仍存在，不能当作 release 审批或运行验收。生产尚未迁移或导入。
+只读对账范围现为 `fixed_profile_prompt_route_schema_baseline`，包括 1 个 Profile、6 个 Prompt、1 个 route/revision 和 2 份规范，以及 Profile 对输入/输出规范版本的引用。隔离 MySQL 8.4 整套导入后 matched；规范首次插入 2 条、再次 0 条。matched 只证明基线内容与引用相符，不能当作 release 审批或运行验收。旧输入 null/array 契约差异与新执行版本的修正见 [输入规范](../integrations/qs_server/schemas/README.md)。生产尚未迁移或导入。
 
 ## 构建生成清单（不审批、不激活）
 
@@ -180,3 +180,15 @@ QS 转发路径为 `POST /internal/v2/interpretation/ai-workflow/evaluations/{ru
 事务先锁定共享 checkpoint 与 Run，重算旧最终门槛，保存上一轮完整审核、门槛、版本和迁移边界后，移出本轮需要重新签名的候选审核，返回 awaiting_review 并加一版本。其他候选签名保持不变，原始模型输出不变，不重新调用模型。当前轮的签名不得早于重开时间；完整双职责审核后须再次 Finalize。
 
 状态新增 `reopenings_json`（QS JSON 为 `review_reopenings`），保存至多三轮、合计不超过 2 MiB 的完整历史。读取状态、候选详情、预览和再次写入时，逐轮以原始候选/调用重算旧门槛，核对保留签名及版本/迁移边界；清空历史而遗留重开迁移也会被拒绝。旧 AI 未返回该字段时 QS 兼容为空数组。超时后先回读，不自动重试重开。该能力尚需精确提交 CI、发布及真实管理验收，不改变 M1–M5 的生产准入要求。
+
+## 发布配置绑定执行
+
+`generation.use_publications` 默认 `false`，控制 QS `start_external` 新请求是否绑定已发布配置；它不启用模型调用。`generation.enabled`、治理/评测开关及生产准入仍独立控制。此开关不改变已有 request_id 的接受回执，也不改变已接收会话的执行路线。
+
+开启后，接单在同一 REPEATABLE READ 事务中解析可信标准报告的测评编码/版本，按具体版本、测评、通用选择器顺序解析发布配置。`0018_execution_configurations` 保存会话/证据摘要、publication_id、发布正文摘要、原指针版本及查询选择器，关联原不可变发布清单。缺少适用配置、资产不匹配或输入不满足规范时回滚整个接单，不能留下接受回执或静默回落 YAML。
+
+新会话使用 `qs-published-snapshot-v1`。worker 按该绑定读取五项原始生成资产和历史发布审计，构造 Profile/Prompt/模型参数/输入输出规范；发送前和成果入库前均从持久记录复核，后者也重建已校验成果以防内容或版本替换。FrozenGeneration 保留 publication_id 和 manifest_fingerprint，恢复只能使用同一冻结请求和原调用回执。指针替换、停用或回退不影响已接受任务，未知调用结果仍不自动重发。
+
+旧 `qs-snapshot-v1` 继续通过固定迁移基线执行，保留旧输入与持久调用恢复行为；部署回退不得运行不识别新工作流版本的旧引擎。单独关闭 use_publications 仅停止新请求绑定，已有绑定任务仍由支持该版本的 worker 处理。生产只读保留 0018 数据，迁移 downgrade 仅用于空的隔离验证库。
+
+当前仅支持既有 participant scale/score_range、DeepSeek Responses/json_schema 路线。业务配置来自冻结资产，访问地址和凭据来自私有部署设置。接单开关仍关闭；修改草稿、新套件与新输入构造版本评测绑定、真实管理/生成/回退验收尚未完成，不能将本地发布执行测试作为 M3 验收。

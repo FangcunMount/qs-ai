@@ -100,7 +100,7 @@ sequenceDiagram
 
 2026-09-13 核对 QS `2c26389c0b7b27e04da1300462636b5422a4f804` 的治理服务、Profile 领域及 Mongo 仓储后确认：发布要求 draft Profile、approved 的完整评测和匹配的 release，同一 specificity 的相同 selector 不允许两个 published Profile；读取按 model_code/model_version 的特异程度由高到低选取。停用较具体的版本后会回落到剩余通用版本。当前 Profile 查询不按机构过滤；这是共享配置目录，不能在迁移中无声改变为每机构独立配置。管理权限仍来自 QS，发布使用的评测 Run 必须在操作人的合法机构范围内。
 
-新实现保留这些选择语义，并将不可变配置、发布记录、当前指针及每次变更审计分开。发布/替换必须明确确认当前指针版本和原 publication_id；回退引用历史 publication，不重新创建或改写旧配置。回退产生新的指针版本及审计，不能减小版本号。新请求解析生效指针，在接受任务的事务中冻结 publication_id、manifest、原始资产版本与摘要；在途任务和恢复执行按已冻结版本读取，不查询 latest。现有 ReportWorkflow 仍由启动配置装配迁移基线，尚未切换到此解析路径。
+新实现保留这些选择语义，并将不可变配置、发布记录、当前指针及每次变更审计分开。发布/替换必须明确确认当前指针版本和原 publication_id；回退引用历史 publication，不重新创建或改写旧配置。回退产生新的指针版本及审计，不能减小版本号。新请求解析生效指针，在接受任务的事务中冻结 publication_id、manifest、原始资产版本与摘要；在途任务和恢复执行按已冻结版本读取，不查询 latest。发布绑定执行路径现已实现，受默认关闭的 generation.use_publications 控制；旧会话仍按迁移基线处理，生产尚未切换。
 
 发布事务的必须条件：
 
@@ -114,14 +114,14 @@ sequenceDiagram
 
 同一 command_id 的相同作用域及内容返回原回执，服务端重试时间不改变原审计；不同内容或操作者冲突。回执读取会重建前后指针并核对原确认命令、作用域、评测/回退目标和审计。回退重新验证历史 publication 的原机构评测与资产，保留原发布审计；共享目录的治理授权仍由 QS 决定。停用不要求已生效配置再次通过质量门槛，但仍要求指针、发布记录和操作历史自洽。
 
-AI 端五个管理 RPC（Publish/Rollback/Disable/Get/GetReceipt）和依赖注入已实现，注册受默认关闭的治理开关控制。GetReceipt 使用原机构、操作者和命令 ID 只读对账；不自动重复写入或调用模型。内部 mTLS 身份、显式确认及版本/范围校验已有测试。QS PR #93 已提供 Go 客户端、受当前 OrgAdmin/解读审计权限保护的五个 REST 入口及 DI 装配；跨语言发布、回退及原命令回执查询已在隔离 MySQL 验证，最新精确提交仍须通过 CI/合并/部署。
+AI 端五个管理 RPC（Publish/Rollback/Disable/Get/GetReceipt）和依赖注入已实现，注册受默认关闭的治理开关控制。GetReceipt 使用原机构、操作者和命令 ID 只读对账；不自动重复写入或调用模型。内部 mTLS 身份、显式确认及版本/范围校验已有测试。QS PR #93 已提供 Go 客户端、受当前 OrgAdmin/解读审计权限保护的五个 REST 入口及 DI 装配；跨语言发布、回退及原命令回执查询已在隔离 MySQL 验证，两端精确提交已通过 CI，AI #48 与 QS #93 已合并；主分支 CI/部署继续独立跟踪。
 
-执行解析与在途冻结、草稿编辑/新套件以及旧写路径退役仍待完成。该入口尚未接入真实生产管理和生成流量，不构成发布权限或 M3 验收；实际生效仍受 M1/M2 先行验收和生产开关约束。
+执行解析与在途冻结已有实现及隔离验证；草稿编辑/新套件以及旧写路径退役仍待完成。该入口尚未接入真实生产管理和生成流量，不构成发布权限或 M3 验收；实际生效仍受 M1/M2 先行验收和生产开关约束。
 
 
-### 执行端下一批接入位置
+### 执行端接入与剩余验收
 
-当前 `InterpretationService.start_external` 已在一个 UnitOfWork 中保存 QS 推送的 EvidenceSet、会话、任务、request_id 和接受回执，但未冻结发布配置。`GenerationProvider` 仍从部署设置加载固定迁移 Profile/Prompt/route；`DurableGeneration` 只在发送准备时保存 FrozenGeneration，无法单独保证排队期间的配置不变。下一批沿真实路径补齐：
+`InterpretationService.start_external` 在同一 UnitOfWork 保存 QS 推送的 EvidenceSet、会话、任务、request_id、接受回执和可选发布配置绑定。新版本工作流按原 publication 构造，旧会话继续使用迁移基线；发送记录和成果接受均检查原绑定。当前实现及后续验收沿以下路径核对：
 
 1. 从可信 QS 冻结报告解析测评编码/版本，按既有 selector specificity 选择 publication；不接受用户传入任意配置或由目标文本决定路线。
 2. 在任务接受的同一事务中记录 publication_id、selector 指针版本、原发布清单和证据/会话绑定。先检查原 request_id 回执，重复请求返回原绑定，不重新选择最新配置。无适用发布或资产损坏必须明确失败，不能悄悄使用当前 YAML 配置。
@@ -130,3 +130,5 @@ AI 端五个管理 RPC（Publish/Rollback/Disable/Get/GetReceipt）和依赖注�
 5. 验证接受后发布替换、同键重放、并发发布、停用回落、进程恢复、资产内容变化、无可用配置及旧会话兼容分支。生产流量切换仍等待 M1/M2 验收，禁止把这些隔离验证当成管理页面或模型质量验收。
 
 这一批不同时修改 QS 业务入口协议或删除旧生成/管理路径；是否需要新增协议字段须由已冻结事实中实际缺失的信息决定，不能凭空增加一份测评元数据权威。
+
+新增 `0018_execution_configurations`、版本化空引用数组修正和操作说明见 [运行说明](runtime.md#发布配置绑定执行)。现有隔离替换测试发布的是同一批准 Run 的另一份 publication，证明指针不会重绑任务，不能证明修改 Prompt/路线后的完整管理闭环；新草稿、套件与输入构造版本的评测仍需独立完成。

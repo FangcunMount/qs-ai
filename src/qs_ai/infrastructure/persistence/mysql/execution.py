@@ -1,6 +1,6 @@
 import hashlib
 import json
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from typing import Any
 from uuid import uuid4
 
@@ -9,10 +9,15 @@ from sqlalchemy.dialects.mysql import insert as mysql_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.functions import Function
 
+from qs_ai.application.execution.artifact import build_artifact
+from qs_ai.application.execution.configuration import ConfigurationUnavailable
+from qs_ai.application.execution.generation import GeneratedExplanation
 from qs_ai.application.interpretation.ports import Claim, WorkflowResult
-from qs_ai.application.interpretation.provider import ModelCall
+from qs_ai.application.interpretation.provider import ModelCall, ProviderFailure
 from qs_ai.domain.interpretation.model import EvidenceItem, EvidenceSet, Fact, Session, Status
+from qs_ai.infrastructure.persistence.model_call_codec import JSONModelCallCodec
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
+from qs_ai.infrastructure.persistence.mysql.execution_configurations import validate_generation
 from qs_ai.infrastructure.persistence.mysql.interpretation import MySQLUnitOfWork, session_from
 from qs_ai.infrastructure.persistence.mysql.leases import LeaseLost
 from qs_ai.infrastructure.persistence.mysql.schema import (
@@ -44,12 +49,23 @@ class MySQLExecutionStore:
         lost response. Recovery returns the existing marker and must not resend.
         """
         async with self.transactions.open() as db:
-            await self._guard(db, claim)
+            await db.connection(execution_options={"isolation_level": "REPEATABLE READ"})
+            session = await self._guard(db, claim)
             row = (
                 (await db.execute(select(model_calls).where(model_calls.c.run_id == claim.run_id)))
                 .mappings()
                 .first()
             )
+            if session.workflow_version == "qs-published-snapshot-v1":
+                try:
+                    await validate_generation(
+                        db,
+                        session,
+                        await self._evidence(db, session.id),
+                        row["request_json"] if row is not None else request_json,
+                    )
+                except ConfigurationUnavailable:
+                    raise ProviderFailure("configuration_invalid") from None
             if row is not None:
                 return ModelCall(
                     row["invocation_id"],
@@ -353,6 +369,7 @@ class MySQLExecutionStore:
         ):
             raise ValueError("Question must have a durable checkpoint and no failure")
         async with self.transactions.open() as db:
+            await db.connection(execution_options={"isolation_level": "REPEATABLE READ"})
             session = await self._guard(db, claim)
             if result.artifact is not None:
                 candidate = result.artifact
@@ -380,6 +397,19 @@ class MySQLExecutionStore:
                     != "sha256:" + hashlib.sha256(candidate.content_json.encode()).hexdigest()
                 ):
                     raise ValueError("Artifact does not match the durable execution")
+                if session.workflow_version == "qs-published-snapshot-v1":
+                    config, frozen = await validate_generation(
+                        db, session, evidence, call["request_json"]
+                    )
+                    response = JSONModelCallCodec().decode_response(call["response_json"])
+                    expected = build_artifact(
+                        replace(claim, session=session),
+                        evidence,
+                        GeneratedExplanation(frozen, response),
+                        config.parser,
+                    )
+                    if candidate != expected:
+                        raise ValueError("Artifact differs from accepted publication and response")
                 payload = asdict(candidate)
                 if len(json.dumps(payload, ensure_ascii=False).encode()) > 131072:
                     raise ValueError("Artifact exceeds delivery limit")

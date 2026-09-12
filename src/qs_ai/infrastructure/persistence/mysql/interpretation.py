@@ -18,6 +18,7 @@ from qs_ai.domain.interpretation.model import (
     Status,
 )
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
+from qs_ai.infrastructure.persistence.mysql.execution_configurations import bind_configuration
 from qs_ai.infrastructure.persistence.mysql.result_outbox import stage_state
 from qs_ai.infrastructure.persistence.mysql.schema import (
     evidence_sets,
@@ -101,6 +102,9 @@ class MySQLUnitOfWork:
         if row is None:
             raise NotFound
         return session_from(row)
+
+    async def bind_configuration(self, session: Session, evidence: EvidenceSet) -> None:
+        await bind_configuration(self.db, session, evidence)
 
     async def bind_request(self, session_id: str, request_id: str) -> None:
         await self.db.execute(
@@ -206,4 +210,5 @@ class MySQLUnitOfWorkFactory:
     @asynccontextmanager
     async def open(self) -> AsyncIterator[UnitOfWork]:
         async with self.transactions.open() as db:
+            await db.connection(execution_options={"isolation_level": "REPEATABLE READ"})
             yield MySQLUnitOfWork(db)

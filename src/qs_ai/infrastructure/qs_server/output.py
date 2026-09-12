@@ -2,7 +2,7 @@ import hashlib
 import json
 from copy import deepcopy
 from pathlib import Path
-from typing import Any
+from typing import Any, Self
 
 from jsonschema import Draft202012Validator
 
@@ -39,9 +39,18 @@ class QSOutputParser:
         schema = json.loads(raw)
         if not isinstance(schema, dict):
             raise InvalidOutput("schema_document_invalid")
-        self._schema = schema
-        Draft202012Validator.check_schema(schema)
-        self._validator = Draft202012Validator(schema)
+        self._configure(schema)
+
+    def _configure(self, schema: dict[str, Any]) -> None:
+        self._schema = deepcopy(schema)
+        Draft202012Validator.check_schema(self._schema)
+        self._validator = Draft202012Validator(self._schema)
+
+    @classmethod
+    def from_schema(cls, schema: dict[str, Any]) -> Self:
+        parser = cls.__new__(cls)
+        parser._configure(schema)
+        return parser
 
     def schema(self) -> dict[str, Any]:
         return deepcopy(self._schema)

@@ -1,7 +1,9 @@
 import pytest
 
+from qs_ai.application.execution.configuration import PublishedReportWorkflow
 from qs_ai.application.execution.report_workflow import ReportWorkflow
 from qs_ai.application.interpretation.ports import Workflow
+from qs_ai.application.interpretation.service import InterpretationService
 from qs_ai.bootstrap.container import create_container
 from qs_ai.config import Settings, read_yaml
 from qs_ai.infrastructure.interpretation.unconfigured import UnconfiguredWorkflow
@@ -12,6 +14,16 @@ async def test_generation_is_disabled_by_default():
     try:
         async with container() as request:
             assert isinstance(await request.get(Workflow), UnconfiguredWorkflow)
+    finally:
+        await container.close()
+
+
+@pytest.mark.parametrize("enabled", [False, True])
+async def test_publication_admission_flag_reaches_interpretation_service(enabled):
+    container = create_container(Settings(generation={"use_publications": enabled}))
+    try:
+        async with container() as request:
+            assert (await request.get(InterpretationService)).use_publications is enabled
     finally:
         await container.close()
 
@@ -51,6 +63,8 @@ async def test_container_assembles_published_report_workflow_without_network():
     try:
         async with container() as request:
             workflow = await request.get(Workflow)
+            assert isinstance(workflow, PublishedReportWorkflow)
+            workflow = workflow.legacy
             assert isinstance(workflow, ReportWorkflow)
             assert workflow.route.model == "deepseek-v4-pro"
             assert workflow.release.input_policy.profile_version == "v6"

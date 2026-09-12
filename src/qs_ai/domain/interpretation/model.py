@@ -85,6 +85,10 @@ class Session:
     workflow_version: str = "interpretation-v1"
     failure_code: str | None = None
 
+    @property
+    def uses_qs_snapshot(self) -> bool:
+        return self.workflow_version in {"qs-snapshot-v1", "qs-published-snapshot-v1"}
+
     def expect(self, version: int) -> None:
         if self.version != version:
             raise RuleViolation("version_conflict")

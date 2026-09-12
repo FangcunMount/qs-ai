@@ -195,4 +195,17 @@ def test_original_go_input_assembly_parity(policy: InputPolicy, filter_parent: b
             timeout=120,
         )
     actual = assemble_input(FIXTURE.read_text(), policy, focus_areas=("sleep_routine",))
-    assert json.loads(actual.canonical_json) == json.loads(original.stdout)
+    legacy = json.loads(original.stdout)
+    assert json.loads(actual.canonical_json) == legacy
+    published = assemble_input(
+        FIXTURE.read_text(), policy, focus_areas=("sleep_routine",), empty_reference_arrays=True
+    )
+    # The sole intentional input contract correction: absent reference lists
+    # are arrays. Keep the actual Go output as evidence of the original behavior.
+    empty_refs = 0
+    for dimension in legacy["facts"]["dimensions"]:
+        if dimension["standard_suggestion_refs"] is None:
+            empty_refs += 1
+            dimension["standard_suggestion_refs"] = []
+    assert empty_refs > 0
+    assert json.loads(published.canonical_json) == legacy
