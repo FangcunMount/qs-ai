@@ -28,6 +28,9 @@ def exporter(tmp_path, monkeypatch):
     script.write_text("""import os,sys,time
 from pathlib import Path
 mode = os.environ.get('MODE', 'success')
+if mode == 'classified_error':
+    sys.stderr.write('content digest sha256:private-registry-secret: not found')
+    sys.exit(7)
 if mode == 'hang':
     time.sleep(60)
 if mode == 'empty':
@@ -83,3 +86,32 @@ def test_failed_export_keeps_previous_package_and_reaps_children(exporter, tmp_p
     assert target.read_bytes() == b"previous complete package"
     assert all(p.returncode is not None for p in processes)
     assert not list(tmp_path.glob("*.tmp"))
+
+
+def test_export_failure_reports_only_allowlisted_category_and_exit_codes(exporter, tmp_path):
+    module, environment, processes = exporter
+    environment["MODE"] = "classified_error"
+    target = tmp_path / "image.tar.gz"
+    with pytest.raises(RuntimeError) as error:
+        module.export_image("test-image", target, environment, timeout=5)
+    message = str(error.value)
+    assert "docker_exit=7 docker_kind=missing_content" in message
+    assert "gzip_exit=0" in message and "archive_disk_free_mib=" in message
+    assert "private-registry-secret" not in message
+    assert not target.exists()
+    assert not list(tmp_path.glob("*.tmp"))
+    assert all(p.returncode is not None for p in processes)
+
+
+@pytest.mark.parametrize(
+    "raw, expected",
+    [
+        (b"no space left on device", "no_space"),
+        (b"Permission denied private-path", "permission_denied"),
+        (b"Cannot connect to private daemon", "daemon_unavailable"),
+        (b"unexpected sensitive message", "unclassified"),
+    ],
+)
+def test_diagnostic_categories_never_return_raw_stderr(exporter, raw, expected):
+    module, *_ = exporter
+    assert module.export_failure_kind(raw) == expected
