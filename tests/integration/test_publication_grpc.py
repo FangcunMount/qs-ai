@@ -1,6 +1,12 @@
 """Actual mTLS -> DI -> MySQL publication lifecycle with synthetic evaluated output."""
 
+import asyncio
+import json
+import os
+import shutil
+import tempfile
 from dataclasses import asdict, replace
+from pathlib import Path
 from uuid import uuid4
 
 import grpc
@@ -30,7 +36,7 @@ pytestmark = pytest.mark.integration
 
 
 @pytest.fixture
-async def running(ready, tmp_path):
+async def publication_server(ready, tmp_path):
     tx, scope, command, _ = ready
     certificates(tmp_path)
     assert tx.database.engine is not None
@@ -62,12 +68,189 @@ async def running(ready, tmp_path):
         return rpc.PublicationManagementStub(channel)
 
     try:
-        yield tx, scope, command, client
+        yield tx, scope, command, client, port
     finally:
         for channel in channels:
             await channel.close()
         await server.stop(0)
         await container.close()
+
+
+@pytest.fixture
+async def running(publication_server):
+    return publication_server[:4]
+
+
+@pytest.fixture
+async def go_publication(tmp_path):
+    source = os.getenv("QS_AI_GOVERNANCE_SOURCE")
+    if not source or not shutil.which("go"):
+        pytest.skip("Requires isolated QS governance checkout and Go")
+    root = Path(source)
+    with tempfile.TemporaryDirectory(
+        prefix="qs_ai_publication_", dir=root / "scripts"
+    ) as directory:
+        program = Path(directory) / "main.go"
+        shutil.copyfile(
+            Path(__file__).parents[1] / "fixtures/go_publication_management.go", program
+        )
+        binary = tmp_path / "publication"
+        process = await asyncio.create_subprocess_exec(
+            "go",
+            "build",
+            "-o",
+            str(binary),
+            str(program),
+            cwd=root,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        try:
+            _, error = await asyncio.wait_for(process.communicate(), 120)
+            assert process.returncode == 0, error.decode()
+        finally:
+            if process.returncode is None:
+                process.kill()
+                await process.wait()
+    return binary
+
+
+@pytest.fixture
+async def go_client(publication_server, go_publication, tmp_path):
+    _, scope, _, _, port = publication_server
+
+    async def invoke(action, identity="qs", **overrides):
+        request = {
+            "Action": action,
+            "OrgID": scope.organization_id,
+            "UserID": scope.operator_user_id,
+            "Allowed": True,
+            **overrides,
+        }
+        process = await asyncio.create_subprocess_exec(
+            str(go_publication),
+            f"localhost:{port}",
+            str(tmp_path / "ca.pem"),
+            str(tmp_path / f"{identity}.pem"),
+            str(tmp_path / f"{identity}.key"),
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        try:
+            output, error = await asyncio.wait_for(
+                process.communicate(json.dumps(request, ensure_ascii=False).encode()), 20
+            )
+            assert process.returncode == 0, error.decode()
+            return json.loads(output)
+        finally:
+            if process.returncode is None:
+                process.kill()
+                await process.wait()
+
+    return invoke
+
+
+def go_publish(command):
+    return {
+        "command_id": str(command.command_id),
+        "reason": command.reason,
+        "confirm": True,
+        "expected": {
+            "selector": asdict(command.selector),
+            "version": 0,
+            "active_publication_id": "",
+        },
+        "run_id": str(command.run_id),
+        "run_version": command.run_version,
+        "release_fingerprint": command.release_fingerprint,
+    }
+
+
+@pytest.mark.interop
+async def test_go_publish_read_receipt_replace_rollback_disable(publication_server, go_client):
+    tx, _, command, _, _ = publication_server
+    request = go_publish(command)
+    first = await go_client("publish", Publish=request)
+    assert first["Code"] == "OK" and not first["Conflict"], first
+    original = first["State"]
+    assert original["current"]["version"] == 1
+    before = await inventory(tx)
+    # Every call starts a fresh Go process/connection. Receipt reads never replay mutations.
+    recovered = await go_client("receipt", CommandID=request["command_id"], AuditOnly=True)
+    assert recovered["State"] == original and recovered["Code"] == "OK"
+    assert (await go_client("publish", Publish=request))["State"] == original
+    assert await inventory(tx) == before
+    selector = request["expected"]["selector"]
+    assert (await go_client("get", Selector=selector, AuditOnly=True))["State"] == original[
+        "current"
+    ]
+    second_request = {
+        **request,
+        "command_id": str(uuid4()),
+        "expected": {
+            "selector": selector,
+            "version": 1,
+            "active_publication_id": original["current"]["active_publication_id"],
+        },
+    }
+    second = await go_client("publish", Publish=second_request)
+    assert second["Code"] == "OK", second
+    rollback = {
+        "command_id": str(uuid4()),
+        "reason": "回退原版本",
+        "confirm": True,
+        "expected": {
+            "selector": selector,
+            "version": 2,
+            "active_publication_id": second["State"]["current"]["active_publication_id"],
+        },
+        "target_publication_id": original["current"]["active_publication_id"],
+    }
+    back = await go_client("rollback", Rollback=rollback)
+    assert back["Code"] == "OK", back
+    assert back["State"]["current"]["publication"] == original["current"]["publication"]
+    disable = {
+        "command_id": str(uuid4()),
+        "reason": "停用核验",
+        "confirm": True,
+        "expected": {
+            "selector": selector,
+            "version": 3,
+            "active_publication_id": original["current"]["active_publication_id"],
+        },
+    }
+    stopped = await go_client("disable", Disable=disable)
+    assert stopped["Code"] == "OK", stopped
+    assert stopped["State"]["current"]["version"] == 4
+    assert not stopped["State"]["current"]["active_publication_id"]
+    assert [len(values) for values in await inventory(tx)] == [2, 1, 4]
+
+
+@pytest.mark.interop
+async def test_go_publication_denial_stale_and_foreign_receipts(publication_server, go_client):
+    tx, _, command, _, _ = publication_server
+    request = go_publish(command)
+    for overrides in ({"Allowed": False}, {"AuditOnly": True}):
+        assert (await go_client("publish", Publish=request, **overrides))["Denied"]
+    for identity in ("other", "ai"):
+        assert (await go_client("publish", identity=identity, Publish=request))[
+            "Code"
+        ] == "PermissionDenied"
+    assert (await go_client("publish", Publish=request, OrgID=2))["Code"] == "NotFound"
+    assert (await go_client("publish", Publish={**request, "confirm": False}))["Invalid"]
+    assert [len(values) for values in await inventory(tx)] == [0, 0, 0]
+    assert (await go_client("publish", Publish=request))["Code"] == "OK"
+    before = await inventory(tx)
+    assert (await go_client("publish", Publish={**request, "command_id": str(uuid4())}))[
+        "Code"
+    ] == "Aborted"
+    assert (await go_client("publish", Publish=request, Allowed=False))["Denied"]
+    for altered in ({"OrgID": 2}, {"UserID": 43}):
+        assert (await go_client("receipt", CommandID=request["command_id"], **altered))[
+            "Code"
+        ] == "NotFound"
+    assert await inventory(tx) == before
 
 
 def publish_request(scope, command):
