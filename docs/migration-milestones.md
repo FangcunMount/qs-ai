@@ -422,3 +422,13 @@ M1 → M2 → M3 → M4 → M5。M3 清单分析可提前开展，生产切换�
 - 新增 PromptDraftManagement 的 Create / Revise / Get / GetReceipt 四个内部 RPC、请求级 DI 和 `0019_prompt_drafts` 两表迁移，沿用默认关闭的治理开关及严格 QS mTLS 工作负载身份。可保存尚未完成的模板；这只证明编辑保存，不证明渲染校验、资产冻结、评测审批或发布成功。QS 管理代理及页面尚未连接本服务。
 - 本批非集成回归 802 项通过、11 项跳过；Ruff、格式、mypy 192 源文件、协议生成及文档检查通过。隔离 MySQL 8.4 中的保存、并发、事务回滚、历史/审计损坏拒绝及实际临时 mTLS→Python RPC→Dishka→MySQL 共 13 项通过，最后一次合并重验 2.67 秒。迁移升级/回退/再升级通过，现场复核当前头为 0019、Alembic 无结构漂移。未使用真实 IAM、模型或生产业务记录验收。
 - 下一步完成精确提交 PR/CI、QS 草稿管理授权代理，以及草稿校验后形成 qs-ai 自有不可变资产与新 Profile/套件的路径。当前评测仍有固定迁移资产加载边界，不能把新正文套用旧 source Git blob、旧批准 Run 或旧 suite 身份直接发布。M1–M5 均保持未验收；合法报告与测试主体缺口继续保留，独立管理迁移工作继续推进。
+
+### 2026-09-13：QS 草稿授权代理与跨语言保存验证
+
+- AI 草稿源码 `b478dc14c70abb7b3360ed45db9407ee5df077de` 已推送为 PR #51，CI 34718541857 镜像通过、两版 MySQL 检查仍在运行。本批跨语言夹具使用独立 `codex/qs-prompt-draft-interop` 分支，不改写已提交草稿来源。
+- QS 在本任务独立 worktree 从干净的 `3e297f525df0b6434506472bf8a0a15246ab46f4` 新建 `codex/ai-prompt-draft-management`；[PR #94](https://github.com/FangcunMount/qs-server/pull/94) 源码 `a3d8bb017e6678dfd218bb272785f0e9477d8515` 增加创建、修订、当前/历史读取及原命令回执四个 REST 入口。写操作复用 OrgAdmin、读取复用解读审计，每次调用检查权限，机构/操作者仅取受保护上下文。共用已有 mTLS 连接，保留原评测/发布拨号接口；修改携带明确版本，超时不自动重试。
+- 客户端核对返回机构、草稿身份、修订、原命令及操作人，写入确认另与请求正文、原因及创建来源绑定；当前或历史读取允许同机构有审计权限的其他操作者，原命令回执仍限原操作者。默认关闭时不注册 REST 路由。草稿支持保存不完整正文，但未连接页面、校验/冻结或评测发布流程。
+- Go 应用/客户端、真实 REST 路由、gRPC 外部服务归属与容器回归通过，golangci-lint 为 0 issues，格式与 80 项文档检查通过。生成契约逐字节匹配 AI 来源；REST/Swagger 为 221 operations / 199 paths，gRPC 为 81 RPC / 19 services / 8 proto。
+- 实际 Go 应用/客户端→临时 mTLS→Python RPC/Dishka→隔离 MySQL 8.4 的草稿创建、修订、历史、原命令重放与新进程回执，连同既有 Python RPC 场景共 5 项通过（7.55 秒）。随后与已有发布管理 Go/Python 组合回归 6 项通过（32.18 秒），CI 治理 checkout 固定到该 QS 源码。验证了撤权、只读身份写入、错误证书、跨机构/其他操作者回执及过期版本拒绝。IAM 快照与事实来源仍是测试夹具，没有生产管理或真实业务验收。
+- AI 执行冻结版主分支 CI 34717873840 与部署 34718809054 成功。SSH 核实 API/gRPC 实际镜像为 `32421ecc81e363fc89434b548a0f83c2a474c9c6` 且 healthy，MySQL 8.0.36 当前/预期为 `0018_execution_configurations`，readyz connected，mTLS 自身份拒绝探针通过。generation/evaluation/grpc.governance_enabled/generation.use_publications 均为 false。该部署工作流自身 head 为 a1ba1082，但实际部署的是已通过检查的 32421ecc；不把工作流 head 当作镜像版本或将后续套件/草稿视为已部署。
+- M1–M5 仍未验收；下一步跟踪本批两端精确源码 CI，并完成原草稿→校验→qs-ai 原生不可变资产→新 Profile/套件的业务链。QS 原工作区及其他任务更改未触碰；旧管理写入权威尚未切换。
