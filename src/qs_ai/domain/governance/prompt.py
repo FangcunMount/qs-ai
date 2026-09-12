@@ -5,6 +5,8 @@ import json
 import re
 from dataclasses import dataclass
 
+from qs_ai.domain.governance.prompt_origin import validate_native_origin
+
 
 @dataclass(frozen=True)
 class PromptAsset:
@@ -35,7 +37,9 @@ class PromptAsset:
             self.fingerprint,
         ):
             raise ValueError("Prompt reference mismatch")
-        if not isinstance(ref.get("GitBlobSHA"), str) or not re.fullmatch(
+        if "Format" in data or "Origin" in data:
+            validate_native_origin(data, self.fingerprint)
+        elif not isinstance(ref.get("GitBlobSHA"), str) or not re.fullmatch(
             r"[0-9a-f]{40}", ref["GitBlobSHA"]
         ):
             raise ValueError("Invalid source Git blob")

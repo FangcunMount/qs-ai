@@ -404,3 +404,17 @@ prompt_draft_revisions = sa.Table(
     mysql_engine="InnoDB",
     mysql_charset="utf8mb4",
 )
+
+prompt_draft_freezes = sa.Table(
+    "prompt_draft_freezes",
+    metadata,
+    sa.Column("command_id", sa.CHAR(36), primary_key=True),
+    sa.Column("draft_id", sa.CHAR(36), sa.ForeignKey(prompt_drafts.c.draft_id), nullable=False),
+    sa.Column("organization_id", sa.BigInteger, nullable=False),
+    sa.Column("operator_user_id", sa.BigInteger, nullable=False),
+    sa.Column("receipt_json", mysql.LONGTEXT, nullable=False),
+    sa.Column("receipt_sha256", sa.CHAR(64), nullable=False),
+    sa.UniqueConstraint("draft_id", name="uq_prompt_draft_freeze"),
+    mysql_engine="InnoDB",
+    mysql_charset="utf8mb4",
+)

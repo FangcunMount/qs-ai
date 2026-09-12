@@ -490,6 +490,30 @@ class PublicationReceipt(_message.Message):
     changed_at: str
     def __init__(self, command_id: _Optional[str] = ..., previous: _Optional[_Union[PublicationState, _Mapping]] = ..., current: _Optional[_Union[PublicationState, _Mapping]] = ..., action: _Optional[str] = ..., actor: _Optional[str] = ..., reason: _Optional[str] = ..., changed_at: _Optional[str] = ...) -> None: ...
 
+class PromptDraftFreezeCommand(_message.Message):
+    __slots__ = ("scope", "draft_id", "command_id", "expected_revision", "reason")
+    SCOPE_FIELD_NUMBER: _ClassVar[int]
+    DRAFT_ID_FIELD_NUMBER: _ClassVar[int]
+    COMMAND_ID_FIELD_NUMBER: _ClassVar[int]
+    EXPECTED_REVISION_FIELD_NUMBER: _ClassVar[int]
+    REASON_FIELD_NUMBER: _ClassVar[int]
+    scope: PublicationScope
+    draft_id: str
+    command_id: str
+    expected_revision: int
+    reason: str
+    def __init__(self, scope: _Optional[_Union[PublicationScope, _Mapping]] = ..., draft_id: _Optional[str] = ..., command_id: _Optional[str] = ..., expected_revision: _Optional[int] = ..., reason: _Optional[str] = ...) -> None: ...
+
+class PromptDraftFreezeReceipt(_message.Message):
+    __slots__ = ("schema_version", "command_id", "receipt_json")
+    SCHEMA_VERSION_FIELD_NUMBER: _ClassVar[int]
+    COMMAND_ID_FIELD_NUMBER: _ClassVar[int]
+    RECEIPT_JSON_FIELD_NUMBER: _ClassVar[int]
+    schema_version: str
+    command_id: str
+    receipt_json: str
+    def __init__(self, schema_version: _Optional[str] = ..., command_id: _Optional[str] = ..., receipt_json: _Optional[str] = ...) -> None: ...
+
 class PromptDraftSource(_message.Message):
     __slots__ = ("identity", "version", "fingerprint", "content_sha256")
     IDENTITY_FIELD_NUMBER: _ClassVar[int]

@@ -197,12 +197,22 @@ QS 转发路径为 `POST /internal/v2/interpretation/ai-workflow/evaluations/{ru
 
 ## Prompt 草稿与修订历史
 
-`PromptDraftManagement` 提供 Create、Revise、Get、GetReceipt 四个内部 RPC，与评测和发布一样受默认关闭的 `grpc.governance_enabled` 控制，并要求可信 QS mTLS 身份和组织/操作者上下文。QS 仍负责每次管理授权；草稿按机构隔离，同机构获授权管理员可读取历史，命令回执仅向原机构/操作者返回。QS 管理代理和页面尚未接入这四个方法。
+`PromptDraftManagement` 的 Create、Revise、Get、GetReceipt 管理编辑修订，Freeze、GetFreezeReceipt 管理原生资产冻结。全部受默认关闭的 `grpc.governance_enabled` 控制，并要求可信 QS mTLS 身份和组织/操作者上下文。QS 仍负责每次管理授权；草稿按机构隔离，同机构获授权管理员可读取历史，命令回执仅向原机构/操作者返回。QS 草稿四项代理已实现，冻结代理及页面尚未接入。
 
 Create 必须提供原不可变 Prompt 的完整身份及包摘要，并指定尚不存在的目标模板/版本。服务端从已验证原包复制内容，不接受调用者伪造源正文；来源引用保留在每个修订快照中。新的编辑内容属于原生草稿，不能继续拿源 Git blob 或 Prompt fingerprint 作为编辑后内容的身份。
 
 Revise 必须携带正数 expected_revision、唯一 command_id、完整编辑正文和修改原因。`0019_prompt_drafts` 的 head 与 append-only 修订记录在同一事务提交，版本每次增加一；并发旧版本修改只有一份成功。相同命令和内容返回原修订，时间变化不新增修改；同键不同请求冲突。超时后按原 command_id 只读恢复；读取历史不会回退当前 head。
 
-草稿允许尚未完成的模板文本。保存只证明编辑记录已持久化，不代表模板渲染、策略兼容、质量审核或发布通过。此阶段没有把草稿转成不可变生成资产的接口，不修改原 Prompt、发布指针或运行任务。后续必须补齐渲染/策略校验、原生资产身份、Profile 与新套件绑定、完整评测批准，再接入现有发布事务；禁止绕过门槛直接生效。
+草稿允许尚未完成的模板文本。保存只证明编辑记录已持久化，不代表模板渲染、策略兼容、质量审核或发布通过。Freeze 只负责下述语法校验和原生资产冻结，不修改原 Prompt、发布指针或运行任务。后续仍须补齐 Profile 与新套件绑定、策略兼容及完整评测批准，再接入现有发布事务；禁止绕过门槛直接生效。
 
 迁移回退仅用于隔离测试库；生产修订记录和源资产保留。维护者可按 draft_id 与 revision 读取完整正文、源引用、command_id、操作者、时间和原因；修订正文摘要、索引及原命令审计不一致时读取失败，不返回一个看似正常的草稿。
+
+## 原生 Prompt 冻结
+
+Freeze 必须提供草稿 ID、expected_revision、原命令 ID 和原因。服务端在草稿 head 锁内校验三个非空正文、静态 system/data preamble、受支持且不重复的占位符声明，以及任务模板所有占位符已声明且语法完整。检查版本固定为 `qs-ai-prompt-syntax/v1`；不调用模型，也不声称临床、产品语义或 Profile 规则已经通过。
+
+`qs-ai-prompt/v1` 原生包包含自己的内容指纹和包摘要，Origin 绑定机构、草稿 ID/修订、原始修订快照摘要、源资产完整引用及校验器版本。其 Ref 不含 GitBlobSHA，不伪造一个 QS Git 来源；旧 QS 导入包仍保留原格式、原字节和原 Git 来源。两种已验证资产都可投影为执行用 PromptPackage，原生包的 git_blob_sha 为 None。
+
+`0020_prompt_freezes` 将冻结命令回执与 PromptAssets 插入置于同一事务。冻结后禁止修改该草稿；继续编辑须从冻结资产创建新目标版本的草稿。重复原命令返回原回执，竞争冻结或其他草稿抢占相同目标版本不会覆盖已有资产。GetFreezeReceipt 只读原命令结果，重新核对修订、原生资产、导入来源和操作人审计。编辑回执与冻结回执使用各自查询方法。
+
+当前固定评测套件仍使用迁移基线 Profile/Prompt，尚未完成任意原生资产到评测的加载路径。单独冻结一个新 Prompt 不会使它获得 approved/published 状态，也不会被生产任务选中。生产历史记录保留，迁移降级仅在可丢弃空库中验证。

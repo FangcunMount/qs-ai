@@ -31,6 +31,7 @@ from qs_ai.infrastructure.persistence.mysql.asset_snapshot import AssetSnapshotR
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
 from qs_ai.infrastructure.persistence.mysql.schema import (
     prompt_assets,
+    prompt_draft_freezes,
 )
 from qs_ai.infrastructure.persistence.mysql.schema import (
     prompt_draft_revisions as revisions,
@@ -225,6 +226,14 @@ async def apply_draft(
         prior = await replay(db, scope, command.command_id, request)
         if prior is not None:
             return prior
+        if (
+            await db.execute(
+                select(prompt_draft_freezes.c.command_id).where(
+                    prompt_draft_freezes.c.draft_id == str(command.draft_id)
+                )
+            )
+        ).first() is not None:
+            raise DraftConflict("Frozen draft cannot be edited; create a new target version")
         draft = previous.revise(
             command.expected_revision,
             command.content,

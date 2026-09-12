@@ -18,7 +18,7 @@ class PromptPackage:
     template_id: str
     version: str
     fingerprint: str
-    git_blob_sha: str
+    git_blob_sha: str | None
     system_message: str
     task_template: str
     data_preamble: str
