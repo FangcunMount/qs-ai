@@ -22,6 +22,7 @@ func main() {
 		Allowed, Confirm                bool
 		AuditOnly                       bool
 		CandidateID                     string
+		ExpectedPassed                  *bool
 	}
 	if json.NewDecoder(os.Stdin).Decode(&input) != nil {
 		os.Exit(2)
@@ -47,7 +48,9 @@ func main() {
 	}
 	scope := app.EvaluationScope{RunID: input.RunID, OrganizationID: input.OrgID, OperatorUserID: input.UserID}
 	var result any
-	if input.Action == "gates" {
+	if input.Action == "finalize" {
+		result, err = service.Finalize(ctx, scope, app.EvaluationFinalize{ExpectedVersion: input.Version, ExpectedPassed: input.ExpectedPassed, Reason: input.Reason, Confirm: input.Confirm})
+	} else if input.Action == "gates" {
 		result, err = service.PreviewGates(ctx, scope, input.Version)
 	} else if input.Action == "candidates" {
 		result, err = service.ListCandidates(ctx, scope)

@@ -320,3 +320,14 @@ M1 → M2 → M3 → M4 → M5。M3 清单分析可提前开展，生产切换�
 - QS 在专属 worktree 的新分支 `codex/ai-evaluation-gates` 基于上述主分支实现只读 GET `/{run_id}/gates?expected_version=N`，草稿 [PR #90](https://github.com/FangcunMount/qs-server/pull/90)。沿用当前解读审计权限、受保护机构/操作者与五秒截止时间，不自动重试。客户端校验 Run/版本、发布摘要、预览 Schema/字段和 256 KiB 上限；质量计算仍归 qs-ai，不接受客户端预览作为批准依据。
 - QS 源提交 `c9efdf8ff62883c12ea8b9a177aa4dc8eeb79c8e`，文档基线提交 `2ed6724373254a9ce5015cbff932e900046f084f`；Go 应用/客户端/处理器/实际路由/gRPC 服务回归、fmt-check、API 生成一致性及 80 项文档检查通过，清单为 70 RPC、210 REST operations / 188 paths。没有切换或修改 QS 原工作区。
 - 实际 Go QS 应用/客户端 → 临时 mTLS Python → MySQL 8.4 的五项组合联调通过（23.10 秒），新覆盖审计用户读取完整门槛与相同发布摘要、错机构/错证书/撤权拒绝、审核后旧版本拒绝、新版本保留人工拒绝原因，原始候选输出不变。CI 的 QS 治理来源更新为精确提交 `2ed6724373254a9ce5015cbff932e900046f084f`，最新 CI 待验证。临时数据库已清理；使用合成 IAM 和模型输出，不构成生产验收。批准/拒绝/重开与发布事务继续后续建设，M1–M5 状态不变。
+
+### 2026-09-13：最终批准／拒绝事务与 QS 转发
+
+- 本轮重新核实最初草稿 AI #6 / QS #82 已分别合并至 `0cf33ae18ecff1bb2b575ba5538f8cacba5a236a` / `87edccd9a7a0f353645216c6ba31c8b621db581f`；合并不改变 M1–M5 尚未验收的状态。真实授权报告、测试账号与生产业务恢复证据仍缺失。
+- AI PR #44 精确提交 `56f89a14d73c316b4d4d2576c297f312eb3d0c2e` 的 CI [34707493736](https://github.com/FangcunMount/qs-ai/actions/runs/34707493736) 三项通过，已合并 `15036c1f955d25b9fb741aaadca8d2bd4ccbdf3c`。其主分支 CI [34707872937](https://github.com/FangcunMount/qs-ai/actions/runs/34707872937) 通过；纯测试/文档的发布流程 [34708208469](https://github.com/FangcunMount/qs-ai/actions/runs/34708208469) 只完成 gate，build/deploy 跳过。
+- AI 门槛预览版本 `d739c17da02b59cc6d7ea01dffd1fc2388da5419` 的发布 [34707638408](https://github.com/FangcunMount/qs-ai/actions/runs/34707638408) 成功，独立 SSH 确认 API/gRPC 健康、MySQL 8.0.36 迁移头 `0016_semantic_completions`、readyz 正常。自身份 gRPC 探针取得预期 PERMISSION_DENIED，仅证明证书通信和身份拒绝，不能替代真实授权业务。
+- QS PR #90 精确提交 `2ed6724373254a9ce5015cbff932e900046f084f` 的 CI [34707370109](https://github.com/FangcunMount/qs-server/actions/runs/34707370109) 全部完成通过，已合并 `2e6e016add9e0d18628a3677c55e1f86b75ca12b`，主分支 CI [34707959333](https://github.com/FangcunMount/qs-server/actions/runs/34707959333) 通过。后续生产发布独立跟踪。
+- `codex/evaluation-finalization` 迁入旧 QS FinalizeChecked 的语义：完整人工评审为前提、预览版本及预期结果仅作确认，持有共享 checkpoint/Run 锁后重建证据并重算门槛。最终记录与状态、版本、审计同事务提交，回读重新核对原始证据；不覆盖原候选、调用或审核，不发布配置。
+- 本地 16 项领域/RPC 测试通过；660 项非集成通过、11 项跳过。MySQL 8.4 的最终评审、门槛预览和候选读取共 38 项通过（178.60 秒），含等待并发最后一条审核提交后建立快照、回滚、双提交、错机构、过期版本、评审缺失、门槛/审核/审计篡改拒绝。
+- QS 源码提交 `4f279b96342de6ae47f23b1c4172a6b7292403e7`、文档提交 `1d85789dc1eef64e39f12712beb29d4899abb58c` 在本任务独立 worktree 的 `codex/ai-evaluation-finalization` 增加现有 OrgAdmin 保护的最终评审入口；非终态兼容，终态要求完整回执，超时不重试。实际 Go 应用/客户端 → 临时 mTLS Python → MySQL 的批准/拒绝与既有管理组合共 7 项通过（38.71 秒）。正向数据使用合成的通过语义回执，未替换真实门槛计算器；IAM、模型及证书仍为隔离测试输入，不是产品或生产质量验收。
+- CI 的 governance checkout 固定为 QS `1d85789dc1eef64e39f12712beb29d4899abb58c`。下一步跟踪这一批 PR/CI 与部署，继续评审重开和冻结配置发布事务；M1–M5 保持未验收，治理和生成流量尚未切换。

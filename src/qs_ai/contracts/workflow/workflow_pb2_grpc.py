@@ -262,6 +262,11 @@ class EvaluationManagementStub:
                 request_serializer=workflow__pb2.EvaluationGateQuery.SerializeToString,
                 response_deserializer=workflow__pb2.EvaluationGatePreview.FromString,
                 _registered_method=True)
+        self.Finalize = channel.unary_unary(
+                '/qsai.workflow.v1.EvaluationManagement/Finalize',
+                request_serializer=workflow__pb2.EvaluationFinalizeCommand.SerializeToString,
+                response_deserializer=workflow__pb2.EvaluationState.FromString,
+                _registered_method=True)
 
 
 class EvaluationManagementServicer:
@@ -320,6 +325,13 @@ class EvaluationManagementServicer:
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def Finalize(self, request, context):
+        """Recompute gates under CAS; this records approval/rejection, never publishes a release.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_EvaluationManagementServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -362,6 +374,11 @@ def add_EvaluationManagementServicer_to_server(servicer, server):
                     servicer.PreviewGates,
                     request_deserializer=workflow__pb2.EvaluationGateQuery.FromString,
                     response_serializer=workflow__pb2.EvaluationGatePreview.SerializeToString,
+            ),
+            'Finalize': grpc.unary_unary_rpc_method_handler(
+                    servicer.Finalize,
+                    request_deserializer=workflow__pb2.EvaluationFinalizeCommand.FromString,
+                    response_serializer=workflow__pb2.EvaluationState.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -581,6 +598,33 @@ class EvaluationManagement:
             '/qsai.workflow.v1.EvaluationManagement/PreviewGates',
             workflow__pb2.EvaluationGateQuery.SerializeToString,
             workflow__pb2.EvaluationGatePreview.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def Finalize(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.EvaluationManagement/Finalize',
+            workflow__pb2.EvaluationFinalizeCommand.SerializeToString,
+            workflow__pb2.EvaluationState.FromString,
             options,
             channel_credentials,
             insecure,

@@ -16,6 +16,10 @@ from qs_ai.domain.evaluation.resolution import ResultUnknownResolution
 from qs_ai.domain.evaluation.review import CandidateHumanReview
 from qs_ai.infrastructure.persistence.mysql import evaluation_candidates
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
+from qs_ai.infrastructure.persistence.mysql.evaluation_finalization import (
+    finalize,
+    read_finalization,
+)
 from qs_ai.infrastructure.persistence.mysql.evaluation_gates import preview_gates
 from qs_ai.infrastructure.persistence.mysql.evaluation_progress import transition_requested
 from qs_ai.infrastructure.persistence.mysql.evaluation_resolution import accept_resolution
@@ -27,7 +31,7 @@ async def read_view(db: AsyncSession, scope: ManagementScope) -> EvaluationView:
     row = (
         (
             await db.execute(
-                select(evaluation_runs.c.progress_json, evaluation_checkpoints.c.version)
+                select(evaluation_runs, evaluation_checkpoints.c.version)
                 .join(
                     evaluation_checkpoints,
                     evaluation_runs.c.run_id == evaluation_checkpoints.c.run_id,
@@ -53,12 +57,31 @@ async def read_view(db: AsyncSession, scope: ManagementScope) -> EvaluationView:
         progress.get("unresolved_result_unknown_count", 0),
         json.dumps(progress.get("result_unknown_resolutions", []), ensure_ascii=False),
         json.dumps(progress.get("human_reviews", []), ensure_ascii=False),
+        await read_finalization(db, scope, dict(row)),
     )
 
 
 class MySQLEvaluationManagement:
     def __init__(self, transactions: Transactions) -> None:
         self.transactions = transactions
+
+    async def finalize(
+        self,
+        scope: ManagementScope,
+        expected_version: int,
+        expected_passed: bool,
+        reason: str,
+        at: datetime,
+        *,
+        confirm: bool,
+    ) -> EvaluationView:
+        async with self.transactions.open() as db:
+            await finalize(
+                db, scope, expected_version, expected_passed, reason, at, confirm=confirm
+            )
+            view = await read_view(db, scope)
+            await db.commit()
+            return view
 
     async def preview_gates(
         self, scope: ManagementScope, expected_version: int, at: datetime
@@ -81,6 +104,7 @@ class MySQLEvaluationManagement:
 
     async def get(self, scope: ManagementScope) -> EvaluationView:
         async with self.transactions.open() as db:
+            await db.connection(execution_options={"isolation_level": "REPEATABLE READ"})
             return await read_view(db, scope)
 
     async def review(

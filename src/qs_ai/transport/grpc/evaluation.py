@@ -196,6 +196,30 @@ class EvaluationManagement(rpc.EvaluationManagementServicer):
             )
         raise AssertionError("abort must raise")
 
+    async def Finalize(
+        self, request: pb.EvaluationFinalizeCommand, context: aio.ServicerContext[Any, Any]
+    ) -> pb.EvaluationState:
+        async with self.operation(context):
+            scope = scope_from(request.scope)
+            if (
+                request.expected_version < 1
+                or not request.confirm
+                or not request.HasField("expected_passed")
+            ):
+                raise ValueError("Explicit version, expected outcome and confirmation required")
+            async with self.container() as operation:
+                store = await operation.get(EvaluationManagementStore)
+                view = await store.finalize(
+                    scope,
+                    request.expected_version,
+                    request.expected_passed,
+                    request.reason,
+                    datetime.now(UTC),
+                    confirm=True,
+                )
+            return pb.EvaluationState(**asdict(view))
+        raise AssertionError("abort must raise")
+
     async def ResolveUnknown(
         self, request: pb.UnknownResolutionCommand, context: aio.ServicerContext[Any, Any]
     ) -> pb.EvaluationState:

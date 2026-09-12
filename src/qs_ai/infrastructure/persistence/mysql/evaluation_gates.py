@@ -1,7 +1,9 @@
 """Rebuild all release gates from a scoped, immutable MySQL snapshot."""
 
 import json
+from collections.abc import Mapping
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.engine import RowMapping
@@ -47,6 +49,17 @@ async def preview_gates(
     if type(expected_version) is not int or expected_version < 1:
         raise ValueError("Explicit Run version required")
     run = await header(db, scope)
+    return await evaluate_snapshot(db, scope, dict(run), expected_version, at)
+
+
+async def evaluate_snapshot(
+    db: AsyncSession,
+    scope: ManagementScope,
+    run: Mapping[str, Any],
+    expected_version: int,
+    at: datetime,
+) -> GatePreview:
+    """Use the caller's existing snapshot, or its locked Run and checkpoint."""
     if run["version"] != expected_version:
         raise CheckpointConflict("Gate preview version changed")
     checkpoint = (
@@ -66,6 +79,7 @@ async def preview_gates(
         or progress.get("unresolved_result_unknown_count", 0) != 0
         or progress.get("canceled_at")
         or progress.get("gate_result")
+        or progress.get("finalized_at")
     ):
         raise CheckpointConflict("Closed Run progress requires reconciliation")
     if creation["schema_version"] != "qs-ai-evaluation-run-creation/v1" or creation[
