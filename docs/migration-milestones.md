@@ -388,3 +388,9 @@ M1 → M2 → M3 → M4 → M5。M3 清单分析可提前开展，生产切换�
 - AI CI 治理 checkout 固定至上述 QS 源码，新增 Go 发布夹具并保留旧评测跨语言检查。785 项非集成通过、11 项跳过，Ruff/格式与 mypy 184 源文件通过。AI [PR #48](https://github.com/FangcunMount/qs-ai/pull/48) 原 head `55b257d731580e86f74d961d49f0e5582a1e0869` 的 CI 34714073299 已完成两版 MySQL 与镜像验证；本轮新增夹具和 CI pin 必须等待新精确 head 的验证，不能沿用旧结果。
 - 前一批 AI PR #47 已合并为 `6b803821e4e20abd93a757aaa4995b36bf683a30`，主分支 CI 34714055083、部署 34714737930 成功。独立 SSH 确认 API/gRPC 同 SHA 且 healthy，MySQL 8.0.36 当前/预期均为 `0017_configuration_publications`，readyz connected，mTLS 身份拒绝探针为预期 PERMISSION_DENIED。generation/evaluation/governance 仍为 false；QS 仍为 `01fb6bb98f4bca4027e485874799d334ff21b579` 的三个健康容器。这不是 AI PR #48 或 QS PR #93 已部署的证据。
 - 下一步跟踪新精确提交 CI/发布，接入执行端的发布选择和在途不可变版本冻结；继续新草稿管理与旧权威切换的独立工作。M1–M5 均未验收，已提出的真实授权案例缺口未补齐，不启用生产生成或删除旧实现。
+
+
+### 2026-09-13：发布代理 CI 补漏
+
+- 核对 QS 旧 head 的 CI 34713990640，发现 PublicationManagement 缺少外部服务归属登记，以及启动测试夹具同时结束两个模拟服务导致错误/完成就绪顺序不确定。新 head 的 CI 34715160556 又指出两处嵌入字段方法选择可简化。源码 `6e03d2ea61d94b661716926d6b28d7daa68191b0` 补齐归属契约、简化方法选择，并将启动夹具的成功服务保持至 HTTP 错误返回；未修改共享 RunGroup 或生产启动逻辑。
+- Go application/infra/REST/gRPC/process 回归、100 次启动顺序测试、25 次 race 检测通过；上述包的 golangci-lint 为 0 issues，格式及文档检查通过。AI CI 的 QS 治理来源更新至这一精确源码，仍需两端新 head 的 CI 通过后才合并发布。前一版失败没有用重跑或旧绿灯代替修复。
