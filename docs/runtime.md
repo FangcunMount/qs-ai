@@ -236,10 +236,21 @@ QS 入口为 `POST /internal/v2/interpretation/ai-workflow/profiles/register` �
 
 ### 原生评测套件
 
-`SuiteManagement.Register` 将明确的已发布输入契约案例源 `V6_PUBLISHED` 绑定到新 Profile、Prompt 和生成路线的完整资产引用，服务器生成新的 suite_id/version/指纹。原生包 `qs-ai-suite/v1` 保存完整 Profile 定义、生成清单、案例与断言，`0022_evaluation_suites` 将包和原机构/操作者/command_id 回执同事务提交。目标版本与命令均不可覆盖；重放取回原结果，超时后调用 `GetReceipt` 查询原命令。接口仍受关闭的治理开关和可信 QS mTLS 身份保护，QS 套件授权代理及页面尚待接入。
+`SuiteManagement.Register` 将明确的已发布输入契约案例源 `V6_PUBLISHED` 绑定到新 Profile、Prompt 和生成路线的完整资产引用，服务器生成新的 suite_id/version/指纹。原生包 `qs-ai-suite/v1` 保存完整 Profile 定义、生成清单、案例与断言，`0022_evaluation_suites` 将包和原机构/操作者/command_id 回执同事务提交。目标版本与命令均不可覆盖；重放取回原结果，超时后调用 `GetReceipt` 查询原命令。接口仍受关闭的治理开关和可信 QS mTLS 身份保护，QS 套件授权代理已提交 PR #97，页面尚待接入。
 
 本批保留原 7 个生成案例、每例 5 次候选、1 个无模型预检案例，以及全部确定性/语义断言和质量规则。允许新 Prompt 正文与符合既有 Schema 的 Profile；若改变 eligibility 或 input_policy，则拒绝沿用该案例合同，需要另建匹配案例。注册不接受调用方删减案例、降低断言、替换审核门槛或提供“通过”结果，不复制旧 Run 的批准。
 
 Run 创建先核对数据库注册的套件与完整生成清单，随后冻结全部 suite_json。预检、生成输入、输出断言、语义审核、质量门槛和发布配置解析均校验同一套件身份；缺失/损坏的登记或清单不能退回旧文件基线。运行中的任务继续绑定原发布版本，已有两个文件套件及历史 Run 保持原身份和读取规则。命令上限 16 KiB、回执上限 32 KiB、套件包上限 512 KiB。
 
 隔离集成覆盖新 Prompt 编辑/冻结、Profile 注册、套件登记、真实应用生成适配器、新 Run 审核发布和接单执行。事实、模型响应、审核与 IAM 输入仍是合成材料；这些结果不构成真实生产质量、授权或管理页面验收。
+
+
+## 共享不可变资产目录
+
+`AssetCatalog.List/Get` 为管理页面提供 Profile、Prompt、模型路线、Schema 和评测套件的版本选择与正文读取。接口继续受 `grpc.governance_enabled` 和 QS 工作负载 mTLS 保护，要求非空合法机构/操作者；QS 代理须检查当前解读审计权限。配置目录保留原 QS 的共享语义，不按机构隐藏配置；原命令回执、评测 Run 和用户事实保持各自权限边界，不在目录返回。
+
+List 接收 kind、可选精确 identity、limit（默认 20，最多 50）及 cursor，只返回 kind、完整资产引用与下一页游标；Get 接收 kind/identity/version，返回同一引用及 definition_json。Prompt 返回完整包，指纹与包内容 SHA256 分开保存；其他定义和套件返回其原始 JSON。读取重建资产并校验正文摘要，原生套件还核对登记回执与索引一致性。目录存在不代表可执行、已批准或已发布；生效状态仍由发布指针确定。
+
+分页按二进制 identity/version 顺序；游标绑定种类及精确筛选，不是授权令牌。数据库与内置两个案例源共同分页，版本按字典顺序而非语义版本排序。单页在一个数据库事务内读取，跨页不承诺整个目录快照；新插入且排在游标之前的版本需刷新列表才能看到，不重复已翻过的项。请求上限 8 KiB、列表 JSON 上限 128 KiB、详情 JSON 上限 4 MiB。此目录不提供修改、删除或自动选取“最新版本”。
+
+本批仅实现 qs-ai 读取服务与真实临时 mTLS/MySQL 验证；QS 授权代理和后台页面接入尚待完成，不据此切换旧页面或开启生产治理。

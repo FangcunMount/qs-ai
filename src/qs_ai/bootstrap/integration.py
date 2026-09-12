@@ -15,6 +15,7 @@ from qs_ai.config import Settings
 from qs_ai.contracts.workflow import workflow_pb2_grpc as rpc
 from qs_ai.infrastructure.qs_server.report_probe import mtls_channel
 from qs_ai.infrastructure.workflow_transport.results import GRPCResultReceiver
+from qs_ai.transport.grpc.asset_catalog import AssetCatalogService
 from qs_ai.transport.grpc.commands import Commands
 from qs_ai.transport.grpc.evaluation import EvaluationManagement
 from qs_ai.transport.grpc.profile_registration import ProfileManagement
@@ -52,6 +53,7 @@ async def main() -> None:
             )
             rpc.add_CommandsServicer_to_server(Commands(container), server)
             if settings.grpc.governance_enabled:
+                rpc.add_AssetCatalogServicer_to_server(AssetCatalogService(container), server)
                 rpc.add_SuiteManagementServicer_to_server(SuiteManagement(container), server)
                 rpc.add_ProfileManagementServicer_to_server(ProfileManagement(container), server)
                 rpc.add_PromptDraftManagementServicer_to_server(
