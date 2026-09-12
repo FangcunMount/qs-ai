@@ -21,6 +21,8 @@ func main() {
 		Revise             app.RevisePromptDraft
 		Freeze             app.FreezePromptDraft
 		Suite              app.RegisterSuite
+		CatalogQuery       app.AssetCatalogQuery
+		CatalogGet         app.AssetCatalogGet
 		Profile            app.RegisterProfile
 		DraftID, CommandID string
 		Revision           *int64
@@ -45,8 +47,13 @@ func main() {
 	service := &app.PromptDraftAdministration{Gateway: clients.PromptDrafts}
 	profiles := &app.ProfileAdministration{Gateway: clients.Profiles}
 	suites := &app.SuiteAdministration{Gateway: clients.Suites}
+	catalog := &app.AssetCatalogAdministration{Gateway: clients.Assets}
 	var result any
 	switch input.Action {
+	case "catalog-list":
+		result, err = catalog.List(ctx, scope, input.CatalogQuery)
+	case "catalog-get":
+		result, err = catalog.Get(ctx, scope, input.CatalogGet)
 	case "suite-register":
 		result, err = suites.Register(ctx, scope, input.Suite)
 	case "suite-receipt":
