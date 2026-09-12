@@ -24,7 +24,7 @@ pytestmark = pytest.mark.integration
 
 
 @pytest.fixture
-async def server(registration, tmp_path):
+async def rpc_server(registration, tmp_path):
     certificates(tmp_path)
     container = create_container(
         Settings(
@@ -53,10 +53,15 @@ async def server(registration, tmp_path):
         )
 
     try:
-        yield channel
+        yield port, channel
     finally:
         await service.stop(0)
         await container.close()
+
+
+@pytest.fixture
+def server(rpc_server):
+    return rpc_server[1]
 
 
 def request(registration):

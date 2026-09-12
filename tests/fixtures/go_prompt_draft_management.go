@@ -20,17 +20,18 @@ func main() {
 		Create             app.CreatePromptDraft
 		Revise             app.RevisePromptDraft
 		Freeze             app.FreezePromptDraft
+		Profile            app.RegisterProfile
 		DraftID, CommandID string
 		Revision           *int64
 	}
 	if json.NewDecoder(os.Stdin).Decode(&input) != nil {
 		os.Exit(2)
 	}
-	_, _, client, connection, err := infra.DialGovernanceClients(os.Args[1], os.Args[2], os.Args[3], os.Args[4])
+	clients, err := infra.DialGovernance(os.Args[1], os.Args[2], os.Args[3], os.Args[4])
 	if err != nil {
 		os.Exit(3)
 	}
-	defer connection.Close()
+	defer clients.Connection.Close()
 	snapshot := &authz.Snapshot{}
 	if input.Allowed {
 		snapshot.Permissions = []authz.Permission{{Resource: "qs:*:*:*", Action: "*", Mode: authz.AuthorizationModeUnconditional}}
@@ -40,9 +41,14 @@ func main() {
 	}
 	ctx := authz.WithSnapshot(context.Background(), snapshot)
 	scope := app.DraftScope{OrganizationID: input.OrgID, OperatorUserID: input.UserID}
-	service := &app.PromptDraftAdministration{Gateway: client}
+	service := &app.PromptDraftAdministration{Gateway: clients.PromptDrafts}
+	profiles := &app.ProfileAdministration{Gateway: clients.Profiles}
 	var result any
 	switch input.Action {
+	case "profile-register":
+		result, err = profiles.Register(ctx, scope, input.Profile)
+	case "profile-receipt":
+		result, err = profiles.GetReceipt(ctx, scope, input.CommandID)
 	case "create":
 		result, err = service.Create(ctx, scope, input.DraftID, input.Create)
 	case "revise":

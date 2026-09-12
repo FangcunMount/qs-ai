@@ -223,10 +223,12 @@ Freeze 必须提供草稿 ID、expected_revision、原命令 ID 和原因。服�
 
 ## Profile 版本注册
 
-`ProfileManagement.Register` 接收原 command_id、源 Profile 完整资产引用、新 definition_json、确切 Prompt 与生成路线完整引用以及操作原因。`GetReceipt` 按原机构/操作者查询原命令结果；二者与其他治理 RPC 一样，只在 `grpc.governance_enabled` 打开时注册，并要求可信 QS mTLS 身份。QS 授权代理和管理页面尚待接入，当前不能从现有页面直接操作。
+`ProfileManagement.Register` 接收原 command_id、源 Profile 完整资产引用、新 definition_json、确切 Prompt 与生成路线完整引用以及操作原因。`GetReceipt` 按原机构/操作者查询原命令结果；二者与其他治理 RPC 一样，只在 `grpc.governance_enabled` 打开时注册，并要求可信 QS mTLS 身份。QS 注册/回执授权代理已实现，管理页面尚待接入。
 
 配置定义沿用既有 Profile Schema，严格校验结构、枚举、范围和安全边界，拒绝未知字段及重复 JSON 字段；生成模板必须可按这些策略渲染，模型路线仍限已验证能力。新版本可以引用原 QS 导入 Prompt 或 qs-ai 原生冻结 Prompt，必须确认其指纹与包摘要。注册不调用模型，不代表质量通过、发布或当前生效；输入样例、语义质量和新套件仍须独立评测。
 
 `0021_profile_registrations` 将不可变 Profile 与包含操作上下文、原命令和完整生成清单的回执原子提交。相同命令重放返回原回执，相同命令不同内容或目标版本已经存在均冲突，不覆盖源配置与已有审计。读取回执重新核对源 Profile、目标正文、Prompt/路线/Schema 清单及目标资产来源审计。请求最多 256 KiB，定义最多 128 KiB，回执最多 512 KiB；超时后先查询原 command_id，不新建命令猜测原操作失败。
 
-这是有效完整配置的不可变注册入口；可保存未完成 Profile 的草稿修订、任意新套件注册、QS 代理/页面和真实“评测→批准→发布”仍未全部接通，不能因此启用新生产流量。
+这是有效完整配置的不可变注册入口；可保存未完成 Profile 的草稿修订、任意新套件注册、管理页面和真实“评测→批准→发布”仍未全部接通，不能因此启用新生产流量。
+
+QS 入口为 `POST /internal/v2/interpretation/ai-workflow/profiles/register` 与 `GET /internal/v2/interpretation/ai-workflow/profiles/commands/{command_id}`。分别复用 OrgAdmin 和 AuditInterpretation 权限，组织/操作人取认证上下文；共用现有 mTLS 连接，5 秒 RPC 时限、无自动重试。代理核对回执的原命令、作用域、确切资产引用以及 Profile 定义的 Go/Python 一致规范化摘要；超时先查原命令，不推断注册失败。
