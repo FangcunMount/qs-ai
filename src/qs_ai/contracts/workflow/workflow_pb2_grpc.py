@@ -222,6 +222,11 @@ class EvaluationManagementStub:
         Args:
             channel: A grpc.Channel.
         """
+        self.Create = channel.unary_unary(
+                '/qsai.workflow.v1.EvaluationManagement/Create',
+                request_serializer=workflow__pb2.EvaluationCreateCommand.SerializeToString,
+                response_deserializer=workflow__pb2.EvaluationState.FromString,
+                _registered_method=True)
         self.Start = channel.unary_unary(
                 '/qsai.workflow.v1.EvaluationManagement/Start',
                 request_serializer=workflow__pb2.EvaluationStartCommand.SerializeToString,
@@ -242,6 +247,13 @@ class EvaluationManagementStub:
 class EvaluationManagementServicer:
     """Trusted QS backend only. QS must authorize OrgAdmin before forwarding these operations.
     """
+
+    def Create(self, request, context):
+        """The caller reuses scope.run_id for retries of the identical creation request.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
 
     def Start(self, request, context):
         """Explicitly schedules an existing frozen requested Run; does not call a model inline.
@@ -265,6 +277,11 @@ class EvaluationManagementServicer:
 
 def add_EvaluationManagementServicer_to_server(servicer, server):
     rpc_method_handlers = {
+            'Create': grpc.unary_unary_rpc_method_handler(
+                    servicer.Create,
+                    request_deserializer=workflow__pb2.EvaluationCreateCommand.FromString,
+                    response_serializer=workflow__pb2.EvaluationState.SerializeToString,
+            ),
             'Start': grpc.unary_unary_rpc_method_handler(
                     servicer.Start,
                     request_deserializer=workflow__pb2.EvaluationStartCommand.FromString,
@@ -291,6 +308,33 @@ def add_EvaluationManagementServicer_to_server(servicer, server):
 class EvaluationManagement:
     """Trusted QS backend only. QS must authorize OrgAdmin before forwarding these operations.
     """
+
+    @staticmethod
+    def Create(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.EvaluationManagement/Create',
+            workflow__pb2.EvaluationCreateCommand.SerializeToString,
+            workflow__pb2.EvaluationState.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
 
     @staticmethod
     def Start(request,

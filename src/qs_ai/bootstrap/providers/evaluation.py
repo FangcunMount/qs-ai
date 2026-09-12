@@ -13,8 +13,6 @@ from qs_ai.config import Settings
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
 from qs_ai.infrastructure.persistence.mysql.evaluation_scan import RecoveryCursor
 from qs_ai.infrastructure.persistence.mysql.evaluation_worker import EvaluationWorker
-from qs_ai.infrastructure.persistence.mysql.route_assets import MySQLRouteAssets
-from qs_ai.infrastructure.persistence.mysql.schema_assets import MySQLSchemaAssets
 from qs_ai.infrastructure.qs_server.responses import DeepSeekResponses
 
 
@@ -22,9 +20,6 @@ class EvaluationProvider(Provider):
     @provide(scope=Scope.APP)
     def recovery_cursor(self) -> RecoveryCursor:
         return RecoveryCursor()
-
-    routes = provide(MySQLRouteAssets, provides=RouteAssets, scope=Scope.REQUEST)
-    schemas = provide(MySQLSchemaAssets, provides=SchemaAssets, scope=Scope.REQUEST)
 
     @provide(scope=Scope.REQUEST)
     async def worker(
