@@ -2,6 +2,7 @@
 
 import json
 from collections.abc import Mapping
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
@@ -15,9 +16,12 @@ from qs_ai.application.evaluation.management import ManagementScope
 from qs_ai.domain.evaluation.closure import ClosureTransition, validate_closed_inventory
 from qs_ai.domain.evaluation.identity import EvidenceReleaseIdentity, FrozenContractRef
 from qs_ai.domain.evaluation.preflight import AssertionReceipt, PreflightEvidence
-from qs_ai.domain.evaluation.quality_gates import QualityCandidate, evaluate_quality_gates
-from qs_ai.domain.evaluation.review import ReviewCandidate
-from qs_ai.infrastructure.persistence.mysql.evaluation_candidates import header
+from qs_ai.domain.evaluation.quality_gates import (
+    QualityCandidate,
+    QualityGateResult,
+    evaluate_quality_gates,
+)
+from qs_ai.domain.evaluation.review import CandidateHumanReview, ReviewCandidate
 from qs_ai.infrastructure.persistence.mysql.evaluation_checkpoints import decode
 from qs_ai.infrastructure.persistence.mysql.evaluation_projection import (
     decode_completion,
@@ -25,7 +29,9 @@ from qs_ai.infrastructure.persistence.mysql.evaluation_projection import (
     project_slots,
 )
 from qs_ai.infrastructure.persistence.mysql.evaluation_resolution import decode_resolutions
-from qs_ai.infrastructure.persistence.mysql.evaluation_reviews import decode_reviews
+from qs_ai.infrastructure.persistence.mysql.evaluation_review_codec import decode_reviews
+from qs_ai.infrastructure.persistence.mysql.evaluation_review_history import validate_rounds
+from qs_ai.infrastructure.persistence.mysql.evaluation_snapshot import header
 from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_checkpoints,
     evaluation_dispatches,
@@ -59,6 +65,24 @@ async def evaluate_snapshot(
     expected_version: int,
     at: datetime,
 ) -> GatePreview:
+    return (await load_snapshot(db, scope, run, expected_version, at)).preview
+
+
+@dataclass(frozen=True)
+class GateSnapshot:
+    preview: GatePreview
+    candidates: tuple[ReviewCandidate, ...]
+    reviews: tuple[CandidateHumanReview, ...]
+    closed_at: datetime
+
+
+async def load_snapshot(
+    db: AsyncSession,
+    scope: ManagementScope,
+    run: Mapping[str, Any],
+    expected_version: int,
+    at: datetime,
+) -> GateSnapshot:
     """Use the caller's existing snapshot, or its locked Run and checkpoint."""
     if run["version"] != expected_version:
         raise CheckpointConflict("Gate preview version changed")
@@ -171,6 +195,14 @@ async def evaluate_snapshot(
     slots = project_slots(creation["slots"], generations, dispatches, semantics, resolutions)
     generated = tuple(decode_completion(r) for r in generations)
     judged = tuple(decode_semantic_completion(r) for r in semantics)
+    closures = [
+        i
+        for i, t in enumerate(progress["transitions"])
+        if t["cause_code"] == "candidate_evidence_complete"
+    ]
+    if len(closures) != 1:
+        raise ValueError("Unique original collection closure required")
+    closure_count = closures[0] + 1
     transitions = tuple(
         ClosureTransition(
             t.get("from", ""),
@@ -180,7 +212,7 @@ async def evaluate_snapshot(
             datetime.fromisoformat(t["at"]),
             tuple(t.get("evidence_refs", [])),
         )
-        for t in progress["transitions"]
+        for t in progress["transitions"][:closure_count]
     )
     for transition in progress["transitions"]:
         if transition["cause_code"] == "evaluation_started":
@@ -226,13 +258,33 @@ async def evaluate_snapshot(
                 generation.case_id, generation.slot_ordinal, generation.execution_id, candidate
             )
         )
-    quality = evaluate_quality_gates(
-        tuple(candidates),
-        generated,
-        judged,
-        decode_reviews(progress.get("human_reviews", [])),
-        load_quality_thresholds(),
+    candidates.sort(key=lambda c: (c.case_id, c.slot_ordinal))
+    targets = tuple(c.evidence for c in candidates)
+    reviews = decode_reviews(progress.get("human_reviews", []))
+    thresholds = load_quality_thresholds()
+
+    def calculate(
+        values: tuple[CandidateHumanReview, ...], evaluated_at: datetime
+    ) -> QualityGateResult:
+        return evaluate_quality_gates(
+            tuple(candidates), generated, judged, values, thresholds, closed, evaluated_at
+        )
+
+    validate_rounds(
+        str(scope.run_id),
+        run["version"],
+        release.fingerprint(),
+        progress,
+        closure_count,
+        targets,
         closed,
         at,
+        calculate,
     )
-    return GatePreview(str(scope.run_id), run["version"], release.fingerprint(), quality)
+    quality = calculate(reviews, at)
+    return GateSnapshot(
+        GatePreview(str(scope.run_id), run["version"], release.fingerprint(), quality),
+        targets,
+        reviews,
+        closed,
+    )

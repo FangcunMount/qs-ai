@@ -48,7 +48,9 @@ func main() {
 	}
 	scope := app.EvaluationScope{RunID: input.RunID, OrganizationID: input.OrgID, OperatorUserID: input.UserID}
 	var result any
-	if input.Action == "finalize" {
+	if input.Action == "reopen" {
+		result, err = service.ReopenReview(ctx, scope, app.EvaluationReopen{ExpectedVersion: input.Version, Reason: input.Reason, Confirm: input.Confirm})
+	} else if input.Action == "finalize" {
 		result, err = service.Finalize(ctx, scope, app.EvaluationFinalize{ExpectedVersion: input.Version, ExpectedPassed: input.ExpectedPassed, Reason: input.Reason, Confirm: input.Confirm})
 	} else if input.Action == "gates" {
 		result, err = service.PreviewGates(ctx, scope, input.Version)

@@ -6,7 +6,6 @@ from datetime import datetime
 from typing import Any
 
 from sqlalchemy import select
-from sqlalchemy.engine import RowMapping
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from qs_ai.application.evaluation.candidates import (
@@ -23,16 +22,17 @@ from qs_ai.domain.evaluation.identity import EvidenceReleaseIdentity, FrozenCont
 from qs_ai.domain.evaluation.preflight import AssertionReceipt
 from qs_ai.domain.evaluation.review import ReviewCandidate
 from qs_ai.domain.evaluation.semantic_completion import SemanticCompletion
+from qs_ai.infrastructure.persistence.mysql.evaluation_finalization import read_finalization
 from qs_ai.infrastructure.persistence.mysql.evaluation_projection import (
     decode_completion,
     decode_semantic_completion,
     project_slots,
 )
-from qs_ai.infrastructure.persistence.mysql.evaluation_reviews import decode_reviews
+from qs_ai.infrastructure.persistence.mysql.evaluation_review_codec import decode_reviews
+from qs_ai.infrastructure.persistence.mysql.evaluation_review_history import has_review_rounds
+from qs_ai.infrastructure.persistence.mysql.evaluation_snapshot import header
 from qs_ai.infrastructure.persistence.mysql.schema import (
-    evaluation_checkpoints,
     evaluation_dispatches,
-    evaluation_runs,
 )
 from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_generation_completions as generations,
@@ -40,31 +40,6 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
 from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_semantic_completions as semantics,
 )
-
-
-async def header(db: AsyncSession, scope: ManagementScope) -> RowMapping:
-    # Do not depend on the production server's configurable default isolation level.
-    await db.connection(execution_options={"isolation_level": "REPEATABLE READ"})
-    row = (
-        (
-            await db.execute(
-                select(evaluation_runs, evaluation_checkpoints.c.version)
-                .join(
-                    evaluation_checkpoints,
-                    evaluation_runs.c.run_id == evaluation_checkpoints.c.run_id,
-                )
-                .where(
-                    evaluation_runs.c.run_id == str(scope.run_id),
-                    evaluation_runs.c.organization_id == scope.organization_id,
-                )
-            )
-        )
-        .mappings()
-        .one_or_none()
-    )
-    if row is None:
-        raise NotFound("Evaluation unavailable in organization")
-    return row
 
 
 async def list_candidates(db: AsyncSession, scope: ManagementScope) -> CandidateIndex:
@@ -99,6 +74,8 @@ async def get_candidate(
     run = await header(db, scope)
     if run["version"] != expected_version:
         raise CheckpointConflict("Candidate view version changed")
+    if has_review_rounds(run["progress_json"] or {}):
+        await read_finalization(db, scope, dict(run))
     selected = (
         (
             await db.execute(
@@ -173,7 +150,11 @@ async def get_candidate(
     )
     judged = decode_semantic_completion(accepted)
     reviews = [r for r in progress.get("human_reviews", []) if r["candidate_id"] == candidate_id]
-    closures = [t for t in progress.get("transitions", []) if t["to"] == "awaiting_review"]
+    closures = [
+        t
+        for t in progress.get("transitions", [])
+        if t["cause_code"] == "candidate_evidence_complete"
+    ]
     if reviews and len(closures) != 1:
         raise CheckpointConflict("Review closure requires reconciliation")
     closed_at = datetime.fromisoformat(closures[0]["at"]) if closures else judged.finished_at
