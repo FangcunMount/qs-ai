@@ -142,3 +142,10 @@ Profile 注册主分支 `e836d32809ede4d162d68192a1a3e19ebe25561f` 的 [CI 34722
 - QS serverA apiserver/两个 collection 均为 `53e2f2cb1acabcb6a171372b0dd8bcb7bbbf3f7a` 且 healthy，对应 [部署 34722157688](https://github.com/FangcunMount/qs-server/actions/runs/34722157688)。没有核验另一主机 worker，也未将本轮合并的 QS Profile 代理视为已部署。
 
 本版本包含 Profile 注册及评测资产快照执行，不包含本地 `0022_evaluation_suites` 原生套件增量。期间先观察到资产快照版 `8452d91e2cfb5819f16b197b154ec24cfbb5726f` 和数据库头 0020，随后上述部署完成才再次核对实际 Profile 镜像与 0021；未将工作流 head 直接视作镜像 SHA。M1–M5 真实业务与管理页面验收保持未完成。
+
+
+## 2026-09-13 QS Profile 代理部署
+
+QS [主分支 CI 34723293856](https://github.com/FangcunMount/qs-server/actions/runs/34723293856) 与 [部署 34723860471](https://github.com/FangcunMount/qs-server/actions/runs/34723860471) 均成功。独立 SSH 核实 serverA apiserver 与两个 collection 实际镜像均为 `1a5792131e6b8fdccb128d17fd9946f9af4aeaec` 且 healthy；未核验另一主机 worker。
+
+AI API/gRPC 仍为 `e836d32809ede4d162d68192a1a3e19ebe25561f` 且 healthy，MySQL 8.0.36 当前及预期头均为 0021，readyz connected，mTLS 自身份拒绝探针通过。本次没有原生套件 0022 的生产证据，也没有真实操作者管理或生成验收。
