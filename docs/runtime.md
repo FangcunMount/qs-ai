@@ -161,6 +161,6 @@ uv run python -m qs_ai.bootstrap.build_manifest \
 
 `EvaluationManagement.Get` 返回 Run 版本、状态、未知数量与处置审计，`ResolveUnknown` 接受人工决定。候选列表和详情由 `ListCandidates` / `GetCandidate` 提供，`Review` 追加人工审核。`grpc.governance_enabled` 默认 false；在 QS 的治理转发完成并验收前保持关闭。接口只接受 mTLS 认证的 `qs-apiserver.svc` 工作负载；QS 从当前用户授权上下文检查权限，状态/候选读取复用解读审计权限，创建、启动、人工审核和未知结果处置要求 OrgAdmin，再传递组织和操作人 ID。qs-ai 校验 Run 组织、版本与持久证据，不建立自己的用户/角色库。用户不能直接向此接口声明管理员身份。
 
-`PreviewGates` 接受 scope 和显式 expected_version，使用同一 REPEATABLE READ 快照重建 G1–G5：冻结身份与策略、预检和执行账本、恢复授权、质量指标及人工审核。仅允许没有活动执行的 awaiting_review Run；机构不可见返回 NOT_FOUND，旧版本或进行中状态返回 ABORTED。响应包含 Run 版本、发布摘要及 `qs-ai-evaluation-gate-preview/v1` JSON，时间由 AI 服务端生成，大小上限 256 KiB。它不写入最终门槛记录，不批准或发布；后续批准必须在写事务中重新计算，不能接受客户端回传的预览作为授权。本批尚未提供 QS 预览转发入口。
+`PreviewGates` 接受 scope 和显式 expected_version，使用同一 REPEATABLE READ 快照重建 G1–G5：冻结身份与策略、预检和执行账本、恢复授权、质量指标及人工审核。仅允许没有活动执行的 awaiting_review Run；机构不可见返回 NOT_FOUND，旧版本或进行中状态返回 ABORTED。响应包含 Run 版本、发布摘要及 `qs-ai-evaluation-gate-preview/v1` JSON，时间由 AI 服务端生成，大小上限 256 KiB。它不写入最终门槛记录，不批准或发布；后续批准必须在写事务中重新计算，不能接受客户端回传的预览作为授权。QS 转发适配见 [PR #90](https://github.com/FangcunMount/qs-server/pull/90)：`GET /internal/v2/interpretation/ai-workflow/evaluations/{run_id}/gates?expected_version=N`，沿用解读审计权限；合并、部署和真实业务验收分别跟踪，默认治理开关仍保持关闭。
 
 审计 actor 按 QS 现有 `user:<operator_user_id>` 规则生成，处置时间由服务端生成。回读只包含处置审计，不包含报告、Prompt 或模型正文。调用结果不明时先回读核对版本和决定；重复提交旧版本会冲突，不能据网络错误创建新的人工授权。当前仅完成 AI 侧接口与替身鉴权上下文测试，QS 协议同步、OrgAdmin 转发和跨服务真实 mTLS 管理验收待完成。

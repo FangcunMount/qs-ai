@@ -312,3 +312,11 @@ M1 → M2 → M3 → M4 → M5。M3 清单分析可提前开展，生产切换�
 - `codex/evaluation-gate-preview` 将 G1/G2 与已迁入的 G3–G5 组合：在机构范围内先建立版本快照，再核对十一项发布引用、冻结 suite/策略与预算表、原预检、35 个槽位和完整发送/终态账本。重建状态链、未知处置、每次恢复授权及执行时间；不接受仅将 progress.status 改成 awaiting_review 的伪完整记录。
 - 新增只读 PreviewGates RPC，使用可信 QS scope、明确 Run 版本和服务端时间，返回逐门槛结果、指标、阻断原因与语义复核记录，保留原始输出和审核历史。响应上限 256 KiB；同一次读取不混入并发审核后的版本。即使 70 份审核都批准，案例质量失败仍阻断。尚未接通 QS 预览转发及批准/拒绝/重开事务，预览不是发布许可。
 - 领域闭合校验与 RPC 专项 20 项、非集成回归 644 项通过（11 跳过）。真实隔离 MySQL 8.4 的预览/候选回归 19 项通过，随后补充审计原因校验的针对性 3 项通过。覆盖错机构/旧版本、冻结身份与策略损坏、缺少发送账本、并发审核快照、原始记录不变，以及真实临时 mTLS 服务到 MySQL 的预览与错误身份拒绝。Ruff、mypy（166 源文件）、协议生成和文档检查通过，临时数据库已清理；模型输出与 IAM 身份为测试数据，M1–M5 未验收。
+
+### 2026-09-13：QS 门槛预览入口与跨语言验证
+
+- AI [PR #43](https://github.com/FangcunMount/qs-ai/pull/43) 精确源提交 `be5ab7f3312892bdb8ecb406df90f3c8adaaa4bd` 的 CI 34706895366 三项通过，已合并至 `d739c17da02b59cc6d7ea01dffd1fc2388da5419`；本记录不将其主分支 CI 或上线视为完成。
+- 上一版 AI `8f90db7c36e5fefa01fb179fc75092ce3eda9dbc` 发布 34706702780 已成功，独立 SSH 验证 API/gRPC healthy、MySQL 8.0.36 与迁移头一致、readiness 及 mTLS 探针通过。QS 发布 34706614942 成功，现场 API 与两个 collection 镜像为 `a370ed36c94d319860c16208a496d3f08d698102` 且 healthy；GitHub compare 确认该版本包含已合并的 QS #89（ahead 2、behind 0）。此为部署证据，未证明真实管理用户或模型闭环。
+- QS 在专属 worktree 的新分支 `codex/ai-evaluation-gates` 基于上述主分支实现只读 GET `/{run_id}/gates?expected_version=N`，草稿 [PR #90](https://github.com/FangcunMount/qs-server/pull/90)。沿用当前解读审计权限、受保护机构/操作者与五秒截止时间，不自动重试。客户端校验 Run/版本、发布摘要、预览 Schema/字段和 256 KiB 上限；质量计算仍归 qs-ai，不接受客户端预览作为批准依据。
+- QS 源提交 `c9efdf8ff62883c12ea8b9a177aa4dc8eeb79c8e`，文档基线提交 `2ed6724373254a9ce5015cbff932e900046f084f`；Go 应用/客户端/处理器/实际路由/gRPC 服务回归、fmt-check、API 生成一致性及 80 项文档检查通过，清单为 70 RPC、210 REST operations / 188 paths。没有切换或修改 QS 原工作区。
+- 实际 Go QS 应用/客户端 → 临时 mTLS Python → MySQL 8.4 的五项组合联调通过（23.10 秒），新覆盖审计用户读取完整门槛与相同发布摘要、错机构/错证书/撤权拒绝、审核后旧版本拒绝、新版本保留人工拒绝原因，原始候选输出不变。CI 的 QS 治理来源更新为精确提交 `2ed6724373254a9ce5015cbff932e900046f084f`，最新 CI 待验证。临时数据库已清理；使用合成 IAM 和模型输出，不构成生产验收。批准/拒绝/重开与发布事务继续后续建设，M1–M5 状态不变。
