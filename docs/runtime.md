@@ -194,3 +194,15 @@ QS 转发路径为 `POST /internal/v2/interpretation/ai-workflow/evaluations/{ru
 当前仅支持既有 participant scale/score_range、DeepSeek Responses/json_schema 路线。业务配置来自冻结资产，访问地址和凭据来自私有部署设置。接单开关仍关闭；新输入构造版本的独立套件绑定已实现，必须通过新 Run 重新评测和批准；修改草稿与任意新套件管理、真实管理/生成/回退验收尚未完成，不能将本地发布执行测试作为 M3 验收。
 
 发布执行必须使用声明 `qs-published-snapshot-v1` 的套件批准；原 v6 Run 仍可查询和保留审计，但不能通过新接单配置检查。当前注册的派生套件及完整身份见 [评测资源](../integrations/qs_server/evaluation/README.md#发布执行输入契约套件)。实际管理客户端可创建该新 release，创建前检查规范投影，发送前再次检查；不会将旧 Run 原地改成新输入版本。
+
+## Prompt 草稿与修订历史
+
+`PromptDraftManagement` 提供 Create、Revise、Get、GetReceipt 四个内部 RPC，与评测和发布一样受默认关闭的 `grpc.governance_enabled` 控制，并要求可信 QS mTLS 身份和组织/操作者上下文。QS 仍负责每次管理授权；草稿按机构隔离，同机构获授权管理员可读取历史，命令回执仅向原机构/操作者返回。QS 管理代理和页面尚未接入这四个方法。
+
+Create 必须提供原不可变 Prompt 的完整身份及包摘要，并指定尚不存在的目标模板/版本。服务端从已验证原包复制内容，不接受调用者伪造源正文；来源引用保留在每个修订快照中。新的编辑内容属于原生草稿，不能继续拿源 Git blob 或 Prompt fingerprint 作为编辑后内容的身份。
+
+Revise 必须携带正数 expected_revision、唯一 command_id、完整编辑正文和修改原因。`0019_prompt_drafts` 的 head 与 append-only 修订记录在同一事务提交，版本每次增加一；并发旧版本修改只有一份成功。相同命令和内容返回原修订，时间变化不新增修改；同键不同请求冲突。超时后按原 command_id 只读恢复；读取历史不会回退当前 head。
+
+草稿允许尚未完成的模板文本。保存只证明编辑记录已持久化，不代表模板渲染、策略兼容、质量审核或发布通过。此阶段没有把草稿转成不可变生成资产的接口，不修改原 Prompt、发布指针或运行任务。后续必须补齐渲染/策略校验、原生资产身份、Profile 与新套件绑定、完整评测批准，再接入现有发布事务；禁止绕过门槛直接生效。
+
+迁移回退仅用于隔离测试库；生产修订记录和源资产保留。维护者可按 draft_id 与 revision 读取完整正文、源引用、command_id、操作者、时间和原因；修订正文摘要、索引及原命令审计不一致时读取失败，不返回一个看似正常的草稿。

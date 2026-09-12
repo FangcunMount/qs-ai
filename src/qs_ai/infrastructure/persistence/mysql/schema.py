@@ -378,3 +378,29 @@ execution_configurations = sa.Table(
     mysql_engine="InnoDB",
     mysql_charset="utf8mb4",
 )
+
+prompt_drafts = sa.Table(
+    "prompt_drafts",
+    metadata,
+    sa.Column("draft_id", sa.CHAR(36), primary_key=True),
+    sa.Column("organization_id", sa.BigInteger, nullable=False),
+    sa.Column("revision", sa.BigInteger, nullable=False),
+    mysql_engine="InnoDB",
+    mysql_charset="utf8mb4",
+)
+
+prompt_draft_revisions = sa.Table(
+    "prompt_draft_revisions",
+    metadata,
+    sa.Column("command_id", sa.CHAR(36), primary_key=True),
+    sa.Column("draft_id", sa.CHAR(36), sa.ForeignKey(prompt_drafts.c.draft_id), nullable=False),
+    sa.Column("revision", sa.BigInteger, nullable=False),
+    sa.Column("organization_id", sa.BigInteger, nullable=False),
+    sa.Column("operator_user_id", sa.BigInteger, nullable=False),
+    sa.Column("request_json", mysql.LONGTEXT, nullable=False),
+    sa.Column("snapshot_json", mysql.LONGTEXT, nullable=False),
+    sa.Column("snapshot_sha256", sa.CHAR(64), nullable=False),
+    sa.UniqueConstraint("draft_id", "revision", name="uq_prompt_draft_revision"),
+    mysql_engine="InnoDB",
+    mysql_charset="utf8mb4",
+)

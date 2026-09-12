@@ -489,3 +489,91 @@ class PublicationReceipt(_message.Message):
     reason: str
     changed_at: str
     def __init__(self, command_id: _Optional[str] = ..., previous: _Optional[_Union[PublicationState, _Mapping]] = ..., current: _Optional[_Union[PublicationState, _Mapping]] = ..., action: _Optional[str] = ..., actor: _Optional[str] = ..., reason: _Optional[str] = ..., changed_at: _Optional[str] = ...) -> None: ...
+
+class PromptDraftSource(_message.Message):
+    __slots__ = ("identity", "version", "fingerprint", "content_sha256")
+    IDENTITY_FIELD_NUMBER: _ClassVar[int]
+    VERSION_FIELD_NUMBER: _ClassVar[int]
+    FINGERPRINT_FIELD_NUMBER: _ClassVar[int]
+    CONTENT_SHA256_FIELD_NUMBER: _ClassVar[int]
+    identity: str
+    version: str
+    fingerprint: str
+    content_sha256: str
+    def __init__(self, identity: _Optional[str] = ..., version: _Optional[str] = ..., fingerprint: _Optional[str] = ..., content_sha256: _Optional[str] = ...) -> None: ...
+
+class PromptDraftContent(_message.Message):
+    __slots__ = ("system_message", "task_template", "data_preamble", "allowed_placeholders")
+    SYSTEM_MESSAGE_FIELD_NUMBER: _ClassVar[int]
+    TASK_TEMPLATE_FIELD_NUMBER: _ClassVar[int]
+    DATA_PREAMBLE_FIELD_NUMBER: _ClassVar[int]
+    ALLOWED_PLACEHOLDERS_FIELD_NUMBER: _ClassVar[int]
+    system_message: str
+    task_template: str
+    data_preamble: str
+    allowed_placeholders: _containers.RepeatedScalarFieldContainer[str]
+    def __init__(self, system_message: _Optional[str] = ..., task_template: _Optional[str] = ..., data_preamble: _Optional[str] = ..., allowed_placeholders: _Optional[_Iterable[str]] = ...) -> None: ...
+
+class PromptDraftCreateCommand(_message.Message):
+    __slots__ = ("scope", "draft_id", "command_id", "source", "template_id", "target_version", "reason")
+    SCOPE_FIELD_NUMBER: _ClassVar[int]
+    DRAFT_ID_FIELD_NUMBER: _ClassVar[int]
+    COMMAND_ID_FIELD_NUMBER: _ClassVar[int]
+    SOURCE_FIELD_NUMBER: _ClassVar[int]
+    TEMPLATE_ID_FIELD_NUMBER: _ClassVar[int]
+    TARGET_VERSION_FIELD_NUMBER: _ClassVar[int]
+    REASON_FIELD_NUMBER: _ClassVar[int]
+    scope: PublicationScope
+    draft_id: str
+    command_id: str
+    source: PromptDraftSource
+    template_id: str
+    target_version: str
+    reason: str
+    def __init__(self, scope: _Optional[_Union[PublicationScope, _Mapping]] = ..., draft_id: _Optional[str] = ..., command_id: _Optional[str] = ..., source: _Optional[_Union[PromptDraftSource, _Mapping]] = ..., template_id: _Optional[str] = ..., target_version: _Optional[str] = ..., reason: _Optional[str] = ...) -> None: ...
+
+class PromptDraftReviseCommand(_message.Message):
+    __slots__ = ("scope", "draft_id", "command_id", "expected_revision", "content", "reason")
+    SCOPE_FIELD_NUMBER: _ClassVar[int]
+    DRAFT_ID_FIELD_NUMBER: _ClassVar[int]
+    COMMAND_ID_FIELD_NUMBER: _ClassVar[int]
+    EXPECTED_REVISION_FIELD_NUMBER: _ClassVar[int]
+    CONTENT_FIELD_NUMBER: _ClassVar[int]
+    REASON_FIELD_NUMBER: _ClassVar[int]
+    scope: PublicationScope
+    draft_id: str
+    command_id: str
+    expected_revision: int
+    content: PromptDraftContent
+    reason: str
+    def __init__(self, scope: _Optional[_Union[PublicationScope, _Mapping]] = ..., draft_id: _Optional[str] = ..., command_id: _Optional[str] = ..., expected_revision: _Optional[int] = ..., content: _Optional[_Union[PromptDraftContent, _Mapping]] = ..., reason: _Optional[str] = ...) -> None: ...
+
+class PromptDraftQuery(_message.Message):
+    __slots__ = ("scope", "draft_id", "revision")
+    SCOPE_FIELD_NUMBER: _ClassVar[int]
+    DRAFT_ID_FIELD_NUMBER: _ClassVar[int]
+    REVISION_FIELD_NUMBER: _ClassVar[int]
+    scope: PublicationScope
+    draft_id: str
+    revision: int
+    def __init__(self, scope: _Optional[_Union[PublicationScope, _Mapping]] = ..., draft_id: _Optional[str] = ..., revision: _Optional[int] = ...) -> None: ...
+
+class PromptDraftReceiptQuery(_message.Message):
+    __slots__ = ("scope", "command_id")
+    SCOPE_FIELD_NUMBER: _ClassVar[int]
+    COMMAND_ID_FIELD_NUMBER: _ClassVar[int]
+    scope: PublicationScope
+    command_id: str
+    def __init__(self, scope: _Optional[_Union[PublicationScope, _Mapping]] = ..., command_id: _Optional[str] = ...) -> None: ...
+
+class PromptDraftState(_message.Message):
+    __slots__ = ("schema_version", "draft_id", "revision", "snapshot_json")
+    SCHEMA_VERSION_FIELD_NUMBER: _ClassVar[int]
+    DRAFT_ID_FIELD_NUMBER: _ClassVar[int]
+    REVISION_FIELD_NUMBER: _ClassVar[int]
+    SNAPSHOT_JSON_FIELD_NUMBER: _ClassVar[int]
+    schema_version: str
+    draft_id: str
+    revision: int
+    snapshot_json: str
+    def __init__(self, schema_version: _Optional[str] = ..., draft_id: _Optional[str] = ..., revision: _Optional[int] = ..., snapshot_json: _Optional[str] = ...) -> None: ...
