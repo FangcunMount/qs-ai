@@ -20,7 +20,7 @@ from qs_ai.application.interpretation.input import InvalidInput
 from qs_ai.application.interpretation.ports import Claim, NotFound
 from qs_ai.application.interpretation.preparation import prepare_explanation
 from qs_ai.application.interpretation.prompt_assets import executable_prompt
-from qs_ai.application.interpretation.provider import ModelRoute
+from qs_ai.application.interpretation.route_assets import executable_route
 from qs_ai.application.interpretation.selection import report_selector
 from qs_ai.domain.governance.prompt import PromptAsset
 from qs_ai.domain.governance.publication import PublishedConfiguration, resolve_publication
@@ -93,20 +93,7 @@ async def compile_configuration(
         }
     )
     package = executable_prompt(prompt)
-    definition = json.loads(route.definition_json)
-    structured = definition.pop("structured_output")
-    definition.setdefault("protocol", "responses")
-    definition.setdefault("structured_output_mode", "json_schema")
-    definition.setdefault("reasoning_effort", "")
-    model = ModelRoute(**definition)
-    if (
-        not structured
-        or model.provider != "deepseek"
-        or model.protocol != "responses"
-        or model.structured_output_mode != "json_schema"
-        or model.fingerprint() != route.fingerprint
-    ):
-        raise ConfigurationUnavailable("Unsupported published model route")
+    model = executable_route(route)
     parser = QSOutputParser.from_schema(json.loads(output.definition_json))
     input_schema = json.loads(input_asset.definition_json)
     Draft202012Validator.check_schema(input_schema)

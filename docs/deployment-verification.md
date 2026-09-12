@@ -117,3 +117,9 @@ AI `6b803821e4e20abd93a757aaa4995b36bf683a30` 的 [主分支 CI 34714055083](htt
 自动部署 [34720405500](https://github.com/FangcunMount/qs-ai/actions/runs/34720405500) 成功，独立 SSH 确认 API/gRPC 实际镜像为 `6999edc61ac0c03796809789ba8fd633c8a3f8bf`，两者 healthy。该源码的主分支 CI 34719615120 成功；部署运行自身的 workflow head `9880f14b0e1ba9b5b81e81b4881607a2032eb667` 不代表交付镜像版本。
 
 MySQL 8.0.36 当前与预期迁移头均为 `0019_prompt_drafts`，readyz 返回 ready/database connected，自身份 mTLS 探针按预期 PERMISSION_DENIED。generation、evaluation、grpc.governance_enabled、generation.use_publications 均为 false。QS serverA 三个容器仍为 `3e297f525df0b6434506472bf8a0a15246ab46f4` 且 healthy。本次不包含原生冻结 0020、QS 冻结代理、真实管理页面或业务生成验收。
+
+## 2026-09-13 QS 草稿代理部署核验
+
+QS 主分支 CI 34719983543 与 Production Deploy 34720568215 完成成功；独立 SSH 确認 serverA apiserver、两个 collection 实际镜像为 `4c3bd154b2b1aef0fbab0cf2d8683491c129b0ab` 且 healthy。未由这三个容器推断另一主机 worker 镜像。
+
+AI 部署 34720860768 显示成功，但本次现场 API/gRPC 实际仍为 `6999edc61ac0c03796809789ba8fd633c8a3f8bf`，两者 healthy；MySQL 8.0.36 迁移头 0019、readyz connected 与 mTLS 自身份拒绝探针均通过。尚无原生冻结 0020 或评测资产快照增量的生产镜像证据；管理/业务验收保持独立。
