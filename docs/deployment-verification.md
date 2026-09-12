@@ -123,3 +123,9 @@ MySQL 8.0.36 当前与预期迁移头均为 `0019_prompt_drafts`，readyz 返回
 QS 主分支 CI 34719983543 与 Production Deploy 34720568215 完成成功；独立 SSH 确認 serverA apiserver、两个 collection 实际镜像为 `4c3bd154b2b1aef0fbab0cf2d8683491c129b0ab` 且 healthy。未由这三个容器推断另一主机 worker 镜像。
 
 AI 部署 34720860768 显示成功，但本次现场 API/gRPC 实际仍为 `6999edc61ac0c03796809789ba8fd633c8a3f8bf`，两者 healthy；MySQL 8.0.36 迁移头 0019、readyz connected 与 mTLS 自身份拒绝探针均通过。尚无原生冻结 0020 或评测资产快照增量的生产镜像证据；管理/业务验收保持独立。
+
+## 2026-09-13 原生 Prompt 冻结版本部署核验
+
+AI 主分支 CI 34720921863 与 [部署 34721663418](https://github.com/FangcunMount/qs-ai/actions/runs/34721663418) 成功。独立 SSH 确认 API/gRPC 实际镜像均为 `0d68334b24929373eb76f0e834895b7cff1e8bd5` 且 healthy；MySQL 8.0.36 当前/预期头均为 `0020_prompt_freezes`，readyz 为 ready/database connected，自身份 mTLS 探针取得预期 PERMISSION_DENIED。
+
+generation、evaluation、grpc.governance_enabled、generation.use_publications 均为 false。QS serverA 三个容器仍为 `4c3bd154b2b1aef0fbab0cf2d8683491c129b0ab` 且 healthy。本次上线包含原生 Prompt 冻结基础，不包含本地 Profile 注册 0021 或待合并的评测资产快照增量，也不代表真实管理或生产生成验收。

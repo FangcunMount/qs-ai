@@ -601,3 +601,39 @@ class PromptDraftState(_message.Message):
     revision: int
     snapshot_json: str
     def __init__(self, schema_version: _Optional[str] = ..., draft_id: _Optional[str] = ..., revision: _Optional[int] = ..., snapshot_json: _Optional[str] = ...) -> None: ...
+
+class ProfileRegisterCommand(_message.Message):
+    __slots__ = ("scope", "command_id", "source", "definition_json", "prompt", "generation_route", "reason")
+    SCOPE_FIELD_NUMBER: _ClassVar[int]
+    COMMAND_ID_FIELD_NUMBER: _ClassVar[int]
+    SOURCE_FIELD_NUMBER: _ClassVar[int]
+    DEFINITION_JSON_FIELD_NUMBER: _ClassVar[int]
+    PROMPT_FIELD_NUMBER: _ClassVar[int]
+    GENERATION_ROUTE_FIELD_NUMBER: _ClassVar[int]
+    REASON_FIELD_NUMBER: _ClassVar[int]
+    scope: PublicationScope
+    command_id: str
+    source: PromptDraftSource
+    definition_json: str
+    prompt: PromptDraftSource
+    generation_route: PromptDraftSource
+    reason: str
+    def __init__(self, scope: _Optional[_Union[PublicationScope, _Mapping]] = ..., command_id: _Optional[str] = ..., source: _Optional[_Union[PromptDraftSource, _Mapping]] = ..., definition_json: _Optional[str] = ..., prompt: _Optional[_Union[PromptDraftSource, _Mapping]] = ..., generation_route: _Optional[_Union[PromptDraftSource, _Mapping]] = ..., reason: _Optional[str] = ...) -> None: ...
+
+class ProfileRegistrationQuery(_message.Message):
+    __slots__ = ("scope", "command_id")
+    SCOPE_FIELD_NUMBER: _ClassVar[int]
+    COMMAND_ID_FIELD_NUMBER: _ClassVar[int]
+    scope: PublicationScope
+    command_id: str
+    def __init__(self, scope: _Optional[_Union[PublicationScope, _Mapping]] = ..., command_id: _Optional[str] = ...) -> None: ...
+
+class ProfileRegistrationReceipt(_message.Message):
+    __slots__ = ("schema_version", "command_id", "receipt_json")
+    SCHEMA_VERSION_FIELD_NUMBER: _ClassVar[int]
+    COMMAND_ID_FIELD_NUMBER: _ClassVar[int]
+    RECEIPT_JSON_FIELD_NUMBER: _ClassVar[int]
+    schema_version: str
+    command_id: str
+    receipt_json: str
+    def __init__(self, schema_version: _Optional[str] = ..., command_id: _Optional[str] = ..., receipt_json: _Optional[str] = ...) -> None: ...

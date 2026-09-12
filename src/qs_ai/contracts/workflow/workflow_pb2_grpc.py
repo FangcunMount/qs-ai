@@ -1223,3 +1223,124 @@ class PromptDraftManagement:
             timeout,
             metadata,
             _registered_method=True)
+
+
+class ProfileManagementStub:
+    """Register a validated immutable Profile; this does not approve or publish it.
+    QS authorizes writes and reads; original command receipts retain actor scope.
+    """
+
+    def __init__(self, channel):
+        """Constructor.
+
+        Args:
+            channel: A grpc.Channel.
+        """
+        self.Register = channel.unary_unary(
+                '/qsai.workflow.v1.ProfileManagement/Register',
+                request_serializer=workflow__pb2.ProfileRegisterCommand.SerializeToString,
+                response_deserializer=workflow__pb2.ProfileRegistrationReceipt.FromString,
+                _registered_method=True)
+        self.GetReceipt = channel.unary_unary(
+                '/qsai.workflow.v1.ProfileManagement/GetReceipt',
+                request_serializer=workflow__pb2.ProfileRegistrationQuery.SerializeToString,
+                response_deserializer=workflow__pb2.ProfileRegistrationReceipt.FromString,
+                _registered_method=True)
+
+
+class ProfileManagementServicer:
+    """Register a validated immutable Profile; this does not approve or publish it.
+    QS authorizes writes and reads; original command receipts retain actor scope.
+    """
+
+    def Register(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetReceipt(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+
+def add_ProfileManagementServicer_to_server(servicer, server):
+    rpc_method_handlers = {
+            'Register': grpc.unary_unary_rpc_method_handler(
+                    servicer.Register,
+                    request_deserializer=workflow__pb2.ProfileRegisterCommand.FromString,
+                    response_serializer=workflow__pb2.ProfileRegistrationReceipt.SerializeToString,
+            ),
+            'GetReceipt': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetReceipt,
+                    request_deserializer=workflow__pb2.ProfileRegistrationQuery.FromString,
+                    response_serializer=workflow__pb2.ProfileRegistrationReceipt.SerializeToString,
+            ),
+    }
+    generic_handler = grpc.method_handlers_generic_handler(
+            'qsai.workflow.v1.ProfileManagement', rpc_method_handlers)
+    server.add_generic_rpc_handlers((generic_handler,))
+    server.add_registered_method_handlers('qsai.workflow.v1.ProfileManagement', rpc_method_handlers)
+
+
+ # This class is part of an EXPERIMENTAL API.
+class ProfileManagement:
+    """Register a validated immutable Profile; this does not approve or publish it.
+    QS authorizes writes and reads; original command receipts retain actor scope.
+    """
+
+    @staticmethod
+    def Register(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.ProfileManagement/Register',
+            workflow__pb2.ProfileRegisterCommand.SerializeToString,
+            workflow__pb2.ProfileRegistrationReceipt.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetReceipt(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.ProfileManagement/GetReceipt',
+            workflow__pb2.ProfileRegistrationQuery.SerializeToString,
+            workflow__pb2.ProfileRegistrationReceipt.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)

@@ -418,3 +418,21 @@ prompt_draft_freezes = sa.Table(
     mysql_engine="InnoDB",
     mysql_charset="utf8mb4",
 )
+
+profile_registrations = sa.Table(
+    "profile_registrations",
+    metadata,
+    sa.Column("command_id", sa.CHAR(36), primary_key=True),
+    sa.Column("organization_id", sa.BigInteger, nullable=False),
+    sa.Column("operator_user_id", sa.BigInteger, nullable=False),
+    sa.Column("profile_id", sa.String(255, collation="utf8mb4_0900_bin"), nullable=False),
+    sa.Column("profile_version", sa.String(128, collation="utf8mb4_bin"), nullable=False),
+    sa.Column("receipt_json", mysql.LONGTEXT, nullable=False),
+    sa.Column("receipt_sha256", sa.CHAR(64), nullable=False),
+    sa.UniqueConstraint("profile_id", "profile_version", name="uq_profile_registration"),
+    sa.ForeignKeyConstraint(
+        ["profile_id", "profile_version"], [profile_assets.c.profile_id, profile_assets.c.version]
+    ),
+    mysql_engine="InnoDB",
+    mysql_charset="utf8mb4",
+)
