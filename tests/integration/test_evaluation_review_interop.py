@@ -97,6 +97,22 @@ async def test_review_authority_batch_roundtrip_and_readback(reviewable, go_mana
         assert (await call(**query, OrgID=2))["Code"] == "NotFound"
         assert (await call(**query, Allowed=False))["Denied"]
         assert (await call(**query, certificate="other"))["Code"] == "PermissionDenied"
+        gates = await call(Action="gates", AuditOnly=True)
+        assert gates["Code"] == "OK" and gates["State"]["version"] == version
+        assert (
+            gates["State"]["release_fingerprint"]
+            == evidence["State"]["evidence"]["release_fingerprint"]
+        )
+        assert gates["State"]["gate_result"]["gate_passes"] == {
+            "G1": True,
+            "G2": True,
+            "G3": True,
+            "G4": False,
+            "G5": False,
+        }
+        assert (await call(Action="gates", AuditOnly=True, OrgID=2))["Code"] == "NotFound"
+        assert (await call(Action="gates", Allowed=False))["Denied"]
+        assert (await call(Action="gates", certificate="other"))["Code"] == "PermissionDenied"
         assert (await call(AuditOnly=True))["Denied"]
         assert (await call(Allowed=False))["Denied"]
         assert (await call(certificate="other"))["Code"] == "PermissionDenied"
@@ -107,6 +123,12 @@ async def test_review_authority_batch_roundtrip_and_readback(reviewable, go_mana
         result = await call()
         assert result["Code"] == "OK" and result["State"]["version"] == version + 1
         assert (await call(**query))["Code"] == "Aborted"
+        assert (await call(Action="gates", AuditOnly=True))["Code"] == "Aborted"
+        reviewed_gate = await call(Action="gates", AuditOnly=True, Version=version + 1)
+        assert reviewed_gate["Code"] == "OK"
+        assert "human_review_rejected" in {
+            r["code"] for r in reviewed_gate["State"]["gate_result"]["reasons"]
+        }
         current = await call(**query, Version=version + 1)
         assert current["Code"] == "OK"
         assert current["State"]["normalized_output"] == evidence["State"]["normalized_output"]

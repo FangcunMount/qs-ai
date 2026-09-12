@@ -47,7 +47,9 @@ func main() {
 	}
 	scope := app.EvaluationScope{RunID: input.RunID, OrganizationID: input.OrgID, OperatorUserID: input.UserID}
 	var result any
-	if input.Action == "candidates" {
+	if input.Action == "gates" {
+		result, err = service.PreviewGates(ctx, scope, input.Version)
+	} else if input.Action == "candidates" {
 		result, err = service.ListCandidates(ctx, scope)
 	} else if input.Action == "candidate" {
 		result, err = service.GetCandidate(ctx, scope, app.CandidateQuery{CandidateID: input.CandidateID, ExpectedVersion: input.Version})

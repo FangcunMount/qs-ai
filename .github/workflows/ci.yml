@@ -61,7 +61,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: FangcunMount/qs-server
-          ref: 9ec92dd893b5011e5fad43de2536e709f2ab9a8b
+          ref: 2ed6724373254a9ce5015cbff932e900046f084f
           path: .interop/qs-governance
       - name: Verify migrated executable Prompt packages
         run: |
