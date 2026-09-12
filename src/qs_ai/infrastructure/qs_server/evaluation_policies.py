@@ -9,6 +9,7 @@ from jsonschema import Draft202012Validator
 
 from qs_ai.domain.evaluation.identity import FrozenContractRef
 from qs_ai.domain.evaluation.policy import ExecutionPolicy
+from qs_ai.domain.evaluation.quality_gates import SCORE_NAMES, QualityThresholds
 
 
 def evaluation_directory() -> Path:
@@ -61,6 +62,29 @@ def load_gate_policy(*, directory: Path | None = None) -> FrozenPolicyDocument:
         "ai-explanation-release-gate-policy-v1.schema.json",
         "release-gates",
         directory,
+    )
+
+
+def load_quality_thresholds(*, directory: Path | None = None) -> QualityThresholds:
+    """Use the checksum-verified frozen policy, not deployment configuration defaults."""
+    value = json.loads(load_gate_policy(directory=directory).definition_json)
+    sample, reliability, quality, human = (
+        value["sample_completeness"],
+        value["execution_reliability"],
+        value["candidate_quality"],
+        value["human_accountability"],
+    )
+    return QualityThresholds(
+        sample["required_generation_cases"],
+        sample["required_candidates_per_case"],
+        human["required_review_count"],
+        reliability["min_infrastructure_success_rate"],
+        reliability["min_generation_contract_conformance_rate"],
+        reliability["min_semantic_execution_success_rate"],
+        quality["min_assertion_passes_per_case"],
+        quality["min_assertion_passes_overall"],
+        tuple(quality["minimum_semantic_scores"][key] for key in SCORE_NAMES),
+        tuple(quality["minimum_semantic_averages"][key] for key in SCORE_NAMES),
     )
 
 
