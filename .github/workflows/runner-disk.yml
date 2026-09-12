@@ -1,0 +1,42 @@
+name: Inspect Mac mini disk
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: qs-ai-runner-disk-maintenance
+  cancel-in-progress: false
+jobs:
+  inspect:
+    runs-on:
+      group: qlume
+      labels: [self-hosted, macOS, ARM64]
+    timeout-minutes: 10
+    steps:
+      # No checkout or external actions: diagnostics must work when action
+      # downloads fail because the host filesystem is full.
+      - name: Inspect host and CI storage without deleting files
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(hostname -s)" = yangshujiedeMac-mini
+          test "$RUNNER_OS" = macOS
+          root=/Users/yangshujie/actions-runners
+          test -d "$root"
+          test ! -L "$root"
+          echo 'Host filesystem availability'
+          df -h /System/Volumes/Data "$RUNNER_TEMP"
+          echo 'Runner directories (sizes only)'
+          du -h -d 2 "$root" 2>/dev/null | sort -h || true
+          echo 'Runner worker process identifiers (no arguments)'
+          pgrep -x Runner.Worker || true
+          echo 'Rebuildable user cache sizes'
+          for cache in /Users/yangshujie/Library/Caches/go-build /Users/yangshujie/.cache/uv /Users/yangshujie/Library/Caches/pip; do
+            if test -d "$cache" && test ! -L "$cache"; then
+              du -sh "$cache"
+            fi
+          done
+          echo 'Docker storage summary (no volume contents)'
+          if command -v docker >/dev/null 2>&1; then
+            docker system df || true
+          fi
