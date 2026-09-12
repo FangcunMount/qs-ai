@@ -309,3 +309,53 @@ evaluation_semantic_completions = sa.Table(
     mysql_engine="InnoDB",
     mysql_charset="utf8mb4",
 )
+
+configuration_publications = sa.Table(
+    "configuration_publications",
+    metadata,
+    sa.Column("publication_id", sa.CHAR(36), primary_key=True),
+    sa.Column("selector_key", sa.CHAR(64), nullable=False),
+    sa.Column("run_id", sa.CHAR(36), sa.ForeignKey("evaluation_runs.run_id"), nullable=False),
+    sa.Column("run_version", sa.BigInteger, nullable=False),
+    sa.Column("organization_id", sa.BigInteger, nullable=False),
+    sa.Column("content_json", mysql.LONGTEXT, nullable=False),
+    sa.Column("content_sha256", sa.CHAR(64), nullable=False),
+    mysql_engine="InnoDB",
+    mysql_charset="utf8mb4",
+)
+
+configuration_publication_pointers = sa.Table(
+    "configuration_publication_pointers",
+    metadata,
+    sa.Column("selector_key", sa.CHAR(64), primary_key=True),
+    sa.Column("selector_json", mysql.TEXT, nullable=False),
+    sa.Column("version", sa.BigInteger, nullable=False),
+    sa.Column(
+        "active_publication_id",
+        sa.CHAR(36),
+        sa.ForeignKey("configuration_publications.publication_id"),
+    ),
+    sa.Column("changed_at", sa.String(64)),
+    mysql_engine="InnoDB",
+    mysql_charset="utf8mb4",
+)
+
+configuration_publication_changes = sa.Table(
+    "configuration_publication_changes",
+    metadata,
+    sa.Column("command_id", sa.CHAR(36), primary_key=True),
+    sa.Column(
+        "selector_key",
+        sa.CHAR(64),
+        sa.ForeignKey("configuration_publication_pointers.selector_key"),
+        nullable=False,
+    ),
+    sa.Column("version", sa.BigInteger, nullable=False),
+    sa.Column("organization_id", sa.BigInteger, nullable=False),
+    sa.Column("operator_user_id", sa.BigInteger, nullable=False),
+    sa.Column("request_json", mysql.TEXT, nullable=False),
+    sa.Column("receipt_json", mysql.TEXT, nullable=False),
+    sa.UniqueConstraint("selector_key", "version", name="uq_publication_change_version"),
+    mysql_engine="InnoDB",
+    mysql_charset="utf8mb4",
+)

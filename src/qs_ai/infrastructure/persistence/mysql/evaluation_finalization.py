@@ -60,6 +60,13 @@ async def lock_run(db: AsyncSession, scope: ManagementScope, expected_version: i
     # Set isolation before any reads. Locking reads see the latest committed state;
     # the evidence snapshot is established only after the shared writer lock is held.
     await db.connection(execution_options={"isolation_level": "REPEATABLE READ"})
+    return await lock_run_in_transaction(db, scope, expected_version)
+
+
+async def lock_run_in_transaction(
+    db: AsyncSession, scope: ManagementScope, expected_version: int
+) -> dict:
+    """Caller configures REPEATABLE READ before any query and owns this transaction."""
     checkpoint = (
         (
             await db.execute(

@@ -3,10 +3,10 @@
 import hashlib
 import json
 
-from qs_ai.application.interpretation.profile_assets import ProfileAssets
-from qs_ai.application.interpretation.prompt_assets import PromptAssets
-from qs_ai.application.interpretation.route_assets import RouteAssets
-from qs_ai.application.interpretation.schema_assets import SchemaAssets
+from qs_ai.application.interpretation.profile_assets import ProfileReader
+from qs_ai.application.interpretation.prompt_assets import PromptReader
+from qs_ai.application.interpretation.route_assets import RouteReader
+from qs_ai.application.interpretation.schema_assets import SchemaReader
 from qs_ai.domain.governance.manifest import AssetReference, GenerationManifest
 
 
@@ -15,10 +15,10 @@ class ManifestUnavailable(ValueError):
 
 
 async def build_generation_manifest(
-    profiles: ProfileAssets,
-    prompts: PromptAssets,
-    routes: RouteAssets,
-    schemas: SchemaAssets,
+    profiles: ProfileReader,
+    prompts: PromptReader,
+    routes: RouteReader,
+    schemas: SchemaReader,
     *,
     profile_id: str,
     profile_version: str,
