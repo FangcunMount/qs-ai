@@ -11,6 +11,7 @@ import grpc
 from dishka import AsyncContainer
 from grpc import aio
 
+from qs_ai.application.evaluation.candidates import validate_candidate_query
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict
 from qs_ai.application.evaluation.management import EvaluationManagementStore, ManagementScope
 from qs_ai.application.evaluation.requests import EvaluationRequests
@@ -99,6 +100,31 @@ class EvaluationManagement(rpc.EvaluationManagementServicer):
                 store = await operation.get(EvaluationManagementStore)
                 view = await store.get(scope)
             return pb.EvaluationState(**asdict(view))
+        raise AssertionError("abort must raise")
+
+    async def ListCandidates(
+        self, request: pb.EvaluationQuery, context: aio.ServicerContext[Any, Any]
+    ) -> pb.EvaluationCandidateIndex:
+        async with self.operation(context):
+            scope = scope_from(request)
+            async with self.container() as operation:
+                store = await operation.get(EvaluationManagementStore)
+                view = await store.list_candidates(scope)
+            return pb.EvaluationCandidateIndex(**asdict(view))
+        raise AssertionError("abort must raise")
+
+    async def GetCandidate(
+        self, request: pb.EvaluationCandidateQuery, context: aio.ServicerContext[Any, Any]
+    ) -> pb.EvaluationCandidateEvidence:
+        async with self.operation(context):
+            scope = scope_from(request.scope)
+            validate_candidate_query(request.candidate_id, request.expected_version)
+            async with self.container() as operation:
+                store = await operation.get(EvaluationManagementStore)
+                view = await store.get_candidate(
+                    scope, request.candidate_id, request.expected_version
+                )
+            return pb.EvaluationCandidateEvidence(**asdict(view))
         raise AssertionError("abort must raise")
 
     async def Review(

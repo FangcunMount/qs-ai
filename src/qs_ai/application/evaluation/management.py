@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
+from qs_ai.application.evaluation.candidates import CandidateEvidence, CandidateIndex
 from qs_ai.domain.evaluation.resolution import ResultUnknownResolution
 from qs_ai.domain.evaluation.review import CandidateHumanReview
 
@@ -38,6 +39,11 @@ class EvaluationView:
 
 
 class EvaluationManagementStore(Protocol):
+    async def list_candidates(self, scope: ManagementScope) -> CandidateIndex: ...
+    async def get_candidate(
+        self, scope: ManagementScope, candidate_id: str, expected_version: int
+    ) -> CandidateEvidence: ...
+
     async def get(self, scope: ManagementScope) -> EvaluationView: ...
     async def review(
         self,

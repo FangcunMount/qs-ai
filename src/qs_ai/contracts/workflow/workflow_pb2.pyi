@@ -118,6 +118,52 @@ class EvidenceItem(_message.Message):
     facts: _containers.RepeatedCompositeFieldContainer[Fact]
     def __init__(self, assessment_id: _Optional[str] = ..., testee_id: _Optional[str] = ..., report_id: _Optional[str] = ..., source_version: _Optional[str] = ..., facts: _Optional[_Iterable[_Union[Fact, _Mapping]]] = ...) -> None: ...
 
+class EvaluationCandidateSummary(_message.Message):
+    __slots__ = ("candidate_id", "case_id", "slot_ordinal")
+    CANDIDATE_ID_FIELD_NUMBER: _ClassVar[int]
+    CASE_ID_FIELD_NUMBER: _ClassVar[int]
+    SLOT_ORDINAL_FIELD_NUMBER: _ClassVar[int]
+    candidate_id: str
+    case_id: str
+    slot_ordinal: int
+    def __init__(self, candidate_id: _Optional[str] = ..., case_id: _Optional[str] = ..., slot_ordinal: _Optional[int] = ...) -> None: ...
+
+class EvaluationCandidateIndex(_message.Message):
+    __slots__ = ("run_id", "version", "candidates")
+    RUN_ID_FIELD_NUMBER: _ClassVar[int]
+    VERSION_FIELD_NUMBER: _ClassVar[int]
+    CANDIDATES_FIELD_NUMBER: _ClassVar[int]
+    run_id: str
+    version: int
+    candidates: _containers.RepeatedCompositeFieldContainer[EvaluationCandidateSummary]
+    def __init__(self, run_id: _Optional[str] = ..., version: _Optional[int] = ..., candidates: _Optional[_Iterable[_Union[EvaluationCandidateSummary, _Mapping]]] = ...) -> None: ...
+
+class EvaluationCandidateQuery(_message.Message):
+    __slots__ = ("scope", "candidate_id", "expected_version")
+    SCOPE_FIELD_NUMBER: _ClassVar[int]
+    CANDIDATE_ID_FIELD_NUMBER: _ClassVar[int]
+    EXPECTED_VERSION_FIELD_NUMBER: _ClassVar[int]
+    scope: EvaluationQuery
+    candidate_id: str
+    expected_version: int
+    def __init__(self, scope: _Optional[_Union[EvaluationQuery, _Mapping]] = ..., candidate_id: _Optional[str] = ..., expected_version: _Optional[int] = ...) -> None: ...
+
+class EvaluationCandidateEvidence(_message.Message):
+    __slots__ = ("run_id", "version", "candidate_id", "normalized_output", "semantic_output", "evidence_json")
+    RUN_ID_FIELD_NUMBER: _ClassVar[int]
+    VERSION_FIELD_NUMBER: _ClassVar[int]
+    CANDIDATE_ID_FIELD_NUMBER: _ClassVar[int]
+    NORMALIZED_OUTPUT_FIELD_NUMBER: _ClassVar[int]
+    SEMANTIC_OUTPUT_FIELD_NUMBER: _ClassVar[int]
+    EVIDENCE_JSON_FIELD_NUMBER: _ClassVar[int]
+    run_id: str
+    version: int
+    candidate_id: str
+    normalized_output: bytes
+    semantic_output: bytes
+    evidence_json: str
+    def __init__(self, run_id: _Optional[str] = ..., version: _Optional[int] = ..., candidate_id: _Optional[str] = ..., normalized_output: _Optional[bytes] = ..., semantic_output: _Optional[bytes] = ..., evidence_json: _Optional[str] = ...) -> None: ...
+
 class EvaluationQuery(_message.Message):
     __slots__ = ("run_id", "organization_id", "operator_user_id")
     RUN_ID_FIELD_NUMBER: _ClassVar[int]
