@@ -5,7 +5,9 @@ from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
+from qs_ai.application.evaluation.candidates import CandidateEvidence, CandidateIndex
 from qs_ai.domain.evaluation.resolution import ResultUnknownResolution
+from qs_ai.domain.evaluation.review import CandidateHumanReview
 
 
 @dataclass(frozen=True)
@@ -33,10 +35,23 @@ class EvaluationView:
     status: str
     unresolved_result_unknown_count: int
     resolutions_json: str
+    reviews_json: str = "[]"
 
 
 class EvaluationManagementStore(Protocol):
+    async def list_candidates(self, scope: ManagementScope) -> CandidateIndex: ...
+    async def get_candidate(
+        self, scope: ManagementScope, candidate_id: str, expected_version: int
+    ) -> CandidateEvidence: ...
+
     async def get(self, scope: ManagementScope) -> EvaluationView: ...
+    async def review(
+        self,
+        scope: ManagementScope,
+        expected_version: int,
+        values: tuple[CandidateHumanReview, ...],
+    ) -> EvaluationView: ...
+
     async def start(
         self,
         scope: ManagementScope,

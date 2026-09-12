@@ -11,6 +11,7 @@ import grpc
 from dishka import AsyncContainer
 from grpc import aio
 
+from qs_ai.application.evaluation.candidates import validate_candidate_query
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict
 from qs_ai.application.evaluation.management import EvaluationManagementStore, ManagementScope
 from qs_ai.application.evaluation.requests import EvaluationRequests
@@ -19,6 +20,7 @@ from qs_ai.contracts.workflow import workflow_pb2 as pb
 from qs_ai.contracts.workflow import workflow_pb2_grpc as rpc
 from qs_ai.domain.evaluation.identity import EvidenceReleaseIdentity, FrozenContractRef
 from qs_ai.domain.evaluation.resolution import ResultUnknownResolution
+from qs_ai.domain.evaluation.review import CandidateHumanReview, SemanticContradictionReview
 
 
 def scope_from(request: pb.EvaluationQuery) -> ManagementScope:
@@ -97,6 +99,72 @@ class EvaluationManagement(rpc.EvaluationManagementServicer):
             async with self.container() as operation:
                 store = await operation.get(EvaluationManagementStore)
                 view = await store.get(scope)
+            return pb.EvaluationState(**asdict(view))
+        raise AssertionError("abort must raise")
+
+    async def ListCandidates(
+        self, request: pb.EvaluationQuery, context: aio.ServicerContext[Any, Any]
+    ) -> pb.EvaluationCandidateIndex:
+        async with self.operation(context):
+            scope = scope_from(request)
+            async with self.container() as operation:
+                store = await operation.get(EvaluationManagementStore)
+                view = await store.list_candidates(scope)
+            return pb.EvaluationCandidateIndex(**asdict(view))
+        raise AssertionError("abort must raise")
+
+    async def GetCandidate(
+        self, request: pb.EvaluationCandidateQuery, context: aio.ServicerContext[Any, Any]
+    ) -> pb.EvaluationCandidateEvidence:
+        async with self.operation(context):
+            scope = scope_from(request.scope)
+            validate_candidate_query(request.candidate_id, request.expected_version)
+            async with self.container() as operation:
+                store = await operation.get(EvaluationManagementStore)
+                view = await store.get_candidate(
+                    scope, request.candidate_id, request.expected_version
+                )
+            return pb.EvaluationCandidateEvidence(**asdict(view))
+        raise AssertionError("abort must raise")
+
+    async def Review(
+        self, request: pb.EvaluationReviewCommand, context: aio.ServicerContext[Any, Any]
+    ) -> pb.EvaluationState:
+        async with self.operation(context):
+            scope = scope_from(request.scope)
+            if request.expected_version < 1 or not 1 <= len(request.reviews) <= 35:
+                raise ValueError("Explicit version and bounded review batch required")
+            at = datetime.now(UTC)
+            values = []
+            for item in request.reviews:
+                semantic = None
+                if item.HasField("semantic_review"):
+                    raw = item.semantic_review
+                    semantic = SemanticContradictionReview(
+                        raw.policy_version,
+                        raw.execution_id,
+                        raw.output_fingerprint,
+                        raw.assertion_ordinal,
+                        raw.original_detail,
+                        raw.candidate_excerpt,
+                        raw.reason.strip(),
+                    )
+                values.append(
+                    CandidateHumanReview(
+                        item.candidate_id.strip(),
+                        request.role,
+                        scope.actor,
+                        item.decision,
+                        at,
+                        item.reason.strip(),
+                        semantic,
+                    )
+                )
+            if len({v.candidate_id for v in values}) != len(values):
+                raise ValueError("Duplicate review candidate")
+            async with self.container() as operation:
+                store = await operation.get(EvaluationManagementStore)
+                view = await store.review(scope, request.expected_version, tuple(values))
             return pb.EvaluationState(**asdict(view))
         raise AssertionError("abort must raise")
 

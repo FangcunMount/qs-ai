@@ -84,3 +84,17 @@ AI 自动部署 `34622452715` 失败；GitHub check annotation 明确为 runner5
 恢复前：取得 runner SSH 连接、检查占用与运行任务，只清理已核实归属且可重建的本任务临时产物；再次核对 serverA 实际版本和服务健康。恢复后先完成一次明确版本发布与回执验证，再将 AUTO_DEPLOY_ENABLED 恢复 true。真实报告、授权/撤权及生成业务门槛仍独立验收。
 
 镜像打包也改为 `docker save` 到 gzip 的流式传输，不再额外保留完整未压缩 tar。父进程分别确认两个子进程退出状态，再校验 gzip 和 tar，最后原子替换交付包；失败或超时终止并回收子进程、清理本次临时文件、保留已有完整包。这降低峰值磁盘占用，但不能替代对已满 runner 磁盘的实际修复。
+
+## 2026-09-12 Runner 恢复与评测基础发布
+
+Mac mini 已通过 SSH 连接；清理前数据卷可用约 88 GiB。经核对六份 Runner 升级暂存包与已安装二进制一致、超过 14 天且无进程使用，删除这些暂存包和 563 份超过 14 天的日志；没有删除项目、容器镜像、数据库或近期日志。Runner 目录约 23→20 GiB，文件系统实际新增可用空间约 381 MiB，最终约 89 GiB；六个 Listener 仍运行。目录统计下降不能等同物理空间回收量。
+
+[主分支 CI 34699359651](https://github.com/FangcunMount/qs-ai/actions/runs/34699359651) 通过后，明确指定 `177f071b4d0a59cc68df799ca70b44e4e89824c2` 执行 [发布 34703453948](https://github.com/FangcunMount/qs-ai/actions/runs/34703453948)，结果 success。独立 SSH 核验：
+
+- `qs-ai-api`、`qs-ai-grpc` 镜像均为该 SHA 且 healthy；readyz 为 ready/database connected。
+- 容器虚拟环境的 database_check 核验 MySQL 8.0.36，当前及镜像预期均为 `0016_semantic_completions`。
+- mTLS 探针以 AI 证书调用仅允许 QS 的入口，按预期得到 PERMISSION_DENIED；此为工作负载隔离探针，不代表真实业务授权。
+- generation/evaluation/grpc.governance_enabled 均为 false，没有启动 worker、delivery 或 evaluation；QS 三个业务容器仍为 `b191a6bb72fe348072e2720beb31fb40aa184dd0` 且 healthy。
+- 已下载并校验本次 deployment-receipt：revision 为上述 SHA，release 为 `177f071b4d0a59cc68df799ca70b44e4e89824c2-34703453948-1`。随后恢复 AUTO_DEPLOY_ENABLED=true；纯文档范围过滤仍适用。
+
+此次完成此前积压的资产、评测及管理基础镜像发布；草稿 PR #39 的人工审核及候选查询不包含在该生产镜像中。M1 真实报告及撤权、M2 模型闭环与回退演练、M3 管理业务验收仍未完成。

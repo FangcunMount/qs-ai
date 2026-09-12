@@ -16,9 +16,12 @@ func main() {
 	var input struct {
 		RunID, Action, Decision, Reason string
 		Release                         app.EvaluationRelease
+		Review                          app.EvaluationReview
 		UserID                          int64
 		OrgID, Version                  int64
 		Allowed, Confirm                bool
+		AuditOnly                       bool
+		CandidateID                     string
 	}
 	if json.NewDecoder(os.Stdin).Decode(&input) != nil {
 		os.Exit(2)
@@ -33,14 +36,25 @@ func main() {
 		snapshot.EffectiveRoles = []string{"qs:admin"}
 		snapshot.Permissions = []authz.Permission{{Resource: "qs:*:*:*", Action: "*", Mode: authz.AuthorizationModeUnconditional}}
 	}
+	if input.Allowed && input.AuditOnly {
+		snapshot.EffectiveRoles = nil
+		snapshot.Permissions = []authz.Permission{{Resource: "qs:evaluation:collection:reports", Action: "audit", Mode: authz.AuthorizationModeUnconditional}}
+	}
 	ctx := authz.WithSnapshot(context.Background(), snapshot)
 	service := &app.EvaluationAdministration{Gateway: client}
 	if input.UserID == 0 {
 		input.UserID = 42
 	}
 	scope := app.EvaluationScope{RunID: input.RunID, OrganizationID: input.OrgID, OperatorUserID: input.UserID}
-	var result app.EvaluationState
-	if input.Action == "create" {
+	var result any
+	if input.Action == "candidates" {
+		result, err = service.ListCandidates(ctx, scope)
+	} else if input.Action == "candidate" {
+		result, err = service.GetCandidate(ctx, scope, app.CandidateQuery{CandidateID: input.CandidateID, ExpectedVersion: input.Version})
+	} else if input.Action == "review" {
+		input.Review.ExpectedVersion = input.Version
+		result, err = service.Review(ctx, scope, input.Review)
+	} else if input.Action == "create" {
 		result, err = service.Create(ctx, scope, app.EvaluationCreate{Release: input.Release, Reason: input.Reason, Confirm: input.Confirm})
 	} else if input.Action == "resolve" {
 		result, err = service.Resolve(ctx, scope, app.UnknownResolution{ExpectedVersion: input.Version, ExecutionID: "execution:dead", Decision: input.Decision, Reason: "跨进程管理测试", Confirm: input.Confirm, AcknowledgedDuplicateCallAndCostRisk: input.Confirm})
@@ -50,7 +64,7 @@ func main() {
 		result, err = service.Get(ctx, scope)
 	}
 	outcome := struct {
-		State           app.EvaluationState
+		State           any
 		Code            string
 		Denied, Invalid bool
 	}{State: result, Code: status.Code(err).String(), Denied: errors.Is(err, app.ErrGovernanceDenied), Invalid: errors.Is(err, app.ErrInvalid)}

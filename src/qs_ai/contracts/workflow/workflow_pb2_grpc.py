@@ -213,7 +213,7 @@ class Results:
 
 
 class EvaluationManagementStub:
-    """Trusted QS backend only. QS must authorize OrgAdmin before forwarding these operations.
+    """Trusted QS backend only. QS authorizes governance writes and candidate audit reads.
     """
 
     def __init__(self, channel):
@@ -242,10 +242,25 @@ class EvaluationManagementStub:
                 request_serializer=workflow__pb2.UnknownResolutionCommand.SerializeToString,
                 response_deserializer=workflow__pb2.EvaluationState.FromString,
                 _registered_method=True)
+        self.Review = channel.unary_unary(
+                '/qsai.workflow.v1.EvaluationManagement/Review',
+                request_serializer=workflow__pb2.EvaluationReviewCommand.SerializeToString,
+                response_deserializer=workflow__pb2.EvaluationState.FromString,
+                _registered_method=True)
+        self.ListCandidates = channel.unary_unary(
+                '/qsai.workflow.v1.EvaluationManagement/ListCandidates',
+                request_serializer=workflow__pb2.EvaluationQuery.SerializeToString,
+                response_deserializer=workflow__pb2.EvaluationCandidateIndex.FromString,
+                _registered_method=True)
+        self.GetCandidate = channel.unary_unary(
+                '/qsai.workflow.v1.EvaluationManagement/GetCandidate',
+                request_serializer=workflow__pb2.EvaluationCandidateQuery.SerializeToString,
+                response_deserializer=workflow__pb2.EvaluationCandidateEvidence.FromString,
+                _registered_method=True)
 
 
 class EvaluationManagementServicer:
-    """Trusted QS backend only. QS must authorize OrgAdmin before forwarding these operations.
+    """Trusted QS backend only. QS authorizes governance writes and candidate audit reads.
     """
 
     def Create(self, request, context):
@@ -274,6 +289,25 @@ class EvaluationManagementServicer:
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def Review(self, request, context):
+        """QS authorizes the selected review role; AI records the trusted operator and server time.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListCandidates(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetCandidate(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_EvaluationManagementServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -297,6 +331,21 @@ def add_EvaluationManagementServicer_to_server(servicer, server):
                     request_deserializer=workflow__pb2.UnknownResolutionCommand.FromString,
                     response_serializer=workflow__pb2.EvaluationState.SerializeToString,
             ),
+            'Review': grpc.unary_unary_rpc_method_handler(
+                    servicer.Review,
+                    request_deserializer=workflow__pb2.EvaluationReviewCommand.FromString,
+                    response_serializer=workflow__pb2.EvaluationState.SerializeToString,
+            ),
+            'ListCandidates': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListCandidates,
+                    request_deserializer=workflow__pb2.EvaluationQuery.FromString,
+                    response_serializer=workflow__pb2.EvaluationCandidateIndex.SerializeToString,
+            ),
+            'GetCandidate': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetCandidate,
+                    request_deserializer=workflow__pb2.EvaluationCandidateQuery.FromString,
+                    response_serializer=workflow__pb2.EvaluationCandidateEvidence.SerializeToString,
+            ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
             'qsai.workflow.v1.EvaluationManagement', rpc_method_handlers)
@@ -306,7 +355,7 @@ def add_EvaluationManagementServicer_to_server(servicer, server):
 
  # This class is part of an EXPERIMENTAL API.
 class EvaluationManagement:
-    """Trusted QS backend only. QS must authorize OrgAdmin before forwarding these operations.
+    """Trusted QS backend only. QS authorizes governance writes and candidate audit reads.
     """
 
     @staticmethod
@@ -407,6 +456,87 @@ class EvaluationManagement:
             '/qsai.workflow.v1.EvaluationManagement/ResolveUnknown',
             workflow__pb2.UnknownResolutionCommand.SerializeToString,
             workflow__pb2.EvaluationState.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def Review(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.EvaluationManagement/Review',
+            workflow__pb2.EvaluationReviewCommand.SerializeToString,
+            workflow__pb2.EvaluationState.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListCandidates(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.EvaluationManagement/ListCandidates',
+            workflow__pb2.EvaluationQuery.SerializeToString,
+            workflow__pb2.EvaluationCandidateIndex.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetCandidate(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.EvaluationManagement/GetCandidate',
+            workflow__pb2.EvaluationCandidateQuery.SerializeToString,
+            workflow__pb2.EvaluationCandidateEvidence.FromString,
             options,
             channel_credentials,
             insecure,

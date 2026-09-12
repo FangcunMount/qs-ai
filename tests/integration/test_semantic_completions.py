@@ -218,7 +218,7 @@ async def test_concurrent_semantic_completion_accepts_once(judge):
     assert len(await evidence(tx, run_id)) == 1
 
 
-async def test_all_35_candidates_complete_before_awaiting_review(judge):
+async def complete_candidate_set(judge):
     from qs_ai.infrastructure.persistence.mysql.evaluation_preparation import prepare_execution
     from tests.test_generation_completion_assets import assets
 
@@ -315,6 +315,12 @@ async def test_all_35_candidates_complete_before_awaiting_review(judge):
                 at,
                 at + timedelta(seconds=30),
             )
+
+    return state
+
+
+async def test_all_35_candidates_complete_before_awaiting_review(judge):
+    await complete_candidate_set(judge)
 
 
 async def test_semantic_retry_keeps_candidate_and_generation_count(judge):
