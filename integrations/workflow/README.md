@@ -7,7 +7,7 @@ uv run python scripts/generate_workflow_proto.py
 uv run python scripts/generate_workflow_proto.py --check
 ```
 
-QS 使用自身 `scripts/proto/generate.sh` 生成 Go 代码。当前版本是状态快照契约，尚无正式 Artifact 字段。不能把 `blocked/model_not_connected` 视为生成成功。
+QS 使用自身 `scripts/proto/generate.sh` 生成 Go 代码。当前 StateEvent 同时支持状态快照与完成态的 `artifact_json` 不可变成果；QS 接收端验证原请求、主体、版本及成果来源。不能把 `blocked/model_not_connected` 视为生成成功。
 
 ## 协议语义
 
@@ -29,7 +29,7 @@ uv run python -m qs_ai.bootstrap.worker --once
 uv run python -m qs_ai.bootstrap.integration deliver --address localhost:50062 --ca "$CA_FILE" --cert "$AI_CERT_FILE" --key "$AI_KEY_FILE"
 ```
 
-`serve` 常驻；Worker 和 `deliver` 是单次有界运行，需外部调度反复执行。动态授权源和业务工作流仍不可用；可信 QS 快照任务可被接收并保存。QS 新入口为 POST /api/v1/assessments/{id}/ai-workflows，独立开关默认关闭；cmd/qs-ai-bridge 负责持久命令投递。
+`serve` 常驻；Worker 与 `deliver` 支持显式持续运行配置及心跳，执行开关默认关闭。真实事实、授权、生成与回传仍须按 M1/M2 做生产验收；可信 QS 快照任务可被接收并保存。QS 新入口为 POST /api/v1/assessments/{id}/ai-workflows，独立开关默认关闭；cmd/qs-ai-bridge 负责持久命令投递。
 
 投递失败持久保留并指数退避，最大间隔 60 秒；当前没有死信队列、告警或运维重放入口。上线前需补齐这些运行能力。
 
@@ -45,4 +45,17 @@ export QS_AI_BRIDGE_BIN=/tmp/qs-ai-bridge
 uv run pytest -q
 ```
 
-这些是本地开发凭据。缺少跨语言环境时 interop 测试跳过；单仓 CI 不代表跨仓联调已执行。
+这些是本地开发凭据。缺少跨语言环境时 interop 测试跳过；当前 CI 固定检出 QS 源版本并执行已有命令、成果及评测管理跨语言回归。新增发布管理的 Go 入口联调仍需后续接入，不能由 Python mTLS 测试替代。
+
+
+## 配置发布管理
+
+`PublicationManagement` 提供 `Publish`、`Rollback`、`Disable`、`Get`、`GetReceipt` 五个内部 RPC。与评测管理一样，只在 `grpc.governance_enabled=true` 时注册，并强制校验 mTLS 的 `qs-apiserver.svc` 工作负载；QS 必须先完成当前操作者的管理授权，再填入可信机构与操作者。qs-ai 不接收直接来自浏览器的用户声明，不自建用户或权限目录。
+
+写操作必须有规范 UUID command_id、显式 expected 指针、原因和确认。发布绑定 Run UUID/版本/完整 release 摘要；回退只传原 publication UUID，不能上传拼装的审批或配置。AI 使用服务端时间，从冻结证据和全部 G1–G5 重算是否可发布。共享 selector 目录保持 QS 语义，不按机构复制一套生效配置。
+
+`Get` 返回精确 selector 的当前版本、active_publication_id、原发布 JSON 和变更时间；没有发布时为 version=0，停用后的版本继续递增。JSON 是 `qs-ai-publication/v1`，包含原 Profile、五项生成资产清单、完整评测引用及批准/发布审计，供追溯使用。单个 State 上限 512 KiB，前后状态 Receipt 上限 1 MiB。
+
+响应丢失后可用原机构/操作者和 command_id 调用 `GetReceipt`，不会新增发布或执行模型；其他机构/操作者与不存在命令统一返回 NOT_FOUND。相同原命令也可显式重放以取得原回执，服务器不自动重试写操作。版本/命令冲突映射 ABORTED，输入或证据不合格映射 INVALID_ARGUMENT，依赖异常映射 UNAVAILABLE 并提示查询原命令；错误响应不包含内部异常或资产正文。
+
+这批只接通 AI 端管理入口。QS 管理客户端/REST 代理、实际用户权限联调、运行时按 publication 解析及在途版本冻结仍待完成；当前生产治理开关为 false，不会自动替换 QS 的旧管理或生成路径。

@@ -104,3 +104,10 @@ Mac mini 已通过 SSH 连接；清理前数据卷可用约 88 GiB。经核对�
 AI 主分支 `9b19e6ce0ff001c7df283cade6bfd9574b224142` 的 [CI 34709398643](https://github.com/FangcunMount/qs-ai/actions/runs/34709398643) 与 [部署 34709815870](https://github.com/FangcunMount/qs-ai/actions/runs/34709815870) 均成功。独立 SSH 检查确认 qs-ai-api / qs-ai-grpc 使用该镜像且 healthy，MySQL 8.0.36 当前/预期迁移头均为 `0016_semantic_completions`，readyz 为 ready/database connected，gRPC 自身份探针取得预期 PERMISSION_DENIED。该探针证明通信和身份拒绝，不是授权主体业务验收。
 
 QS 的 [CI 34709501962](https://github.com/FangcunMount/qs-server/actions/runs/34709501962) 与 [部署 34710122753](https://github.com/FangcunMount/qs-server/actions/runs/34710122753) 成功；现场 apiserver 及两个 collection 的 SHA 为 `a35a84e3f8a046154fda5050e37d54a45bfe172b`，均 healthy。本次只核实已合并最终评审版，没有部署本轮重开增量、开启治理/生成或宣称 M1–M5 真实验收通过。
+
+
+## 2026-09-13 配置发布事务基础版部署核验
+
+AI `6b803821e4e20abd93a757aaa4995b36bf683a30` 的 [主分支 CI 34714055083](https://github.com/FangcunMount/qs-ai/actions/runs/34714055083) 和 [部署 34714737930](https://github.com/FangcunMount/qs-ai/actions/runs/34714737930) 均成功。独立 SSH 确认 API/gRPC 使用该镜像且 healthy，MySQL 8.0.36 当前及预期迁移头为 `0017_configuration_publications`；readyz 为 ready/database connected，mTLS 自身份探针取得预期 PERMISSION_DENIED。
+
+只检查三个布尔值确认 generation/evaluation/governance 均为 false，未输出凭据。QS apiserver 与两份 collection 仍为 `01fb6bb98f4bca4027e485874799d334ff21b579` 且 healthy。本次部署包含发布持久化基础，不包含未合并的管理 RPC/REST 增量；真实授权、生成、管理入口及恢复验收仍未完成。

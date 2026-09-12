@@ -99,6 +99,10 @@ class PublicationReceipt:
 
 
 class PublicationStore(Protocol):
+    async def get_receipt(
+        self, scope: PublicationScope, command_id: UUID
+    ) -> PublicationReceipt: ...
+
     async def get(self, selector: ReleaseSelector) -> PublicationPointer: ...
 
     async def apply(
