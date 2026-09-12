@@ -677,3 +677,37 @@ class SuiteRegistrationReceipt(_message.Message):
     command_id: str
     receipt_json: str
     def __init__(self, schema_version: _Optional[str] = ..., command_id: _Optional[str] = ..., receipt_json: _Optional[str] = ...) -> None: ...
+
+class AssetCatalogQuery(_message.Message):
+    __slots__ = ("scope", "kind", "identity", "limit", "cursor")
+    SCOPE_FIELD_NUMBER: _ClassVar[int]
+    KIND_FIELD_NUMBER: _ClassVar[int]
+    IDENTITY_FIELD_NUMBER: _ClassVar[int]
+    LIMIT_FIELD_NUMBER: _ClassVar[int]
+    CURSOR_FIELD_NUMBER: _ClassVar[int]
+    scope: PublicationScope
+    kind: str
+    identity: str
+    limit: int
+    cursor: str
+    def __init__(self, scope: _Optional[_Union[PublicationScope, _Mapping]] = ..., kind: _Optional[str] = ..., identity: _Optional[str] = ..., limit: _Optional[int] = ..., cursor: _Optional[str] = ...) -> None: ...
+
+class AssetCatalogGetQuery(_message.Message):
+    __slots__ = ("scope", "kind", "identity", "version")
+    SCOPE_FIELD_NUMBER: _ClassVar[int]
+    KIND_FIELD_NUMBER: _ClassVar[int]
+    IDENTITY_FIELD_NUMBER: _ClassVar[int]
+    VERSION_FIELD_NUMBER: _ClassVar[int]
+    scope: PublicationScope
+    kind: str
+    identity: str
+    version: str
+    def __init__(self, scope: _Optional[_Union[PublicationScope, _Mapping]] = ..., kind: _Optional[str] = ..., identity: _Optional[str] = ..., version: _Optional[str] = ...) -> None: ...
+
+class AssetCatalogResponse(_message.Message):
+    __slots__ = ("schema_version", "payload_json")
+    SCHEMA_VERSION_FIELD_NUMBER: _ClassVar[int]
+    PAYLOAD_JSON_FIELD_NUMBER: _ClassVar[int]
+    schema_version: str
+    payload_json: str
+    def __init__(self, schema_version: _Optional[str] = ..., payload_json: _Optional[str] = ...) -> None: ...
