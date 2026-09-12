@@ -9,6 +9,7 @@ from qs_ai.application.interpretation.prompt_assets import PromptAssets
 from qs_ai.application.interpretation.route_assets import RouteAssets
 from qs_ai.application.interpretation.schema_assets import SchemaAssets
 from qs_ai.domain.evaluation.identity import EvidenceReleaseIdentity
+from qs_ai.domain.governance.manifest import GenerationManifest
 from qs_ai.infrastructure.qs_server.evaluation_policies import (
     load_execution_policy,
     load_gate_policy,
@@ -23,7 +24,7 @@ async def validate_release_assets(
     prompts: PromptAssets,
     routes: RouteAssets,
     schemas: SchemaAssets,
-) -> None:
+) -> GenerationManifest:
     suite = load_suite(release.suite)
     execution, gate = load_execution_policy(), load_gate_policy()
     release.validate_frozen_policies(execution.definition_json, gate.definition_json)
@@ -46,3 +47,4 @@ async def validate_release_assets(
         definition["prompt"]["version"],
     ):
         raise ManifestUnavailable("Suite fixture does not match generation assets")
+    return manifest

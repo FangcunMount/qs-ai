@@ -10,11 +10,13 @@ from sqlalchemy import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from qs_ai.application.evaluation.checkpoints import CheckpointState
+from qs_ai.application.evaluation.release import validate_generation_manifest
 from qs_ai.application.interpretation.profile_assets import ProfileAssets
 from qs_ai.application.interpretation.prompt_assets import PromptAssets
 from qs_ai.application.interpretation.route_assets import RouteAssets
 from qs_ai.application.interpretation.schema_assets import SchemaAssets
 from qs_ai.domain.evaluation.identity import EvidenceReleaseIdentity
+from qs_ai.domain.governance.manifest import GenerationManifest
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
 from qs_ai.infrastructure.persistence.mysql.evaluation_dispatches import freeze_policy
 from qs_ai.infrastructure.persistence.mysql.schema import evaluation_checkpoints, evaluation_runs
@@ -33,6 +35,8 @@ async def create_run(
     requested_by: str,
     request_reason: str,
     created_at: datetime,
+    *,
+    generation_manifest: GenerationManifest | None = None,
 ) -> CheckpointState:
     """Caller must authorize actor and resolve every asset before entering this operation."""
     if not isinstance(run_id, UUID) or run_id.int == 0:
@@ -88,6 +92,12 @@ async def create_run(
             }
         ],
     }
+    # Older retained Runs have no manifest. They remain readable, but cannot be
+    # published until an evaluation with frozen executable asset bytes is accepted.
+    if generation_manifest is not None:
+        validate_generation_manifest(release, generation_manifest)
+        definition["generation_manifest_json"] = generation_manifest.canonical_json()
+        definition["generation_manifest_fingerprint"] = generation_manifest.fingerprint()
     await db.execute(
         insert(evaluation_runs).values(
             run_id=str(run_id),
@@ -127,12 +137,19 @@ class MySQLRunCreator:
     ) -> CheckpointState:
         from qs_ai.infrastructure.qs_server.evaluation_release import validate_release_assets
 
-        await validate_release_assets(
+        manifest = await validate_release_assets(
             release, self.profiles, self.prompts, self.routes, self.schemas
         )
         async with self.transactions.open() as db:
             state = await create_run(
-                db, run_id, release, organization_id, requested_by, request_reason, created_at
+                db,
+                run_id,
+                release,
+                organization_id,
+                requested_by,
+                request_reason,
+                created_at,
+                generation_manifest=manifest,
             )
             await db.commit()
         return state

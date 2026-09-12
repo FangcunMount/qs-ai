@@ -1,10 +1,10 @@
 """Resolve the generation half of an evaluation identity against immutable assets."""
 
 from qs_ai.application.interpretation.manifest import ManifestUnavailable, build_generation_manifest
-from qs_ai.application.interpretation.profile_assets import ProfileAssets
-from qs_ai.application.interpretation.prompt_assets import PromptAssets
-from qs_ai.application.interpretation.route_assets import RouteAssets
-from qs_ai.application.interpretation.schema_assets import SchemaAssets
+from qs_ai.application.interpretation.profile_assets import ProfileReader
+from qs_ai.application.interpretation.prompt_assets import PromptReader
+from qs_ai.application.interpretation.route_assets import RouteReader
+from qs_ai.application.interpretation.schema_assets import SchemaReader
 from qs_ai.domain.evaluation.identity import EvidenceReleaseIdentity, FrozenContractRef
 from qs_ai.domain.governance.manifest import GenerationManifest
 from qs_ai.domain.governance.route import RouteAsset
@@ -12,10 +12,10 @@ from qs_ai.domain.governance.route import RouteAsset
 
 async def resolve_generation_assets(
     release: EvidenceReleaseIdentity,
-    profiles: ProfileAssets,
-    prompts: PromptAssets,
-    routes: RouteAssets,
-    schemas: SchemaAssets,
+    profiles: ProfileReader,
+    prompts: PromptReader,
+    routes: RouteReader,
+    schemas: SchemaReader,
 ) -> GenerationManifest:
     manifest = await build_generation_manifest(
         profiles,
@@ -26,6 +26,13 @@ async def resolve_generation_assets(
         profile_version=release.profile.version,
         route_revision=release.generation_route.version,
     )
+    validate_generation_manifest(release, manifest)
+    return manifest
+
+
+def validate_generation_manifest(
+    release: EvidenceReleaseIdentity, manifest: GenerationManifest
+) -> None:
     for name in ("profile", "prompt", "generation_route", "input_schema", "output_schema"):
         asset = getattr(manifest, name)
         # QS evaluation uses full schema versions; asset storage uses the suffix.
@@ -33,11 +40,10 @@ async def resolve_generation_assets(
         expected = FrozenContractRef(asset.identity, version, asset.fingerprint)
         if getattr(release, name) != expected:
             raise ManifestUnavailable(f"Evaluation {name} reference does not match frozen asset")
-    return manifest
 
 
 async def resolve_semantic_route(
-    release: EvidenceReleaseIdentity, routes: RouteAssets
+    release: EvidenceReleaseIdentity, routes: RouteReader
 ) -> RouteAsset:
     """Resolve the judge's own reference, even when both stages intentionally share a model."""
     ref = release.semantic_route
