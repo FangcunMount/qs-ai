@@ -25,6 +25,7 @@ from qs_ai.infrastructure.persistence.mysql.database import Transactions
 from qs_ai.infrastructure.persistence.mysql.evaluation_assets import (
     prepare_run_case,
     run_model_route,
+    stored_run_suite,
 )
 from qs_ai.infrastructure.persistence.mysql.evaluation_completions import (
     complete_evaluated_generation,
@@ -103,6 +104,7 @@ async def execute_step(
         release = EvidenceReleaseIdentity(
             **{k: FrozenContractRef(**v) for k, v in creation["release"].items()}
         )
+        suite = await stored_run_suite(db, creation)
         prepared = await prepare_run_case(db, creation, cp.case_id)
         route = await run_model_route(db, creation, semantic=cp.kind == "semantic")
         if cp.kind == "generation":
@@ -132,7 +134,9 @@ async def execute_step(
             generation = decode_completion(row)
             candidate_fingerprint = generation.normalized_fingerprint
             assertions = tuple(AssertionReceipt(**a) for a in row["candidate_json"]["assertions"])
-            messages = prepare_semantic_messages(release, generation, assertions, prepared=prepared)
+            messages = prepare_semantic_messages(
+                release, generation, assertions, prepared=prepared, frozen_suite=suite
+            )
             schema = json.loads(load_semantic_assets().output_schema_json)
         state = await reserve_dispatch(db, run_id, state.version, owner, at)
         # This commit must finish before control reaches the external gateway.
@@ -157,7 +161,7 @@ async def execute_step(
     if cp.kind == "semantic" and failure is None:
         assert receipt is not None
         obligations = semantic_obligations(
-            assertion_inventory(release.suite, cp.case_id), assertions
+            assertion_inventory(release.suite, cp.case_id, frozen_suite=suite), assertions
         )
         try:
             await parse_semantic_output(

@@ -5,11 +5,13 @@ from datetime import datetime
 
 from qs_ai.domain.evaluation.identity import FrozenContractRef
 from qs_ai.domain.evaluation.preflight import AssertionReceipt, PreflightEvidence
-from qs_ai.infrastructure.qs_server.evaluation_suite import load_suite
+from qs_ai.infrastructure.qs_server.evaluation_suite import FrozenSuite, resolve_suite
 
 
-def run_preflight(reference: FrozenContractRef, at: datetime) -> PreflightEvidence:
-    suite = load_suite(reference)
+def run_preflight(
+    reference: FrozenContractRef, at: datetime, *, frozen_suite: FrozenSuite | None = None
+) -> PreflightEvidence:
+    suite = resolve_suite(reference, frozen_suite)
     definition = json.loads(suite.definition_json)
     case = next(c for c in definition["cases"] if c["case_id"] == suite.preflight_case_id)
     eligibility = definition["profile_fixture"]["eligibility"]

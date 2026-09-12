@@ -6,6 +6,7 @@ from qs_ai.application.governance.profile_registration import ProfileRegistrar
 from qs_ai.application.governance.prompt_drafts import PromptDraftStore
 from qs_ai.application.governance.prompt_freeze import PromptFreezer
 from qs_ai.application.governance.publication import PublicationStore
+from qs_ai.application.governance.suite_registration import SuiteRegistrar
 from qs_ai.application.integration.events import (
     DeliverResults,
     EventStore,
@@ -16,6 +17,7 @@ from qs_ai.infrastructure.persistence.mysql.database import Transactions
 from qs_ai.infrastructure.persistence.mysql.evaluation_management import MySQLEvaluationManagement
 from qs_ai.infrastructure.persistence.mysql.evaluation_requests import MySQLEvaluationRequests
 from qs_ai.infrastructure.persistence.mysql.evaluation_runs import MySQLRunCreator
+from qs_ai.infrastructure.persistence.mysql.evaluation_suites import MySQLSuiteRegistrar
 from qs_ai.infrastructure.persistence.mysql.profile_registrations import MySQLProfileRegistrar
 from qs_ai.infrastructure.persistence.mysql.prompt_drafts import MySQLPromptDrafts
 from qs_ai.infrastructure.persistence.mysql.prompt_freezes import MySQLPromptFreezer
@@ -25,6 +27,7 @@ from qs_ai.infrastructure.workflow_transport.results import UnconfiguredReceiver
 
 
 class IntegrationProvider(Provider):
+    suite_registrar = provide(MySQLSuiteRegistrar, provides=SuiteRegistrar, scope=Scope.REQUEST)
     profile_registrar = provide(
         MySQLProfileRegistrar, provides=ProfileRegistrar, scope=Scope.REQUEST
     )

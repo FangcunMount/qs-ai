@@ -215,7 +215,10 @@ async def complete_evaluated_generation(
     candidate_id: str = "",
 ) -> CheckpointState:
     """Compute original case assertions; callers cannot supply a passing assertion list."""
-    from qs_ai.infrastructure.persistence.mysql.evaluation_assets import prepare_run_case
+    from qs_ai.infrastructure.persistence.mysql.evaluation_assets import (
+        prepare_run_case,
+        stored_run_suite,
+    )
     from qs_ai.infrastructure.qs_server.candidate_assertions import evaluate_candidate_assertions
 
     assertions: tuple[AssertionReceipt, ...] = ()
@@ -236,7 +239,11 @@ async def complete_evaluated_generation(
         )
         prepared = await prepare_run_case(db, creation, completion.case_id)
         assertions = evaluate_candidate_assertions(
-            completion.normalized_output, prepared, release.suite, completion.case_id
+            completion.normalized_output,
+            prepared,
+            release.suite,
+            completion.case_id,
+            frozen_suite=await stored_run_suite(db, creation),
         )
     return await complete_generation(
         db,

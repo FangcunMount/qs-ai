@@ -5,7 +5,7 @@ from dataclasses import dataclass, replace
 
 from qs_ai.domain.evaluation.identity import FrozenContractRef
 from qs_ai.domain.evaluation.preflight import AssertionReceipt
-from qs_ai.infrastructure.qs_server.evaluation_suite import load_suite
+from qs_ai.infrastructure.qs_server.evaluation_suite import FrozenSuite, resolve_suite
 
 SEMANTIC_TYPES = frozenset(
     {
@@ -49,8 +49,10 @@ class FrozenAssertion:
     parameters_json: str
 
 
-def assertion_inventory(reference: FrozenContractRef, case_id: str) -> tuple[FrozenAssertion, ...]:
-    suite = load_suite(reference)
+def assertion_inventory(
+    reference: FrozenContractRef, case_id: str, *, frozen_suite: FrozenSuite | None = None
+) -> tuple[FrozenAssertion, ...]:
+    suite = resolve_suite(reference, frozen_suite)
     document = json.loads(suite.definition_json)
     case = next((c for c in document["cases"] if c["case_id"] == case_id), None)
     if case is None or case["stage"] != "generation":

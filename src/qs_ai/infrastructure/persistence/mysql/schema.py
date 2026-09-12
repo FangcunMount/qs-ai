@@ -436,3 +436,20 @@ profile_registrations = sa.Table(
     mysql_engine="InnoDB",
     mysql_charset="utf8mb4",
 )
+
+
+evaluation_suites = sa.Table(
+    "evaluation_suites",
+    metadata,
+    sa.Column("suite_id", sa.String(128, collation="utf8mb4_bin"), primary_key=True),
+    sa.Column("suite_version", sa.String(128, collation="utf8mb4_bin"), primary_key=True),
+    sa.Column("fingerprint", sa.String(71), nullable=False),
+    sa.Column("definition_json", mysql.LONGTEXT, nullable=False),
+    sa.Column("command_id", sa.CHAR(36), nullable=False, unique=True),
+    sa.Column("organization_id", sa.BigInteger, nullable=False),
+    sa.Column("operator_user_id", sa.BigInteger, nullable=False),
+    sa.Column("receipt_json", mysql.LONGTEXT, nullable=False),
+    sa.Column("receipt_sha256", sa.CHAR(64), nullable=False),
+    mysql_engine="InnoDB",
+    mysql_charset="utf8mb4",
+)
