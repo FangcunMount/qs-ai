@@ -118,6 +118,20 @@ class EvidenceItem(_message.Message):
     facts: _containers.RepeatedCompositeFieldContainer[Fact]
     def __init__(self, assessment_id: _Optional[str] = ..., testee_id: _Optional[str] = ..., report_id: _Optional[str] = ..., source_version: _Optional[str] = ..., facts: _Optional[_Iterable[_Union[Fact, _Mapping]]] = ...) -> None: ...
 
+class EvaluationFinalizeCommand(_message.Message):
+    __slots__ = ("scope", "expected_version", "expected_passed", "reason", "confirm")
+    SCOPE_FIELD_NUMBER: _ClassVar[int]
+    EXPECTED_VERSION_FIELD_NUMBER: _ClassVar[int]
+    EXPECTED_PASSED_FIELD_NUMBER: _ClassVar[int]
+    REASON_FIELD_NUMBER: _ClassVar[int]
+    CONFIRM_FIELD_NUMBER: _ClassVar[int]
+    scope: EvaluationQuery
+    expected_version: int
+    expected_passed: bool
+    reason: str
+    confirm: bool
+    def __init__(self, scope: _Optional[_Union[EvaluationQuery, _Mapping]] = ..., expected_version: _Optional[int] = ..., expected_passed: _Optional[bool] = ..., reason: _Optional[str] = ..., confirm: _Optional[bool] = ...) -> None: ...
+
 class EvaluationGateQuery(_message.Message):
     __slots__ = ("scope", "expected_version")
     SCOPE_FIELD_NUMBER: _ClassVar[int]
@@ -213,20 +227,22 @@ class UnknownResolutionCommand(_message.Message):
     def __init__(self, scope: _Optional[_Union[EvaluationQuery, _Mapping]] = ..., expected_version: _Optional[int] = ..., execution_id: _Optional[str] = ..., decision: _Optional[str] = ..., reason: _Optional[str] = ..., confirm: _Optional[bool] = ..., acknowledged_duplicate_call_and_cost_risk: _Optional[bool] = ...) -> None: ...
 
 class EvaluationState(_message.Message):
-    __slots__ = ("run_id", "version", "status", "unresolved_result_unknown_count", "resolutions_json", "reviews_json")
+    __slots__ = ("run_id", "version", "status", "unresolved_result_unknown_count", "resolutions_json", "reviews_json", "finalization_json")
     RUN_ID_FIELD_NUMBER: _ClassVar[int]
     VERSION_FIELD_NUMBER: _ClassVar[int]
     STATUS_FIELD_NUMBER: _ClassVar[int]
     UNRESOLVED_RESULT_UNKNOWN_COUNT_FIELD_NUMBER: _ClassVar[int]
     RESOLUTIONS_JSON_FIELD_NUMBER: _ClassVar[int]
     REVIEWS_JSON_FIELD_NUMBER: _ClassVar[int]
+    FINALIZATION_JSON_FIELD_NUMBER: _ClassVar[int]
     run_id: str
     version: int
     status: str
     unresolved_result_unknown_count: int
     resolutions_json: str
     reviews_json: str
-    def __init__(self, run_id: _Optional[str] = ..., version: _Optional[int] = ..., status: _Optional[str] = ..., unresolved_result_unknown_count: _Optional[int] = ..., resolutions_json: _Optional[str] = ..., reviews_json: _Optional[str] = ...) -> None: ...
+    finalization_json: str
+    def __init__(self, run_id: _Optional[str] = ..., version: _Optional[int] = ..., status: _Optional[str] = ..., unresolved_result_unknown_count: _Optional[int] = ..., resolutions_json: _Optional[str] = ..., reviews_json: _Optional[str] = ..., finalization_json: _Optional[str] = ...) -> None: ...
 
 class SemanticContradictionReview(_message.Message):
     __slots__ = ("policy_version", "execution_id", "output_fingerprint", "assertion_ordinal", "original_detail", "candidate_excerpt", "reason")

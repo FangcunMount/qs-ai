@@ -164,3 +164,11 @@ uv run python -m qs_ai.bootstrap.build_manifest \
 `PreviewGates` 接受 scope 和显式 expected_version，使用同一 REPEATABLE READ 快照重建 G1–G5：冻结身份与策略、预检和执行账本、恢复授权、质量指标及人工审核。仅允许没有活动执行的 awaiting_review Run；机构不可见返回 NOT_FOUND，旧版本或进行中状态返回 ABORTED。响应包含 Run 版本、发布摘要及 `qs-ai-evaluation-gate-preview/v1` JSON，时间由 AI 服务端生成，大小上限 256 KiB。它不写入最终门槛记录，不批准或发布；后续批准必须在写事务中重新计算，不能接受客户端回传的预览作为授权。QS 转发适配见 [PR #90](https://github.com/FangcunMount/qs-server/pull/90)：`GET /internal/v2/interpretation/ai-workflow/evaluations/{run_id}/gates?expected_version=N`，沿用解读审计权限；合并、部署和真实业务验收分别跟踪，默认治理开关仍保持关闭。
 
 审计 actor 按 QS 现有 `user:<operator_user_id>` 规则生成，处置时间由服务端生成。回读只包含处置审计，不包含报告、Prompt 或模型正文。调用结果不明时先回读核对版本和决定；重复提交旧版本会冲突，不能据网络错误创建新的人工授权。当前仅完成 AI 侧接口与替身鉴权上下文测试，QS 协议同步、OrgAdmin 转发和跨服务真实 mTLS 管理验收待完成。
+
+### 最终评审事务（默认关闭）
+
+`EvaluationManagement.Finalize` 接受同一可信 QS scope、显式 `expected_version`、有存在性检查的布尔 `expected_passed`、原因及 `confirm=true`。时间和 actor 由服务端确定；预期结果仅确认预览，不能指定批准。事务先锁定共享 checkpoint 和 scoped Run，再建立证据快照、重算 G1–G5。未收齐冻结要求的 70 条有效人工评审时不能最终拒绝；结果与确认不同或版本已变时返回 ABORTED。
+
+接受后，在同一事务内保存 approved/rejected、完整门槛、冻结发布摘要、原版本/新版本、操作人/原因/时间及最终状态迁移，并将 checkpoint 版本精确加一。原始生成/语义输出、调用账本和审核历史保持原样。`Get` 增加可选 `finalization_json`，回读时从原始证据重算并验证最终门槛与审计一致，损坏状态不能作为审批证据。尚未实现评审重开、配置发布指针或旧管理退役；最终批准也不会开启生成或发布配置。
+
+QS 转发路径为 `POST /internal/v2/interpretation/ai-workflow/evaluations/{run_id}/finalize`，要求现有机构 OrgAdmin；只读审计权限不能执行。两端写调用不自动重试，结果未知时先回读。新增字段保持旧的非终态响应兼容。所有生产治理、生成和评测开关继续关闭，真实管理入口验收与发布仍需按 M1–M5 顺序推进。

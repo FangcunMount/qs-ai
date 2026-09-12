@@ -37,9 +37,21 @@ class EvaluationView:
     unresolved_result_unknown_count: int
     resolutions_json: str
     reviews_json: str = "[]"
+    finalization_json: str = ""
 
 
 class EvaluationManagementStore(Protocol):
+    async def finalize(
+        self,
+        scope: ManagementScope,
+        expected_version: int,
+        expected_passed: bool,
+        reason: str,
+        at: datetime,
+        *,
+        confirm: bool,
+    ) -> EvaluationView: ...
+
     async def preview_gates(
         self, scope: ManagementScope, expected_version: int, at: datetime
     ) -> GatePreview: ...
