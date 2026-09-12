@@ -138,7 +138,7 @@ M1 → M2 → M3 → M4 → M5。M3 清单分析可提前开展，生产切换�
 | M0 | 完成 | 上述发布及 mTLS 记录 |
 | M1 | 进行中 | 已修复快照执行授权、迁入输入/Prompt/输出规则并完成服务身份联调；真实案例与撤权验收待补，见下方 2026-09-12 记录 |
 | M2 | 实现进行中，未验收 | 调用持久化、成果事务、跨语言回传、Workflow/常驻进程及部署配置已提交；依赖 M1 验收后启用真实生成 |
-| M3 | 管理实现中，未验收 | 资产冻结、持久评测、审核、质量门槛及最终评审已合并；重开事务与 QS 转发待 CI/发布，配置发布指针和管理权威切换仍待完成；依赖 M1/M2 真实验收 |
+| M3 | 管理实现中，未验收 | 资产冻结、持久评测、审核、门槛、最终评审及重开已合并；重开版部署待核验，配置发布规则与 Run 清单冻结已有本地验证；发布事务/管理权威切换仍待完成，依赖 M1/M2 真实验收 |
 | M4 | 待做 | 依赖 M3；冻结分批样本和运行阈值 |
 | M5 | 待做 | 依赖 M4；证据对账后退役 |
 
@@ -350,3 +350,12 @@ M1 → M2 → M3 → M4 → M5。M3 清单分析可提前开展，生产切换�
 - 实际 Go 应用/客户端 → 临时 mTLS Python 容器 → MySQL 的重开、双人重签、再次批准、旧历史回读及已有最终评审/管理组合共 6 项通过（35.65 秒）。覆盖撤权、只读审计身份、错误证书、错机构、缺少确认和旧版本拒绝；原模型输出不变。Go 应用/客户端/处理器/实际路由/容器回归及格式检查通过，OpenAPI 为 212 operations / 190 paths，gRPC 为 72 RPC / 17 services / 8 proto。真实模型、IAM 身份及页面验收未由本次合成输入替代。
 - 已合并最终评审版的生产证据补齐：AI 主分支 CI 34709398643 与发布 34709815870 成功，SSH 确认 `9b19e6ce0ff001c7df283cade6bfd9574b224142` 的 API/gRPC healthy、MySQL 8.0.36 迁移头 `0016_semantic_completions`、readyz/database connected；mTLS 自身份探针取得预期 PERMISSION_DENIED。QS CI 34709501962 和发布 34710122753 成功，SSH 确认 `a35a84e3f8a046154fda5050e37d54a45bfe172b` 的 apiserver 和两个 collection healthy。这些 SHA 尚不包含本轮重开代码。
 - 本轮有代码与验证增量，目标继续 active；M1–M5 未验收，生产治理/生成未切换。下一步跟踪重开精确提交 CI/发布，随后完成冻结配置发布与回退事务，继续等待已提出的真实授权案例缺口，不重复索取凭据或用替身验收。
+
+### 2026-09-13：重开合并，配置发布规则与清单冻结
+
+- AI [PR #46](https://github.com/FangcunMount/qs-ai/pull/46) 精确提交 `c9fd3c2f4c59709a62f11c56c4227e162ad18e9f` 的 [CI 34710943847](https://github.com/FangcunMount/qs-ai/actions/runs/34710943847) 完成 MySQL 8.0.36、8.4 及镜像三项验证，已合并 `cbae705c7194cd232ba78d132a298563133c2924`；主分支 CI 34711640197 继续跟踪，尚未确认重开版已部署。
+- QS [PR #92](https://github.com/FangcunMount/qs-server/pull/92) 精确提交 `38e03d43acef5159fb6c29c00f3cf35285d40928` 的 [CI 34710935251](https://github.com/FangcunMount/qs-server/actions/runs/34710935251)、AI bridge 和 CodeQL 检查均完成且无失败，合并为 `01fb6bb98f4bca4027e485874799d334ff21b579`。合并前远程 main 仍为 `a35a84e3f8a046154fda5050e37d54a45bfe172b`，本任务 worktree 干净；原工作区未修改，未混入其他任务的更改。
+- 新分支 `codex/profile-publication` 的源码 `53def7ce7e9f2e2266cb73bd5ae607d1d7560c64` 提供发布/替换/停用/回退的纯指针规则：保留最高特异 selector 的选择和停用回落，拒绝同层歧义，要求明确的指针版本及原 publication_id。发布绑定已批准 Run、原 Profile、五项生成资产和完整评测 release；回退保留旧配置及原发布审计，只增加新的指针版本与操作审计。
+- 新建评测除原十一项来源引用外，还冻结 GenerationManifest 原文与摘要，包含 Prompt 导出包字节摘要和 route revision。发布证据类型要求当前清单与评测时的摘要一致；不能仅凭相同 source Prompt fingerprint 接受另一份包内容。公开 Run 创建适配器生成并原子写入清单；旧 Run 无清单时保留历史可读性，未来发布路径须拒绝其作为新发布证据，不能事后补写当前内容。
+- 本地 29 项发布规则测试及相关 manifest/架构验证通过；全部非集成 723 项通过、11 项跳过。MySQL 8.4 的新清单落库、创建回滚/冲突及实际 Go→临时 mTLS→Python→MySQL 创建组合共 14 项通过（6.39 秒）。Ruff、mypy（175 源文件）和文档检查通过。临时 MySQL 已清理；模型审批输入与 IAM 仍是测试数据。
+- 下一步需要完成三类持久记录（不可变 publication、唯一 selector 指针、command_id 变更审计）、重算审批与资产一致快照的原子发布/回退，再连接管理接口和执行端解析/发送前校验。ReportWorkflow 仍使用迁移基线装配，纯规则不会自动改变生产路线。新 Prompt 草稿及 suite 版本化、旧写路径退役亦未完成，详见 [发布迁入边界](migration-boundary.md#配置发布与回退的迁入边界)。M1–M5 保持未验收，本轮属于代码与验证进展。
