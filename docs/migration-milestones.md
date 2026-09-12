@@ -484,3 +484,13 @@ M1 → M2 → M3 → M4 → M5。M3 清单分析可提前开展，生产切换�
 - QS 发布 34722157688 成功，独立 SSH 核实 serverA apiserver/两个 collection 镜像为 `53e2f2cb1acabcb6a171372b0dd8bcb7bbbf3f7a` 且 healthy。AI 现场为 `8452d91e2cfb5819f16b197b154ec24cfbb5726f`（API/gRPC 均 healthy），MySQL 8.0.36 当前/预期头 0020、readyz connected、mTLS 自身份拒绝探针通过；此为资产快照执行批次，不包含本地套件或 Profile 0021。生产实际版本与工作流 head 继续分开记录。
 - 随后 Profile 注册版发布 34723438772 完成成功，SSH 复核 API/gRPC 已更新为 `e836d32809ede4d162d68192a1a3e19ebe25561f` 且 healthy、数据库头为 0021，readyz 和 mTLS 探针通过，四项生成/评测/治理/发布执行开关仍为 false。具体生产证据见 [部署验证](deployment-verification.md#2026-09-13-profile-注册发布)。
 - 下一步继续本批精确提交 CI/适用发布、QS 套件授权代理、Profile 草稿和管理页面。M1–M5 仍未验收，合法测试报告与有权主体缺口保持独立；不启用生产生成/治理、不删除旧业务写路径。
+
+
+### 2026-09-13：QS 套件代理与固定源码互操作
+
+- QS 专属分支 `codex/ai-suite-management` 从 `1a5792131e6b8fdccb128d17fd9946f9af4aeaec` 创建，源码 `f794bfa5941854a5d7977b6ec0e782bc738fd4d0` 增加套件注册及原命令回执 REST 代理。注册复用 OrgAdmin，查询复用 AuditInterpretation；组织/操作者来自认证上下文，继续共用现有 mTLS 连接。API 为 227 operations / 205 paths，gRPC 为 21 个服务 / 87 RPC，AI 协议固定至 `77f3172172abc504114ad0d51c41a06f75a181c6`。
+- QS 核对回执机构、操作者、命令、目标套件身份及完整资产引用关系，5 秒超时且无自动重试。回执不携带套件完整字节，内容指纹推导与登记一致性由 qs-ai 验证；不声称 Go 独立重算套件内容。请求上限 16 KiB、RPC 接收上限 32 KiB，参数错误和未知结果安全映射。应用/适配器/REST/gRPC/模块回归、lint、格式、80 项文档测试、事实与 API 对齐检查通过。
+- AI CI 将治理代理固定到上述 QS 源码。隔离 MySQL 8.4 迁移到 0022，真实 Go→临时 mTLS→Python→MySQL 的套件注册/重放、新进程查询、版本冲突、错误来源及身份拒绝，加上既有 Profile/草稿/冻结共 13 项通过（26.61 秒）。权限快照仍为合成输入，没有真实 IAM、模型调用或管理页面验收。
+- QS Profile 主分支 CI 34723293856 已完成成功。AI 原生套件 PR #58 的 CI 34723749588 镜像通过，两版 MySQL 验证仍运行；没有重复启动。当前本批代理和互操作待精确提交 CI，生产版本证据仍见前条部署记录。M1–M5 均未验收；合法报告与授权主体缺口未补齐，不启用生成或治理、不删除旧写路径。
+
+- 随后 QS Profile 部署 34723860471 成功，SSH 核实 serverA 三个业务容器均为 `1a5792131e6b8fdccb128d17fd9946f9af4aeaec` 且 healthy；AI 实际仍为 `e836d32809ede4d162d68192a1a3e19ebe25561f` / 0021，readyz 与 mTLS 探针通过。套件代理已提交 [QS PR #97](https://github.com/FangcunMount/qs-server/pull/97)，尚待精确提交检查。

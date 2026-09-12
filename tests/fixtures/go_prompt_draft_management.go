@@ -20,6 +20,7 @@ func main() {
 		Create             app.CreatePromptDraft
 		Revise             app.RevisePromptDraft
 		Freeze             app.FreezePromptDraft
+		Suite              app.RegisterSuite
 		Profile            app.RegisterProfile
 		DraftID, CommandID string
 		Revision           *int64
@@ -43,8 +44,13 @@ func main() {
 	scope := app.DraftScope{OrganizationID: input.OrgID, OperatorUserID: input.UserID}
 	service := &app.PromptDraftAdministration{Gateway: clients.PromptDrafts}
 	profiles := &app.ProfileAdministration{Gateway: clients.Profiles}
+	suites := &app.SuiteAdministration{Gateway: clients.Suites}
 	var result any
 	switch input.Action {
+	case "suite-register":
+		result, err = suites.Register(ctx, scope, input.Suite)
+	case "suite-receipt":
+		result, err = suites.GetReceipt(ctx, scope, input.CommandID)
 	case "profile-register":
 		result, err = profiles.Register(ctx, scope, input.Profile)
 	case "profile-receipt":
