@@ -2,6 +2,7 @@
 
 import json
 from dataclasses import asdict
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy import select
@@ -16,14 +17,18 @@ from qs_ai.application.evaluation.candidates import (
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict
 from qs_ai.application.evaluation.management import ManagementScope
 from qs_ai.application.interpretation.ports import NotFound
+from qs_ai.domain.evaluation.adjudication import effective_candidate_assertions
 from qs_ai.domain.evaluation.completion import GenerationCompletion
 from qs_ai.domain.evaluation.identity import EvidenceReleaseIdentity, FrozenContractRef
+from qs_ai.domain.evaluation.preflight import AssertionReceipt
+from qs_ai.domain.evaluation.review import ReviewCandidate
 from qs_ai.domain.evaluation.semantic_completion import SemanticCompletion
 from qs_ai.infrastructure.persistence.mysql.evaluation_projection import (
     decode_completion,
     decode_semantic_completion,
     project_slots,
 )
+from qs_ai.infrastructure.persistence.mysql.evaluation_reviews import decode_reviews
 from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_checkpoints,
     evaluation_dispatches,
@@ -167,6 +172,25 @@ async def get_candidate(
         if r["execution_id"] == candidate["accepted_semantic_execution_id"]
     )
     judged = decode_semantic_completion(accepted)
+    reviews = [r for r in progress.get("human_reviews", []) if r["candidate_id"] == candidate_id]
+    closures = [t for t in progress.get("transitions", []) if t["to"] == "awaiting_review"]
+    if reviews and len(closures) != 1:
+        raise CheckpointConflict("Review closure requires reconciliation")
+    closed_at = datetime.fromisoformat(closures[0]["at"]) if closures else judged.finished_at
+    effective = effective_candidate_assertions(
+        ReviewCandidate(
+            candidate_id,
+            generated.finished_at,
+            generated.normalized_output,
+            judged,
+            accepted["result_json"]["evaluator_version"],
+            tuple(AssertionReceipt(**a) for a in candidate["assertions"]),
+            tuple(AssertionReceipt(**a) for a in candidate["semantic_assertions"]),
+        ),
+        decode_reviews(reviews),
+        closed_at,
+        gate_policy_version=release.gate_policy.version,
+    )
 
     # Only expose accepted receipt fields, excluding raw provider responses and prompts.
     def receipt(value: GenerationCompletion | SemanticCompletion) -> dict[str, Any]:
@@ -189,9 +213,11 @@ async def get_candidate(
                 "output_fingerprint": judged.output_fingerprint,
                 "result": accepted["result_json"],
             },
-            "reviews": [
-                r for r in progress.get("human_reviews", []) if r["candidate_id"] == candidate_id
-            ],
+            "reviews": reviews,
+            "effective_assertions": [asdict(a) for a in effective.assertions],
+            "semantic_adjudication": asdict(effective.adjudication)
+            if effective.adjudication
+            else None,
         },
         ensure_ascii=False,
         separators=(",", ":"),
