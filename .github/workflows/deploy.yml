@@ -95,6 +95,8 @@ jobs:
       labels: [self-hosted, macOS, ARM64]
     environment: production
     steps:
+      - name: Report runner disk availability
+        run: df -h "$RUNNER_TEMP"
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.gate.outputs.revision }}

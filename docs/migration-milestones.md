@@ -239,3 +239,10 @@ M1 → M2 → M3 → M4 → M5。M3 清单分析可提前开展，生产切换�
 
 - 创建跨语言验收增量：使用 QS 精确提交 `c50aa94e6605b3953362841a76422f1efcaaf6f7` 编译 Go 探针，调用实际 QS 应用/客户端、Python gRPC、依赖注入容器、MySQL 资产存储和 Run 事务。创建场景与启动/取消/授权替代回归共 4 项通过。基线 Profile/Prompt/route/schema 均先写入隔离 MySQL，十一项引用原样落库；并发相同创建返回同一 requested Run，机构/操作者/原因冲突拒绝，错误资产摘要不产生部分记录，启动后重放返回 collecting/version 2 且不改审计。
 - 此验证使用临时 CA/证书和合成 IAM 快照，没有生产 IAM/HTTP 页面或真实模型流量；不能视为 M1–M5 生产验收。临时数据库与 Go 源目录已清理，QS 工作区无测试残留；两份草稿继续等待精确提交 CI。
+
+### 2026-09-12：创建合并与发布导出失败
+
+- AI PR #36 源提交 `92f1487711df3ad5ccbbc2c865a933cc82d1f85e` 通过 CI [34697535552](https://github.com/FangcunMount/qs-ai/actions/runs/34697535552)，合并至 `900812209da04689fb1ee9ea6acab85d4bf23a6c`，合并后 CI [34697704842](https://github.com/FangcunMount/qs-ai/actions/runs/34697704842) 成功。QS PR #87 提交 `c50aa94e6605b3953362841a76422f1efcaaf6f7` 通过 CI [34697386474](https://github.com/FangcunMount/qs-server/actions/runs/34697386474)，合并至 `983132ffb2355ce33919bb7d9650dc98ce05c9da`。
+- 现场确认 QS `b191a6bb72fe348072e2720beb31fb40aa184dd0` 健康；此前成功部署确由 qlume 组 macOS/ARM64 runner 执行，故重新尝试 AI 正式发布 [34697860032](https://github.com/FangcunMount/qs-ai/actions/runs/34697860032)。构建成功，runner6 成功连接 serverA 并拉取镜像，但 docker save/gzip 导出步骤失败；本次不是 runner 失联。旧脚本仅输出 Image export failed，不能据此断言磁盘不足或具体 Docker 错误。
+- 失败后现场复核：AI API/gRPC 仍为 `ccde2ed627171b748ff63efe5062fdc741757480` 且 healthy，数据库仍 `0006_artifacts`，未上传新镜像或执行迁移。serverA 可用磁盘约 36 GB 不代表 runner/Docker 存储充足。执行开关 false；自动部署仍关闭。
+- `codex/deployment-export-diagnostics` 补充导出错误的允许列表分类、Docker/gzip 退出码和归档目录剩余空间；不输出原始 stderr、凭据或私有路径。28 项导出/部署测试通过，包含诊断脱敏、子进程回收和失败不覆盖既有归档。此为诊断准备，尚未证明根因或修复成功。首个真实测评/报告与测试账号标识已再次请求，等待用户回复；M1–M5 未验收。

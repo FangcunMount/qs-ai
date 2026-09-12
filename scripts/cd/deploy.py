@@ -114,6 +114,25 @@ def run(phase: str, args: list[str], **kwargs) -> str:
     return result.stdout
 
 
+def export_failure_kind(raw: bytes) -> str:
+    """Allowlisted categories only; daemon stderr may contain private registry details."""
+    message = raw.lower()
+    for category, patterns in (
+        ("no_space", (b"no space left", b"disk full", b"not enough space")),
+        ("missing_content", (b"blob not found", b"missing blob")),
+        ("permission_denied", (b"permission denied", b"access denied")),
+        (
+            "daemon_unavailable",
+            (b"cannot connect", b"connection refused", b"daemon is not running"),
+        ),
+    ):
+        if any(pattern in message for pattern in patterns):
+            return category
+    if b"content digest" in message and b"not found" in message:
+        return "missing_content"
+    return "unclassified"
+
+
 def export_image(image: str, archive: Path, environment: dict, timeout: float = 1800) -> None:
     """Stream into a private compressed file; check both children before publishing."""
     if timeout <= 0:
@@ -123,28 +142,41 @@ def export_image(image: str, archive: Path, environment: dict, timeout: float = 
     deadline = time.monotonic() + timeout
     print("image export: started", flush=True)
     try:
-        with tempfile.NamedTemporaryFile(
-            dir=archive.parent, suffix=".tar.gz.tmp", delete=False
-        ) as target:
+        with (
+            tempfile.NamedTemporaryFile(
+                dir=archive.parent, suffix=".tar.gz.tmp", delete=False
+            ) as target,
+            tempfile.TemporaryFile() as export_errors,
+            tempfile.TemporaryFile() as compression_errors,
+        ):
             temporary = Path(target.name)
             exporter = subprocess.Popen(
                 ["docker", "save", image],
                 stdout=subprocess.PIPE,
-                stderr=subprocess.DEVNULL,
+                stderr=export_errors,
                 env=environment,
             )
             compressor = subprocess.Popen(
                 ["gzip", "-1", "-c"],
                 stdin=exporter.stdout,
                 stdout=target,
-                stderr=subprocess.DEVNULL,
+                stderr=compression_errors,
                 env=environment,
             )
             exporter.stdout.close()
             compressed = compressor.wait(timeout=max(0, deadline - time.monotonic()))
             exported = exporter.wait(timeout=max(0, deadline - time.monotonic()))
             if compressed or exported:
-                raise RuntimeError("Image export failed; raw output suppressed")
+                export_errors.seek(0)
+                compression_errors.seek(0)
+                export_kind = export_failure_kind(export_errors.read(16384))
+                compression_kind = export_failure_kind(compression_errors.read(16384))
+                free_mib = shutil.disk_usage(archive.parent).free // (1024 * 1024)
+                raise RuntimeError(
+                    f"Image export failed: docker_exit={exported} docker_kind={export_kind} "
+                    f"gzip_exit={compressed} gzip_kind={compression_kind} "
+                    f"archive_disk_free_mib={free_mib}; raw output suppressed"
+                )
         run("gzip integrity", ["gzip", "-t", str(temporary)])
         # A short garbage stream can be accepted as an empty archive by GNU tar.
         # Read entries without extracting layers or accumulating a large file list.
