@@ -7,9 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from qs_ai.application.evaluation.management import EvaluationView, ManagementScope
 from qs_ai.application.interpretation.ports import NotFound
 from qs_ai.domain.evaluation.resolution import ResultUnknownResolution
+from qs_ai.domain.evaluation.review import CandidateHumanReview
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
 from qs_ai.infrastructure.persistence.mysql.evaluation_progress import transition_requested
 from qs_ai.infrastructure.persistence.mysql.evaluation_resolution import accept_resolution
+from qs_ai.infrastructure.persistence.mysql.evaluation_reviews import accept_reviews
 from qs_ai.infrastructure.persistence.mysql.schema import evaluation_checkpoints, evaluation_runs
 
 
@@ -42,6 +44,7 @@ async def read_view(db: AsyncSession, scope: ManagementScope) -> EvaluationView:
         progress["status"],
         progress.get("unresolved_result_unknown_count", 0),
         json.dumps(progress.get("result_unknown_resolutions", []), ensure_ascii=False),
+        json.dumps(progress.get("human_reviews", []), ensure_ascii=False),
     )
 
 
@@ -52,6 +55,19 @@ class MySQLEvaluationManagement:
     async def get(self, scope: ManagementScope) -> EvaluationView:
         async with self.transactions.open() as db:
             return await read_view(db, scope)
+
+    async def review(
+        self,
+        scope: ManagementScope,
+        expected_version: int,
+        values: tuple[CandidateHumanReview, ...],
+    ) -> EvaluationView:
+        async with self.transactions.open() as db:
+            await read_view(db, scope)
+            await accept_reviews(db, scope, expected_version, values)
+            view = await read_view(db, scope)
+            await db.commit()
+            return view
 
     async def start(
         self,

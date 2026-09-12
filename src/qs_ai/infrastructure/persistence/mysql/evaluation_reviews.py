@@ -57,7 +57,7 @@ async def accept_reviews(
         type(expected_version) is not int
         or expected_version < 1
         or not isinstance(values, tuple)
-        or not values
+        or not 1 <= len(values) <= 35
         or any(v.reviewer != scope.actor for v in values)
         or len({v.role for v in values}) != 1
     ):

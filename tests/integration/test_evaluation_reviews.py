@@ -1,4 +1,5 @@
 import asyncio
+import json
 from dataclasses import replace
 from datetime import datetime, timedelta
 
@@ -7,11 +8,13 @@ from sqlalchemy import select, update
 
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict
 from qs_ai.application.evaluation.management import ManagementScope
+from qs_ai.application.interpretation.ports import NotFound
 from qs_ai.domain.evaluation.review import (
     CONTRADICTION_POLICY,
     CandidateHumanReview,
     SemanticContradictionReview,
 )
+from qs_ai.infrastructure.persistence.mysql.evaluation_management import MySQLEvaluationManagement
 from qs_ai.infrastructure.persistence.mysql.evaluation_reviews import accept_reviews, decode_reviews
 from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_generation_completions,
@@ -192,3 +195,20 @@ async def test_semantic_review_roundtrip_binds_original_without_overwriting_it(r
     run, _, _ = await rows(tx, scope.run_id)
     assert decode_reviews(run["progress_json"]["human_reviews"]) == (audited,)
     assert await outputs(tx, scope.run_id) == before
+
+
+async def test_management_returns_committed_reviews_and_supports_scoped_readback(reviewable):
+    tx, scope, version, value = reviewable
+    store = MySQLEvaluationManagement(tx)
+    accepted = await store.review(scope, version, (value,))
+    assert accepted.version == version + 1 and accepted.status == "awaiting_review"
+    assert decode_reviews(json.loads(accepted.reviews_json)) == (value,)
+    assert await store.get(scope) == accepted
+    with pytest.raises(CheckpointConflict):
+        await store.review(scope, version, (value,))
+    assert await store.get(scope) == accepted
+    other_org = replace(scope, organization_id=2)
+    with pytest.raises(NotFound):
+        await store.review(other_org, accepted.version, (value,))
+    with pytest.raises(NotFound):
+        await store.get(other_org)

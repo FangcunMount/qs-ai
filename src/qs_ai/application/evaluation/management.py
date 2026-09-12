@@ -6,6 +6,7 @@ from typing import Protocol
 from uuid import UUID
 
 from qs_ai.domain.evaluation.resolution import ResultUnknownResolution
+from qs_ai.domain.evaluation.review import CandidateHumanReview
 
 
 @dataclass(frozen=True)
@@ -33,10 +34,18 @@ class EvaluationView:
     status: str
     unresolved_result_unknown_count: int
     resolutions_json: str
+    reviews_json: str = "[]"
 
 
 class EvaluationManagementStore(Protocol):
     async def get(self, scope: ManagementScope) -> EvaluationView: ...
+    async def review(
+        self,
+        scope: ManagementScope,
+        expected_version: int,
+        values: tuple[CandidateHumanReview, ...],
+    ) -> EvaluationView: ...
+
     async def start(
         self,
         scope: ManagementScope,
