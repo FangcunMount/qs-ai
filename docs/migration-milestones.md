@@ -227,3 +227,10 @@ M1 → M2 → M3 → M4 → M5。M3 清单分析可提前开展，生产切换�
 
 - 启动链路后续证据：QS 独立分支提交 `0c8a08d1ae05b727e3f4cc4f6ff09e3b9440e712` 已提供 POST `/internal/v2/interpretation/ai-workflow/evaluations/{run_id}/start`，经过当前 OrgAdmin 判断和受保护身份上下文转发。对应 Go 应用/客户端/REST/grpc 包测试、fmt-check、API 生成一致性及文档门禁通过，接口清单为 201 REST operations / 180 paths、64 RPC；精确提交 CI 仍待完成。
 - 在上述 QS 提交编译真实 Go 管理探针，启动/取消/授权替代三项 Go → Python → MySQL 8.4 互操作测试通过。启动场景通过正常创建获得 requested Run；实际服务端时钟写入启动审计，状态进入 collecting 且版本只增加一次；旧版本及当前版本的重复启动都被拒绝，错机构、非可信证书、缺确认和撤权均拒绝。测试使用临时证书、隔离数据库与合成 IAM 快照；未验证生产 IAM/HTTP 页面或调用模型。临时数据库及 Go 源目录已清理，QS 工作区保持干净。
+
+### 2026-09-12：启动合并与 Run 创建入口
+
+- AI PR #35 源提交 `4d3229d819302d285d17fd1a9d5bb5c1a732c966` 的 CI [34651569514](https://github.com/FangcunMount/qs-ai/actions/runs/34651569514) 通过，合并至 `347bc0227b5c68e25d7da20724b637aa7cff067f`；合并后检查 [34656948143](https://github.com/FangcunMount/qs-ai/actions/runs/34656948143) 成功，部署跳过。QS PR #86 源提交 `0c8a08d1ae05b727e3f4cc4f6ff09e3b9440e712` 通过 CI [34651408582](https://github.com/FangcunMount/qs-server/actions/runs/34651408582)，合并至 `e59231691f8f55cfb190267c8291b541e64c6292`。
+- `codex/evaluation-create-management` 提供默认关闭的管理 Create RPC。可信 QS 操作者携带固定 Run UUID、十一项冻结引用、原因和确认；服务端校验实际资产、生成时间并原子创建 requested Run。数据库重复键仅在原机构、操作者、原因及完整冻结引用一致时返回当前 Run；重放不重置已启动任务。其他数据库错误保留失败，不当作已接受。
+- 资产接口改由共享 AssetProvider 注册，评测执行与管理复用同一组依赖注入绑定。创建及容器专项 23 项通过；8 项隔离 MySQL 8.4 测试覆盖并发创建、启动后重放、机构/操作者/原因/引用冲突、无效请求无残留。集成测试使用真实基线资产内容及内存资产端口，Run 和检查点使用真实 MySQL；没有模型流量。
+- 非集成回归 524 项通过、11 项跳过；Ruff、mypy、协议生成和文档检查通过，临时数据库已清理。本批尚未接入 QS Create 转发或跨语言创建验收，未部署，M1–M5 验收状态不变。

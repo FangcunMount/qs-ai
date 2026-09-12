@@ -2,7 +2,7 @@
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from dataclasses import asdict
+from dataclasses import asdict, fields
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
@@ -13,9 +13,11 @@ from grpc import aio
 
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict
 from qs_ai.application.evaluation.management import EvaluationManagementStore, ManagementScope
+from qs_ai.application.evaluation.requests import EvaluationRequests
 from qs_ai.application.interpretation.ports import NotFound
 from qs_ai.contracts.workflow import workflow_pb2 as pb
 from qs_ai.contracts.workflow import workflow_pb2_grpc as rpc
+from qs_ai.domain.evaluation.identity import EvidenceReleaseIdentity, FrozenContractRef
 from qs_ai.domain.evaluation.resolution import ResultUnknownResolution
 
 
@@ -50,6 +52,26 @@ class EvaluationManagement(rpc.EvaluationManagementServicer):
             await context.abort(
                 grpc.StatusCode.UNAVAILABLE, "Outcome unknown; read evaluation state"
             )
+        raise AssertionError("abort must raise")
+
+    async def Create(
+        self, request: pb.EvaluationCreateCommand, context: aio.ServicerContext[Any, Any]
+    ) -> pb.EvaluationState:
+        async with self.operation(context):
+            scope = scope_from(request.scope)
+            if not request.confirm:
+                raise ValueError("Explicit confirmation required")
+            refs = {}
+            for field in fields(EvidenceReleaseIdentity):
+                value = getattr(request.release, field.name)
+                refs[field.name] = FrozenContractRef(value.id, value.version, value.fingerprint)
+            release = EvidenceReleaseIdentity(**refs)
+            async with self.container() as operation:
+                requests = await operation.get(EvaluationRequests)
+                view = await requests.create(
+                    scope, release, request.reason, datetime.now(UTC), confirm=True
+                )
+            return pb.EvaluationState(**asdict(view))
         raise AssertionError("abort must raise")
 
     async def Start(

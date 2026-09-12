@@ -171,3 +171,51 @@ class EvaluationStartCommand(_message.Message):
     reason: str
     confirm: bool
     def __init__(self, scope: _Optional[_Union[EvaluationQuery, _Mapping]] = ..., expected_version: _Optional[int] = ..., reason: _Optional[str] = ..., confirm: _Optional[bool] = ...) -> None: ...
+
+class FrozenEvaluationRef(_message.Message):
+    __slots__ = ("id", "version", "fingerprint")
+    ID_FIELD_NUMBER: _ClassVar[int]
+    VERSION_FIELD_NUMBER: _ClassVar[int]
+    FINGERPRINT_FIELD_NUMBER: _ClassVar[int]
+    id: str
+    version: str
+    fingerprint: str
+    def __init__(self, id: _Optional[str] = ..., version: _Optional[str] = ..., fingerprint: _Optional[str] = ...) -> None: ...
+
+class EvaluationRelease(_message.Message):
+    __slots__ = ("suite", "prompt", "profile", "input_schema", "output_schema", "generation_route", "semantic_prompt", "semantic_output_schema", "semantic_route", "execution_policy", "gate_policy")
+    SUITE_FIELD_NUMBER: _ClassVar[int]
+    PROMPT_FIELD_NUMBER: _ClassVar[int]
+    PROFILE_FIELD_NUMBER: _ClassVar[int]
+    INPUT_SCHEMA_FIELD_NUMBER: _ClassVar[int]
+    OUTPUT_SCHEMA_FIELD_NUMBER: _ClassVar[int]
+    GENERATION_ROUTE_FIELD_NUMBER: _ClassVar[int]
+    SEMANTIC_PROMPT_FIELD_NUMBER: _ClassVar[int]
+    SEMANTIC_OUTPUT_SCHEMA_FIELD_NUMBER: _ClassVar[int]
+    SEMANTIC_ROUTE_FIELD_NUMBER: _ClassVar[int]
+    EXECUTION_POLICY_FIELD_NUMBER: _ClassVar[int]
+    GATE_POLICY_FIELD_NUMBER: _ClassVar[int]
+    suite: FrozenEvaluationRef
+    prompt: FrozenEvaluationRef
+    profile: FrozenEvaluationRef
+    input_schema: FrozenEvaluationRef
+    output_schema: FrozenEvaluationRef
+    generation_route: FrozenEvaluationRef
+    semantic_prompt: FrozenEvaluationRef
+    semantic_output_schema: FrozenEvaluationRef
+    semantic_route: FrozenEvaluationRef
+    execution_policy: FrozenEvaluationRef
+    gate_policy: FrozenEvaluationRef
+    def __init__(self, suite: _Optional[_Union[FrozenEvaluationRef, _Mapping]] = ..., prompt: _Optional[_Union[FrozenEvaluationRef, _Mapping]] = ..., profile: _Optional[_Union[FrozenEvaluationRef, _Mapping]] = ..., input_schema: _Optional[_Union[FrozenEvaluationRef, _Mapping]] = ..., output_schema: _Optional[_Union[FrozenEvaluationRef, _Mapping]] = ..., generation_route: _Optional[_Union[FrozenEvaluationRef, _Mapping]] = ..., semantic_prompt: _Optional[_Union[FrozenEvaluationRef, _Mapping]] = ..., semantic_output_schema: _Optional[_Union[FrozenEvaluationRef, _Mapping]] = ..., semantic_route: _Optional[_Union[FrozenEvaluationRef, _Mapping]] = ..., execution_policy: _Optional[_Union[FrozenEvaluationRef, _Mapping]] = ..., gate_policy: _Optional[_Union[FrozenEvaluationRef, _Mapping]] = ...) -> None: ...
+
+class EvaluationCreateCommand(_message.Message):
+    __slots__ = ("scope", "release", "reason", "confirm")
+    SCOPE_FIELD_NUMBER: _ClassVar[int]
+    RELEASE_FIELD_NUMBER: _ClassVar[int]
+    REASON_FIELD_NUMBER: _ClassVar[int]
+    CONFIRM_FIELD_NUMBER: _ClassVar[int]
+    scope: EvaluationQuery
+    release: EvaluationRelease
+    reason: str
+    confirm: bool
+    def __init__(self, scope: _Optional[_Union[EvaluationQuery, _Mapping]] = ..., release: _Optional[_Union[EvaluationRelease, _Mapping]] = ..., reason: _Optional[str] = ..., confirm: _Optional[bool] = ...) -> None: ...
