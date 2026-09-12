@@ -22,7 +22,9 @@ from qs_ai.infrastructure.persistence.mysql.evaluation_finalization import (
 )
 from qs_ai.infrastructure.persistence.mysql.evaluation_gates import preview_gates
 from qs_ai.infrastructure.persistence.mysql.evaluation_progress import transition_requested
+from qs_ai.infrastructure.persistence.mysql.evaluation_reopening import reopen
 from qs_ai.infrastructure.persistence.mysql.evaluation_resolution import accept_resolution
+from qs_ai.infrastructure.persistence.mysql.evaluation_review_history import canonical
 from qs_ai.infrastructure.persistence.mysql.evaluation_reviews import accept_reviews
 from qs_ai.infrastructure.persistence.mysql.schema import evaluation_checkpoints, evaluation_runs
 
@@ -58,12 +60,28 @@ async def read_view(db: AsyncSession, scope: ManagementScope) -> EvaluationView:
         json.dumps(progress.get("result_unknown_resolutions", []), ensure_ascii=False),
         json.dumps(progress.get("human_reviews", []), ensure_ascii=False),
         await read_finalization(db, scope, dict(row)),
+        canonical(progress.get("review_reopenings", [])),
     )
 
 
 class MySQLEvaluationManagement:
     def __init__(self, transactions: Transactions) -> None:
         self.transactions = transactions
+
+    async def reopen(
+        self,
+        scope: ManagementScope,
+        expected_version: int,
+        reason: str,
+        at: datetime,
+        *,
+        confirm: bool,
+    ) -> EvaluationView:
+        async with self.transactions.open() as db:
+            await reopen(db, scope, expected_version, reason, at, confirm=confirm)
+            view = await read_view(db, scope)
+            await db.commit()
+            return view
 
     async def finalize(
         self,
@@ -114,6 +132,7 @@ class MySQLEvaluationManagement:
         values: tuple[CandidateHumanReview, ...],
     ) -> EvaluationView:
         async with self.transactions.open() as db:
+            await db.connection(execution_options={"isolation_level": "REPEATABLE READ"})
             await read_view(db, scope)
             await accept_reviews(db, scope, expected_version, values)
             view = await read_view(db, scope)

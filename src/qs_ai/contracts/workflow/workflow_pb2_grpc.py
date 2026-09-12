@@ -267,6 +267,11 @@ class EvaluationManagementStub:
                 request_serializer=workflow__pb2.EvaluationFinalizeCommand.SerializeToString,
                 response_deserializer=workflow__pb2.EvaluationState.FromString,
                 _registered_method=True)
+        self.ReopenReview = channel.unary_unary(
+                '/qsai.workflow.v1.EvaluationManagement/ReopenReview',
+                request_serializer=workflow__pb2.EvaluationReopenCommand.SerializeToString,
+                response_deserializer=workflow__pb2.EvaluationState.FromString,
+                _registered_method=True)
 
 
 class EvaluationManagementServicer:
@@ -332,6 +337,13 @@ class EvaluationManagementServicer:
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def ReopenReview(self, request, context):
+        """Reopen eligible semantic-review signatures, preserving the complete previous round.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_EvaluationManagementServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -378,6 +390,11 @@ def add_EvaluationManagementServicer_to_server(servicer, server):
             'Finalize': grpc.unary_unary_rpc_method_handler(
                     servicer.Finalize,
                     request_deserializer=workflow__pb2.EvaluationFinalizeCommand.FromString,
+                    response_serializer=workflow__pb2.EvaluationState.SerializeToString,
+            ),
+            'ReopenReview': grpc.unary_unary_rpc_method_handler(
+                    servicer.ReopenReview,
+                    request_deserializer=workflow__pb2.EvaluationReopenCommand.FromString,
                     response_serializer=workflow__pb2.EvaluationState.SerializeToString,
             ),
     }
@@ -624,6 +641,33 @@ class EvaluationManagement:
             target,
             '/qsai.workflow.v1.EvaluationManagement/Finalize',
             workflow__pb2.EvaluationFinalizeCommand.SerializeToString,
+            workflow__pb2.EvaluationState.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ReopenReview(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.EvaluationManagement/ReopenReview',
+            workflow__pb2.EvaluationReopenCommand.SerializeToString,
             workflow__pb2.EvaluationState.FromString,
             options,
             channel_credentials,

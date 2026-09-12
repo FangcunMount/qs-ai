@@ -38,9 +38,20 @@ class EvaluationView:
     resolutions_json: str
     reviews_json: str = "[]"
     finalization_json: str = ""
+    reopenings_json: str = "[]"
 
 
 class EvaluationManagementStore(Protocol):
+    async def reopen(
+        self,
+        scope: ManagementScope,
+        expected_version: int,
+        reason: str,
+        at: datetime,
+        *,
+        confirm: bool,
+    ) -> EvaluationView: ...
+
     async def finalize(
         self,
         scope: ManagementScope,

@@ -14,15 +14,19 @@ from qs_ai.domain.evaluation.preflight import AssertionReceipt
 from qs_ai.domain.evaluation.review import (
     CandidateHumanReview,
     ReviewCandidate,
-    SemanticContradictionReview,
     add_human_reviews,
 )
 from qs_ai.infrastructure.persistence.mysql.evaluation_checkpoints import save_checkpoint
+from qs_ai.infrastructure.persistence.mysql.evaluation_gates import evaluate_snapshot
 from qs_ai.infrastructure.persistence.mysql.evaluation_projection import (
     decode_completion,
     decode_semantic_completion,
     project_slots,
 )
+from qs_ai.infrastructure.persistence.mysql.evaluation_review_codec import (
+    decode_reviews as decode_reviews,
+)
+from qs_ai.infrastructure.persistence.mysql.evaluation_review_history import has_review_rounds
 from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_checkpoints,
     evaluation_dispatches,
@@ -34,16 +38,6 @@ from qs_ai.infrastructure.qs_server.evaluation_policies import (
     load_execution_policy,
     load_gate_policy,
 )
-
-
-def decode_reviews(values: list[dict]) -> tuple[CandidateHumanReview, ...]:
-    result = []
-    for value in values:
-        fields = {**value, "reviewed_at": datetime.fromisoformat(value["reviewed_at"])}
-        if fields.get("semantic_review") is not None:
-            fields["semantic_review"] = SemanticContradictionReview(**fields["semantic_review"])
-        result.append(CandidateHumanReview(**fields))
-    return tuple(result)
 
 
 async def accept_reviews(
@@ -100,6 +94,21 @@ async def accept_reviews(
         raise ValueError("Frozen review policies unavailable")
     if progress["status"] != "awaiting_review":
         raise CheckpointConflict("Run is not awaiting review")
+    if has_review_rounds(progress):
+        await evaluate_snapshot(
+            db,
+            scope,
+            {**run, "version": cp["version"]},
+            expected_version,
+            max(v.reviewed_at for v in values),
+        )
+        latest = progress["review_reopenings"][-1]
+        if any(
+            v.candidate_id in latest["candidate_ids"]
+            and v.reviewed_at < datetime.fromisoformat(latest["reopened_at"])
+            for v in values
+        ):
+            raise ValueError("New signature predates reopening")
     generations = list(
         (
             await db.execute(
@@ -150,7 +159,9 @@ async def accept_reviews(
     )
     if action.kind != "await_review":
         raise CheckpointConflict("Review requires complete frozen candidate evidence")
-    closures = [t for t in progress["transitions"] if t["to"] == "awaiting_review"]
+    closures = [
+        t for t in progress["transitions"] if t["cause_code"] == "candidate_evidence_complete"
+    ]
     if len(closures) != 1:
         raise CheckpointConflict("Unique candidate evidence closure required")
     closed_at = datetime.fromisoformat(closures[0]["at"])
