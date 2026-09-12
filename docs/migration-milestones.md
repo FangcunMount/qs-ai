@@ -234,3 +234,5 @@ M1 → M2 → M3 → M4 → M5。M3 清单分析可提前开展，生产切换�
 - `codex/evaluation-create-management` 提供默认关闭的管理 Create RPC。可信 QS 操作者携带固定 Run UUID、十一项冻结引用、原因和确认；服务端校验实际资产、生成时间并原子创建 requested Run。数据库重复键仅在原机构、操作者、原因及完整冻结引用一致时返回当前 Run；重放不重置已启动任务。其他数据库错误保留失败，不当作已接受。
 - 资产接口改由共享 AssetProvider 注册，评测执行与管理复用同一组依赖注入绑定。创建及容器专项 23 项通过；8 项隔离 MySQL 8.4 测试覆盖并发创建、启动后重放、机构/操作者/原因/引用冲突、无效请求无残留。集成测试使用真实基线资产内容及内存资产端口，Run 和检查点使用真实 MySQL；没有模型流量。
 - 非集成回归 524 项通过、11 项跳过；Ruff、mypy、协议生成和文档检查通过，临时数据库已清理。本批尚未接入 QS Create 转发或跨语言创建验收，未部署，M1–M5 验收状态不变。
+
+- QS Create 转发已提交草稿 [PR #87](https://github.com/FangcunMount/qs-server/pull/87)。独立分支 `codex/ai-evaluation-create` 基于最新主分支 `b191a6bb72fe348072e2720beb31fb40aa184dd0`，源提交 `890375426565`、文档基线提交 `c50aa94e6`。新增 POST `/{run_id}/create`，通过现有授权及身份上下文传递十一项冻结引用；Go 应用/客户端/REST/grpc 包测试、fmt-check、API 生成一致性和 docs-check 通过。当前清单为 66 RPC、206 apiserver REST operations / 184 paths，保留其他任务的接口与迁移更新；跨语言创建验收及最新 QS CI 仍待完成。
