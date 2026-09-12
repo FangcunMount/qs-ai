@@ -84,6 +84,20 @@ async def test_review_authority_batch_roundtrip_and_readback(reviewable, go_mana
 
     try:
         before = await rows(tx, run_id)
+        index = await call(Action="candidates", AuditOnly=True)
+        assert index["Code"] == "OK" and index["State"]["version"] == version
+        assert len(index["State"]["candidates"]) == 35
+        query = {"Action": "candidate", "CandidateID": "candidate:1", "AuditOnly": True}
+        evidence = await call(**query)
+        assert evidence["Code"] == "OK"
+        selected = next(r for r in original[0] if r["candidate_id"] == "candidate:1")
+        assert evidence["State"]["normalized_output"].encode() == selected["normalized_output"]
+        assert evidence["State"]["evidence"]["candidate"] == selected["candidate_json"]
+        assert len(evidence["State"]["evidence"]["release"]) == 11
+        assert (await call(**query, OrgID=2))["Code"] == "NotFound"
+        assert (await call(**query, Allowed=False))["Denied"]
+        assert (await call(**query, certificate="other"))["Code"] == "PermissionDenied"
+        assert (await call(AuditOnly=True))["Denied"]
         assert (await call(Allowed=False))["Denied"]
         assert (await call(certificate="other"))["Code"] == "PermissionDenied"
         assert (await call(OrgID=2))["Code"] == "NotFound"
@@ -92,6 +106,13 @@ async def test_review_authority_batch_roundtrip_and_readback(reviewable, go_mana
         at = datetime.now(UTC)
         result = await call()
         assert result["Code"] == "OK" and result["State"]["version"] == version + 1
+        assert (await call(**query))["Code"] == "Aborted"
+        current = await call(**query, Version=version + 1)
+        assert current["Code"] == "OK"
+        assert current["State"]["normalized_output"] == evidence["State"]["normalized_output"]
+        assert [r["candidate_id"] for r in current["State"]["evidence"]["reviews"]] == [
+            "candidate:1"
+        ]
         reviews = result["State"]["reviews"]
         assert len(reviews) == 2
         assert {r["reviewer"] for r in reviews} == {"user:42"}
