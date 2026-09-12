@@ -2,6 +2,7 @@
 
 import json
 
+from qs_ai.application.interpretation.preparation import PreparedExplanation
 from qs_ai.application.interpretation.prompts import PromptMessages
 from qs_ai.domain.evaluation.completion import GenerationCompletion
 from qs_ai.domain.evaluation.identity import EvidenceReleaseIdentity
@@ -19,6 +20,8 @@ def prepare_semantic_messages(
     release: EvidenceReleaseIdentity,
     generation: GenerationCompletion,
     assertions: tuple[AssertionReceipt, ...],
+    *,
+    prepared: PreparedExplanation | None = None,
 ) -> PromptMessages:
     if generation.status != "succeeded":
         raise ValueError("Semantic evaluation requires accepted generation evidence")
@@ -28,7 +31,13 @@ def prepare_semantic_messages(
         or release.semantic_output_schema != assets.output_schema
     ):
         raise ValueError("Semantic release assets mismatch")
-    prepared = prepare_evaluation_case(release, generation.case_id)
+    if prepared is None:
+        prepared = prepare_evaluation_case(release, generation.case_id)
+    if (
+        prepared.prompt_fingerprint != release.prompt.fingerprint
+        or prepared.release.input_policy.profile_fingerprint != release.profile.fingerprint
+    ):
+        raise ValueError("Semantic input assets differ from frozen release")
     inventory = assertion_inventory(release.suite, generation.case_id)
     obligations = semantic_obligations(inventory, assertions)
     if not 1 <= len(obligations) <= 32:

@@ -22,6 +22,10 @@ from qs_ai.domain.evaluation.identity import EvidenceReleaseIdentity, FrozenCont
 from qs_ai.domain.evaluation.preflight import AssertionReceipt
 from qs_ai.domain.evaluation.semantic_completion import SemanticCompletion
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
+from qs_ai.infrastructure.persistence.mysql.evaluation_assets import (
+    prepare_run_case,
+    run_model_route,
+)
 from qs_ai.infrastructure.persistence.mysql.evaluation_completions import (
     complete_evaluated_generation,
 )
@@ -37,8 +41,6 @@ from qs_ai.infrastructure.qs_server.evaluation_assertions import (
     assertion_inventory,
     semantic_obligations,
 )
-from qs_ai.infrastructure.qs_server.evaluation_case import prepare_evaluation_case
-from qs_ai.infrastructure.qs_server.routes import load_route
 from qs_ai.infrastructure.qs_server.semantic_assets import load_semantic_assets
 from qs_ai.infrastructure.qs_server.semantic_input import prepare_semantic_messages
 from qs_ai.infrastructure.qs_server.semantic_output import (
@@ -75,6 +77,7 @@ async def execute_step(
     candidate_fingerprint = ""
     assertions: tuple[AssertionReceipt, ...] = ()
     async with transactions.open() as db:
+        await db.connection(execution_options={"isolation_level": "REPEATABLE READ"})
         state = await prepare_execution(
             db,
             run_id,
@@ -100,12 +103,10 @@ async def execute_step(
         release = EvidenceReleaseIdentity(
             **{k: FrozenContractRef(**v) for k, v in creation["release"].items()}
         )
-        route_ref = release.generation_route if cp.kind == "generation" else release.semantic_route
-        route = load_route(route_ref.id, route_ref.version)
-        if route.fingerprint() != route_ref.fingerprint:
-            raise ValueError("Execution route differs from frozen release")
+        prepared = await prepare_run_case(db, creation, cp.case_id)
+        route = await run_model_route(db, creation, semantic=cp.kind == "semantic")
         if cp.kind == "generation":
-            messages = prepare_evaluation_case(release, cp.case_id).messages
+            messages = prepared.messages
             ref = release.output_schema
             asset = await schemas.get(ref.id, ref.version.removeprefix(ref.id + "/"))
             if asset is None or (
@@ -131,7 +132,7 @@ async def execute_step(
             generation = decode_completion(row)
             candidate_fingerprint = generation.normalized_fingerprint
             assertions = tuple(AssertionReceipt(**a) for a in row["candidate_json"]["assertions"])
-            messages = prepare_semantic_messages(release, generation, assertions)
+            messages = prepare_semantic_messages(release, generation, assertions, prepared=prepared)
             schema = json.loads(load_semantic_assets().output_schema_json)
         state = await reserve_dispatch(db, run_id, state.version, owner, at)
         # This commit must finish before control reaches the external gateway.
@@ -177,6 +178,7 @@ async def execute_step(
         "succeeded" if failure is None else "result_unknown" if failure.result_unknown else "failed"
     )
     async with transactions.open() as db:
+        await db.connection(execution_options={"isolation_level": "REPEATABLE READ"})
         if cp.kind == "generation":
             completed = GenerationCompletion(
                 execution_id,
