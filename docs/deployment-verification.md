@@ -129,3 +129,16 @@ AI 部署 34720860768 显示成功，但本次现场 API/gRPC 实际仍为 `6999
 AI 主分支 CI 34720921863 与 [部署 34721663418](https://github.com/FangcunMount/qs-ai/actions/runs/34721663418) 成功。独立 SSH 确认 API/gRPC 实际镜像均为 `0d68334b24929373eb76f0e834895b7cff1e8bd5` 且 healthy；MySQL 8.0.36 当前/预期头均为 `0020_prompt_freezes`，readyz 为 ready/database connected，自身份 mTLS 探针取得预期 PERMISSION_DENIED。
 
 generation、evaluation、grpc.governance_enabled、generation.use_publications 均为 false。QS serverA 三个容器仍为 `4c3bd154b2b1aef0fbab0cf2d8683491c129b0ab` 且 healthy。本次上线包含原生 Prompt 冻结基础，不包含本地 Profile 注册 0021 或待合并的评测资产快照增量，也不代表真实管理或生产生成验收。
+
+
+## 2026-09-13 Profile 注册发布
+
+Profile 注册主分支 `e836d32809ede4d162d68192a1a3e19ebe25561f` 的 [CI 34722810739](https://github.com/FangcunMount/qs-ai/actions/runs/34722810739) 和 [部署 34723438772](https://github.com/FangcunMount/qs-ai/actions/runs/34723438772) 均成功。独立 SSH 核验：
+
+- API/gRPC 实际镜像同为 `e836d32809ede4d162d68192a1a3e19ebe25561f`，均 healthy。
+- MySQL 8.0.36 当前/镜像预期迁移头均为 `0021_profile_registrations`；readyz 为 ready/database connected。
+- mTLS 自身份拒绝探针符合预期 PERMISSION_DENIED；这不代替真实 QS 操作者授权。
+- generation.enabled、evaluation.enabled、grpc.governance_enabled、generation.use_publications 均为 false；未启用生成、评测或管理写入流量。
+- QS serverA apiserver/两个 collection 均为 `53e2f2cb1acabcb6a171372b0dd8bcb7bbbf3f7a` 且 healthy，对应 [部署 34722157688](https://github.com/FangcunMount/qs-server/actions/runs/34722157688)。没有核验另一主机 worker，也未将本轮合并的 QS Profile 代理视为已部署。
+
+本版本包含 Profile 注册及评测资产快照执行，不包含本地 `0022_evaluation_suites` 原生套件增量。期间先观察到资产快照版 `8452d91e2cfb5819f16b197b154ec24cfbb5726f` 和数据库头 0020，随后上述部署完成才再次核对实际 Profile 镜像与 0021；未将工作流 head 直接视作镜像 SHA。M1–M5 真实业务与管理页面验收保持未完成。

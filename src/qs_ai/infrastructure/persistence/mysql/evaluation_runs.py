@@ -19,12 +19,13 @@ from qs_ai.domain.evaluation.identity import EvidenceReleaseIdentity
 from qs_ai.domain.governance.manifest import GenerationManifest
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
 from qs_ai.infrastructure.persistence.mysql.evaluation_dispatches import freeze_policy
+from qs_ai.infrastructure.persistence.mysql.evaluation_suites import load_registered_suite
 from qs_ai.infrastructure.persistence.mysql.schema import evaluation_checkpoints, evaluation_runs
 from qs_ai.infrastructure.qs_server.evaluation_policies import (
     load_execution_policy,
     load_gate_policy,
 )
-from qs_ai.infrastructure.qs_server.evaluation_suite import load_suite
+from qs_ai.infrastructure.qs_server.evaluation_suite import SUITE_FILES
 
 
 async def create_run(
@@ -55,7 +56,9 @@ async def create_run(
         raise ValueError("Creation time must have a time zone")
     policy = load_execution_policy()
     gate = load_gate_policy()
-    suite = load_suite(release.suite)
+    suite = await load_registered_suite(db, release.suite)
+    if suite.manifest is not None and generation_manifest != suite.manifest:
+        raise ValueError("Native suite requires its registered generation manifest")
     release.validate_frozen_policies(policy.definition_json, gate.definition_json)
     if (len(suite.generation_case_ids), suite.repetitions, policy.preflight_cases) != (
         policy.generation_cases,
@@ -137,8 +140,14 @@ class MySQLRunCreator:
     ) -> CheckpointState:
         from qs_ai.infrastructure.qs_server.evaluation_release import validate_release_assets
 
+        suite = None
+        if (release.suite.id, release.suite.version) not in {
+            (r.id, r.version) for r in SUITE_FILES
+        }:
+            async with self.transactions.open() as db:
+                suite = await load_registered_suite(db, release.suite)
         manifest = await validate_release_assets(
-            release, self.profiles, self.prompts, self.routes, self.schemas
+            release, self.profiles, self.prompts, self.routes, self.schemas, frozen_suite=suite
         )
         async with self.transactions.open() as db:
             state = await create_run(

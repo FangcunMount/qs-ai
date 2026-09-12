@@ -16,12 +16,13 @@ from qs_ai.infrastructure.persistence.mysql.asset_snapshot import (
     AssetSnapshotReader,
     generation_snapshot,
 )
+from qs_ai.infrastructure.persistence.mysql.evaluation_suites import load_registered_suite
 from qs_ai.infrastructure.persistence.mysql.schema import prompt_assets, route_assets
 from qs_ai.infrastructure.qs_server.evaluation_case import (
     prepare_asset_evaluation_case,
     prepare_evaluation_case,
 )
-from qs_ai.infrastructure.qs_server.evaluation_suite import load_suite
+from qs_ai.infrastructure.qs_server.evaluation_suite import FrozenSuite, load_suite
 from qs_ai.infrastructure.qs_server.profiles import decode_published_profile
 from qs_ai.infrastructure.qs_server.routes import load_route
 
@@ -32,8 +33,8 @@ def run_release(creation: dict[str, Any]) -> EvidenceReleaseIdentity:
     )
     if creation["release_fingerprint"] != release.fingerprint():
         raise ValueError("Frozen Run release fingerprint changed")
-    if creation["suite_json"] != load_suite(release.suite).definition_json:
-        raise ValueError("Frozen Run suite changed")
+    # Validate the stored bytes against their identity, including native case obligations.
+    load_suite(release.suite, definition_json=creation["suite_json"])
     # An incomplete manifest is corruption, never a reason to fall back to legacy assets.
     if ("generation_manifest_json" in creation) != ("generation_manifest_fingerprint" in creation):
         raise ValueError("Incomplete frozen Run manifest")
@@ -44,6 +45,7 @@ async def prepare_run_case(
     db: AsyncSession, creation: dict[str, Any], case_id: str
 ) -> PreparedExplanation:
     release = run_release(creation)
+    suite = await stored_run_suite(db, creation)
     if "generation_manifest_json" not in creation:
         # Retained legacy Runs can continue on their original registered baseline.
         # Existing publication gates reject these Runs without a frozen manifest.
@@ -66,7 +68,9 @@ async def prepare_run_case(
             "status": "published",
         }
     )
-    return prepare_asset_evaluation_case(release, case_id, policy, executable_prompt(prompt))
+    return prepare_asset_evaluation_case(
+        release, case_id, policy, executable_prompt(prompt), frozen_suite=suite
+    )
 
 
 async def run_model_route(
@@ -84,3 +88,16 @@ async def run_model_route(
     if route.fingerprint() != ref.fingerprint:
         raise ValueError("Execution route differs from frozen release")
     return route
+
+
+async def stored_run_suite(db: AsyncSession, creation: dict[str, Any]) -> FrozenSuite:
+    release = run_release(creation)
+    suite = await load_registered_suite(db, release.suite)
+    if suite.definition_json != creation["suite_json"]:
+        raise ValueError("Frozen Run suite differs from registered asset")
+    if suite.manifest is not None and (
+        creation.get("generation_manifest_json"),
+        creation.get("generation_manifest_fingerprint"),
+    ) != (suite.manifest.canonical_json(), suite.manifest.fingerprint()):
+        raise ValueError("Native suite requires its own frozen Run manifest")
+    return suite

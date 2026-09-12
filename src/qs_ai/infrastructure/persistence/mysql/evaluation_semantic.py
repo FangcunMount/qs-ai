@@ -14,6 +14,7 @@ from qs_ai.domain.evaluation.actions import next_action
 from qs_ai.domain.evaluation.identity import EvidenceReleaseIdentity, FrozenContractRef
 from qs_ai.domain.evaluation.preflight import AssertionReceipt
 from qs_ai.domain.evaluation.semantic_completion import SemanticCompletion
+from qs_ai.infrastructure.persistence.mysql.evaluation_assets import stored_run_suite
 from qs_ai.infrastructure.persistence.mysql.evaluation_checkpoints import decode, save_checkpoint
 from qs_ai.infrastructure.persistence.mysql.evaluation_projection import (
     decode_completion,
@@ -160,7 +161,9 @@ async def complete_semantic(
     if completion.status == "succeeded":
         assert completion.receipt is not None
         obligations = semantic_obligations(
-            assertion_inventory(release.suite, generated.case_id),
+            assertion_inventory(
+                release.suite, generated.case_id, frozen_suite=await stored_run_suite(db, creation)
+            ),
             tuple(AssertionReceipt(**a) for a in candidate["assertions"]),
         )
         result = await parse_semantic_output(

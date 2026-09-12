@@ -13,6 +13,7 @@ from qs_ai.application.interpretation.safety import check_safety
 from qs_ai.domain.evaluation.identity import FrozenContractRef
 from qs_ai.domain.evaluation.preflight import AssertionReceipt
 from qs_ai.infrastructure.qs_server.evaluation_assertions import SEMANTIC_TYPES, assertion_inventory
+from qs_ai.infrastructure.qs_server.evaluation_suite import FrozenSuite
 from qs_ai.infrastructure.qs_server.output import QSOutputParser
 
 
@@ -30,9 +31,14 @@ def _canonical(content: dict) -> str:
 
 
 def evaluate_candidate_assertions(
-    raw: bytes, prepared: PreparedExplanation, suite: FrozenContractRef, case_id: str
+    raw: bytes,
+    prepared: PreparedExplanation,
+    suite: FrozenContractRef,
+    case_id: str,
+    *,
+    frozen_suite: FrozenSuite | None = None,
 ) -> tuple[AssertionReceipt, ...]:
-    inventory = assertion_inventory(suite, case_id)
+    inventory = assertion_inventory(suite, case_id, frozen_suite=frozen_suite)
     parser = QSOutputParser()
     content = None
     validation = ""

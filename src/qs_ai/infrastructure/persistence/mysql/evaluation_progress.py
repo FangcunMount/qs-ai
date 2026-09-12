@@ -203,5 +203,10 @@ async def execute_preflight(
     if raw is None:
         raise CheckpointConflict("Run unavailable in organization")
     creation = json.loads(raw)
-    evidence = run_preflight(FrozenContractRef(**creation["release"]["suite"]), at)
+    from qs_ai.infrastructure.persistence.mysql.evaluation_assets import stored_run_suite
+
+    suite = await stored_run_suite(db, creation)
+    evidence = run_preflight(
+        FrozenContractRef(**creation["release"]["suite"]), at, frozen_suite=suite
+    )
     return await complete_preflight(db, run_id, expected_version, organization_id, evidence)

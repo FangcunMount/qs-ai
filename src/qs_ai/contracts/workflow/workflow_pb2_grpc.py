@@ -1344,3 +1344,124 @@ class ProfileManagement:
             timeout,
             metadata,
             _registered_method=True)
+
+
+class SuiteManagementStub:
+    """Rebind retained evaluation cases to immutable assets. A new Run and approval
+    are required; registration never copies a previous Run's evidence or verdict.
+    """
+
+    def __init__(self, channel):
+        """Constructor.
+
+        Args:
+            channel: A grpc.Channel.
+        """
+        self.Register = channel.unary_unary(
+                '/qsai.workflow.v1.SuiteManagement/Register',
+                request_serializer=workflow__pb2.SuiteRegisterCommand.SerializeToString,
+                response_deserializer=workflow__pb2.SuiteRegistrationReceipt.FromString,
+                _registered_method=True)
+        self.GetReceipt = channel.unary_unary(
+                '/qsai.workflow.v1.SuiteManagement/GetReceipt',
+                request_serializer=workflow__pb2.SuiteRegistrationQuery.SerializeToString,
+                response_deserializer=workflow__pb2.SuiteRegistrationReceipt.FromString,
+                _registered_method=True)
+
+
+class SuiteManagementServicer:
+    """Rebind retained evaluation cases to immutable assets. A new Run and approval
+    are required; registration never copies a previous Run's evidence or verdict.
+    """
+
+    def Register(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetReceipt(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+
+def add_SuiteManagementServicer_to_server(servicer, server):
+    rpc_method_handlers = {
+            'Register': grpc.unary_unary_rpc_method_handler(
+                    servicer.Register,
+                    request_deserializer=workflow__pb2.SuiteRegisterCommand.FromString,
+                    response_serializer=workflow__pb2.SuiteRegistrationReceipt.SerializeToString,
+            ),
+            'GetReceipt': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetReceipt,
+                    request_deserializer=workflow__pb2.SuiteRegistrationQuery.FromString,
+                    response_serializer=workflow__pb2.SuiteRegistrationReceipt.SerializeToString,
+            ),
+    }
+    generic_handler = grpc.method_handlers_generic_handler(
+            'qsai.workflow.v1.SuiteManagement', rpc_method_handlers)
+    server.add_generic_rpc_handlers((generic_handler,))
+    server.add_registered_method_handlers('qsai.workflow.v1.SuiteManagement', rpc_method_handlers)
+
+
+ # This class is part of an EXPERIMENTAL API.
+class SuiteManagement:
+    """Rebind retained evaluation cases to immutable assets. A new Run and approval
+    are required; registration never copies a previous Run's evidence or verdict.
+    """
+
+    @staticmethod
+    def Register(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.SuiteManagement/Register',
+            workflow__pb2.SuiteRegisterCommand.SerializeToString,
+            workflow__pb2.SuiteRegistrationReceipt.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetReceipt(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.SuiteManagement/GetReceipt',
+            workflow__pb2.SuiteRegistrationQuery.SerializeToString,
+            workflow__pb2.SuiteRegistrationReceipt.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)

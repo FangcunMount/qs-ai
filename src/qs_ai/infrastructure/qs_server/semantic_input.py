@@ -12,6 +12,7 @@ from qs_ai.infrastructure.qs_server.evaluation_assertions import (
     semantic_obligations,
 )
 from qs_ai.infrastructure.qs_server.evaluation_case import prepare_evaluation_case
+from qs_ai.infrastructure.qs_server.evaluation_suite import FrozenSuite
 from qs_ai.infrastructure.qs_server.output import QSOutputParser
 from qs_ai.infrastructure.qs_server.semantic_assets import load_semantic_assets
 
@@ -22,6 +23,7 @@ def prepare_semantic_messages(
     assertions: tuple[AssertionReceipt, ...],
     *,
     prepared: PreparedExplanation | None = None,
+    frozen_suite: FrozenSuite | None = None,
 ) -> PromptMessages:
     if generation.status != "succeeded":
         raise ValueError("Semantic evaluation requires accepted generation evidence")
@@ -38,7 +40,7 @@ def prepare_semantic_messages(
         or prepared.release.input_policy.profile_fingerprint != release.profile.fingerprint
     ):
         raise ValueError("Semantic input assets differ from frozen release")
-    inventory = assertion_inventory(release.suite, generation.case_id)
+    inventory = assertion_inventory(release.suite, generation.case_id, frozen_suite=frozen_suite)
     obligations = semantic_obligations(inventory, assertions)
     if not 1 <= len(obligations) <= 32:
         raise ValueError("Semantic obligation count outside contract")

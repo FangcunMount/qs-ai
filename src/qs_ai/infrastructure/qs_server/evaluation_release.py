@@ -15,7 +15,7 @@ from qs_ai.infrastructure.qs_server.evaluation_policies import (
     load_execution_policy,
     load_gate_policy,
 )
-from qs_ai.infrastructure.qs_server.evaluation_suite import load_suite
+from qs_ai.infrastructure.qs_server.evaluation_suite import FrozenSuite, resolve_suite, suite_prompt
 from qs_ai.infrastructure.qs_server.semantic_assets import load_semantic_assets
 
 
@@ -25,8 +25,10 @@ async def validate_release_assets(
     prompts: PromptAssets,
     routes: RouteAssets,
     schemas: SchemaAssets,
+    *,
+    frozen_suite: FrozenSuite | None = None,
 ) -> GenerationManifest:
-    suite = load_suite(release.suite)
+    suite = resolve_suite(release.suite, frozen_suite)
     validate_suite_inputs(suite, release.input_schema)
     execution, gate = load_execution_policy(), load_gate_policy()
     release.validate_frozen_policies(execution.definition_json, gate.definition_json)
@@ -38,15 +40,14 @@ async def validate_release_assets(
         raise ManifestUnavailable("Semantic prompt or schema does not match frozen release")
     manifest = await resolve_generation_assets(release, profiles, prompts, routes, schemas)
     await resolve_semantic_route(release, routes)
+    if suite.manifest is not None and suite.manifest != manifest:
+        raise ManifestUnavailable("Registered suite manifest differs from release")
     definition = json.loads(suite.definition_json)
     fixture = definition["profile_fixture"]
     if (manifest.profile.identity, manifest.profile.version, manifest.profile.fingerprint) != (
         fixture["profile_id"],
         fixture["version"],
         fixture["fingerprint"],
-    ) or (manifest.prompt.identity, manifest.prompt.version) != (
-        definition["prompt"]["template_id"],
-        definition["prompt"]["version"],
-    ):
+    ) or (manifest.prompt.identity, manifest.prompt.version) != suite_prompt(suite):
         raise ManifestUnavailable("Suite fixture does not match generation assets")
     return manifest

@@ -9,7 +9,7 @@ from qs_ai.application.interpretation.prompts import PromptPackage, render_promp
 from qs_ai.application.interpretation.release import ExplanationRelease
 from qs_ai.domain.evaluation.identity import EvidenceReleaseIdentity
 from qs_ai.infrastructure.qs_server.evaluation_input import validate_suite_input
-from qs_ai.infrastructure.qs_server.evaluation_suite import load_suite
+from qs_ai.infrastructure.qs_server.evaluation_suite import FrozenSuite, resolve_suite, suite_prompt
 from qs_ai.infrastructure.qs_server.profiles import load_migrated_release
 from qs_ai.infrastructure.qs_server.prompts import load_prompt
 
@@ -28,9 +28,11 @@ def prepare_asset_evaluation_case(
     case_id: str,
     profile: ExplanationRelease,
     package: PromptPackage,
+    *,
+    frozen_suite: FrozenSuite | None = None,
 ) -> PreparedExplanation:
     """Render exact supplied assets after matching the registered suite and release."""
-    suite = load_suite(release.suite)
+    suite = resolve_suite(release.suite, frozen_suite)
     document = json.loads(suite.definition_json)
     case = next((c for c in document["cases"] if c["case_id"] == case_id), None)
     if case is None or case["stage"] != "generation":
@@ -54,8 +56,7 @@ def prepare_asset_evaluation_case(
     ) or profile.input_policy.profile_fingerprint != release.profile.fingerprint:
         raise ValueError("Evaluation Profile does not match frozen suite")
     if (package.template_id, package.version, package.fingerprint) != (
-        document["prompt"]["template_id"],
-        document["prompt"]["version"],
+        *suite_prompt(suite),
         release.prompt.fingerprint,
     ):
         raise ValueError("Evaluation Prompt does not match frozen suite")

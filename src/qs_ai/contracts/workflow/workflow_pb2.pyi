@@ -637,3 +637,43 @@ class ProfileRegistrationReceipt(_message.Message):
     command_id: str
     receipt_json: str
     def __init__(self, schema_version: _Optional[str] = ..., command_id: _Optional[str] = ..., receipt_json: _Optional[str] = ...) -> None: ...
+
+class SuiteRegisterCommand(_message.Message):
+    __slots__ = ("scope", "command_id", "source", "suite_id", "suite_version", "profile", "prompt", "generation_route", "reason")
+    SCOPE_FIELD_NUMBER: _ClassVar[int]
+    COMMAND_ID_FIELD_NUMBER: _ClassVar[int]
+    SOURCE_FIELD_NUMBER: _ClassVar[int]
+    SUITE_ID_FIELD_NUMBER: _ClassVar[int]
+    SUITE_VERSION_FIELD_NUMBER: _ClassVar[int]
+    PROFILE_FIELD_NUMBER: _ClassVar[int]
+    PROMPT_FIELD_NUMBER: _ClassVar[int]
+    GENERATION_ROUTE_FIELD_NUMBER: _ClassVar[int]
+    REASON_FIELD_NUMBER: _ClassVar[int]
+    scope: PublicationScope
+    command_id: str
+    source: FrozenEvaluationRef
+    suite_id: str
+    suite_version: str
+    profile: PromptDraftSource
+    prompt: PromptDraftSource
+    generation_route: PromptDraftSource
+    reason: str
+    def __init__(self, scope: _Optional[_Union[PublicationScope, _Mapping]] = ..., command_id: _Optional[str] = ..., source: _Optional[_Union[FrozenEvaluationRef, _Mapping]] = ..., suite_id: _Optional[str] = ..., suite_version: _Optional[str] = ..., profile: _Optional[_Union[PromptDraftSource, _Mapping]] = ..., prompt: _Optional[_Union[PromptDraftSource, _Mapping]] = ..., generation_route: _Optional[_Union[PromptDraftSource, _Mapping]] = ..., reason: _Optional[str] = ...) -> None: ...
+
+class SuiteRegistrationQuery(_message.Message):
+    __slots__ = ("scope", "command_id")
+    SCOPE_FIELD_NUMBER: _ClassVar[int]
+    COMMAND_ID_FIELD_NUMBER: _ClassVar[int]
+    scope: PublicationScope
+    command_id: str
+    def __init__(self, scope: _Optional[_Union[PublicationScope, _Mapping]] = ..., command_id: _Optional[str] = ...) -> None: ...
+
+class SuiteRegistrationReceipt(_message.Message):
+    __slots__ = ("schema_version", "command_id", "receipt_json")
+    SCHEMA_VERSION_FIELD_NUMBER: _ClassVar[int]
+    COMMAND_ID_FIELD_NUMBER: _ClassVar[int]
+    RECEIPT_JSON_FIELD_NUMBER: _ClassVar[int]
+    schema_version: str
+    command_id: str
+    receipt_json: str
+    def __init__(self, schema_version: _Optional[str] = ..., command_id: _Optional[str] = ..., receipt_json: _Optional[str] = ...) -> None: ...

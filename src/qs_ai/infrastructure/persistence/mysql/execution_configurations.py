@@ -33,6 +33,7 @@ from qs_ai.infrastructure.persistence.mysql.asset_snapshot import (
     generation_snapshot,
 )
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
+from qs_ai.infrastructure.persistence.mysql.evaluation_suites import load_registered_suite
 from qs_ai.infrastructure.persistence.mysql.publication_records import (
     load_pointer,
     load_publication,
@@ -52,7 +53,7 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
     route_assets,
     schema_assets,
 )
-from qs_ai.infrastructure.qs_server.evaluation_suite import PUBLISHED_INPUT_VERSION, load_suite
+from qs_ai.infrastructure.qs_server.evaluation_suite import PUBLISHED_INPUT_VERSION
 from qs_ai.infrastructure.qs_server.output import QSOutputParser
 from qs_ai.infrastructure.qs_server.profiles import decode_published_profile
 
@@ -65,7 +66,9 @@ async def compile_configuration(
     db: AsyncSession, publication: PublishedConfiguration
 ) -> ExecutionConfiguration:
     proof = publication.evidence
-    suite = load_suite(proof.release.suite)
+    suite = await load_registered_suite(db, proof.release.suite)
+    if suite.manifest is not None and suite.manifest != proof.manifest:
+        raise ConfigurationUnavailable("Publication differs from evaluated suite assets")
     if (
         suite.input_construction_version != PUBLISHED_INPUT_VERSION
         or suite.input_schema != proof.release.input_schema

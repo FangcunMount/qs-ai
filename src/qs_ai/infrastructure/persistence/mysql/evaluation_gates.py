@@ -22,6 +22,7 @@ from qs_ai.domain.evaluation.quality_gates import (
     evaluate_quality_gates,
 )
 from qs_ai.domain.evaluation.review import CandidateHumanReview, ReviewCandidate
+from qs_ai.infrastructure.persistence.mysql.evaluation_assets import stored_run_suite
 from qs_ai.infrastructure.persistence.mysql.evaluation_checkpoints import decode
 from qs_ai.infrastructure.persistence.mysql.evaluation_projection import (
     decode_completion,
@@ -44,7 +45,6 @@ from qs_ai.infrastructure.qs_server.evaluation_policies import (
     load_gate_policy,
     load_quality_thresholds,
 )
-from qs_ai.infrastructure.qs_server.evaluation_suite import load_suite
 from qs_ai.infrastructure.qs_server.preflight import run_preflight
 
 
@@ -122,7 +122,8 @@ async def load_snapshot(
     release = EvidenceReleaseIdentity(
         **{k: FrozenContractRef(**v) for k, v in creation["release"].items()}
     )
-    policy, gate, suite = load_execution_policy(), load_gate_policy(), load_suite(release.suite)
+    policy, gate = load_execution_policy(), load_gate_policy()
+    suite = await stored_run_suite(db, creation)
     release.validate_frozen_policies(
         creation["execution_policy_json"], creation["gate_policy_json"]
     )
@@ -169,7 +170,7 @@ async def load_snapshot(
             "assertions": tuple(AssertionReceipt(**a) for a in raw["assertions"]),
         }
     )
-    if preflight != run_preflight(release.suite, preflight.evaluated_at):
+    if preflight != run_preflight(release.suite, preflight.evaluated_at, frozen_suite=suite):
         raise ValueError("Preflight evidence differs from frozen rejection case")
     generations: list[RowMapping] = []
     semantics: list[RowMapping] = []
