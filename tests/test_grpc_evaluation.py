@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+from dataclasses import replace
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
@@ -40,6 +41,20 @@ def command():
         confirm=True,
         acknowledged_duplicate_call_and_cost_risk=True,
     )
+
+
+async def test_read_returns_original_creation_receipt_without_mutation(handler):
+    service, store = handler
+    scope = command().scope
+    store.get.return_value = replace(
+        EvaluationView(scope.run_id, 7, "collecting", 0, "[]"),
+        creation_json='{"schema_version":"qs-ai-evaluation-creation-receipt/v1"}',
+    )
+    reply = await service.Get(scope, Context())
+    assert reply.creation_json == store.get.return_value.creation_json
+    assert reply.version == 7
+    store.start.assert_not_awaited()
+    store.resolve.assert_not_awaited()
 
 
 async def test_only_trusted_qs_workload_can_reach_store(handler):

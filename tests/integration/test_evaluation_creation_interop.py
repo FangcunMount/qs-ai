@@ -16,6 +16,7 @@ from qs_ai.bootstrap.import_prompts import baseline_assets as prompts
 from qs_ai.bootstrap.import_routes import baseline_assets as routes
 from qs_ai.bootstrap.import_schemas import baseline_assets as schemas
 from qs_ai.config import Settings
+from qs_ai.contracts.workflow import workflow_pb2 as pb
 from qs_ai.contracts.workflow import workflow_pb2_grpc as rpc
 from qs_ai.infrastructure.persistence.mysql.profile_assets import MySQLProfileAssets
 from qs_ai.infrastructure.persistence.mysql.prompt_assets import MySQLPromptAssets
@@ -90,6 +91,20 @@ async def test_create_replay_conflicts_and_start_use_real_asset_storage(
     )
     await server.start()
 
+    async def read_creation():
+        credentials = grpc.ssl_channel_credentials(
+            root_certificates=ca,
+            private_key=(tmp_path / "qs.key").read_bytes(),
+            certificate_chain=(tmp_path / "qs.pem").read_bytes(),
+        )
+        async with grpc.aio.secure_channel(f"localhost:{port}", credentials) as channel:
+            stub = rpc.EvaluationManagementStub(channel)
+            state = await stub.Get(
+                pb.EvaluationQuery(run_id=str(run_id), organization_id=1, operator_user_id=43),
+                timeout=5,
+            )
+            return json.loads(state.creation_json)
+
     async def call(*, certificate="qs", **changes):
         request = dict(
             RunID=str(run_id),
@@ -139,6 +154,16 @@ async def test_create_replay_conflicts_and_start_use_real_asset_storage(
         definition = json.loads(before[0]["definition_json"])
         assert definition["release"] == asdict(complete_release)
         assert definition["audit"]["requested_by"] == "user:42"
+        receipt = await read_creation()
+        assert receipt == {
+            "schema_version": "qs-ai-evaluation-creation-receipt/v1",
+            "run_id": str(run_id),
+            "release": asdict(complete_release),
+            "release_fingerprint": complete_release.fingerprint(),
+            "requested_by": "user:42",
+            "request_reason": "创建跨进程评测",
+            "created_at": definition["audit"]["created_at"],
+        }
         for change in (dict(Reason="不同目的"), dict(OrgID=2), dict(UserID=43)):
             assert (await call(**change))["Code"] == "Aborted"
         assert await rows(tx, run_id) == before
@@ -149,6 +174,7 @@ async def test_create_replay_conflicts_and_start_use_real_asset_storage(
         assert replay["State"] == started["State"]
         assert replay["State"]["version"] == 2
         assert (await call(Action="get"))["State"] == replay["State"]
+        assert await read_creation() == receipt
         assert (await call(Allowed=False))["Denied"]
         assert await rows(tx, run_id) == after
     finally:

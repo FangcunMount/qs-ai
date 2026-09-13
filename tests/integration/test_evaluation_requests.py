@@ -1,5 +1,6 @@
 import asyncio
-from dataclasses import replace
+import json
+from dataclasses import asdict, replace
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -37,6 +38,16 @@ async def test_concurrent_creation_and_replay_after_start_never_reset_run(reques
     )
     assert first == second
     assert (first.status, first.version) == ("requested", 1)
+    receipt = json.loads(first.creation_json)
+    assert receipt == {
+        "schema_version": "qs-ai-evaluation-creation-receipt/v1",
+        "run_id": str(scope.run_id),
+        "release": asdict(release),
+        "release_fingerprint": release.fingerprint(),
+        "requested_by": "user:42",
+        "request_reason": "创建评测",
+        "created_at": AT.isoformat(),
+    }
     management = MySQLEvaluationManagement(tx)
     started = await management.start(scope, 1, "启动", AT, confirm=True)
     before = await rows(tx, scope.run_id)
@@ -44,6 +55,10 @@ async def test_concurrent_creation_and_replay_after_start_never_reset_run(reques
     assert replay == started
     assert await rows(tx, scope.run_id) == before
     assert replay.version == 2
+    # A different auditor reads the original creation, not their own identity or today's assets.
+    recovered = await management.get(replace(scope, operator_user_id=43))
+    assert recovered.creation_json == first.creation_json == replay.creation_json
+    assert await rows(tx, scope.run_id) == before
 
 
 @pytest.mark.parametrize("conflict", ["org", "actor", "reason", "release"])
