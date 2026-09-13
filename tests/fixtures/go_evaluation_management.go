@@ -23,6 +23,7 @@ func main() {
 		Allowed, Confirm                bool
 		AuditOnly                       bool
 		CandidateID                     string
+		ExecutionID                     string
 		ExpectedPassed                  *bool
 	}
 	if json.NewDecoder(os.Stdin).Decode(&input) != nil {
@@ -49,7 +50,9 @@ func main() {
 	}
 	scope := app.EvaluationScope{RunID: input.RunID, OrganizationID: input.OrgID, OperatorUserID: input.UserID}
 	var result any
-	if input.Action == "prepare" {
+	if input.Action == "unknowns" {
+		result, err = service.ListUnknowns(ctx, scope, input.Version)
+	} else if input.Action == "prepare" {
 		result, err = service.Prepare(ctx, app.DraftScope{OrganizationID: input.OrgID, OperatorUserID: input.UserID}, input.Plan)
 	} else if input.Action == "reopen" {
 		result, err = service.ReopenReview(ctx, scope, app.EvaluationReopen{ExpectedVersion: input.Version, Reason: input.Reason, Confirm: input.Confirm})
@@ -67,7 +70,10 @@ func main() {
 	} else if input.Action == "create" {
 		result, err = service.Create(ctx, scope, app.EvaluationCreate{Release: input.Release, Reason: input.Reason, Confirm: input.Confirm})
 	} else if input.Action == "resolve" {
-		result, err = service.Resolve(ctx, scope, app.UnknownResolution{ExpectedVersion: input.Version, ExecutionID: "execution:dead", Decision: input.Decision, Reason: "跨进程管理测试", Confirm: input.Confirm, AcknowledgedDuplicateCallAndCostRisk: input.Confirm})
+		if input.ExecutionID == "" {
+			input.ExecutionID = "execution:dead"
+		}
+		result, err = service.Resolve(ctx, scope, app.UnknownResolution{ExpectedVersion: input.Version, ExecutionID: input.ExecutionID, Decision: input.Decision, Reason: "跨进程管理测试", Confirm: input.Confirm, AcknowledgedDuplicateCallAndCostRisk: input.Confirm})
 	} else if input.Action == "start" {
 		result, err = service.Start(ctx, scope, app.EvaluationStart{ExpectedVersion: input.Version, Reason: "跨进程管理测试", Confirm: input.Confirm})
 	} else {
