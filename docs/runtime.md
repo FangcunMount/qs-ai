@@ -171,6 +171,14 @@ uv run python -m qs_ai.bootstrap.build_manifest \
 
 最多读取冻结策略允许的 70 次生成、70 次语义调用和 140 条 dispatch；响应至多 140 条、256 KiB，不包含 Prompt、模型输出、凭据或供应商错误正文。已取消的 Run 可读取剩余未决条目，但 `can_resolve=false`，不能继续补发。本接口为增量协议，既有 Get 和 ResolveUnknown 字段保持兼容；QS 的审计代理和 Operating 入口仍需在后端部署后接通。
 
+### 普通取消与评审废弃（M3 增量）
+
+`EvaluationManagement.Cancel` 接受可信 QS scope、当前 `expected_version`、理由、`confirm=true` 和必须显式提供的 `discard`。requested、collecting、无未决调用的 blocked 使用 `discard=false`；awaiting_review 必须以 `discard=true` 明确放弃评审。approved、rejected、canceled 不接受取消。未知调用必须走原 `ResolveUnknown` 处置，不能使用普通取消绕过原调用核对。
+
+取消与工作进程共用 checkpoint/Run 锁和版本 CAS：未派发的 prepared 可以取消；dispatching 必须先完成或恢复。接受后版本加一、停止后续工作，保留全部输出、调用账本、审核和复审历史；原 prepared 检查点作为审计留存，不再作为可恢复工作。取消不撤销已发送调用、不退还调用预算，也不删除历史。
+
+`EvaluationState.cancellation_json` 为增量字段，返回 `qs-ai-evaluation-cancellation/v1`：原/新版本、来源状态、发布摘要、操作人、原因、时间和被取消的准备记录标识。回读核对原持久证据；网络结果不明时先读原任务核对回执，不能自动重发取消。旧响应缺失该字段仍兼容。本批只交付 AI 后端，QS 的 OrgAdmin 代理、Operating 操作入口及真实管理验收继续单独跟踪；不启用生产治理或模型执行。
+
 ### 最终评审事务（默认关闭）
 
 `EvaluationManagement.Finalize` 接受同一可信 QS scope、显式 `expected_version`、有存在性检查的布尔 `expected_passed`、原因及 `confirm=true`。时间和 actor 由服务端确定；预期结果仅确认预览，不能指定批准。事务先锁定共享 checkpoint 和 scoped Run，再建立证据快照、重算 G1–G5。未收齐冻结要求的 70 条有效人工评审时不能最终拒绝；结果与确认不同或版本已变时返回 ABORTED。

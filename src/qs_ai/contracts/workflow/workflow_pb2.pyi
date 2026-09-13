@@ -150,6 +150,20 @@ class EvaluationReopenCommand(_message.Message):
     confirm: bool
     def __init__(self, scope: _Optional[_Union[EvaluationQuery, _Mapping]] = ..., expected_version: _Optional[int] = ..., reason: _Optional[str] = ..., confirm: _Optional[bool] = ...) -> None: ...
 
+class EvaluationCancelCommand(_message.Message):
+    __slots__ = ("scope", "expected_version", "reason", "confirm", "discard")
+    SCOPE_FIELD_NUMBER: _ClassVar[int]
+    EXPECTED_VERSION_FIELD_NUMBER: _ClassVar[int]
+    REASON_FIELD_NUMBER: _ClassVar[int]
+    CONFIRM_FIELD_NUMBER: _ClassVar[int]
+    DISCARD_FIELD_NUMBER: _ClassVar[int]
+    scope: EvaluationQuery
+    expected_version: int
+    reason: str
+    confirm: bool
+    discard: bool
+    def __init__(self, scope: _Optional[_Union[EvaluationQuery, _Mapping]] = ..., expected_version: _Optional[int] = ..., reason: _Optional[str] = ..., confirm: _Optional[bool] = ..., discard: _Optional[bool] = ...) -> None: ...
+
 class EvaluationFinalizeCommand(_message.Message):
     __slots__ = ("scope", "expected_version", "expected_passed", "reason", "confirm")
     SCOPE_FIELD_NUMBER: _ClassVar[int]
@@ -323,7 +337,7 @@ class EvaluationUnknownIndex(_message.Message):
     def __init__(self, run_id: _Optional[str] = ..., version: _Optional[int] = ..., release_fingerprint: _Optional[str] = ..., status: _Optional[str] = ..., unresolved_result_unknown_count: _Optional[int] = ..., can_resolve: _Optional[bool] = ..., executions: _Optional[_Iterable[_Union[EvaluationUnknownExecution, _Mapping]]] = ...) -> None: ...
 
 class EvaluationState(_message.Message):
-    __slots__ = ("run_id", "version", "status", "unresolved_result_unknown_count", "resolutions_json", "reviews_json", "finalization_json", "reopenings_json", "creation_json")
+    __slots__ = ("run_id", "version", "status", "unresolved_result_unknown_count", "resolutions_json", "reviews_json", "finalization_json", "reopenings_json", "creation_json", "cancellation_json")
     RUN_ID_FIELD_NUMBER: _ClassVar[int]
     VERSION_FIELD_NUMBER: _ClassVar[int]
     STATUS_FIELD_NUMBER: _ClassVar[int]
@@ -333,6 +347,7 @@ class EvaluationState(_message.Message):
     FINALIZATION_JSON_FIELD_NUMBER: _ClassVar[int]
     REOPENINGS_JSON_FIELD_NUMBER: _ClassVar[int]
     CREATION_JSON_FIELD_NUMBER: _ClassVar[int]
+    CANCELLATION_JSON_FIELD_NUMBER: _ClassVar[int]
     run_id: str
     version: int
     status: str
@@ -342,7 +357,8 @@ class EvaluationState(_message.Message):
     finalization_json: str
     reopenings_json: str
     creation_json: str
-    def __init__(self, run_id: _Optional[str] = ..., version: _Optional[int] = ..., status: _Optional[str] = ..., unresolved_result_unknown_count: _Optional[int] = ..., resolutions_json: _Optional[str] = ..., reviews_json: _Optional[str] = ..., finalization_json: _Optional[str] = ..., reopenings_json: _Optional[str] = ..., creation_json: _Optional[str] = ...) -> None: ...
+    cancellation_json: str
+    def __init__(self, run_id: _Optional[str] = ..., version: _Optional[int] = ..., status: _Optional[str] = ..., unresolved_result_unknown_count: _Optional[int] = ..., resolutions_json: _Optional[str] = ..., reviews_json: _Optional[str] = ..., finalization_json: _Optional[str] = ..., reopenings_json: _Optional[str] = ..., creation_json: _Optional[str] = ..., cancellation_json: _Optional[str] = ...) -> None: ...
 
 class SemanticContradictionReview(_message.Message):
     __slots__ = ("policy_version", "execution_id", "output_fingerprint", "assertion_ordinal", "original_detail", "candidate_excerpt", "reason")

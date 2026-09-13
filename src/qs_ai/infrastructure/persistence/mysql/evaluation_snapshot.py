@@ -15,7 +15,11 @@ async def header(db: AsyncSession, scope: ManagementScope) -> RowMapping:
     row = (
         (
             await db.execute(
-                select(evaluation_runs, evaluation_checkpoints.c.version)
+                select(
+                    evaluation_runs,
+                    evaluation_checkpoints.c.version,
+                    evaluation_checkpoints.c.checkpoint_json,
+                )
                 .join(
                     evaluation_checkpoints,
                     evaluation_runs.c.run_id == evaluation_checkpoints.c.run_id,

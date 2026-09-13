@@ -17,6 +17,7 @@ from qs_ai.domain.evaluation.resolution import ResultUnknownResolution
 from qs_ai.domain.evaluation.review import CandidateHumanReview
 from qs_ai.infrastructure.persistence.mysql import evaluation_candidates
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
+from qs_ai.infrastructure.persistence.mysql.evaluation_cancellation import cancel, read_cancellation
 from qs_ai.infrastructure.persistence.mysql.evaluation_creation_receipt import creation_receipt
 from qs_ai.infrastructure.persistence.mysql.evaluation_finalization import (
     finalize,
@@ -36,7 +37,11 @@ async def read_view(db: AsyncSession, scope: ManagementScope) -> EvaluationView:
     row = (
         (
             await db.execute(
-                select(evaluation_runs, evaluation_checkpoints.c.version)
+                select(
+                    evaluation_runs,
+                    evaluation_checkpoints.c.version,
+                    evaluation_checkpoints.c.checkpoint_json,
+                )
                 .join(
                     evaluation_checkpoints,
                     evaluation_runs.c.run_id == evaluation_checkpoints.c.run_id,
@@ -55,6 +60,7 @@ async def read_view(db: AsyncSession, scope: ManagementScope) -> EvaluationView:
     progress = row["progress_json"]
     if progress is None:
         raise ValueError("Legacy progress needs reconciliation")
+    cancellation, source = await read_cancellation(db, scope, dict(row))
     return EvaluationView(
         str(scope.run_id),
         row["version"],
@@ -62,15 +68,32 @@ async def read_view(db: AsyncSession, scope: ManagementScope) -> EvaluationView:
         progress.get("unresolved_result_unknown_count", 0),
         json.dumps(progress.get("result_unknown_resolutions", []), ensure_ascii=False),
         json.dumps(progress.get("human_reviews", []), ensure_ascii=False),
-        await read_finalization(db, scope, dict(row)),
+        await read_finalization(db, scope, source),
         canonical(progress.get("review_reopenings", [])),
         creation_receipt(dict(row)),
+        cancellation,
     )
 
 
 class MySQLEvaluationManagement:
     def __init__(self, transactions: Transactions) -> None:
         self.transactions = transactions
+
+    async def cancel(
+        self,
+        scope: ManagementScope,
+        expected_version: int,
+        reason: str,
+        at: datetime,
+        *,
+        discard: bool,
+        confirm: bool,
+    ) -> EvaluationView:
+        async with self.transactions.open() as db:
+            await cancel(db, scope, expected_version, reason, at, discard=discard, confirm=confirm)
+            view = await read_view(db, scope)
+            await db.commit()
+            return view
 
     async def list_unknowns(
         self, scope: ManagementScope, expected_version: int

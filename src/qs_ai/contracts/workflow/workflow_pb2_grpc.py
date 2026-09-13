@@ -237,6 +237,11 @@ class EvaluationManagementStub:
                 request_serializer=workflow__pb2.EvaluationStartCommand.SerializeToString,
                 response_deserializer=workflow__pb2.EvaluationState.FromString,
                 _registered_method=True)
+        self.Cancel = channel.unary_unary(
+                '/qsai.workflow.v1.EvaluationManagement/Cancel',
+                request_serializer=workflow__pb2.EvaluationCancelCommand.SerializeToString,
+                response_deserializer=workflow__pb2.EvaluationState.FromString,
+                _registered_method=True)
         self.Get = channel.unary_unary(
                 '/qsai.workflow.v1.EvaluationManagement/Get',
                 request_serializer=workflow__pb2.EvaluationQuery.SerializeToString,
@@ -304,6 +309,13 @@ class EvaluationManagementServicer:
 
     def Start(self, request, context):
         """Explicitly schedules an existing frozen requested Run; does not call a model inline.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def Cancel(self, request, context):
+        """Stop future work; dispatched/unknown calls must be completed or resolved first.
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -384,6 +396,11 @@ def add_EvaluationManagementServicer_to_server(servicer, server):
             'Start': grpc.unary_unary_rpc_method_handler(
                     servicer.Start,
                     request_deserializer=workflow__pb2.EvaluationStartCommand.FromString,
+                    response_serializer=workflow__pb2.EvaluationState.SerializeToString,
+            ),
+            'Cancel': grpc.unary_unary_rpc_method_handler(
+                    servicer.Cancel,
+                    request_deserializer=workflow__pb2.EvaluationCancelCommand.FromString,
                     response_serializer=workflow__pb2.EvaluationState.SerializeToString,
             ),
             'Get': grpc.unary_unary_rpc_method_handler(
@@ -513,6 +530,33 @@ class EvaluationManagement:
             target,
             '/qsai.workflow.v1.EvaluationManagement/Start',
             workflow__pb2.EvaluationStartCommand.SerializeToString,
+            workflow__pb2.EvaluationState.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def Cancel(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.EvaluationManagement/Cancel',
+            workflow__pb2.EvaluationCancelCommand.SerializeToString,
             workflow__pb2.EvaluationState.FromString,
             options,
             channel_credentials,
