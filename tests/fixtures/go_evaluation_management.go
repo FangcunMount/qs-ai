@@ -17,6 +17,7 @@ func main() {
 		RunID, Action, Decision, Reason string
 		Release                         app.EvaluationRelease
 		Plan                            app.EvaluationPlanQuery
+		Catalog                         app.EvaluationCatalogQuery
 		Review                          app.EvaluationReview
 		UserID                          int64
 		OrgID, Version                  int64
@@ -51,7 +52,9 @@ func main() {
 	}
 	scope := app.EvaluationScope{RunID: input.RunID, OrganizationID: input.OrgID, OperatorUserID: input.UserID}
 	var result any
-	if input.Action == "cancel" {
+	if input.Action == "list" {
+		result, err = service.List(ctx, app.DraftScope{OrganizationID: input.OrgID, OperatorUserID: input.UserID}, input.Catalog)
+	} else if input.Action == "cancel" {
 		result, err = service.Cancel(ctx, scope, app.EvaluationCancel{ExpectedVersion: input.Version, Reason: input.Reason, Confirm: input.Confirm, Discard: input.Discard})
 	} else if input.Action == "unknowns" {
 		result, err = service.ListUnknowns(ctx, scope, input.Version)

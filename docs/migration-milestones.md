@@ -723,3 +723,10 @@ M1 → M2 → M3 → M4 → M5。M3 清单分析可提前开展，生产切换�
 - P14 旧目录路径已核对：组织隔离、状态筛选、创建时间/ID 倒序分页与摘要读取。新 `codex/evaluation-run-catalog` 实现 AI List 协议、只读查询端口、MySQL 摘要投影和 Dishka 装配；cursor 绑定机构/状态，详情和操作仍走原有接口，不复制旧模型输出。新增机构索引只改善查询范围，不修改历史正文或激活执行。
 - 首批 query/MySQL/真实临时 mTLS 与既有创建回放合计 32 项通过；全量非集成 961 项通过、11 项跳过，mypy 218 源文件、ruff 与协议生成通过。测试使用隔离 MySQL 和合成任务，不能代替真实 IAM/案例/管理操作。后续补微秒与数据库会话时区回归并进行完整 CI；QS 代理、跨语言目录读取及 Operating 分页入口仍待接入，P14 和 M3 未完成。
 - 补充验证完成：微秒分页和非 UTC MySQL 会话下的排序通过，与目录、mTLS 和原创建回放合计 33 项通过；索引迁移后 alembic check 无模型差异。该批先保留草稿 PR，后续继续补跨语言与管理页面，不提前验收 P14。
+
+### 2026-09-13：原生任务目录跨语言查询与发布异常
+
+- QS 专属 `codex/ai-evaluation-catalog` 产品提交 `69ef0a16dc860898eb5a45e0ff82a04fc75def3e` 增加 `GET /internal/v2/interpretation/ai-workflow/evaluations`：当前机构/操作者与审计权限、状态筛选、倒序游标分页、5 秒期限和有界摘要，保留旧历史路由。不在代理重建审核政策，也不从列表提供写权限。四个相关 Go 包 race、lint、80 项文档测试/事实检查和 OpenAPI 一致性通过；文档来源及新增 RPC 清单已随提交校准。
+- AI #83 首批 `de75f7d2cc2edb1c81969def9faec59d1cd6fef2` 的 CI `34748085713` 两种 MySQL、八个分片、完整执行汇总与镜像全部通过。新增治理互操作固定上述 QS 产品提交：Go 应用/客户端→临时 mTLS→Python/MySQL 的列表摘要与直接查询逐字段一致，分页、组织/筛选游标隔离、拒绝撤权/错误工作负载、列表转详情以及审计用户不能启动均已验证。合成 IAM/任务不代替真实业务验收；本轮新增互操作仍需最新 head CI，Operating 入口尚待实现。
+- QS #107 主干 `955eabb5209ab89817984b184edc914fb2717def` 的 CI `34747955336`、桥接和 CodeQL 均通过；自动发布 `34748445320` 已终止为 failure。API/Collection 镜像构建成功，Worker job 在 API 中仍显示 queued、没有 runner/步骤/注释，而下游部署全部 skipped。原运行重跑两次与一次标准 workflow_dispatch 均返回 HTTP 500；复核未产生新 attempt 或新发布运行，不将请求视为已启动。GitHub 状态页未报告全局事故，不能由这些错误认定全站故障。
+- 本轮 SSH 复核 serverA 的 AI API/gRPC 为 `9a8c91d4cbd68168081da61a82df2c0e431f2521`，QS API/两个 collection 为 `6f00d8be3d362a5ba09570c56dddcc2425a51ed7`，均 healthy。Operating #32/#33 仍待 QS 发布后衔接；没有开启生成/治理、关闭旧写或删除数据。M1/M2 真实案例缺口、M3 功能差异与接管验收以及 M4/M5 均保持未完成。
