@@ -25,6 +25,7 @@ func main() {
 		CandidateID                     string
 		ExecutionID                     string
 		ExpectedPassed                  *bool
+		Discard                         *bool
 	}
 	if json.NewDecoder(os.Stdin).Decode(&input) != nil {
 		os.Exit(2)
@@ -50,7 +51,9 @@ func main() {
 	}
 	scope := app.EvaluationScope{RunID: input.RunID, OrganizationID: input.OrgID, OperatorUserID: input.UserID}
 	var result any
-	if input.Action == "unknowns" {
+	if input.Action == "cancel" {
+		result, err = service.Cancel(ctx, scope, app.EvaluationCancel{ExpectedVersion: input.Version, Reason: input.Reason, Confirm: input.Confirm, Discard: input.Discard})
+	} else if input.Action == "unknowns" {
 		result, err = service.ListUnknowns(ctx, scope, input.Version)
 	} else if input.Action == "prepare" {
 		result, err = service.Prepare(ctx, app.DraftScope{OrganizationID: input.OrgID, OperatorUserID: input.UserID}, input.Plan)
