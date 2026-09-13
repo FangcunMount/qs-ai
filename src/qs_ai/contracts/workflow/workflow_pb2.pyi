@@ -602,6 +602,28 @@ class PromptDraftState(_message.Message):
     snapshot_json: str
     def __init__(self, schema_version: _Optional[str] = ..., draft_id: _Optional[str] = ..., revision: _Optional[int] = ..., snapshot_json: _Optional[str] = ...) -> None: ...
 
+class PromptDraftLifecycle(_message.Message):
+    __slots__ = ("schema_version", "draft", "status", "frozen")
+    SCHEMA_VERSION_FIELD_NUMBER: _ClassVar[int]
+    DRAFT_FIELD_NUMBER: _ClassVar[int]
+    STATUS_FIELD_NUMBER: _ClassVar[int]
+    FROZEN_FIELD_NUMBER: _ClassVar[int]
+    schema_version: str
+    draft: PromptDraftState
+    status: str
+    frozen: PromptDraftFrozenVersion
+    def __init__(self, schema_version: _Optional[str] = ..., draft: _Optional[_Union[PromptDraftState, _Mapping]] = ..., status: _Optional[str] = ..., frozen: _Optional[_Union[PromptDraftFrozenVersion, _Mapping]] = ...) -> None: ...
+
+class PromptDraftFrozenVersion(_message.Message):
+    __slots__ = ("asset", "revision", "frozen_at")
+    ASSET_FIELD_NUMBER: _ClassVar[int]
+    REVISION_FIELD_NUMBER: _ClassVar[int]
+    FROZEN_AT_FIELD_NUMBER: _ClassVar[int]
+    asset: PromptDraftSource
+    revision: int
+    frozen_at: str
+    def __init__(self, asset: _Optional[_Union[PromptDraftSource, _Mapping]] = ..., revision: _Optional[int] = ..., frozen_at: _Optional[str] = ...) -> None: ...
+
 class ProfileRegisterCommand(_message.Message):
     __slots__ = ("scope", "command_id", "source", "definition_json", "prompt", "generation_route", "reason")
     SCOPE_FIELD_NUMBER: _ClassVar[int]
