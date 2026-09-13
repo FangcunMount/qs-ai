@@ -39,6 +39,7 @@ class EvaluationView:
     reviews_json: str = "[]"
     finalization_json: str = ""
     reopenings_json: str = "[]"
+    creation_json: str = ""
 
 
 class EvaluationManagementStore(Protocol):

@@ -16,6 +16,7 @@ from qs_ai.domain.evaluation.resolution import ResultUnknownResolution
 from qs_ai.domain.evaluation.review import CandidateHumanReview
 from qs_ai.infrastructure.persistence.mysql import evaluation_candidates
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
+from qs_ai.infrastructure.persistence.mysql.evaluation_creation_receipt import creation_receipt
 from qs_ai.infrastructure.persistence.mysql.evaluation_finalization import (
     finalize,
     read_finalization,
@@ -61,6 +62,7 @@ async def read_view(db: AsyncSession, scope: ManagementScope) -> EvaluationView:
         json.dumps(progress.get("human_reviews", []), ensure_ascii=False),
         await read_finalization(db, scope, dict(row)),
         canonical(progress.get("review_reopenings", [])),
+        creation_receipt(dict(row)),
     )
 
 
