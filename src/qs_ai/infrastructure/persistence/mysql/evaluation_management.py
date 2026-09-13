@@ -11,6 +11,7 @@ from qs_ai.application.evaluation.candidates import (
 )
 from qs_ai.application.evaluation.gates import GatePreview
 from qs_ai.application.evaluation.management import EvaluationView, ManagementScope
+from qs_ai.application.evaluation.unknowns import UnknownExecutionIndex, validate_unknown_query
 from qs_ai.application.interpretation.ports import NotFound
 from qs_ai.domain.evaluation.resolution import ResultUnknownResolution
 from qs_ai.domain.evaluation.review import CandidateHumanReview
@@ -27,6 +28,7 @@ from qs_ai.infrastructure.persistence.mysql.evaluation_reopening import reopen
 from qs_ai.infrastructure.persistence.mysql.evaluation_resolution import accept_resolution
 from qs_ai.infrastructure.persistence.mysql.evaluation_review_history import canonical
 from qs_ai.infrastructure.persistence.mysql.evaluation_reviews import accept_reviews
+from qs_ai.infrastructure.persistence.mysql.evaluation_unknowns import list_unknowns
 from qs_ai.infrastructure.persistence.mysql.schema import evaluation_checkpoints, evaluation_runs
 
 
@@ -69,6 +71,13 @@ async def read_view(db: AsyncSession, scope: ManagementScope) -> EvaluationView:
 class MySQLEvaluationManagement:
     def __init__(self, transactions: Transactions) -> None:
         self.transactions = transactions
+
+    async def list_unknowns(
+        self, scope: ManagementScope, expected_version: int
+    ) -> UnknownExecutionIndex:
+        validate_unknown_query(expected_version)
+        async with self.transactions.open() as db:
+            return await list_unknowns(db, scope, expected_version)
 
     async def reopen(
         self,

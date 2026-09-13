@@ -7,6 +7,7 @@ from uuid import UUID
 
 from qs_ai.application.evaluation.candidates import CandidateEvidence, CandidateIndex
 from qs_ai.application.evaluation.gates import GatePreview
+from qs_ai.application.evaluation.unknowns import UnknownExecutionIndex
 from qs_ai.domain.evaluation.resolution import ResultUnknownResolution
 from qs_ai.domain.evaluation.review import CandidateHumanReview
 
@@ -43,6 +44,10 @@ class EvaluationView:
 
 
 class EvaluationManagementStore(Protocol):
+    async def list_unknowns(
+        self, scope: ManagementScope, expected_version: int
+    ) -> UnknownExecutionIndex: ...
+
     async def reopen(
         self,
         scope: ManagementScope,
