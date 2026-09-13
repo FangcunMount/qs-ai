@@ -15,10 +15,10 @@ def route_directory() -> Path:
 
 
 def load_route(route: str, revision: str, *, directory: Path | None = None) -> ModelRoute:
-    if (route, revision) != ("balanced_text_v1", "v8"):
+    if (route, revision) not in {("balanced_text_v1", "v8"), ("semantic_judge_v1", "v5")}:
         raise ValueError("Unknown migrated model route version")
     directory = directory if directory is not None else route_directory()
-    filename = "balanced_text_v1-v8.json"
+    filename = f"{route}-{revision}.json"
     try:
         raw = (directory / filename).read_bytes()
         manifest = json.loads((directory / "manifest.json").read_bytes())

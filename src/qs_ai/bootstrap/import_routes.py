@@ -12,15 +12,19 @@ from qs_ai.infrastructure.persistence.mysql.route_assets import MySQLRouteAssets
 from qs_ai.infrastructure.qs_server.routes import load_route
 
 
-def baseline_assets() -> tuple[str, tuple[RouteAsset, ...]]:
-    route = load_route("balanced_text_v1", "v8")
-    return "qs-server:runtime-observed-2026-09-11", (
-        RouteAsset(route.route, route.revision, route.fingerprint(), route.definition_json()),
+def baseline_assets(*, include_evaluation: bool = False) -> tuple[str, tuple[RouteAsset, ...]]:
+    routes = [load_route("balanced_text_v1", "v8")]
+    if include_evaluation:
+        routes.append(load_route("semantic_judge_v1", "v5"))
+    observed = "2026-09-13" if include_evaluation else "2026-09-11"
+    return f"qs-server:runtime-observed-{observed}", tuple(
+        RouteAsset(route.route, route.revision, route.fingerprint(), route.definition_json())
+        for route in routes
     )
 
 
-async def run(imported_by: str) -> int:
-    source, assets = baseline_assets()
+async def run(imported_by: str, *, include_evaluation: bool = False) -> int:
+    source, assets = baseline_assets(include_evaluation=include_evaluation)
     settings = Settings()
     if settings.database_url is None:
         raise ValueError("Database is not configured")
@@ -38,9 +42,10 @@ async def run(imported_by: str) -> int:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--imported-by", required=True)
+    parser.add_argument("--include-evaluation", action="store_true")
     args = parser.parse_args()
     try:
-        inserted = asyncio.run(run(args.imported_by))
+        inserted = asyncio.run(run(args.imported_by, include_evaluation=args.include_evaluation))
     except Exception as error:
         print(json.dumps({"import": "failed", "error_type": type(error).__name__}))
         raise SystemExit(1) from None

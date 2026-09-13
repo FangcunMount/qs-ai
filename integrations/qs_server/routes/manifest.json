@@ -1,7 +1,9 @@
 {
   "source": "QS runtime configuration observed 2026-09-11; see provider-runtime.md",
   "files": {
-    "balanced_text_v1-v8.json": "38568eb28fbfd57dcde2a4dd5deae7580124d3dc58df776e6a19640de3188695"
+    "balanced_text_v1-v8.json": "38568eb28fbfd57dcde2a4dd5deae7580124d3dc58df776e6a19640de3188695",
+    "semantic_judge_v1-v5.json": "94bebc5dcacedc4908eab29327f6fcb7ae6bbcb7663054568d0bf520f697e784"
   },
-  "status": "Migration baseline only; not approval or activation"
+  "status": "Migration baseline only; not approval or activation",
+  "evaluation_source": "QS runtime configuration observed 2026-09-13; docs/evidence/2026-09-13-m3-current-published-reconciliation.json"
 }
