@@ -12,6 +12,7 @@ from qs_ai.domain.evaluation.identity import EvidenceReleaseIdentity, FrozenCont
 from qs_ai.infrastructure.persistence.mysql.database import Database, Transactions
 from qs_ai.infrastructure.persistence.mysql.evaluation_runs import create_run
 from qs_ai.infrastructure.persistence.mysql.schema import (
+    evaluation_capacity_reservations,
     evaluation_checkpoints,
     evaluation_dispatches,
     evaluation_run_policies,
@@ -53,6 +54,7 @@ async def setup_run():
     finally:
         async with tx.open() as db:
             for table in (
+                evaluation_capacity_reservations,
                 evaluation_dispatches,
                 evaluation_checkpoints,
                 evaluation_run_policies,

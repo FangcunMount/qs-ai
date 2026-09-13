@@ -22,16 +22,16 @@
 | P05 | v1 GET `/prompt-evaluations/:run_id/attempts/:case_id/:attempt/rechecks/:recheck_id` | QS 保留旧复查详情 | 历史保留验收 |
 | P06 | v1 GET `/profiles` | AI AssetCatalog.List + 草稿/发布生命周期；旧版本仍由 QS 读 | 不可变资产列表不等于旧 draft/published/disabled 状态筛选；补做列表语义与实际在用版本映射 |
 | P07 | v1 GET `/profiles/:profile_id/versions/:version` | AI AssetCatalog.Get；旧版本读取保留 | 旧 ID/版本与新内容指纹逐条对账 |
-| P08 | v1 GET `/prompt-evaluation-capacity` | AI 应承接评测容量与准入状态 | 未找到等价管理 RPC；需核对组织日预算预留、剩余完整运行次数、活跃 Run 限制及查询权限 |
+| P08 | v1 GET `/prompt-evaluation-capacity` | AI 应承接评测容量与准入状态 | 已补 GetCapacity、Start 原子日预算预留/活动限制及恢复准入；QS 沿用 OrgAdmin 查询权限，Operating 只展示服务端快照。并发/跨日/取消不退预算/恢复不重复扣费测试通过；生产限额对账及集中审核待完成 |
 | P09 | v1 GET `/participant-capacity` | AI 应承接生成执行容量；QS 保留业务权限 | 未找到等价管理 RPC；需核对机构/用户/测评日预算及机构活动执行占用，不能只显示进程并发配置 |
 | P10 | v1 POST `/generations/:generation_id/retry` | AI 承接受控恢复，QS 只发授权命令 | 评测 ResolveUnknown 不覆盖参与者 Generation；需原尝试、命令幂等、风险确认、费用预留与历史 ID 关联的完整映射 |
 | P11 | v1 POST `/profiles` | AI PromptDraft Create/Revise/Freeze + Profile Register | 有组成能力；验收完整编辑/校验/注册流程，明确原 Profile 草稿语义映射 |
 | P12 | v1 POST `/profiles/:profile_id/versions/:version/publish` | AI PublicationManagement.Publish | 有实现；实际质量门槛→发布→新生成版本绑定验收及旧写关闭 |
 | P13 | v1 POST `/profiles/:profile_id/versions/:version/disable` | AI PublicationManagement.Disable | 有实现；核对发布 selector 映射、停用对在途及新任务的行为 |
-| P14 | v2 GET `/prompt-evaluations` | AI 原生评测列表；QS 保留旧 v2 列表 | AI List 首批 CI 已通过；QS 授权代理已提交，Go→Python→MySQL 的分页摘要、详情及权限隔离联测通过。两端最新增量 CI/发布与 Operating 列表/选择入口仍待完成，不以接口联测代替接管 |
+| P14 | v2 GET `/prompt-evaluations` | AI 原生评测列表；QS 保留旧 v2 列表 | AI List 首批 CI 已通过；QS 代理、Operating 列表/选择已本地完成。目录和详情跨语言联测通过；合并入集中审核包，不单独发布。最终 CI 与真实管理验收待完成 |
 | P15 | v2 GET `/prompt-evaluations/:run_id` | AI EvaluationManagement.Get | 有实现；原始创建、审核、复审、未知处置、取消回执已逐步接入；旧 ID 读取保留 |
 | P16 | v2 GET `/prompt-evaluations/:run_id/candidates/:candidate_id` | AI ListCandidates/GetCandidate | 有实现；Cancel 已修复废弃复审后详情误拒绝；仍需真实管理读取验收 |
-| P17 | v2 GET `/prompt-evaluations/:run_id/executions/:execution_id/output` | AI 运行执行证据查询 | 候选详情只提供已接受生成/语义输出；未知列表只提供元数据。失败/未形成候选的 execution 输出和诊断不能视为已接管 |
+| P17 | v2 GET `/prompt-evaluations/:run_id/executions/:execution_id/output` | AI 运行执行证据查询 | 已补原 execution 列表/输出 RPC、QS 只读代理与 Operating 展示，包含失败/未形成候选及未知结果。MySQL 与跨语言联测通过；集中审核、最终 CI 和真实读取验收待完成 |
 | P18 | v2 POST `/prompt-evaluations` | AI Prepare→Create→Start | 有实现；核对容量准入、费用确认及实际启动闭环，不能只验证固定引用 |
 | P19 | v2 POST `/prompt-evaluations/:run_id/cancel` | AI Cancel + QS 管理代理 + Operating | AI PR #76 与 QS #104 已发布；Operating #33 已实现并通过 CI，等待依赖发布。普通取消/待审核废弃保持区分 |
 | P20 | v2 POST `/legacy-prompt-evaluations/:run_id/attempts/:case_id/:attempt/rechecks` | 新复查执行迁至 AI，旧结果/复查历史在 QS 读 | 不能长期保留 QS 旧模型调用写入口；需旧证据导入或明确映射为新 AI 运行，保留前后来源并验收 |
@@ -67,3 +67,14 @@
 4. **关闭旧写权威**：逐行确认写入口的替代/映射和回退方案，关闭旧准入及模型执行写路径，再删除无调用者实现。历史只读、标准报告和业务权限保留；不自动清理历史数据或共享凭据。
 
 取消功能交付后不宣称 M3 只剩“验收手续”；上述实质差异全部关闭且生产证据满足 [里程碑门槛](migration-milestones.md) 后，才验收 M3。后续 Prompt 可视化串联、主动提问、多报告及长期记忆不计入本表。
+
+
+### 集中包本地实现记录：诊断与评测容量
+
+本地完成 P17 全调用诊断和 P08/P18 的评测容量部分：新增迁移 `0024_evaluation_capacity`，组织锁与预算预留和 Start 同事务；恢复原 Run 复用原保守预算，重新取得活动准入。冻结 Run 的 generation/semantic 最大次数决定预留金额，取消不退款，配额日使用 UTC。查询显示当前限额、全部预留合计和最近 100 条回执，超额配置变更不隐去原有预留。QS 只转发当前授权身份与快照，不重算预算。
+
+配置初值采用 QS 仓库生产配置的组织日预算 1024、活动任务 1；这不是服务器运行配置已完成对账的声明。生产开关保持原值。集中发布前仍须对照实际运行配置和 QS 旧预算，避免切换日重置可用额度；本轮新增表不自动导入或删除生产旧账。
+
+验证：961 项非集成通过、11 项跳过；13 项容量/原管理/诊断跨语言组合通过；另 2 项恢复预算回归通过。QS 四包 race 与 lint 通过；Operating 四套 69 项测试及类型/定向 lint 通过。测试使用一次性 MySQL 与测试证书/合成权限，不代表生产验收。
+
+QS 本批源提交 `65ca7370845e1c8637982a636499ec7d4dc16803` 尚未推送；AI CI pin 已随本地代码更新。最终推送顺序必须先 QS，确保 AI CI 能检出源提交。P09/P10 参与者容量与受控重试、P06/P07 生命周期与旧版本对账、P20 旧复查映射仍未完成；当前尚不提交最终审核、不单独发布。

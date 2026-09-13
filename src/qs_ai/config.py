@@ -36,6 +36,8 @@ class LoopOptions(Options):
 
 class EvaluationOptions(LoopOptions):
     enabled: bool
+    daily_provider_calls: int = Field(ge=1)
+    max_active_runs: int = Field(ge=1)
 
 
 class WorkerOptions(LoopOptions):

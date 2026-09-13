@@ -118,6 +118,74 @@ class EvidenceItem(_message.Message):
     facts: _containers.RepeatedCompositeFieldContainer[Fact]
     def __init__(self, assessment_id: _Optional[str] = ..., testee_id: _Optional[str] = ..., report_id: _Optional[str] = ..., source_version: _Optional[str] = ..., facts: _Optional[_Iterable[_Union[Fact, _Mapping]]] = ...) -> None: ...
 
+class EvaluationExecutionQuery(_message.Message):
+    __slots__ = ("scope", "expected_version", "cursor", "limit", "execution_id")
+    SCOPE_FIELD_NUMBER: _ClassVar[int]
+    EXPECTED_VERSION_FIELD_NUMBER: _ClassVar[int]
+    CURSOR_FIELD_NUMBER: _ClassVar[int]
+    LIMIT_FIELD_NUMBER: _ClassVar[int]
+    EXECUTION_ID_FIELD_NUMBER: _ClassVar[int]
+    scope: EvaluationQuery
+    expected_version: int
+    cursor: str
+    limit: int
+    execution_id: str
+    def __init__(self, scope: _Optional[_Union[EvaluationQuery, _Mapping]] = ..., expected_version: _Optional[int] = ..., cursor: _Optional[str] = ..., limit: _Optional[int] = ..., execution_id: _Optional[str] = ...) -> None: ...
+
+class EvaluationExecutionSummary(_message.Message):
+    __slots__ = ("execution_id", "invocation_id", "kind", "case_id", "slot_ordinal", "execution_ordinal", "status", "raw_output_bytes", "normalized_output_bytes", "evidence_json")
+    EXECUTION_ID_FIELD_NUMBER: _ClassVar[int]
+    INVOCATION_ID_FIELD_NUMBER: _ClassVar[int]
+    KIND_FIELD_NUMBER: _ClassVar[int]
+    CASE_ID_FIELD_NUMBER: _ClassVar[int]
+    SLOT_ORDINAL_FIELD_NUMBER: _ClassVar[int]
+    EXECUTION_ORDINAL_FIELD_NUMBER: _ClassVar[int]
+    STATUS_FIELD_NUMBER: _ClassVar[int]
+    RAW_OUTPUT_BYTES_FIELD_NUMBER: _ClassVar[int]
+    NORMALIZED_OUTPUT_BYTES_FIELD_NUMBER: _ClassVar[int]
+    EVIDENCE_JSON_FIELD_NUMBER: _ClassVar[int]
+    execution_id: str
+    invocation_id: str
+    kind: str
+    case_id: str
+    slot_ordinal: int
+    execution_ordinal: int
+    status: str
+    raw_output_bytes: int
+    normalized_output_bytes: int
+    evidence_json: str
+    def __init__(self, execution_id: _Optional[str] = ..., invocation_id: _Optional[str] = ..., kind: _Optional[str] = ..., case_id: _Optional[str] = ..., slot_ordinal: _Optional[int] = ..., execution_ordinal: _Optional[int] = ..., status: _Optional[str] = ..., raw_output_bytes: _Optional[int] = ..., normalized_output_bytes: _Optional[int] = ..., evidence_json: _Optional[str] = ...) -> None: ...
+
+class EvaluationExecutionPage(_message.Message):
+    __slots__ = ("run_id", "version", "executions", "next_cursor")
+    RUN_ID_FIELD_NUMBER: _ClassVar[int]
+    VERSION_FIELD_NUMBER: _ClassVar[int]
+    EXECUTIONS_FIELD_NUMBER: _ClassVar[int]
+    NEXT_CURSOR_FIELD_NUMBER: _ClassVar[int]
+    run_id: str
+    version: int
+    executions: _containers.RepeatedCompositeFieldContainer[EvaluationExecutionSummary]
+    next_cursor: str
+    def __init__(self, run_id: _Optional[str] = ..., version: _Optional[int] = ..., executions: _Optional[_Iterable[_Union[EvaluationExecutionSummary, _Mapping]]] = ..., next_cursor: _Optional[str] = ...) -> None: ...
+
+class EvaluationExecutionOutput(_message.Message):
+    __slots__ = ("run_id", "version", "execution", "raw_output", "normalized_output", "raw_sha256", "normalized_sha256")
+    RUN_ID_FIELD_NUMBER: _ClassVar[int]
+    VERSION_FIELD_NUMBER: _ClassVar[int]
+    EXECUTION_FIELD_NUMBER: _ClassVar[int]
+    RAW_OUTPUT_FIELD_NUMBER: _ClassVar[int]
+    NORMALIZED_OUTPUT_FIELD_NUMBER: _ClassVar[int]
+    RAW_SHA256_FIELD_NUMBER: _ClassVar[int]
+    NORMALIZED_SHA256_FIELD_NUMBER: _ClassVar[int]
+    run_id: str
+    version: int
+    execution: EvaluationExecutionSummary
+    raw_output: bytes
+    normalized_output: bytes
+    raw_sha256: str
+    normalized_sha256: str
+    def __init__(self, run_id: _Optional[str] = ..., version: _Optional[int] = ..., execution: _Optional[_Union[EvaluationExecutionSummary, _Mapping]] = ..., raw_output: _Optional[bytes] = ..., normalized_output: _Optional[bytes] = ..., raw_sha256: _Optional[str] = ..., normalized_sha256: _Optional[str] = ...) -> None: ...
+
 class EvaluationPlanQuery(_message.Message):
     __slots__ = ("scope", "suite", "generation_route", "semantic_route")
     SCOPE_FIELD_NUMBER: _ClassVar[int]
@@ -927,3 +995,43 @@ class EvaluationSummary(_message.Message):
     last_cause: str
     last_reason: str
     def __init__(self, run_id: _Optional[str] = ..., organization_id: _Optional[int] = ..., version: _Optional[int] = ..., status: _Optional[str] = ..., created_at: _Optional[str] = ..., requested_by: _Optional[str] = ..., profile_id: _Optional[str] = ..., profile_version: _Optional[str] = ..., prompt_id: _Optional[str] = ..., prompt_version: _Optional[str] = ..., release_fingerprint: _Optional[str] = ..., unresolved_result_unknown_count: _Optional[int] = ..., review_count: _Optional[int] = ..., required_candidates: _Optional[int] = ..., accepted_candidates: _Optional[int] = ..., review_ready_candidates: _Optional[int] = ..., last_cause: _Optional[str] = ..., last_reason: _Optional[str] = ...) -> None: ...
+
+class EvaluationCapacityReservation(_message.Message):
+    __slots__ = ("run_id", "provider_calls", "requested_by", "reserved_at")
+    RUN_ID_FIELD_NUMBER: _ClassVar[int]
+    PROVIDER_CALLS_FIELD_NUMBER: _ClassVar[int]
+    REQUESTED_BY_FIELD_NUMBER: _ClassVar[int]
+    RESERVED_AT_FIELD_NUMBER: _ClassVar[int]
+    run_id: str
+    provider_calls: int
+    requested_by: str
+    reserved_at: str
+    def __init__(self, run_id: _Optional[str] = ..., provider_calls: _Optional[int] = ..., requested_by: _Optional[str] = ..., reserved_at: _Optional[str] = ...) -> None: ...
+
+class EvaluationCapacitySnapshot(_message.Message):
+    __slots__ = ("organization_id", "budget_day", "daily_provider_calls", "reserved_provider_calls", "remaining_provider_calls", "full_run_provider_calls", "remaining_full_runs", "max_active_runs", "active_runs", "reservation_count", "reservations", "reservations_truncated")
+    ORGANIZATION_ID_FIELD_NUMBER: _ClassVar[int]
+    BUDGET_DAY_FIELD_NUMBER: _ClassVar[int]
+    DAILY_PROVIDER_CALLS_FIELD_NUMBER: _ClassVar[int]
+    RESERVED_PROVIDER_CALLS_FIELD_NUMBER: _ClassVar[int]
+    REMAINING_PROVIDER_CALLS_FIELD_NUMBER: _ClassVar[int]
+    FULL_RUN_PROVIDER_CALLS_FIELD_NUMBER: _ClassVar[int]
+    REMAINING_FULL_RUNS_FIELD_NUMBER: _ClassVar[int]
+    MAX_ACTIVE_RUNS_FIELD_NUMBER: _ClassVar[int]
+    ACTIVE_RUNS_FIELD_NUMBER: _ClassVar[int]
+    RESERVATION_COUNT_FIELD_NUMBER: _ClassVar[int]
+    RESERVATIONS_FIELD_NUMBER: _ClassVar[int]
+    RESERVATIONS_TRUNCATED_FIELD_NUMBER: _ClassVar[int]
+    organization_id: int
+    budget_day: str
+    daily_provider_calls: int
+    reserved_provider_calls: int
+    remaining_provider_calls: int
+    full_run_provider_calls: int
+    remaining_full_runs: int
+    max_active_runs: int
+    active_runs: int
+    reservation_count: int
+    reservations: _containers.RepeatedCompositeFieldContainer[EvaluationCapacityReservation]
+    reservations_truncated: bool
+    def __init__(self, organization_id: _Optional[int] = ..., budget_day: _Optional[str] = ..., daily_provider_calls: _Optional[int] = ..., reserved_provider_calls: _Optional[int] = ..., remaining_provider_calls: _Optional[int] = ..., full_run_provider_calls: _Optional[int] = ..., remaining_full_runs: _Optional[int] = ..., max_active_runs: _Optional[int] = ..., active_runs: _Optional[int] = ..., reservation_count: _Optional[int] = ..., reservations: _Optional[_Iterable[_Union[EvaluationCapacityReservation, _Mapping]]] = ..., reservations_truncated: _Optional[bool] = ...) -> None: ...

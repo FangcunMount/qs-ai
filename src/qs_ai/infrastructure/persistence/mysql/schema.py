@@ -454,3 +454,26 @@ evaluation_suites = sa.Table(
     mysql_engine="InnoDB",
     mysql_charset="utf8mb4",
 )
+
+# Organization locks serialize admission across processes and UTC-day boundaries.
+evaluation_admission_locks = sa.Table(
+    "evaluation_admission_locks",
+    metadata,
+    sa.Column("organization_id", EXTERNAL_ID, primary_key=True),
+    mysql_engine="InnoDB",
+    mysql_charset="utf8mb4",
+)
+evaluation_capacity_reservations = sa.Table(
+    "evaluation_capacity_reservations",
+    metadata,
+    sa.Column("run_id", ID, primary_key=True),
+    sa.Column("organization_id", EXTERNAL_ID, nullable=False),
+    sa.Column("budget_day", sa.Date, nullable=False),
+    sa.Column("provider_calls", sa.Integer, nullable=False),
+    sa.Column("daily_limit", sa.Integer, nullable=False),
+    sa.Column("requested_by", sa.String(128), nullable=False),
+    sa.Column("reserved_at", mysql.DATETIME(fsp=6), nullable=False),
+    sa.Index("ix_evaluation_capacity_day", "organization_id", "budget_day"),
+    mysql_engine="InnoDB",
+    mysql_charset="utf8mb4",
+)

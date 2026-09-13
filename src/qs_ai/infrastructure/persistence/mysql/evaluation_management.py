@@ -9,6 +9,7 @@ from qs_ai.application.evaluation.candidates import (
     CandidateIndex,
     validate_candidate_query,
 )
+from qs_ai.application.evaluation.capacity import EvaluationCapacityPolicy
 from qs_ai.application.evaluation.gates import GatePreview
 from qs_ai.application.evaluation.management import EvaluationView, ManagementScope
 from qs_ai.application.evaluation.unknowns import UnknownExecutionIndex, validate_unknown_query
@@ -18,6 +19,7 @@ from qs_ai.domain.evaluation.review import CandidateHumanReview
 from qs_ai.infrastructure.persistence.mysql import evaluation_candidates
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
 from qs_ai.infrastructure.persistence.mysql.evaluation_cancellation import cancel, read_cancellation
+from qs_ai.infrastructure.persistence.mysql.evaluation_capacity import admit, lock_admission
 from qs_ai.infrastructure.persistence.mysql.evaluation_creation_receipt import creation_receipt
 from qs_ai.infrastructure.persistence.mysql.evaluation_finalization import (
     finalize,
@@ -77,9 +79,17 @@ async def read_view(db: AsyncSession, scope: ManagementScope) -> EvaluationView:
     )
 
 
+_DEFAULT_CAPACITY = EvaluationCapacityPolicy()
+
+
 class MySQLEvaluationManagement:
-    def __init__(self, transactions: Transactions) -> None:
+    def __init__(
+        self,
+        transactions: Transactions,
+        capacity: EvaluationCapacityPolicy = _DEFAULT_CAPACITY,
+    ) -> None:
         self.transactions = transactions
+        self.capacity = capacity
 
     async def cancel(
         self,
@@ -187,6 +197,8 @@ class MySQLEvaluationManagement:
         if confirm is not True or type(expected_version) is not int or expected_version < 1:
             raise ValueError("Explicit version and confirmation required")
         async with self.transactions.open() as db:
+            # Serialize starts before creating a read snapshot or acquiring Run locks.
+            await lock_admission(db, scope.organization_id)
             # Scope lookup precedes state changes; absent and foreign Runs look identical.
             await read_view(db, scope)
             await transition_requested(
@@ -199,6 +211,7 @@ class MySQLEvaluationManagement:
                 reason,
                 at,
             )
+            await admit(db, scope, self.capacity, at)
             view = await read_view(db, scope)
             await db.commit()
             return view
@@ -214,9 +227,12 @@ class MySQLEvaluationManagement:
         if value.actor != scope.actor:
             raise ValueError("Decision actor differs from trusted scope")
         async with self.transactions.open() as db:
+            await lock_admission(db, scope.organization_id)
             await accept_resolution(
                 db, scope.run_id, expected_version, scope.organization_id, value, confirm=confirm
             )
             view = await read_view(db, scope)
+            if view.status == "collecting":
+                await admit(db, scope, self.capacity, value.resolved_at)
             await db.commit()
             return view

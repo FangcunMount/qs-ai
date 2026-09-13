@@ -222,6 +222,11 @@ class EvaluationManagementStub:
         Args:
             channel: A grpc.Channel.
         """
+        self.GetCapacity = channel.unary_unary(
+                '/qsai.workflow.v1.EvaluationManagement/GetCapacity',
+                request_serializer=workflow__pb2.PublicationScope.SerializeToString,
+                response_deserializer=workflow__pb2.EvaluationCapacitySnapshot.FromString,
+                _registered_method=True)
         self.List = channel.unary_unary(
                 '/qsai.workflow.v1.EvaluationManagement/List',
                 request_serializer=workflow__pb2.EvaluationCatalogQuery.SerializeToString,
@@ -277,6 +282,16 @@ class EvaluationManagementStub:
                 request_serializer=workflow__pb2.EvaluationCandidateQuery.SerializeToString,
                 response_deserializer=workflow__pb2.EvaluationCandidateEvidence.FromString,
                 _registered_method=True)
+        self.ListExecutions = channel.unary_unary(
+                '/qsai.workflow.v1.EvaluationManagement/ListExecutions',
+                request_serializer=workflow__pb2.EvaluationExecutionQuery.SerializeToString,
+                response_deserializer=workflow__pb2.EvaluationExecutionPage.FromString,
+                _registered_method=True)
+        self.GetExecutionOutput = channel.unary_unary(
+                '/qsai.workflow.v1.EvaluationManagement/GetExecutionOutput',
+                request_serializer=workflow__pb2.EvaluationExecutionQuery.SerializeToString,
+                response_deserializer=workflow__pb2.EvaluationExecutionOutput.FromString,
+                _registered_method=True)
         self.PreviewGates = channel.unary_unary(
                 '/qsai.workflow.v1.EvaluationManagement/PreviewGates',
                 request_serializer=workflow__pb2.EvaluationGateQuery.SerializeToString,
@@ -297,6 +312,13 @@ class EvaluationManagementStub:
 class EvaluationManagementServicer:
     """Trusted QS backend only. QS authorizes governance writes and candidate audit reads.
     """
+
+    def GetCapacity(self, request, context):
+        """Current organization daily reservation and active-run usage; read only.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
 
     def List(self, request, context):
         """Organization-scoped summary pages; never schedules work or authorizes mutations.
@@ -371,6 +393,19 @@ class EvaluationManagementServicer:
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def ListExecutions(self, request, context):
+        """Read original execution evidence, including failures without candidates. Never retries.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetExecutionOutput(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def PreviewGates(self, request, context):
         """Read-only complete gate preview; does not approve the Run or publish a release.
         """
@@ -395,6 +430,11 @@ class EvaluationManagementServicer:
 
 def add_EvaluationManagementServicer_to_server(servicer, server):
     rpc_method_handlers = {
+            'GetCapacity': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetCapacity,
+                    request_deserializer=workflow__pb2.PublicationScope.FromString,
+                    response_serializer=workflow__pb2.EvaluationCapacitySnapshot.SerializeToString,
+            ),
             'List': grpc.unary_unary_rpc_method_handler(
                     servicer.List,
                     request_deserializer=workflow__pb2.EvaluationCatalogQuery.FromString,
@@ -450,6 +490,16 @@ def add_EvaluationManagementServicer_to_server(servicer, server):
                     request_deserializer=workflow__pb2.EvaluationCandidateQuery.FromString,
                     response_serializer=workflow__pb2.EvaluationCandidateEvidence.SerializeToString,
             ),
+            'ListExecutions': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListExecutions,
+                    request_deserializer=workflow__pb2.EvaluationExecutionQuery.FromString,
+                    response_serializer=workflow__pb2.EvaluationExecutionPage.SerializeToString,
+            ),
+            'GetExecutionOutput': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetExecutionOutput,
+                    request_deserializer=workflow__pb2.EvaluationExecutionQuery.FromString,
+                    response_serializer=workflow__pb2.EvaluationExecutionOutput.SerializeToString,
+            ),
             'PreviewGates': grpc.unary_unary_rpc_method_handler(
                     servicer.PreviewGates,
                     request_deserializer=workflow__pb2.EvaluationGateQuery.FromString,
@@ -476,6 +526,33 @@ def add_EvaluationManagementServicer_to_server(servicer, server):
 class EvaluationManagement:
     """Trusted QS backend only. QS authorizes governance writes and candidate audit reads.
     """
+
+    @staticmethod
+    def GetCapacity(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.EvaluationManagement/GetCapacity',
+            workflow__pb2.PublicationScope.SerializeToString,
+            workflow__pb2.EvaluationCapacitySnapshot.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
 
     @staticmethod
     def List(request,
@@ -764,6 +841,60 @@ class EvaluationManagement:
             '/qsai.workflow.v1.EvaluationManagement/GetCandidate',
             workflow__pb2.EvaluationCandidateQuery.SerializeToString,
             workflow__pb2.EvaluationCandidateEvidence.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListExecutions(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.EvaluationManagement/ListExecutions',
+            workflow__pb2.EvaluationExecutionQuery.SerializeToString,
+            workflow__pb2.EvaluationExecutionPage.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetExecutionOutput(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.EvaluationManagement/GetExecutionOutput',
+            workflow__pb2.EvaluationExecutionQuery.SerializeToString,
+            workflow__pb2.EvaluationExecutionOutput.FromString,
             options,
             channel_credentials,
             insecure,
