@@ -140,3 +140,34 @@ async def test_active_limit_defers_work_and_lease_recovery_reuses_slot(kit, dime
     )
     saved = await reservations(kit)
     assert len(saved) == 2 and not any(r["active"] for r in saved)
+
+
+async def test_management_capacity_reads_scoped_limits_and_current_usage_without_mutation(kit):
+    from dataclasses import asdict
+    from datetime import UTC, datetime
+
+    from qs_ai.application.execution.management import ParticipantCapacityQuery
+    from qs_ai.application.governance.prompt_drafts import DraftScope
+    from qs_ai.contracts.workflow import workflow_pb2 as pb
+    from qs_ai.infrastructure.persistence.mysql.participant_management import (
+        MySQLParticipantCapacityReader,
+    )
+
+    policy = ParticipantCapacityPolicy()
+    service, store = services(kit, policy)
+    await start(kit, service)
+    await store.claim(60)
+    before = await reservations(kit)
+    reader = MySQLParticipantCapacityReader(kit.transactions, policy)
+    query = ParticipantCapacityQuery(DraftScope(1, 42), kit.actor.subject_id, "42")
+    result = await reader.get(query, datetime.now(UTC))
+    assert result.organization.daily_reserved == result.organization.active == 1
+    assert result.subject.daily_remaining == 4
+    assert result.assessment.daily_remaining == 2
+    assert result.assessment.active_remaining == 0
+    assert result.daily_reservations == result.active_reservations
+    assert pb.ParticipantCapacitySnapshot(**asdict(result)).subject.identity == kit.actor.subject_id
+    foreign = await reader.get(ParticipantCapacityQuery(DraftScope(2, 42)), datetime.now(UTC))
+    assert foreign.organization.daily_reserved == foreign.organization.active == 0
+    assert not foreign.daily_reservations and foreign.subject is None
+    assert await reservations(kit) == before

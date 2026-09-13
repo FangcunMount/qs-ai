@@ -19,6 +19,7 @@ func main() {
 		Plan                            app.EvaluationPlanQuery
 		Catalog                         app.EvaluationCatalogQuery
 		Executions                      app.ExecutionQuery
+		ParticipantCapacity             app.ParticipantCapacityQuery
 		Review                          app.EvaluationReview
 		UserID                          int64
 		OrgID, Version                  int64
@@ -32,11 +33,12 @@ func main() {
 	if json.NewDecoder(os.Stdin).Decode(&input) != nil {
 		os.Exit(2)
 	}
-	client, connection, err := infra.DialEvaluationManagement(os.Args[1], os.Args[2], os.Args[3], os.Args[4])
+	clients, err := infra.DialGovernance(os.Args[1], os.Args[2], os.Args[3], os.Args[4])
 	if err != nil {
 		os.Exit(3)
 	}
-	defer func() { _ = connection.Close() }()
+	defer func() { _ = clients.Connection.Close() }()
+	client := clients.Evaluation
 	snapshot := &authz.Snapshot{}
 	if input.Allowed {
 		snapshot.EffectiveRoles = []string{"qs:admin"}
@@ -53,9 +55,11 @@ func main() {
 	}
 	scope := app.EvaluationScope{RunID: input.RunID, OrganizationID: input.OrgID, OperatorUserID: input.UserID}
 	var result any
-	if input.Action == "capacity" {
-        result, err = service.Capacity(ctx, app.DraftScope{OrganizationID: input.OrgID, OperatorUserID: input.UserID})
-    } else if input.Action == "executions" {
+	if input.Action == "participant-capacity" {
+		result, err = (&app.ParticipantAdministration{Gateway: clients.Participants}).Capacity(ctx, app.DraftScope{OrganizationID: input.OrgID, OperatorUserID: input.UserID}, input.ParticipantCapacity)
+	} else if input.Action == "capacity" {
+		result, err = service.Capacity(ctx, app.DraftScope{OrganizationID: input.OrgID, OperatorUserID: input.UserID})
+	} else if input.Action == "executions" {
 		input.Executions.ExpectedVersion = input.Version
 		result, err = service.ListExecutions(ctx, scope, input.Executions)
 	} else if input.Action == "execution-output" {

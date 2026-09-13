@@ -2023,3 +2023,78 @@ class AssetCatalog:
             timeout,
             metadata,
             _registered_method=True)
+
+
+class ParticipantManagementStub:
+    """QS supplies current organization administrator authority over mTLS.
+    """
+
+    def __init__(self, channel):
+        """Constructor.
+
+        Args:
+            channel: A grpc.Channel.
+        """
+        self.GetCapacity = channel.unary_unary(
+                '/qsai.workflow.v1.ParticipantManagement/GetCapacity',
+                request_serializer=workflow__pb2.ParticipantCapacityQuery.SerializeToString,
+                response_deserializer=workflow__pb2.ParticipantCapacitySnapshot.FromString,
+                _registered_method=True)
+
+
+class ParticipantManagementServicer:
+    """QS supplies current organization administrator authority over mTLS.
+    """
+
+    def GetCapacity(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+
+def add_ParticipantManagementServicer_to_server(servicer, server):
+    rpc_method_handlers = {
+            'GetCapacity': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetCapacity,
+                    request_deserializer=workflow__pb2.ParticipantCapacityQuery.FromString,
+                    response_serializer=workflow__pb2.ParticipantCapacitySnapshot.SerializeToString,
+            ),
+    }
+    generic_handler = grpc.method_handlers_generic_handler(
+            'qsai.workflow.v1.ParticipantManagement', rpc_method_handlers)
+    server.add_generic_rpc_handlers((generic_handler,))
+    server.add_registered_method_handlers('qsai.workflow.v1.ParticipantManagement', rpc_method_handlers)
+
+
+ # This class is part of an EXPERIMENTAL API.
+class ParticipantManagement:
+    """QS supplies current organization administrator authority over mTLS.
+    """
+
+    @staticmethod
+    def GetCapacity(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.ParticipantManagement/GetCapacity',
+            workflow__pb2.ParticipantCapacityQuery.SerializeToString,
+            workflow__pb2.ParticipantCapacitySnapshot.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)

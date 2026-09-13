@@ -18,6 +18,7 @@ from qs_ai.infrastructure.workflow_transport.results import GRPCResultReceiver
 from qs_ai.transport.grpc.asset_catalog import AssetCatalogService
 from qs_ai.transport.grpc.commands import Commands
 from qs_ai.transport.grpc.evaluation import EvaluationManagement
+from qs_ai.transport.grpc.participant import ParticipantManagement
 from qs_ai.transport.grpc.profile_registration import ProfileManagement
 from qs_ai.transport.grpc.prompt_drafts import PromptDraftManagement
 from qs_ai.transport.grpc.publication import PublicationManagement
@@ -61,6 +62,9 @@ async def main() -> None:
                 )
                 rpc.add_PublicationManagementServicer_to_server(
                     PublicationManagement(container), server
+                )
+                rpc.add_ParticipantManagementServicer_to_server(
+                    ParticipantManagement(container), server
                 )
                 rpc.add_EvaluationManagementServicer_to_server(
                     EvaluationManagement(container), server

@@ -1035,3 +1035,87 @@ class EvaluationCapacitySnapshot(_message.Message):
     reservations: _containers.RepeatedCompositeFieldContainer[EvaluationCapacityReservation]
     reservations_truncated: bool
     def __init__(self, organization_id: _Optional[int] = ..., budget_day: _Optional[str] = ..., daily_provider_calls: _Optional[int] = ..., reserved_provider_calls: _Optional[int] = ..., remaining_provider_calls: _Optional[int] = ..., full_run_provider_calls: _Optional[int] = ..., remaining_full_runs: _Optional[int] = ..., max_active_runs: _Optional[int] = ..., active_runs: _Optional[int] = ..., reservation_count: _Optional[int] = ..., reservations: _Optional[_Iterable[_Union[EvaluationCapacityReservation, _Mapping]]] = ..., reservations_truncated: _Optional[bool] = ...) -> None: ...
+
+class ParticipantCapacityQuery(_message.Message):
+    __slots__ = ("scope", "subject_id", "assessment_id")
+    SCOPE_FIELD_NUMBER: _ClassVar[int]
+    SUBJECT_ID_FIELD_NUMBER: _ClassVar[int]
+    ASSESSMENT_ID_FIELD_NUMBER: _ClassVar[int]
+    scope: PublicationScope
+    subject_id: str
+    assessment_id: str
+    def __init__(self, scope: _Optional[_Union[PublicationScope, _Mapping]] = ..., subject_id: _Optional[str] = ..., assessment_id: _Optional[str] = ...) -> None: ...
+
+class ParticipantCapacityPolicy(_message.Message):
+    __slots__ = ("daily_org", "daily_user", "daily_assessment", "active_org", "active_user", "active_assessment")
+    DAILY_ORG_FIELD_NUMBER: _ClassVar[int]
+    DAILY_USER_FIELD_NUMBER: _ClassVar[int]
+    DAILY_ASSESSMENT_FIELD_NUMBER: _ClassVar[int]
+    ACTIVE_ORG_FIELD_NUMBER: _ClassVar[int]
+    ACTIVE_USER_FIELD_NUMBER: _ClassVar[int]
+    ACTIVE_ASSESSMENT_FIELD_NUMBER: _ClassVar[int]
+    daily_org: int
+    daily_user: int
+    daily_assessment: int
+    active_org: int
+    active_user: int
+    active_assessment: int
+    def __init__(self, daily_org: _Optional[int] = ..., daily_user: _Optional[int] = ..., daily_assessment: _Optional[int] = ..., active_org: _Optional[int] = ..., active_user: _Optional[int] = ..., active_assessment: _Optional[int] = ...) -> None: ...
+
+class ParticipantCapacityUsage(_message.Message):
+    __slots__ = ("identity", "daily_reserved", "daily_remaining", "active", "active_remaining")
+    IDENTITY_FIELD_NUMBER: _ClassVar[int]
+    DAILY_RESERVED_FIELD_NUMBER: _ClassVar[int]
+    DAILY_REMAINING_FIELD_NUMBER: _ClassVar[int]
+    ACTIVE_FIELD_NUMBER: _ClassVar[int]
+    ACTIVE_REMAINING_FIELD_NUMBER: _ClassVar[int]
+    identity: str
+    daily_reserved: int
+    daily_remaining: int
+    active: int
+    active_remaining: int
+    def __init__(self, identity: _Optional[str] = ..., daily_reserved: _Optional[int] = ..., daily_remaining: _Optional[int] = ..., active: _Optional[int] = ..., active_remaining: _Optional[int] = ...) -> None: ...
+
+class ParticipantReservation(_message.Message):
+    __slots__ = ("run_id", "session_id", "subject_id", "assessment_ids", "budget_day", "reserved_at", "active", "acquired_at")
+    RUN_ID_FIELD_NUMBER: _ClassVar[int]
+    SESSION_ID_FIELD_NUMBER: _ClassVar[int]
+    SUBJECT_ID_FIELD_NUMBER: _ClassVar[int]
+    ASSESSMENT_IDS_FIELD_NUMBER: _ClassVar[int]
+    BUDGET_DAY_FIELD_NUMBER: _ClassVar[int]
+    RESERVED_AT_FIELD_NUMBER: _ClassVar[int]
+    ACTIVE_FIELD_NUMBER: _ClassVar[int]
+    ACQUIRED_AT_FIELD_NUMBER: _ClassVar[int]
+    run_id: str
+    session_id: str
+    subject_id: str
+    assessment_ids: _containers.RepeatedScalarFieldContainer[str]
+    budget_day: str
+    reserved_at: str
+    active: bool
+    acquired_at: str
+    def __init__(self, run_id: _Optional[str] = ..., session_id: _Optional[str] = ..., subject_id: _Optional[str] = ..., assessment_ids: _Optional[_Iterable[str]] = ..., budget_day: _Optional[str] = ..., reserved_at: _Optional[str] = ..., active: _Optional[bool] = ..., acquired_at: _Optional[str] = ...) -> None: ...
+
+class ParticipantCapacitySnapshot(_message.Message):
+    __slots__ = ("organization_id", "budget_day", "policy", "organization", "subject", "assessment", "daily_reservations", "active_reservations", "daily_truncated", "active_truncated")
+    ORGANIZATION_ID_FIELD_NUMBER: _ClassVar[int]
+    BUDGET_DAY_FIELD_NUMBER: _ClassVar[int]
+    POLICY_FIELD_NUMBER: _ClassVar[int]
+    ORGANIZATION_FIELD_NUMBER: _ClassVar[int]
+    SUBJECT_FIELD_NUMBER: _ClassVar[int]
+    ASSESSMENT_FIELD_NUMBER: _ClassVar[int]
+    DAILY_RESERVATIONS_FIELD_NUMBER: _ClassVar[int]
+    ACTIVE_RESERVATIONS_FIELD_NUMBER: _ClassVar[int]
+    DAILY_TRUNCATED_FIELD_NUMBER: _ClassVar[int]
+    ACTIVE_TRUNCATED_FIELD_NUMBER: _ClassVar[int]
+    organization_id: int
+    budget_day: str
+    policy: ParticipantCapacityPolicy
+    organization: ParticipantCapacityUsage
+    subject: ParticipantCapacityUsage
+    assessment: ParticipantCapacityUsage
+    daily_reservations: _containers.RepeatedCompositeFieldContainer[ParticipantReservation]
+    active_reservations: _containers.RepeatedCompositeFieldContainer[ParticipantReservation]
+    daily_truncated: bool
+    active_truncated: bool
+    def __init__(self, organization_id: _Optional[int] = ..., budget_day: _Optional[str] = ..., policy: _Optional[_Union[ParticipantCapacityPolicy, _Mapping]] = ..., organization: _Optional[_Union[ParticipantCapacityUsage, _Mapping]] = ..., subject: _Optional[_Union[ParticipantCapacityUsage, _Mapping]] = ..., assessment: _Optional[_Union[ParticipantCapacityUsage, _Mapping]] = ..., daily_reservations: _Optional[_Iterable[_Union[ParticipantReservation, _Mapping]]] = ..., active_reservations: _Optional[_Iterable[_Union[ParticipantReservation, _Mapping]]] = ..., daily_truncated: _Optional[bool] = ..., active_truncated: _Optional[bool] = ...) -> None: ...
