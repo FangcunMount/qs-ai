@@ -54,7 +54,7 @@ assessment-lifecycle 是共享 Topic：不能清空/删除。先停旧生产者�
 
 ## 已准备，尚未生产执行
 
-- QS 报告来源迁到 reportsource，桥接和原引擎共用同一事实实现，相关 Go 测试及文档校验通过。
+- QS 报告来源迁到 reportsource，新桥接独立读取；后续删除批次已移除旧引擎、治理与参与者旧接口、Worker/事件/恢复器，通信配置独立为 ai_workflow，移除模型密钥注入。
 - Operating 删除未挂载的旧治理实现；245 项相关测试、类型、lint 和生产构建通过。
 - 小程序使用 requestId 和 v3 指针，v2 新链路 UUID 经写入回读验证后升级，保留幂等和账号隔离；完整前端校验通过。
 - qs-ai 删除独立 HTTP 会话入口和 LangGraph 样板，生产 LeaseLost 迁入 execution.errors；执行租约原样迁名，保留当前模型回执和业务恢复验证。
@@ -73,4 +73,12 @@ assessment-lifecycle 是共享 Topic：不能清空/删除。先停旧生产者�
 
 本批草稿：[QS 报告事实迁出](https://github.com/FangcunMount/qs-server/pull/110)、[qs-ai 样板退役](https://github.com/FangcunMount/qs-ai/pull/86)、[Operating 旧工作区删除](https://github.com/FangcunMount/qs-operating-system/pull/35)、[小程序请求身份升级](https://github.com/FangcunMount/qs-collection-system/pull/2)。均未合并发布。
 
-剩余代码批次：强制发布快照与评测清单、资产与互操作收敛、QS 引擎/协议/调度/配置删除，以及定向清理工具。生产阶段另缺真实管理员与授权测评验收入口；未操作生产数据库、开关或备份。
+剩余代码批次：强制发布快照与评测清单、资产与互操作收敛，以及定向清理工具。QS 代码退役已在专属分支准备，发布前必须先定向排空六类旧事件。生产阶段另缺真实管理员与授权测评验收入口；未操作生产数据库、开关或备份。
+
+## QS 后续删除批次（2026-09-14）
+
+QS PR 110 已更新至 `af78e8f93611d932bc41f469d08800fe2263f44e`（业务源码 `9a470c83449866fea6f1a0520cc3544144f4020a`）。旧核心源码不再参与编译，新参与者服务保留三条 workflow RPC；旧 REST 返回 404。历史迁移和当前输出契约保留，旧 Prompt 文件暂作为迁移参考，不再编入运行时。
+
+本机验证：全仓 350 个有测试的 Go 包通过；新桥接/来源/授权相关七组包的 race 测试通过；全部 integration-tag 包编译通过；三个服务构建、部署包、actionlint、Tier 1、生成 API 对账和文档门禁通过。当前注册为 14 类事件、100 条 RPC、7 个 apiserver scheduler。远端 CI 已触发，尚未将其记为成功。没有合并、部署或操作生产数据。
+
+qs-ai 的 CI 仍分别固定旧 QS 快照做桥接、成果和管理互操作，部分迁移比对还编译旧 Prompt/验证器。需要把这些旧引擎比对转为原始资产与固定基准验证，并让新协议互操作使用退役后的 QS 版本；不能只删环境变量让测试跳过，也不能把原资产来源 SHA 改成新的仓库 SHA。
