@@ -60,3 +60,17 @@ assessment-lifecycle 是共享 Topic：不能清空/删除。先停旧生产者�
 - qs-ai 删除独立 HTTP 会话入口和 LangGraph 样板，生产 LeaseLost 迁入 execution.errors；执行租约原样迁名，保留当前模型回执和业务恢复验证。
 
 上述准备不代表管理/生成/微信实机验收，也未删除生产数据。
+
+## 本批验证与审核
+
+2026-09-13，本机独立测试数据库（测试后已移除）：
+
+- 清除框架依赖后，非集成测试 986 项通过，3 项环境跳过。
+- MySQL 8.4：完整非 interop 回归 1460 项通过，3 项环境跳过，53 项跨语言测试由 CI 单独执行；新增租约迁移及健康检查另补跑 4 项通过。
+- MySQL 8.0.36：空库升级、结构对账及 31 项执行/恢复/成果/重试/有数据迁移测试通过。
+- ruff、mypy、两套协议生成、文档校验通过。
+- 两个前端草稿 PR 的 CI 通过。QS 文档基线漂移已修正，本地文档门禁通过；QS 和 AI 后续 CI 结果以对应提交为准，不在此预记为通过。
+
+本批草稿：[QS 报告事实迁出](https://github.com/FangcunMount/qs-server/pull/110)、[qs-ai 样板退役](https://github.com/FangcunMount/qs-ai/pull/86)、[Operating 旧工作区删除](https://github.com/FangcunMount/qs-operating-system/pull/35)、[小程序请求身份升级](https://github.com/FangcunMount/qs-collection-system/pull/2)。均未合并发布。
+
+剩余代码批次：强制发布快照与评测清单、资产与互操作收敛、QS 引擎/协议/调度/配置删除，以及定向清理工具。生产阶段另缺真实管理员与授权测评验收入口；未操作生产数据库、开关或备份。
