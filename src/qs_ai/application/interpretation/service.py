@@ -226,7 +226,16 @@ class InterpretationService:
                 session.workflow_version = "qs-published-snapshot-v1"
                 await uow.bind_configuration(session, frozen)
             await uow.bind_request(session.id, request_id)
-            await uow.enqueue(session, None, False, None)
+            try:
+                await uow.enqueue(session, None, False, None)
+            except RuleViolation as error:
+                if error.code != "participant_daily_capacity_exceeded":
+                    raise
+                # QS has durably accepted an asynchronous request. Persist a known
+                # blocked result, so relaying the original ID cannot later start it.
+                session.running()
+                session.block(error.code)
+                await uow.reject_run(session)
             await uow.save(session)
             receipt = Receipt(session.id, session.active_run_id, session.status, session.version)
             await uow.receipt(scope, request_id, receipt)

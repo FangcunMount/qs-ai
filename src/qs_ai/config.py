@@ -36,10 +36,21 @@ class LoopOptions(Options):
 
 class EvaluationOptions(LoopOptions):
     enabled: bool
+    daily_provider_calls: int = Field(ge=1)
+    max_active_runs: int = Field(ge=1)
 
 
 class WorkerOptions(LoopOptions):
     lease_seconds: int = Field(ge=3)
+
+
+class ParticipantCapacityOptions(Options):
+    daily_org: int = Field(ge=1)
+    daily_user: int = Field(ge=1)
+    daily_assessment: int = Field(ge=1)
+    active_org: int = Field(ge=1)
+    active_user: int = Field(ge=1)
+    active_assessment: int = Field(ge=1)
 
 
 class GenerationOptions(Options):
@@ -121,6 +132,7 @@ class Settings(BaseSettings):
     environment: Literal["local", "production"] = "local"
     database_url: SecretStr | None = None
     model_api_key: SecretStr | None = None
+    participant_capacity: ParticipantCapacityOptions
     generation: GenerationOptions
     http: HTTPOptions
     database: DatabaseOptions

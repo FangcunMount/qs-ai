@@ -1,9 +1,13 @@
 from dishka import Provider, Scope, provide
 
+from qs_ai.application.evaluation.capacity import EvaluationCapacityPolicy, EvaluationCapacityReader
+from qs_ai.application.evaluation.catalog import EvaluationCatalog
+from qs_ai.application.evaluation.diagnostics import EvaluationDiagnostics
 from qs_ai.application.evaluation.management import EvaluationManagementStore
 from qs_ai.application.evaluation.planning import EvaluationPlanner
 from qs_ai.application.evaluation.requests import EvaluationRequests
 from qs_ai.application.governance.asset_catalog import AssetCatalog
+from qs_ai.application.governance.profile_lifecycle import ProfileLifecycleReader
 from qs_ai.application.governance.profile_registration import ProfileRegistrar
 from qs_ai.application.governance.prompt_drafts import PromptDraftStore
 from qs_ai.application.governance.prompt_freeze import PromptFreezer
@@ -18,11 +22,15 @@ from qs_ai.application.integration.events import (
 from qs_ai.config import Settings
 from qs_ai.infrastructure.persistence.mysql.asset_catalog import MySQLAssetCatalog
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
+from qs_ai.infrastructure.persistence.mysql.evaluation_capacity import MySQLEvaluationCapacity
+from qs_ai.infrastructure.persistence.mysql.evaluation_catalog import MySQLEvaluationCatalog
+from qs_ai.infrastructure.persistence.mysql.evaluation_diagnostics import MySQLEvaluationDiagnostics
 from qs_ai.infrastructure.persistence.mysql.evaluation_management import MySQLEvaluationManagement
 from qs_ai.infrastructure.persistence.mysql.evaluation_planning import MySQLEvaluationPlanner
 from qs_ai.infrastructure.persistence.mysql.evaluation_requests import MySQLEvaluationRequests
 from qs_ai.infrastructure.persistence.mysql.evaluation_runs import MySQLRunCreator
 from qs_ai.infrastructure.persistence.mysql.evaluation_suites import MySQLSuiteRegistrar
+from qs_ai.infrastructure.persistence.mysql.profile_lifecycle import MySQLProfileLifecycle
 from qs_ai.infrastructure.persistence.mysql.profile_registrations import MySQLProfileRegistrar
 from qs_ai.infrastructure.persistence.mysql.prompt_drafts import MySQLPromptDrafts
 from qs_ai.infrastructure.persistence.mysql.prompt_freezes import MySQLPromptFreezer
@@ -33,8 +41,17 @@ from qs_ai.infrastructure.workflow_transport.results import UnconfiguredReceiver
 
 
 class IntegrationProvider(Provider):
+    @provide(scope=Scope.APP)
+    def evaluation_capacity_policy(self, settings: Settings) -> EvaluationCapacityPolicy:
+        return EvaluationCapacityPolicy(
+            settings.evaluation.daily_provider_calls, settings.evaluation.max_active_runs
+        )
+
     prompt_lifecycle = provide(
         MySQLPromptLifecycleReader, provides=PromptLifecycleReader, scope=Scope.REQUEST
+    )
+    profile_lifecycle = provide(
+        MySQLProfileLifecycle, provides=ProfileLifecycleReader, scope=Scope.REQUEST
     )
     asset_catalog = provide(MySQLAssetCatalog, provides=AssetCatalog, scope=Scope.REQUEST)
     evaluation_planner = provide(
@@ -50,6 +67,15 @@ class IntegrationProvider(Provider):
     run_creator = provide(MySQLRunCreator, scope=Scope.REQUEST)
     evaluation_requests = provide(
         MySQLEvaluationRequests, provides=EvaluationRequests, scope=Scope.REQUEST
+    )
+    evaluation_capacity = provide(
+        MySQLEvaluationCapacity, provides=EvaluationCapacityReader, scope=Scope.REQUEST
+    )
+    evaluation_catalog = provide(
+        MySQLEvaluationCatalog, provides=EvaluationCatalog, scope=Scope.REQUEST
+    )
+    evaluation_diagnostics = provide(
+        MySQLEvaluationDiagnostics, provides=EvaluationDiagnostics, scope=Scope.REQUEST
     )
     evaluation_management = provide(
         MySQLEvaluationManagement, provides=EvaluationManagementStore, scope=Scope.REQUEST

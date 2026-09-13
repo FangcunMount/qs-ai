@@ -222,6 +222,16 @@ class EvaluationManagementStub:
         Args:
             channel: A grpc.Channel.
         """
+        self.GetCapacity = channel.unary_unary(
+                '/qsai.workflow.v1.EvaluationManagement/GetCapacity',
+                request_serializer=workflow__pb2.PublicationScope.SerializeToString,
+                response_deserializer=workflow__pb2.EvaluationCapacitySnapshot.FromString,
+                _registered_method=True)
+        self.List = channel.unary_unary(
+                '/qsai.workflow.v1.EvaluationManagement/List',
+                request_serializer=workflow__pb2.EvaluationCatalogQuery.SerializeToString,
+                response_deserializer=workflow__pb2.EvaluationCatalogPage.FromString,
+                _registered_method=True)
         self.Prepare = channel.unary_unary(
                 '/qsai.workflow.v1.EvaluationManagement/Prepare',
                 request_serializer=workflow__pb2.EvaluationPlanQuery.SerializeToString,
@@ -272,6 +282,16 @@ class EvaluationManagementStub:
                 request_serializer=workflow__pb2.EvaluationCandidateQuery.SerializeToString,
                 response_deserializer=workflow__pb2.EvaluationCandidateEvidence.FromString,
                 _registered_method=True)
+        self.ListExecutions = channel.unary_unary(
+                '/qsai.workflow.v1.EvaluationManagement/ListExecutions',
+                request_serializer=workflow__pb2.EvaluationExecutionQuery.SerializeToString,
+                response_deserializer=workflow__pb2.EvaluationExecutionPage.FromString,
+                _registered_method=True)
+        self.GetExecutionOutput = channel.unary_unary(
+                '/qsai.workflow.v1.EvaluationManagement/GetExecutionOutput',
+                request_serializer=workflow__pb2.EvaluationExecutionQuery.SerializeToString,
+                response_deserializer=workflow__pb2.EvaluationExecutionOutput.FromString,
+                _registered_method=True)
         self.PreviewGates = channel.unary_unary(
                 '/qsai.workflow.v1.EvaluationManagement/PreviewGates',
                 request_serializer=workflow__pb2.EvaluationGateQuery.SerializeToString,
@@ -292,6 +312,20 @@ class EvaluationManagementStub:
 class EvaluationManagementServicer:
     """Trusted QS backend only. QS authorizes governance writes and candidate audit reads.
     """
+
+    def GetCapacity(self, request, context):
+        """Current organization daily reservation and active-run usage; read only.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def List(self, request, context):
+        """Organization-scoped summary pages; never schedules work or authorizes mutations.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
 
     def Prepare(self, request, context):
         """Resolve all eleven immutable references and policy budgets; no creation or scheduling.
@@ -359,6 +393,19 @@ class EvaluationManagementServicer:
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def ListExecutions(self, request, context):
+        """Read original execution evidence, including failures without candidates. Never retries.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetExecutionOutput(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def PreviewGates(self, request, context):
         """Read-only complete gate preview; does not approve the Run or publish a release.
         """
@@ -383,6 +430,16 @@ class EvaluationManagementServicer:
 
 def add_EvaluationManagementServicer_to_server(servicer, server):
     rpc_method_handlers = {
+            'GetCapacity': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetCapacity,
+                    request_deserializer=workflow__pb2.PublicationScope.FromString,
+                    response_serializer=workflow__pb2.EvaluationCapacitySnapshot.SerializeToString,
+            ),
+            'List': grpc.unary_unary_rpc_method_handler(
+                    servicer.List,
+                    request_deserializer=workflow__pb2.EvaluationCatalogQuery.FromString,
+                    response_serializer=workflow__pb2.EvaluationCatalogPage.SerializeToString,
+            ),
             'Prepare': grpc.unary_unary_rpc_method_handler(
                     servicer.Prepare,
                     request_deserializer=workflow__pb2.EvaluationPlanQuery.FromString,
@@ -433,6 +490,16 @@ def add_EvaluationManagementServicer_to_server(servicer, server):
                     request_deserializer=workflow__pb2.EvaluationCandidateQuery.FromString,
                     response_serializer=workflow__pb2.EvaluationCandidateEvidence.SerializeToString,
             ),
+            'ListExecutions': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListExecutions,
+                    request_deserializer=workflow__pb2.EvaluationExecutionQuery.FromString,
+                    response_serializer=workflow__pb2.EvaluationExecutionPage.SerializeToString,
+            ),
+            'GetExecutionOutput': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetExecutionOutput,
+                    request_deserializer=workflow__pb2.EvaluationExecutionQuery.FromString,
+                    response_serializer=workflow__pb2.EvaluationExecutionOutput.SerializeToString,
+            ),
             'PreviewGates': grpc.unary_unary_rpc_method_handler(
                     servicer.PreviewGates,
                     request_deserializer=workflow__pb2.EvaluationGateQuery.FromString,
@@ -459,6 +526,60 @@ def add_EvaluationManagementServicer_to_server(servicer, server):
 class EvaluationManagement:
     """Trusted QS backend only. QS authorizes governance writes and candidate audit reads.
     """
+
+    @staticmethod
+    def GetCapacity(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.EvaluationManagement/GetCapacity',
+            workflow__pb2.PublicationScope.SerializeToString,
+            workflow__pb2.EvaluationCapacitySnapshot.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def List(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.EvaluationManagement/List',
+            workflow__pb2.EvaluationCatalogQuery.SerializeToString,
+            workflow__pb2.EvaluationCatalogPage.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
 
     @staticmethod
     def Prepare(request,
@@ -720,6 +841,60 @@ class EvaluationManagement:
             '/qsai.workflow.v1.EvaluationManagement/GetCandidate',
             workflow__pb2.EvaluationCandidateQuery.SerializeToString,
             workflow__pb2.EvaluationCandidateEvidence.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListExecutions(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.EvaluationManagement/ListExecutions',
+            workflow__pb2.EvaluationExecutionQuery.SerializeToString,
+            workflow__pb2.EvaluationExecutionPage.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetExecutionOutput(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.EvaluationManagement/GetExecutionOutput',
+            workflow__pb2.EvaluationExecutionQuery.SerializeToString,
+            workflow__pb2.EvaluationExecutionOutput.FromString,
             options,
             channel_credentials,
             insecure,
@@ -1511,6 +1686,16 @@ class ProfileManagementStub:
                 request_serializer=workflow__pb2.ProfileRegistrationQuery.SerializeToString,
                 response_deserializer=workflow__pb2.ProfileRegistrationReceipt.FromString,
                 _registered_method=True)
+        self.ListLifecycle = channel.unary_unary(
+                '/qsai.workflow.v1.ProfileManagement/ListLifecycle',
+                request_serializer=workflow__pb2.ProfileLifecycleQuery.SerializeToString,
+                response_deserializer=workflow__pb2.AssetCatalogResponse.FromString,
+                _registered_method=True)
+        self.GetLifecycle = channel.unary_unary(
+                '/qsai.workflow.v1.ProfileManagement/GetLifecycle',
+                request_serializer=workflow__pb2.ProfileLifecycleQuery.SerializeToString,
+                response_deserializer=workflow__pb2.AssetCatalogResponse.FromString,
+                _registered_method=True)
 
 
 class ProfileManagementServicer:
@@ -1530,6 +1715,18 @@ class ProfileManagementServicer:
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def ListLifecycle(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetLifecycle(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_ProfileManagementServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -1542,6 +1739,16 @@ def add_ProfileManagementServicer_to_server(servicer, server):
                     servicer.GetReceipt,
                     request_deserializer=workflow__pb2.ProfileRegistrationQuery.FromString,
                     response_serializer=workflow__pb2.ProfileRegistrationReceipt.SerializeToString,
+            ),
+            'ListLifecycle': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListLifecycle,
+                    request_deserializer=workflow__pb2.ProfileLifecycleQuery.FromString,
+                    response_serializer=workflow__pb2.AssetCatalogResponse.SerializeToString,
+            ),
+            'GetLifecycle': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetLifecycle,
+                    request_deserializer=workflow__pb2.ProfileLifecycleQuery.FromString,
+                    response_serializer=workflow__pb2.AssetCatalogResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -1600,6 +1807,60 @@ class ProfileManagement:
             '/qsai.workflow.v1.ProfileManagement/GetReceipt',
             workflow__pb2.ProfileRegistrationQuery.SerializeToString,
             workflow__pb2.ProfileRegistrationReceipt.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListLifecycle(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.ProfileManagement/ListLifecycle',
+            workflow__pb2.ProfileLifecycleQuery.SerializeToString,
+            workflow__pb2.AssetCatalogResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetLifecycle(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.ProfileManagement/GetLifecycle',
+            workflow__pb2.ProfileLifecycleQuery.SerializeToString,
+            workflow__pb2.AssetCatalogResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -1839,6 +2100,210 @@ class AssetCatalog:
             '/qsai.workflow.v1.AssetCatalog/Get',
             workflow__pb2.AssetCatalogGetQuery.SerializeToString,
             workflow__pb2.AssetCatalogResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+
+class ParticipantManagementStub:
+    """QS supplies current organization administrator authority over mTLS.
+    """
+
+    def __init__(self, channel):
+        """Constructor.
+
+        Args:
+            channel: A grpc.Channel.
+        """
+        self.GetCapacity = channel.unary_unary(
+                '/qsai.workflow.v1.ParticipantManagement/GetCapacity',
+                request_serializer=workflow__pb2.ParticipantCapacityQuery.SerializeToString,
+                response_deserializer=workflow__pb2.ParticipantCapacitySnapshot.FromString,
+                _registered_method=True)
+        self.GetExecution = channel.unary_unary(
+                '/qsai.workflow.v1.ParticipantManagement/GetExecution',
+                request_serializer=workflow__pb2.ParticipantExecutionQuery.SerializeToString,
+                response_deserializer=workflow__pb2.ParticipantExecution.FromString,
+                _registered_method=True)
+        self.Retry = channel.unary_unary(
+                '/qsai.workflow.v1.ParticipantManagement/Retry',
+                request_serializer=workflow__pb2.ParticipantRetryCommand.SerializeToString,
+                response_deserializer=workflow__pb2.Receipt.FromString,
+                _registered_method=True)
+        self.GetRetryReceipt = channel.unary_unary(
+                '/qsai.workflow.v1.ParticipantManagement/GetRetryReceipt',
+                request_serializer=workflow__pb2.ParticipantRetryReceiptQuery.SerializeToString,
+                response_deserializer=workflow__pb2.Receipt.FromString,
+                _registered_method=True)
+
+
+class ParticipantManagementServicer:
+    """QS supplies current organization administrator authority over mTLS.
+    """
+
+    def GetCapacity(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetExecution(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def Retry(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetRetryReceipt(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+
+def add_ParticipantManagementServicer_to_server(servicer, server):
+    rpc_method_handlers = {
+            'GetCapacity': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetCapacity,
+                    request_deserializer=workflow__pb2.ParticipantCapacityQuery.FromString,
+                    response_serializer=workflow__pb2.ParticipantCapacitySnapshot.SerializeToString,
+            ),
+            'GetExecution': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetExecution,
+                    request_deserializer=workflow__pb2.ParticipantExecutionQuery.FromString,
+                    response_serializer=workflow__pb2.ParticipantExecution.SerializeToString,
+            ),
+            'Retry': grpc.unary_unary_rpc_method_handler(
+                    servicer.Retry,
+                    request_deserializer=workflow__pb2.ParticipantRetryCommand.FromString,
+                    response_serializer=workflow__pb2.Receipt.SerializeToString,
+            ),
+            'GetRetryReceipt': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetRetryReceipt,
+                    request_deserializer=workflow__pb2.ParticipantRetryReceiptQuery.FromString,
+                    response_serializer=workflow__pb2.Receipt.SerializeToString,
+            ),
+    }
+    generic_handler = grpc.method_handlers_generic_handler(
+            'qsai.workflow.v1.ParticipantManagement', rpc_method_handlers)
+    server.add_generic_rpc_handlers((generic_handler,))
+    server.add_registered_method_handlers('qsai.workflow.v1.ParticipantManagement', rpc_method_handlers)
+
+
+ # This class is part of an EXPERIMENTAL API.
+class ParticipantManagement:
+    """QS supplies current organization administrator authority over mTLS.
+    """
+
+    @staticmethod
+    def GetCapacity(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.ParticipantManagement/GetCapacity',
+            workflow__pb2.ParticipantCapacityQuery.SerializeToString,
+            workflow__pb2.ParticipantCapacitySnapshot.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetExecution(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.ParticipantManagement/GetExecution',
+            workflow__pb2.ParticipantExecutionQuery.SerializeToString,
+            workflow__pb2.ParticipantExecution.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def Retry(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.ParticipantManagement/Retry',
+            workflow__pb2.ParticipantRetryCommand.SerializeToString,
+            workflow__pb2.Receipt.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetRetryReceipt(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.ParticipantManagement/GetRetryReceipt',
+            workflow__pb2.ParticipantRetryReceiptQuery.SerializeToString,
+            workflow__pb2.Receipt.FromString,
             options,
             channel_credentials,
             insecure,

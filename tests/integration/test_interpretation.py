@@ -34,6 +34,8 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
     jobs,
     leases,
     model_calls,
+    participant_capacity_reservations,
+    participant_retries,
     questions,
     result_outbox,
     runs,
@@ -101,6 +103,8 @@ async def kit():
                 )
             )
             for table in (
+                participant_retries,
+                participant_capacity_reservations,
                 execution_configurations,
                 result_outbox,
                 external_requests,

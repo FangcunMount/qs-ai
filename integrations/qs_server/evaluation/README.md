@@ -1,5 +1,7 @@
 # QS 评测资源基线
 
+2026-09-13 集中发布说明：评测执行、持久管理、原生套件和后台入口已进入 M3/M4 审核包；下方早期“尚未实现”文字保留为分阶段记录，当前实现与验收以 [管理对照](../../../docs/m3-management-parity.md) 为准。生产语义路线已经只读核对为 `semantic_judge_v1/v5`，并作为可选评测依赖加入固定路线导入，操作见 [集中发布配置](../../../docs/deployment-verification.md#m3m4-集中发布配置)。套件登记、资源导入和 CI 通过均不代表生产模型或管理闭环已验收。
+
 本目录保留六版用例集、两版语义评测模板原 Markdown、语义输出规范、两份策略规范，以及从 QS Go 函数直接导出的执行/门槛策略。固定来源提交与各文件校验和见 manifest.json。来源是本任务独立且干净的 QS worktree，不读取其他任务未提交改动。
 
 `policies.json` 的 definition_json 保留 Go 序列化字节和原 fingerprint；当前执行策略 release-evaluation-bounded-recovery/v2、门槛策略 release-gates/v2。策略 Schema 的 v1 与策略实例的 v2 是不同版本维度，不能混淆。两份实例通过原策略 Schema 验证。

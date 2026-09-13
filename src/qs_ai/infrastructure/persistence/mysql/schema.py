@@ -261,6 +261,7 @@ evaluation_runs = sa.Table(
     sa.Column("requested_by", sa.String(128, collation="utf8mb4_bin"), nullable=False),
     sa.Column("definition_json", mysql.LONGTEXT, nullable=False),
     sa.Column("progress_json", mysql.JSON, nullable=True),
+    sa.Index("ix_evaluation_runs_organization", "organization_id"),
     mysql_engine="InnoDB",
     mysql_charset="utf8mb4",
 )
@@ -450,6 +451,77 @@ evaluation_suites = sa.Table(
     sa.Column("operator_user_id", sa.BigInteger, nullable=False),
     sa.Column("receipt_json", mysql.LONGTEXT, nullable=False),
     sa.Column("receipt_sha256", sa.CHAR(64), nullable=False),
+    mysql_engine="InnoDB",
+    mysql_charset="utf8mb4",
+)
+
+# Organization locks serialize admission across processes and UTC-day boundaries.
+evaluation_admission_locks = sa.Table(
+    "evaluation_admission_locks",
+    metadata,
+    sa.Column("organization_id", EXTERNAL_ID, primary_key=True),
+    mysql_engine="InnoDB",
+    mysql_charset="utf8mb4",
+)
+evaluation_capacity_reservations = sa.Table(
+    "evaluation_capacity_reservations",
+    metadata,
+    sa.Column("run_id", ID, primary_key=True),
+    sa.Column("organization_id", EXTERNAL_ID, nullable=False),
+    sa.Column("budget_day", sa.Date, nullable=False),
+    sa.Column("provider_calls", sa.Integer, nullable=False),
+    sa.Column("daily_limit", sa.Integer, nullable=False),
+    sa.Column("requested_by", sa.String(128), nullable=False),
+    sa.Column("reserved_at", mysql.DATETIME(fsp=6), nullable=False),
+    sa.Index("ix_evaluation_capacity_day", "organization_id", "budget_day"),
+    mysql_engine="InnoDB",
+    mysql_charset="utf8mb4",
+)
+
+participant_admission_locks = sa.Table(
+    "participant_admission_locks",
+    metadata,
+    sa.Column("organization_id", EXTERNAL_ID, primary_key=True),
+    mysql_engine="InnoDB",
+    mysql_charset="utf8mb4",
+)
+participant_capacity_reservations = sa.Table(
+    "participant_capacity_reservations",
+    metadata,
+    sa.Column("run_id", ID, primary_key=True),
+    sa.Column("session_id", ID, nullable=False),
+    sa.Column("organization_id", EXTERNAL_ID, nullable=False),
+    sa.Column("subject_id", sa.String(128, collation="utf8mb4_bin"), nullable=False),
+    sa.Column("assessment_ids", sa.JSON, nullable=False),
+    sa.Column("budget_day", sa.Date, nullable=False),
+    sa.Column("reserved_at", mysql.DATETIME(fsp=6), nullable=False),
+    sa.Column("active", sa.Boolean, nullable=False),
+    sa.Column("acquired_at", mysql.DATETIME(fsp=6)),
+    sa.Column("released_at", mysql.DATETIME(fsp=6)),
+    sa.Index("ix_participant_capacity_day", "organization_id", "budget_day"),
+    sa.Index("ix_participant_capacity_active", "organization_id", "active"),
+    mysql_engine="InnoDB",
+    mysql_charset="utf8mb4",
+)
+
+participant_retries = sa.Table(
+    "participant_retries",
+    metadata,
+    sa.Column("organization_id", EXTERNAL_ID, primary_key=True),
+    sa.Column("command_id", ID, primary_key=True),
+    sa.Column("session_id", ID, nullable=False),
+    sa.Column("request_id", ID, nullable=False),
+    sa.Column("source_run_id", ID, nullable=False, unique=True),
+    sa.Column("run_id", ID, nullable=False, unique=True),
+    sa.Column("operator_user_id", EXTERNAL_ID, nullable=False),
+    sa.Column("expected_version", sa.Integer, nullable=False),
+    sa.Column("reason", sa.Text, nullable=False),
+    sa.Column("accepted_unknown_risk", sa.Boolean, nullable=False),
+    sa.Column("source_failure_code", sa.String(64)),
+    sa.Column("frozen_request_json", mysql.LONGTEXT),
+    sa.Column("receipt", sa.JSON, nullable=False),
+    sa.Column("created_at", mysql.DATETIME(fsp=6), server_default=sa.text("CURRENT_TIMESTAMP(6)")),
+    sa.Index("ix_participant_retry_session", "session_id"),
     mysql_engine="InnoDB",
     mysql_charset="utf8mb4",
 )

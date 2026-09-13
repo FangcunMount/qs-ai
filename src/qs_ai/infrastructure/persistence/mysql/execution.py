@@ -1,6 +1,7 @@
 import hashlib
 import json
 from dataclasses import asdict, replace
+from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
@@ -10,6 +11,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.functions import Function
 
 from qs_ai.application.execution.artifact import build_artifact
+from qs_ai.application.execution.capacity import (
+    DEFAULT_PARTICIPANT_CAPACITY,
+    ParticipantCapacityPolicy,
+)
 from qs_ai.application.execution.configuration import ConfigurationUnavailable
 from qs_ai.application.execution.generation import GeneratedExplanation
 from qs_ai.application.interpretation.ports import Claim, WorkflowResult
@@ -20,12 +25,15 @@ from qs_ai.infrastructure.persistence.mysql.database import Transactions
 from qs_ai.infrastructure.persistence.mysql.execution_configurations import validate_generation
 from qs_ai.infrastructure.persistence.mysql.interpretation import MySQLUnitOfWork, session_from
 from qs_ai.infrastructure.persistence.mysql.leases import LeaseLost
+from qs_ai.infrastructure.persistence.mysql.participant_capacity import acquire as acquire_capacity
+from qs_ai.infrastructure.persistence.mysql.participant_capacity import release as release_capacity
 from qs_ai.infrastructure.persistence.mysql.schema import (
     artifacts,
     evidence_sets,
     jobs,
     leases,
     model_calls,
+    participant_retries,
     questions,
     runs,
     sessions,
@@ -39,8 +47,12 @@ def expiry(
 
 
 class MySQLExecutionStore:
-    def __init__(self, transactions: Transactions) -> None:
-        self.transactions = transactions
+    def __init__(
+        self,
+        transactions: Transactions,
+        capacity: ParticipantCapacityPolicy = DEFAULT_PARTICIPANT_CAPACITY,
+    ) -> None:
+        self.transactions, self.capacity = transactions, capacity
 
     async def begin_model_call(self, claim: Claim, request_json: str) -> tuple[ModelCall, bool]:
         """Commit a dispatch marker before HTTP. Only its creator may send once.
@@ -56,6 +68,16 @@ class MySQLExecutionStore:
                 .mappings()
                 .first()
             )
+            if row is None:
+                original_request = await db.scalar(
+                    select(participant_retries.c.frozen_request_json).where(
+                        participant_retries.c.run_id == claim.run_id,
+                        participant_retries.c.session_id == session.id,
+                        participant_retries.c.organization_id == int(session.actor.org_id),
+                    )
+                )
+                if original_request is not None:
+                    request_json = original_request
             if session.workflow_version == "qs-published-snapshot-v1":
                 try:
                     await validate_generation(
@@ -197,6 +219,8 @@ class MySQLExecutionStore:
                         .where(leases.c.thread_id == session.id)
                         .values(fence=leases.c.fence + 1, expires_at=func.utc_timestamp(6))
                     )
+                    if session.uses_qs_snapshot:
+                        await release_capacity(db, session, datetime.now(UTC))
                     await db.commit()
                     return None
                 statement = mysql_insert(leases).values(
@@ -218,6 +242,15 @@ class MySQLExecutionStore:
                     .one()
                 )
                 if not guard["expired"]:
+                    continue
+                if session.uses_qs_snapshot and not await acquire_capacity(
+                    db, session, self.capacity, datetime.now(UTC)
+                ):
+                    # Defer this queued job; release all locks before trying another.
+                    await db.execute(
+                        update(jobs).where(jobs.c.id == job["id"]).values(available_at=expiry(1))
+                    )
+                    await db.commit()
                     continue
                 fence = guard["fence"] + 1
                 session.running()
@@ -456,4 +489,6 @@ class MySQLExecutionStore:
                 .where(leases.c.thread_id == session.id)
                 .values(expires_at=func.utc_timestamp(6))
             )
+            if session.uses_qs_snapshot:
+                await release_capacity(db, session, datetime.now(UTC))
             await db.commit()

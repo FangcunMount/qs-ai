@@ -13,7 +13,10 @@ from dishka import AsyncContainer
 from grpc import aio
 
 from qs_ai.application.evaluation.candidates import validate_candidate_query
+from qs_ai.application.evaluation.capacity import CapacityExceeded, EvaluationCapacityReader
+from qs_ai.application.evaluation.catalog import EvaluationCatalog, EvaluationCatalogQuery
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict
+from qs_ai.application.evaluation.diagnostics import EvaluationDiagnostics, ExecutionQuery
 from qs_ai.application.evaluation.management import EvaluationManagementStore, ManagementScope
 from qs_ai.application.evaluation.planning import EvaluationPlanner, EvaluationPlanQuery
 from qs_ai.application.evaluation.requests import EvaluationRequests
@@ -38,6 +41,76 @@ def scope_from(request: pb.EvaluationQuery) -> ManagementScope:
 class EvaluationManagement(rpc.EvaluationManagementServicer):
     def __init__(self, container: AsyncContainer) -> None:
         self.container = container
+
+    async def GetCapacity(
+        self, request: pb.PublicationScope, context: aio.ServicerContext[Any, Any]
+    ) -> pb.EvaluationCapacitySnapshot:
+        async with self.operation(context):
+            scope = DraftScope(request.organization_id, request.operator_user_id)
+            async with self.container() as operation:
+                reader = await operation.get(EvaluationCapacityReader)
+                value = await reader.get(scope, datetime.now(UTC))
+            return pb.EvaluationCapacitySnapshot(**asdict(value))
+        raise AssertionError("abort must raise")
+
+    async def List(
+        self, request: pb.EvaluationCatalogQuery, context: aio.ServicerContext[Any, Any]
+    ) -> pb.EvaluationCatalogPage:
+        async with self.operation(context):
+            if request.ByteSize() > 8192:
+                raise ValueError("Evaluation catalog query exceeds limit")
+            query = EvaluationCatalogQuery(
+                request.scope.organization_id,
+                request.scope.operator_user_id,
+                request.status,
+                request.limit or 20,
+                request.cursor,
+            )
+            async with self.container() as operation:
+                catalog = await operation.get(EvaluationCatalog)
+                page = await catalog.list(query)
+            return pb.EvaluationCatalogPage(
+                items=[pb.EvaluationSummary(**asdict(item)) for item in page.items],
+                next_cursor=page.next_cursor,
+            )
+        raise AssertionError("abort must raise")
+
+    async def ListExecutions(
+        self, request: pb.EvaluationExecutionQuery, context: aio.ServicerContext[Any, Any]
+    ) -> pb.EvaluationExecutionPage:
+        async with self.operation(context):
+            if request.ByteSize() > 8192 or request.execution_id:
+                raise ValueError("Invalid execution list query")
+            query = ExecutionQuery(
+                scope_from(request.scope),
+                request.expected_version,
+                request.cursor,
+                request.limit or 20,
+            )
+            async with self.container() as operation:
+                reader = await operation.get(EvaluationDiagnostics)
+                page = await reader.list(query)
+            response = pb.EvaluationExecutionPage(**asdict(page))
+            if response.ByteSize() > 1024 * 1024:
+                raise ValueError("Execution page exceeds read bound")
+            return response
+        raise AssertionError("abort must raise")
+
+    async def GetExecutionOutput(
+        self, request: pb.EvaluationExecutionQuery, context: aio.ServicerContext[Any, Any]
+    ) -> pb.EvaluationExecutionOutput:
+        async with self.operation(context):
+            if request.ByteSize() > 8192 or request.cursor or request.limit:
+                raise ValueError("Invalid execution output query")
+            query = ExecutionQuery(scope_from(request.scope), request.expected_version)
+            async with self.container() as operation:
+                reader = await operation.get(EvaluationDiagnostics)
+                output = await reader.get(query, request.execution_id)
+            response = pb.EvaluationExecutionOutput(**asdict(output))
+            if response.ByteSize() > 1024 * 1024:
+                raise ValueError("Execution output exceeds read bound")
+            return response
+        raise AssertionError("abort must raise")
 
     async def Prepare(
         self, request: pb.EvaluationPlanQuery, context: aio.ServicerContext[Any, Any]
@@ -66,6 +139,8 @@ class EvaluationManagement(rpc.EvaluationManagementServicer):
         try:
             yield
             return
+        except CapacityExceeded:
+            await context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, "Evaluation capacity exhausted")
         except CheckpointConflict:
             await context.abort(grpc.StatusCode.ABORTED, "Evaluation version or state changed")
         except NotFound:

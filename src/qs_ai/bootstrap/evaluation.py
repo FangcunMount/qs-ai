@@ -38,7 +38,12 @@ async def run(settings: Settings, *, once: bool = False, serve: bool = False) ->
             processed = await attempt()
             print(json.dumps({"mode": "evaluation_once", "processed": processed}))
         else:
-            await serve_loop(attempt, **settings.evaluation.model_dump(exclude={"enabled"}))
+            await serve_loop(
+                attempt,
+                **settings.evaluation.model_dump(
+                    exclude={"enabled", "daily_provider_calls", "max_active_runs"}
+                ),
+            )
         return 0
     finally:
         await container.close()

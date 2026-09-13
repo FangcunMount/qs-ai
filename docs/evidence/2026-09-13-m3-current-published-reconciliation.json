@@ -1,0 +1,136 @@
+{
+  "observed_at": "2026-09-13T11:12:58.096Z",
+  "scope": "published_configuration_and_capacity_readonly_reconciliation",
+  "source_inventory": {
+    "observed_at": "2026-09-13T11:12:58.096Z",
+    "scope": "current_published_profile_reference_inventory",
+    "truncated": false,
+    "profiles": [
+      {
+        "fingerprint": "sha256:cc747df0a6ae4b02b65b7447ce08845fa8c4e91b9d674f51ac25fbcbffd2a2a2",
+        "status": "published",
+        "published_at": "2026-09-05T14:11:19.831Z",
+        "profile_id": "participant-scale-score-range-default",
+        "version": "v6",
+        "selector": {
+          "audience": "participant",
+          "model_kind": "scale",
+          "decision_kind": "score_range",
+          "model_code": null,
+          "model_version": null
+        },
+        "generation_policy": {
+          "prompt_template_id": "cross-dimension-participant-scale",
+          "prompt_version": "v6",
+          "provider_route": "balanced_text_v1",
+          "input_schema_version": "ai-explanation-input/v1",
+          "output_schema_version": "ai-explanation-output/v1",
+          "max_output_characters": 8000
+        }
+      }
+    ],
+    "statuses": [
+      {
+        "_id": "draft",
+        "count": 2
+      },
+      {
+        "_id": "published",
+        "count": 1
+      }
+    ],
+    "models_called": false,
+    "writes_performed": false
+  },
+  "qs_runtime_policy": {
+    "observed_at": "2026-09-13T11:14:16.160542+00:00",
+    "scope": "mounted_configuration_and_explicit_environment_overrides",
+    "image": "ghcr.io/fangcunmount/qs-apiserver:6f00d8be3d362a5ba09570c56dddcc2425a51ed7",
+    "started_at": "2026-09-13T06:54:24.658991144Z",
+    "config_modified_at": "2026-09-13T06:53:59+00:00",
+    "configuration": {
+      "enabled": true,
+      "workflow_enabled": false,
+      "workflow_management.enabled": false,
+      "participant_enabled": true,
+      "provider": "deepseek",
+      "provider_protocol": "responses",
+      "model": "deepseek-v4-pro",
+      "route_revision": "v8",
+      "structured_output_mode": "json_schema",
+      "timeout": "120s",
+      "reasoning_effort": "none",
+      "max_output_tokens": 12000,
+      "max_response_bytes": 4194304,
+      "participant_capacity.daily_provider_invocation_budget_per_org": 500,
+      "participant_capacity.daily_provider_invocation_budget_per_user": 5,
+      "participant_capacity.daily_provider_invocation_budget_per_assessment": 3,
+      "participant_capacity.max_active_provider_executions_per_org": 10,
+      "participant_capacity.max_active_provider_executions_per_user": 2,
+      "participant_capacity.max_active_provider_executions_per_assessment": 1,
+      "evaluation.enabled": true,
+      "evaluation.model": "deepseek-v4-pro",
+      "evaluation.provider_protocol": "responses",
+      "evaluation.route_revision": "v5",
+      "evaluation.structured_output_mode": "json_schema",
+      "evaluation.timeout": "180s",
+      "evaluation.reasoning_effort": "low",
+      "evaluation.max_output_tokens": 8000,
+      "evaluation.capacity.max_active_runs_per_org": 1,
+      "evaluation.capacity.daily_provider_invocation_budget_per_org": 1024
+    },
+    "environment_overrides": {},
+    "models_called": false,
+    "writes_performed": false
+  },
+  "ai_state": {
+    "counts": {
+      "profile_assets": 1,
+      "prompt_assets": 6,
+      "route_assets": 1,
+      "schema_assets": 2,
+      "configuration_publications": 0,
+      "configuration_publication_pointers": 0,
+      "configuration_publication_changes": 0,
+      "evaluation_runs": 0,
+      "evaluation_suites": 0,
+      "prompt_drafts": 0,
+      "profile_registrations": 0,
+      "jobs": 0,
+      "model_calls": 0,
+      "artifacts": 0,
+      "result_outbox": 0
+    },
+    "flags": {
+      "generation": false,
+      "evaluation": false,
+      "governance": false,
+      "publications": false
+    }
+  },
+  "ai_asset_audit": {
+    "audit": "matched",
+    "scope": "fixed_profile_prompt_route_schema_baseline",
+    "profile_source": "qs-server:ea166d2b40826208050909dd9e470232928e0a38",
+    "prompt_source": "qs-server:1b52081ea42c94dc5653ce91e8c7a1db9f85fc44",
+    "profiles_checked": 1,
+    "prompts_checked": 6,
+    "routes_checked": 1,
+    "schemas_checked": 2,
+    "schema_source": "qs-server:1b52081ea42c94dc5653ce91e8c7a1db9f85fc44",
+    "route_source": "qs-server:runtime-observed-2026-09-11",
+    "mismatches": [],
+    "activated": false
+  },
+  "checks": {
+    "published_profile_identity_version_fingerprint_matches_fixed_baseline": true,
+    "profile_generation_policy_matches_fixed_baseline": true,
+    "generation_route_parameters_match_fixed_v8": true
+  },
+  "limitations": [
+    "No real model call, participant authorization or withdrawal validation",
+    "No governance write, traffic switch or production publication",
+    "AI audit is the deployed full fixed baseline command; extra v1-v5 Prompt rows remain unchanged",
+    "Evaluation resources, same-day capacity carryover and production in-flight disposition require separate checks"
+  ]
+}

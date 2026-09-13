@@ -18,14 +18,14 @@ from qs_ai.infrastructure.persistence.mysql.schema import route_assets
 pytestmark = pytest.mark.integration
 
 
-@pytest.fixture
-async def asset_store():
+@pytest.fixture(params=[False, True], ids=["generation", "semantic"])
+async def asset_store(request):
     dsn = os.getenv("QS_AI_TEST_MYSQL_DSN")
     if not dsn:
         pytest.skip("Requires disposable MySQL with migrations applied")
     database = Database(dsn.replace("mysql://", "mysql+asyncmy://", 1))
     transactions = Transactions(database)
-    baseline = baseline_assets()[1][0]
+    baseline = baseline_assets(include_evaluation=request.param)[1][-1]
     data = json.loads(baseline.definition_json)
     data["route"] = str(uuid4())
     raw = json.dumps(data)
@@ -69,14 +69,14 @@ async def test_replay_conflict_and_history_preserve_import_audit(asset_store):
     )
     assert await store.put(next_asset, "next", "operator")
     assert await store.get(asset.route, "v9") == next_asset
-    assert await store.get(asset.route, "v8") == asset
+    assert await store.get(asset.route, asset.revision) == asset
     async with transactions.open() as db:
         row = (
             (
                 await db.execute(
                     select(route_assets).where(
                         route_assets.c.route == asset.route,
-                        route_assets.c.revision == "v8",
+                        route_assets.c.revision == asset.revision,
                     )
                 )
             )

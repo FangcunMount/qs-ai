@@ -55,3 +55,43 @@ def test_invalid_evidence_cannot_be_frozen(case):
     evidence = EvidenceSet("e", "s", "fingerprint", () if case == "missing_item" else (item,))
     with pytest.raises(RuleViolation):
         evidence.validate("7", ("42",))
+
+
+@pytest.mark.parametrize("status", [s for s in Status if s != Status.BLOCKED])
+def test_manual_retry_cannot_restart_active_cancelled_or_completed_session(status):
+    session = Session(
+        "s",
+        Actor("1", "u"),
+        "2",
+        ("3",),
+        "goal",
+        status=status,
+        active_run_id="old",
+        workflow_version="qs-snapshot-v1",
+    )
+    with pytest.raises(RuleViolation, match="participant_retry_conflict"):
+        session.retry("old", "new")
+    assert session.status == status and session.active_run_id == "old" and session.version == 1
+
+
+def test_manual_retry_preserves_session_evidence_and_rejects_the_wrong_attempt():
+    session = Session(
+        "s",
+        Actor("1", "u"),
+        "2",
+        ("3",),
+        "goal",
+        status=Status.BLOCKED,
+        active_run_id="old",
+        evidence_set_id="frozen",
+        workflow_version="qs-published-snapshot-v1",
+        failure_code="provider_timeout",
+    )
+    with pytest.raises(RuleViolation, match="participant_retry_conflict"):
+        session.retry("stale", "new")
+    session.retry("old", "new")
+    assert (
+        session.evidence_set_id == "frozen"
+        and session.workflow_version == "qs-published-snapshot-v1"
+    )
+    assert session.failure_code is None and session.status == Status.QUEUED and session.version == 2

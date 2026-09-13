@@ -10,6 +10,12 @@ from dishka import AsyncContainer
 from grpc import aio
 from pydantic import TypeAdapter
 
+from qs_ai.application.governance.profile_lifecycle import (
+    ProfileLifecycle,
+    ProfileLifecyclePage,
+    ProfileLifecycleQuery,
+    ProfileLifecycleReader,
+)
 from qs_ai.application.governance.profile_registration import (
     ProfileRegistrar,
     ProfileRegistrationReceipt,
@@ -94,4 +100,41 @@ class ProfileManagement(rpc.ProfileManagementServicer):
                 store = await operation.get(ProfileRegistrar)
                 value = await store.get_receipt(scope, identifier(request.command_id))
             return response(value)
+        raise AssertionError("abort must raise")
+
+    async def ListLifecycle(
+        self, request: pb.ProfileLifecycleQuery, context: aio.ServicerContext[Any, Any]
+    ) -> pb.AssetCatalogResponse:
+        async with self.operation(context):
+            if request.ByteSize() > 8192 or request.version:
+                raise ValueError("Invalid Profile list query")
+            scope = DraftScope(request.scope.organization_id, request.scope.operator_user_id)
+            query = ProfileLifecycleQuery(
+                request.identity, request.status, request.limit or 20, request.cursor
+            )
+            async with self.container() as operation:
+                reader = await operation.get(ProfileLifecycleReader)
+                value = await reader.list(scope, query)
+            raw = TypeAdapter(ProfileLifecyclePage).dump_json(value).decode()
+            if len(raw.encode()) > 131072:
+                raise ValueError("Profile lifecycle page exceeds limit")
+            return pb.AssetCatalogResponse(
+                schema_version="qs-ai-profile-lifecycle-page/v1", payload_json=raw
+            )
+        raise AssertionError("abort must raise")
+
+    async def GetLifecycle(
+        self, request: pb.ProfileLifecycleQuery, context: aio.ServicerContext[Any, Any]
+    ) -> pb.AssetCatalogResponse:
+        async with self.operation(context):
+            if request.ByteSize() > 8192 or request.cursor or request.status or request.limit:
+                raise ValueError("Invalid Profile lifecycle query")
+            scope = DraftScope(request.scope.organization_id, request.scope.operator_user_id)
+            async with self.container() as operation:
+                reader = await operation.get(ProfileLifecycleReader)
+                value = await reader.get(scope, request.identity, request.version)
+            raw = TypeAdapter(ProfileLifecycle).dump_json(value).decode()
+            return pb.AssetCatalogResponse(
+                schema_version="qs-ai-profile-lifecycle/v1", payload_json=raw
+            )
         raise AssertionError("abort must raise")

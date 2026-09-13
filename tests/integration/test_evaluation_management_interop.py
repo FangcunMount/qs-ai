@@ -185,6 +185,13 @@ async def test_go_python_governance_mtls_resolution_and_readback(
 
     action = "start" if decision == "start" else "resolve"
     try:
+        capacity = await call(Action="capacity")
+        assert capacity["Code"] == "OK"
+        assert capacity["State"]["organization_id"] == 1
+        assert capacity["State"]["max_active_runs"] == 1
+        assert (await call(Action="capacity", AuditOnly=True))["Denied"]
+        assert (await call(Action="capacity", Allowed=False))["Denied"]
+        assert (await call(Action="capacity", certificate="other"))["Code"] == "PermissionDenied"
         initial = await call()
         assert initial["Code"] == "OK"
         assert initial["State"]["status"] == ("requested" if decision == "start" else "blocked")

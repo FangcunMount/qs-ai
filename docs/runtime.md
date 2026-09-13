@@ -272,3 +272,17 @@ List 接收 kind、可选精确 identity、limit（默认 20，最多 50）及 c
 分页按二进制 identity/version 顺序；游标绑定种类及精确筛选，不是授权令牌。数据库与内置两个案例源共同分页，版本按字典顺序而非语义版本排序。单页在一个数据库事务内读取，跨页不承诺整个目录快照；新插入且排在游标之前的版本需刷新列表才能看到，不重复已翻过的项。请求上限 8 KiB、列表 JSON 上限 128 KiB、详情 JSON 上限 4 MiB。此目录不提供修改、删除或自动选取“最新版本”。
 
 QS 授权代理已实现，入口为 `GET /internal/v2/interpretation/ai-workflow/assets/{kind}` 与 `/assets/{kind}/detail`，详情的 identity/version 使用查询参数承载斜线和中文。读操作复用当前解读审计权限及可信机构/操作者，共用 mTLS 连接；限制 5 秒 RPC、校验页内顺序/游标及正文摘要。跨语言验证已通过，精确提交 CI、后台页面和真实权限验收仍分别跟踪，不据此切换旧页面或开启生产治理。
+
+### 原生评测任务目录
+
+`EvaluationManagement.List` 提供组织范围内的只读摘要，QS 必须复用当前解读审计权限后传入可信机构和操作者。请求可按现有 Run 状态筛选；limit 为 0 或省略时使用 20，其余值须为 1–100。下一页 cursor 绑定机构、状态和上页末项的创建时刻/Run ID；修改机构或状态须重新从第一页查询，cursor 不承载权限。
+
+列表按原创建时刻和 Run ID 倒序，以 keyset 分页；时刻按原 audit 的时区换算至 UTC，不重写历史记录。摘要包含版本、状态、原创建者、Profile/Prompt 版本、发布指纹、候选/审核/未知数量与最近状态变化，不读取模型原始输出、完整套件或生成清单。目录条目不代表审核通过，也不能代替写操作的当前权限、版本和持久证据复核。遇到不一致的机构、原创建证据、时间、状态或检查点，拒绝返回错误摘要。
+
+迁移 `0023_evaluation_catalog_index` 只为 evaluation_runs 增加机构索引，兼容现有写入；时间排序仍从原创建证据计算，M4 容量验收需覆盖实际机构记录量下的查询时延。该索引不会启用管理或模型执行。AI 接口有实现不代表 QS 代理、Operating 目录或真实管理验收已完成。
+
+### 有效 Profile 依赖对账
+
+M3 缩小迁移范围后，使用 `uv run python -m qs_ai.bootstrap.audit_assets --referenced-only` 核对固定已发布 Profile 及其实际引用。当前固定快照会检查 1 个 Profile、Prompt v6、1 条明确 revision 的路由和 2 个规范；v1–v5 缺失不阻塞该范围的对账。缺失被引用资产或字节不一致仍失败。默认不带参数保留原完整固定基线检查，两个模式均不删除、不写入、不激活。
+
+输出 `scope=fixed_published_profile_references` 仍指仓库固定快照；`current_production_inventory_verified=false` 明确表示没有实时盘点现网。最终迁移前必须重新核实当前已发布 Profile 清单、路由 revision 及执行/评测所需间接依赖，不能以该工具单次 matched 代替 M3 管理与生产验收。

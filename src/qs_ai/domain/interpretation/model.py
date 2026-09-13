@@ -110,6 +110,21 @@ class Session:
         self.status = Status.RUNNING
         self.version += 1
 
+    def retry(self, previous_run_id: str, new_run_id: str) -> None:
+        if (
+            not self.uses_qs_snapshot
+            or self.status != Status.BLOCKED
+            or self.active_run_id != previous_run_id
+            or not new_run_id
+            or new_run_id == previous_run_id
+        ):
+            raise RuleViolation("participant_retry_conflict")
+        self.active_run_id = new_run_id
+        self.current_question_id = None
+        self.failure_code = None
+        self.status = Status.QUEUED
+        self.version += 1
+
     def await_answer(self, question_id: str) -> None:
         if self.status != Status.RUNNING:
             raise RuleViolation("invalid_state")

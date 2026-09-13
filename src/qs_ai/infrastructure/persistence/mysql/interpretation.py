@@ -1,6 +1,7 @@
 from collections.abc import AsyncIterator, Mapping
 from contextlib import asynccontextmanager
 from dataclasses import asdict
+from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
@@ -8,6 +9,10 @@ from sqlalchemy import func, insert, select, update
 from sqlalchemy.dialects.mysql import insert as mysql_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from qs_ai.application.execution.capacity import (
+    DEFAULT_PARTICIPANT_CAPACITY,
+    ParticipantCapacityPolicy,
+)
 from qs_ai.application.interpretation.ports import NotFound, Receipt, UnitOfWork
 from qs_ai.domain.interpretation.model import (
     Actor,
@@ -19,6 +24,8 @@ from qs_ai.domain.interpretation.model import (
 )
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
 from qs_ai.infrastructure.persistence.mysql.execution_configurations import bind_configuration
+from qs_ai.infrastructure.persistence.mysql.participant_capacity import release as release_capacity
+from qs_ai.infrastructure.persistence.mysql.participant_capacity import reserve as reserve_capacity
 from qs_ai.infrastructure.persistence.mysql.result_outbox import stage_state
 from qs_ai.infrastructure.persistence.mysql.schema import (
     evidence_sets,
@@ -62,8 +69,10 @@ def session_values(session: Session) -> dict[str, Any]:
 
 
 class MySQLUnitOfWork:
-    def __init__(self, db: AsyncSession) -> None:
-        self.db = db
+    def __init__(
+        self, db: AsyncSession, capacity: ParticipantCapacityPolicy = DEFAULT_PARTICIPANT_CAPACITY
+    ) -> None:
+        self.db, self.capacity = db, capacity
 
     async def reserve(self, scope: str, key: str, request_hash: str) -> Receipt | None:
         statement = mysql_insert(idempotency).values(
@@ -159,6 +168,8 @@ class MySQLUnitOfWork:
     async def enqueue(
         self, session: Session, answer: str | None, skip: bool, question_id: str | None
     ) -> None:
+        if session.uses_qs_snapshot:
+            await reserve_capacity(self.db, session, self.capacity, datetime.now(UTC))
         await self.db.execute(
             insert(runs).values(
                 id=session.active_run_id,
@@ -182,6 +193,21 @@ class MySQLUnitOfWork:
             )
         )
 
+    async def reject_run(self, session: Session) -> None:
+        if (
+            session.status != Status.BLOCKED
+            or session.failure_code != "participant_daily_capacity_exceeded"
+        ):
+            raise ValueError("Admission rejection requires a blocked capacity result")
+        await self.db.execute(
+            insert(runs).values(
+                id=session.active_run_id,
+                session_id=session.id,
+                session_version=session.version,
+                status=session.status,
+            )
+        )
+
     async def cancel_jobs(self, session: Session) -> None:
         await self.db.execute(
             update(jobs)
@@ -199,16 +225,23 @@ class MySQLUnitOfWork:
             .values(fence=leases.c.fence + 1, expires_at=func.utc_timestamp(6))
         )
 
+        if session.uses_qs_snapshot:
+            await release_capacity(self.db, session, datetime.now(UTC))
+
     async def commit(self) -> None:
         await self.db.commit()
 
 
 class MySQLUnitOfWorkFactory:
-    def __init__(self, transactions: Transactions) -> None:
-        self.transactions = transactions
+    def __init__(
+        self,
+        transactions: Transactions,
+        capacity: ParticipantCapacityPolicy = DEFAULT_PARTICIPANT_CAPACITY,
+    ) -> None:
+        self.transactions, self.capacity = transactions, capacity
 
     @asynccontextmanager
     async def open(self) -> AsyncIterator[UnitOfWork]:
         async with self.transactions.open() as db:
             await db.connection(execution_options={"isolation_level": "REPEATABLE READ"})
-            yield MySQLUnitOfWork(db)
+            yield MySQLUnitOfWork(db, self.capacity)

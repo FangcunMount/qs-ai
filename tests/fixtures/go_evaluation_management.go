@@ -14,9 +14,16 @@ import (
 
 func main() {
 	var input struct {
+		ProfileLifecycle                app.ProfileLifecycleQuery
+		ProfileVersion                  string
+		SessionID, CommandID            string
+		ParticipantRetry                app.ParticipantRetry
 		RunID, Action, Decision, Reason string
 		Release                         app.EvaluationRelease
 		Plan                            app.EvaluationPlanQuery
+		Catalog                         app.EvaluationCatalogQuery
+		Executions                      app.ExecutionQuery
+		ParticipantCapacity             app.ParticipantCapacityQuery
 		Review                          app.EvaluationReview
 		UserID                          int64
 		OrgID, Version                  int64
@@ -30,11 +37,12 @@ func main() {
 	if json.NewDecoder(os.Stdin).Decode(&input) != nil {
 		os.Exit(2)
 	}
-	client, connection, err := infra.DialEvaluationManagement(os.Args[1], os.Args[2], os.Args[3], os.Args[4])
+	clients, err := infra.DialGovernance(os.Args[1], os.Args[2], os.Args[3], os.Args[4])
 	if err != nil {
 		os.Exit(3)
 	}
-	defer func() { _ = connection.Close() }()
+	defer func() { _ = clients.Connection.Close() }()
+	client := clients.Evaluation
 	snapshot := &authz.Snapshot{}
 	if input.Allowed {
 		snapshot.EffectiveRoles = []string{"qs:admin"}
@@ -51,7 +59,28 @@ func main() {
 	}
 	scope := app.EvaluationScope{RunID: input.RunID, OrganizationID: input.OrgID, OperatorUserID: input.UserID}
 	var result any
-	if input.Action == "cancel" {
+	if input.Action == "profile-list" {
+		result, err = (&app.ProfileAdministration{Gateway: clients.Profiles}).ListLifecycle(ctx, app.DraftScope{OrganizationID: input.OrgID, OperatorUserID: input.UserID}, input.ProfileLifecycle)
+	} else if input.Action == "profile-lifecycle" {
+		result, err = (&app.ProfileAdministration{Gateway: clients.Profiles}).GetLifecycle(ctx, app.DraftScope{OrganizationID: input.OrgID, OperatorUserID: input.UserID}, input.ProfileLifecycle.Identity, input.ProfileVersion)
+	} else if input.Action == "participant-get" {
+		result, err = (&app.ParticipantAdministration{Gateway: clients.Participants}).Get(ctx, app.DraftScope{OrganizationID: input.OrgID, OperatorUserID: input.UserID}, input.SessionID)
+	} else if input.Action == "participant-retry" {
+		result, err = (&app.ParticipantAdministration{Gateway: clients.Participants}).Retry(ctx, app.DraftScope{OrganizationID: input.OrgID, OperatorUserID: input.UserID}, input.SessionID, input.ParticipantRetry)
+	} else if input.Action == "participant-receipt" {
+		result, err = (&app.ParticipantAdministration{Gateway: clients.Participants}).RetryReceipt(ctx, app.DraftScope{OrganizationID: input.OrgID, OperatorUserID: input.UserID}, input.CommandID)
+	} else if input.Action == "participant-capacity" {
+		result, err = (&app.ParticipantAdministration{Gateway: clients.Participants}).Capacity(ctx, app.DraftScope{OrganizationID: input.OrgID, OperatorUserID: input.UserID}, input.ParticipantCapacity)
+	} else if input.Action == "capacity" {
+		result, err = service.Capacity(ctx, app.DraftScope{OrganizationID: input.OrgID, OperatorUserID: input.UserID})
+	} else if input.Action == "executions" {
+		input.Executions.ExpectedVersion = input.Version
+		result, err = service.ListExecutions(ctx, scope, input.Executions)
+	} else if input.Action == "execution-output" {
+		result, err = service.GetExecutionOutput(ctx, scope, input.Version, input.ExecutionID)
+	} else if input.Action == "list" {
+		result, err = service.List(ctx, app.DraftScope{OrganizationID: input.OrgID, OperatorUserID: input.UserID}, input.Catalog)
+	} else if input.Action == "cancel" {
 		result, err = service.Cancel(ctx, scope, app.EvaluationCancel{ExpectedVersion: input.Version, Reason: input.Reason, Confirm: input.Confirm, Discard: input.Discard})
 	} else if input.Action == "unknowns" {
 		result, err = service.ListUnknowns(ctx, scope, input.Version)

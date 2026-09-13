@@ -1,4 +1,4 @@
-# Merged into runtime.json only when QS_AI_EXECUTION_ENABLED=true.
+# Selected independently by QS_AI_EXECUTION_ENABLED / QS_AI_EVALUATION_ENABLED.
 services:
   worker:
     extends:
@@ -32,3 +32,21 @@ services:
       timeout: 5s
       retries: 3
       start_period: 15s
+  evaluation:
+    extends:
+      file: compose.yaml
+      service: grpc
+    container_name: qs-ai-evaluation
+    command: [/app/.venv/bin/python, -m, qs_ai.bootstrap.evaluation, --serve]
+    stop_grace_period: 200s
+    environment:
+      QS_AI_DATABASE__POOL_SIZE: "2"
+      QS_AI_DATABASE__MAX_OVERFLOW: "2"
+      # The current semantic evaluation route permits a 180-second provider call.
+      QS_AI_EVALUATION__SHUTDOWN_SECONDS: "190"
+    healthcheck:
+      test: [CMD, /app/.venv/bin/python, -m, qs_ai.bootstrap.daemon_health, /tmp/qs-ai-evaluation-health.json]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s

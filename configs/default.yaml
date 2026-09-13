@@ -51,8 +51,17 @@ delivery:
   shutdown_seconds: 15
 evaluation:
   enabled: false
+  daily_provider_calls: 1024
+  max_active_runs: 1
   health_file: /tmp/qs-ai-evaluation-health.json
   concurrency: 1
   idle_seconds: 1
   max_backoff_seconds: 30
   shutdown_seconds: 130
+participant_capacity:
+  daily_org: 500
+  daily_user: 5
+  daily_assessment: 3
+  active_org: 10
+  active_user: 2
+  active_assessment: 1
