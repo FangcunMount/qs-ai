@@ -359,3 +359,18 @@ def test_deployment_receipt_uses_actual_remote_revision(tmp_path, monkeypatch):
     module.record_deployment(["ssh", "test"])
     assert json.loads((tmp_path / "deployment-receipt.json").read_text())["revision"] == actual
     assert output.read_text() == f"actual_revision={actual}\n"
+
+
+def test_retention_failure_does_not_fail_successful_deployment(
+    remote, tmp_path, monkeypatch, capsys
+):
+    release, _ = setup_release(remote, tmp_path, monkeypatch)
+    (tmp_path / "state.json").write_text(json.dumps({"current": release.name}))
+
+    def fail(*args):
+        raise remote.DeploymentError("cleanup failed")
+
+    monkeypatch.setattr(remote, "run", fail)
+    remote.retain_successful_image(release)
+    assert "::warning::" in capsys.readouterr().out
+    assert not (release / "failure.json").exists()

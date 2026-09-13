@@ -278,6 +278,15 @@ def main() -> None:
             "upload deployment script",
             [*scp, str(ROOT / "deploy/serverA/deploy.py"), f"{user}@{host}:{remote_script}"],
         )
+        remote_retention = remote_script.replace(".py", "-retention.py")
+        run(
+            "upload retention script",
+            [
+                *scp,
+                str(ROOT / "scripts/cd/image-retention.py"),
+                f"{user}@{host}:{remote_retention}",
+            ],
+        )
         try:
             if action == "rollback":
                 print(run("rollback", [*ssh, f"python3 {remote_script} rollback"]), end="")
@@ -333,7 +342,11 @@ def main() -> None:
             # Keep script with the release for local operational recovery.
             run(
                 "retain deployment script",
-                [*ssh, f"cp {remote_script} {target}/deploy.py && chmod 600 {target}/*"],
+                [
+                    *ssh,
+                    f"cp {remote_script} {target}/deploy.py && "
+                    f"cp {remote_retention} {target}/image-retention.py && chmod 600 {target}/*",
+                ],
             )
             try:
                 print(
@@ -348,7 +361,7 @@ def main() -> None:
                 raise
             record_deployment(ssh)
         finally:
-            run("remove temporary script", [*ssh, f"rm -f {remote_script}"])
+            run("remove temporary script", [*ssh, f"rm -f {remote_script} {remote_retention}"])
 
 
 if __name__ == "__main__":
