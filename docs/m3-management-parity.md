@@ -41,6 +41,10 @@
 | P24 | v2 POST `/prompt-evaluations/:run_id/reopen-review` | AI ReopenReview | 有实现；历史保留与复核后重新审核已有测试，实际操作验收待补 |
 | P25 | v2 POST `/prompt-evaluations/:run_id/result-unknown/resolve` | AI ListUnknownExecutions/ResolveUnknown | AI/QS/Operating 均有实现；实际账号权限及供应商未知结果恢复仍未验收 |
 
+## 实际使用证据
+
+2026-09-13 06:52 UTC 已补充 [生产记录核对](m3-production-usage.md)：唯一已发布 v6 关联一个经复审批准的 v2 评测；审核、复审、未知结果处置、复查和预算均有存量证据。25 个路由用于逐项归属，不要求原样复制 25 套新入口；先验证在用 v6 闭环，再补必要行为与减少三层重复规则。0 次观测不作为直接删除依据。
+
 ## 按关闭条件收敛
 
 1. **查询与操作完整性**：集中处理 P06/P14/P17/P19。验收可从列表找到任务，读取各阶段原执行/失败诊断，普通取消或明确废弃后仍能审计原输出；旧 ID 与新 UUID 的入口清楚区分。
