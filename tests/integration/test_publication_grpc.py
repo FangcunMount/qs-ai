@@ -226,6 +226,49 @@ async def test_go_publish_read_receipt_replace_rollback_disable(publication_serv
     assert not stopped["State"]["current"]["active_publication_id"]
     assert [len(values) for values in await inventory(tx)] == [2, 1, 4]
 
+    # Audit history is globally scoped configuration evidence, preserving the
+    # original author. It never supplies write authority or replays a command.
+    before_reads = await inventory(tx)
+    page = await go_client(
+        "history",
+        History={"selector": selector, "limit": 2},
+        AuditOnly=True,
+        UserID=43,
+        OrgID=2,
+    )
+    assert page["Code"] == "OK" and not page["Conflict"], page
+    summary = page["State"]
+    assert summary["schema_version"] == "qs-ai-publication-history/v1"
+    assert [e["version"] for e in summary["entries"]] == [4, 3]
+    assert [e["action"] for e in summary["entries"]] == ["disable", "rollback"]
+    assert summary["next_before_version"] == 3
+    assert all(e["actor"] == "user:42" for e in summary["entries"])
+    assert summary["entries"][0]["publication_id"] is None
+    assert summary["entries"][1]["publication_id"] == original["current"]["active_publication_id"]
+    next_page = await go_client(
+        "history",
+        History={"selector": selector, "limit": 2, "before_version": 3},
+        AuditOnly=True,
+        UserID=43,
+    )
+    assert next_page["Code"] == "OK" and not next_page["Conflict"], next_page
+    assert [e["version"] for e in next_page["State"]["entries"]] == [2, 1]
+    assert next_page["State"]["next_before_version"] == 0
+    for version, receipt in enumerate(
+        (original, second["State"], back["State"], stopped["State"]), 1
+    ):
+        history = await go_client(
+            "history-version",
+            Selector=selector,
+            Version=version,
+            AuditOnly=True,
+            UserID=43,
+            OrgID=2,
+        )
+        assert history["Code"] == "OK" and not history["Conflict"], history
+        assert history["State"] == receipt
+    assert await inventory(tx) == before_reads
+
 
 @pytest.mark.interop
 async def test_go_publication_denial_stale_and_foreign_receipts(publication_server, go_client):
@@ -250,6 +293,28 @@ async def test_go_publication_denial_stale_and_foreign_receipts(publication_serv
         assert (await go_client("receipt", CommandID=request["command_id"], **altered))[
             "Code"
         ] == "NotFound"
+    selector = request["expected"]["selector"]
+    query = {"selector": selector, "limit": 20}
+    assert (await go_client("history", History=query, Allowed=False))["Denied"]
+    assert (await go_client("history-version", Selector=selector, Version=1, Allowed=False))[
+        "Denied"
+    ]
+    for altered in ({"limit": 0}, {"limit": 21}, {"before_version": -1}):
+        assert (await go_client("history", History={**query, **altered}))["Invalid"]
+    assert (await go_client("history", History=query, OrgID=0))["Invalid"]
+    assert (await go_client("history-version", Selector=selector, Version=0))["Invalid"]
+    for identity in ("other", "ai"):
+        assert (await go_client("history", identity=identity, History=query))[
+            "Code"
+        ] == "PermissionDenied"
+        assert (
+            await go_client("history-version", identity=identity, Selector=selector, Version=1)
+        )["Code"] == "PermissionDenied"
+    assert (await go_client("history-version", Selector=selector, Version=2))["Code"] == "NotFound"
+    other = {**selector, "model_code": "unpublished-scale"}
+    empty = await go_client("history", History={**query, "selector": other})
+    assert empty["Code"] == "OK" and empty["State"]["entries"] == []
+    assert (await go_client("history-version", Selector=other, Version=1))["Code"] == "NotFound"
     assert await inventory(tx) == before
 
 
