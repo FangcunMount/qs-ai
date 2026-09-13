@@ -149,3 +149,16 @@ Profile 注册主分支 `e836d32809ede4d162d68192a1a3e19ebe25561f` 的 [CI 34722
 QS [主分支 CI 34723293856](https://github.com/FangcunMount/qs-server/actions/runs/34723293856) 与 [部署 34723860471](https://github.com/FangcunMount/qs-server/actions/runs/34723860471) 均成功。独立 SSH 核实 serverA apiserver 与两个 collection 实际镜像均为 `1a5792131e6b8fdccb128d17fd9946f9af4aeaec` 且 healthy；未核验另一主机 worker。
 
 AI API/gRPC 仍为 `e836d32809ede4d162d68192a1a3e19ebe25561f` 且 healthy，MySQL 8.0.36 当前及预期头均为 0021，readyz connected，mTLS 自身份拒绝探针通过。本次没有原生套件 0022 的生产证据，也没有真实操作者管理或生成验收。
+
+## 2026-09-13 原生套件与资产目录发布
+
+原生套件版本 `6af342988375506e84af23580e803a2cd2c44d6e` 经主分支 CI 34724586559、部署 34725244173 成功后，SSH 观察到 API/gRPC 同版本 healthy，MySQL 8.0.36 当前/预期头均为 `0022_evaluation_suites`。QS 套件代理部署 34725389868 成功，serverA 三个 QS 业务容器实际为 `1e6aaaee50dd4eed80f9dba95417f474c060b035` 且 healthy。
+
+随后资产目录 PR #60、跨语言互操作 PR #61 与 QS 目录代理 PR #98 已合并。AI 目录主分支 CI 34725527967 成功；[部署 34726262990](https://github.com/FangcunMount/qs-ai/actions/runs/34726262990) 成功后，独立 SSH 再次核实：
+
+- API/gRPC 实际镜像均为 `614d93ec46fc12c8e4fea44b0cbd952aac44f6e9`，均 healthy；工作流 head `21adf336bf8cea671742fa6ac6314031619c582d` 不是本次交付镜像 SHA。
+- readyz 为 ready/database connected；数据库头仍为 0022。升级过程中曾观察到健康接口连接重置，部署完成后重查恢复正常。
+- mTLS 自身份探针符合预期 PERMISSION_DENIED；generation、evaluation、grpc.governance_enabled、generation.use_publications 四个开关均为 false。
+- QS serverA apiserver 与两个 collection 仍为 `1e6aaaee50dd4eed80f9dba95417f474c060b035`，未将已合并的目录代理视为已部署，未核验另一主机 worker。
+
+本次证明禁用执行与治理流量的部署基线、0022 迁移和资产目录代码上线；不证明真实操作者权限、页面联调、原生配置发布或真实解读验收。M1–M5 保持未验收。
