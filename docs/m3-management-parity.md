@@ -28,12 +28,12 @@
 | P11 | v1 POST `/profiles` | AI PromptDraft Create/Revise/Freeze + Profile Register | 有组成能力；验收完整编辑/校验/注册流程，明确原 Profile 草稿语义映射 |
 | P12 | v1 POST `/profiles/:profile_id/versions/:version/publish` | AI PublicationManagement.Publish | 有实现；实际质量门槛→发布→新生成版本绑定验收及旧写关闭 |
 | P13 | v1 POST `/profiles/:profile_id/versions/:version/disable` | AI PublicationManagement.Disable | 有实现；核对发布 selector 映射、停用对在途及新任务的行为 |
-| P14 | v2 GET `/prompt-evaluations` | AI 原生评测列表；QS 保留旧 v2 列表 | 新接口只有已知 UUID Get，缺原生分页列表/筛选；需列表页与创建后可再次找到任务 |
+| P14 | v2 GET `/prompt-evaluations` | AI 原生评测列表；QS 保留旧 v2 列表 | AI List 已在专属分支实现组织范围、状态筛选和创建时间分页，尚待 CI/发布；QS 代理、跨语言查询与 Operating 列表/选择入口仍未完成，不能将单端接口视为接管 |
 | P15 | v2 GET `/prompt-evaluations/:run_id` | AI EvaluationManagement.Get | 有实现；原始创建、审核、复审、未知处置、取消回执已逐步接入；旧 ID 读取保留 |
 | P16 | v2 GET `/prompt-evaluations/:run_id/candidates/:candidate_id` | AI ListCandidates/GetCandidate | 有实现；Cancel 已修复废弃复审后详情误拒绝；仍需真实管理读取验收 |
 | P17 | v2 GET `/prompt-evaluations/:run_id/executions/:execution_id/output` | AI 运行执行证据查询 | 候选详情只提供已接受生成/语义输出；未知列表只提供元数据。失败/未形成候选的 execution 输出和诊断不能视为已接管 |
 | P18 | v2 POST `/prompt-evaluations` | AI Prepare→Create→Start | 有实现；核对容量准入、费用确认及实际启动闭环，不能只验证固定引用 |
-| P19 | v2 POST `/prompt-evaluations/:run_id/cancel` | AI Cancel + QS 管理代理 + Operating | AI PR #76 已合并；QS 正在验证；Operating 还未接入。普通取消/待审核废弃保持区分 |
+| P19 | v2 POST `/prompt-evaluations/:run_id/cancel` | AI Cancel + QS 管理代理 + Operating | AI PR #76 与 QS #104 已发布；Operating #33 已实现并通过 CI，等待依赖发布。普通取消/待审核废弃保持区分 |
 | P20 | v2 POST `/legacy-prompt-evaluations/:run_id/attempts/:case_id/:attempt/rechecks` | 新复查执行迁至 AI，旧结果/复查历史在 QS 读 | 不能长期保留 QS 旧模型调用写入口；需旧证据导入或明确映射为新 AI 运行，保留前后来源并验收 |
 | P21 | v2 POST `/prompt-evaluations/:run_id/reviews` | AI Review（单项） | 有实现；权限、原文核对、双职责签名的实际操作验收 |
 | P22 | v2 POST `/prompt-evaluations/:run_id/reviews/batch` | AI Review（批次） | 有实现；批次原子性已测，实际管理及旧写关闭仍待验收 |

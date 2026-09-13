@@ -867,3 +867,63 @@ class AssetCatalogResponse(_message.Message):
     schema_version: str
     payload_json: str
     def __init__(self, schema_version: _Optional[str] = ..., payload_json: _Optional[str] = ...) -> None: ...
+
+class EvaluationCatalogQuery(_message.Message):
+    __slots__ = ("scope", "status", "limit", "cursor")
+    SCOPE_FIELD_NUMBER: _ClassVar[int]
+    STATUS_FIELD_NUMBER: _ClassVar[int]
+    LIMIT_FIELD_NUMBER: _ClassVar[int]
+    CURSOR_FIELD_NUMBER: _ClassVar[int]
+    scope: PublicationScope
+    status: str
+    limit: int
+    cursor: str
+    def __init__(self, scope: _Optional[_Union[PublicationScope, _Mapping]] = ..., status: _Optional[str] = ..., limit: _Optional[int] = ..., cursor: _Optional[str] = ...) -> None: ...
+
+class EvaluationCatalogPage(_message.Message):
+    __slots__ = ("items", "next_cursor")
+    ITEMS_FIELD_NUMBER: _ClassVar[int]
+    NEXT_CURSOR_FIELD_NUMBER: _ClassVar[int]
+    items: _containers.RepeatedCompositeFieldContainer[EvaluationSummary]
+    next_cursor: str
+    def __init__(self, items: _Optional[_Iterable[_Union[EvaluationSummary, _Mapping]]] = ..., next_cursor: _Optional[str] = ...) -> None: ...
+
+class EvaluationSummary(_message.Message):
+    __slots__ = ("run_id", "organization_id", "version", "status", "created_at", "requested_by", "profile_id", "profile_version", "prompt_id", "prompt_version", "release_fingerprint", "unresolved_result_unknown_count", "review_count", "required_candidates", "accepted_candidates", "review_ready_candidates", "last_cause", "last_reason")
+    RUN_ID_FIELD_NUMBER: _ClassVar[int]
+    ORGANIZATION_ID_FIELD_NUMBER: _ClassVar[int]
+    VERSION_FIELD_NUMBER: _ClassVar[int]
+    STATUS_FIELD_NUMBER: _ClassVar[int]
+    CREATED_AT_FIELD_NUMBER: _ClassVar[int]
+    REQUESTED_BY_FIELD_NUMBER: _ClassVar[int]
+    PROFILE_ID_FIELD_NUMBER: _ClassVar[int]
+    PROFILE_VERSION_FIELD_NUMBER: _ClassVar[int]
+    PROMPT_ID_FIELD_NUMBER: _ClassVar[int]
+    PROMPT_VERSION_FIELD_NUMBER: _ClassVar[int]
+    RELEASE_FINGERPRINT_FIELD_NUMBER: _ClassVar[int]
+    UNRESOLVED_RESULT_UNKNOWN_COUNT_FIELD_NUMBER: _ClassVar[int]
+    REVIEW_COUNT_FIELD_NUMBER: _ClassVar[int]
+    REQUIRED_CANDIDATES_FIELD_NUMBER: _ClassVar[int]
+    ACCEPTED_CANDIDATES_FIELD_NUMBER: _ClassVar[int]
+    REVIEW_READY_CANDIDATES_FIELD_NUMBER: _ClassVar[int]
+    LAST_CAUSE_FIELD_NUMBER: _ClassVar[int]
+    LAST_REASON_FIELD_NUMBER: _ClassVar[int]
+    run_id: str
+    organization_id: int
+    version: int
+    status: str
+    created_at: str
+    requested_by: str
+    profile_id: str
+    profile_version: str
+    prompt_id: str
+    prompt_version: str
+    release_fingerprint: str
+    unresolved_result_unknown_count: int
+    review_count: int
+    required_candidates: int
+    accepted_candidates: int
+    review_ready_candidates: int
+    last_cause: str
+    last_reason: str
+    def __init__(self, run_id: _Optional[str] = ..., organization_id: _Optional[int] = ..., version: _Optional[int] = ..., status: _Optional[str] = ..., created_at: _Optional[str] = ..., requested_by: _Optional[str] = ..., profile_id: _Optional[str] = ..., profile_version: _Optional[str] = ..., prompt_id: _Optional[str] = ..., prompt_version: _Optional[str] = ..., release_fingerprint: _Optional[str] = ..., unresolved_result_unknown_count: _Optional[int] = ..., review_count: _Optional[int] = ..., required_candidates: _Optional[int] = ..., accepted_candidates: _Optional[int] = ..., review_ready_candidates: _Optional[int] = ..., last_cause: _Optional[str] = ..., last_reason: _Optional[str] = ...) -> None: ...
