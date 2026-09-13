@@ -5,12 +5,16 @@ on:
   pull_request:
 permissions:
   contents: read
+concurrency:
+  group: qs-ai-checks-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   verify:
     strategy:
       fail-fast: false
       matrix:
         mysql-version: ['8.0.36', '8.4']
+        shard: [0, 1, 2, 3]
     runs-on: ubuntu-latest
     services:
       mysql:
@@ -91,7 +95,12 @@ jobs:
                   connection.close()
           asyncio.run(prepare())
           PYTHON
-      - run: uv run pytest
+      - name: Run complete test partition
+        run: >-
+          uv run python scripts/ci/run_tests.py
+          --index ${{ matrix.shard }} --count 4
+          --mysql '${{ matrix.mysql-version }}'
+          --manifest ci-results/shard-${{ matrix.mysql-version }}-${{ matrix.shard }}.json
         env:
           QS_AI_BRIDGE_BIN: ${{ github.workspace }}/.interop/qs-ai-bridge
           QS_AI_ARTIFACT_BRIDGE_BIN: ${{ github.workspace }}/.interop/qs-ai-artifact-bridge
@@ -100,6 +109,14 @@ jobs:
           QS_AI_GOVERNANCE_SOURCE: ${{ github.workspace }}/.interop/qs-governance
           QS_AI_TEST_QS_MYSQL_DSN: mysql+asyncmy://qs_ai:qs_ai_local@127.0.0.1:3306/qs_gateway
           QS_AI_TEST_QS_GO_DSN: qs_ai:qs_ai_local@tcp(127.0.0.1:3306)/qs_gateway?parseTime=true
+      - name: Preserve test coverage and slow-test timings
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tests-${{ matrix.mysql-version }}-${{ matrix.shard }}
+          path: ci-results/
+          if-no-files-found: error
+          retention-days: 14
       - run: uv build
       - name: Verify packaged configuration and Prompts outside repository
         run: |
@@ -132,6 +149,25 @@ jobs:
                   cwd=directory, env=environment, check=True,
               )
           PYTHON
+  test-coverage:
+    name: Complete test coverage
+    needs: verify
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require every partition to pass
+        env:
+          RESULT: ${{ needs.verify.result }}
+        run: test "$RESULT" = success
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: tests-*
+          path: ci-results
+      - name: Verify complete execution on both MySQL versions
+        run: >-
+          python3 scripts/ci/verify_test_shards.py ci-results
+          --revision "$GITHUB_SHA" --count 4 --mysql 8.0.36 8.4
   image:
     runs-on: ubuntu-latest
     steps:
