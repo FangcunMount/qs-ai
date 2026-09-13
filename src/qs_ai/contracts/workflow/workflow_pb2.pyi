@@ -118,6 +118,26 @@ class EvidenceItem(_message.Message):
     facts: _containers.RepeatedCompositeFieldContainer[Fact]
     def __init__(self, assessment_id: _Optional[str] = ..., testee_id: _Optional[str] = ..., report_id: _Optional[str] = ..., source_version: _Optional[str] = ..., facts: _Optional[_Iterable[_Union[Fact, _Mapping]]] = ...) -> None: ...
 
+class EvaluationPlanQuery(_message.Message):
+    __slots__ = ("scope", "suite", "generation_route", "semantic_route")
+    SCOPE_FIELD_NUMBER: _ClassVar[int]
+    SUITE_FIELD_NUMBER: _ClassVar[int]
+    GENERATION_ROUTE_FIELD_NUMBER: _ClassVar[int]
+    SEMANTIC_ROUTE_FIELD_NUMBER: _ClassVar[int]
+    scope: PublicationScope
+    suite: FrozenEvaluationRef
+    generation_route: FrozenEvaluationRef
+    semantic_route: FrozenEvaluationRef
+    def __init__(self, scope: _Optional[_Union[PublicationScope, _Mapping]] = ..., suite: _Optional[_Union[FrozenEvaluationRef, _Mapping]] = ..., generation_route: _Optional[_Union[FrozenEvaluationRef, _Mapping]] = ..., semantic_route: _Optional[_Union[FrozenEvaluationRef, _Mapping]] = ...) -> None: ...
+
+class EvaluationPlan(_message.Message):
+    __slots__ = ("schema_version", "plan_json")
+    SCHEMA_VERSION_FIELD_NUMBER: _ClassVar[int]
+    PLAN_JSON_FIELD_NUMBER: _ClassVar[int]
+    schema_version: str
+    plan_json: str
+    def __init__(self, schema_version: _Optional[str] = ..., plan_json: _Optional[str] = ...) -> None: ...
+
 class EvaluationReopenCommand(_message.Message):
     __slots__ = ("scope", "expected_version", "reason", "confirm")
     SCOPE_FIELD_NUMBER: _ClassVar[int]

@@ -1,6 +1,7 @@
 from dishka import Provider, Scope, provide
 
 from qs_ai.application.evaluation.management import EvaluationManagementStore
+from qs_ai.application.evaluation.planning import EvaluationPlanner
 from qs_ai.application.evaluation.requests import EvaluationRequests
 from qs_ai.application.governance.asset_catalog import AssetCatalog
 from qs_ai.application.governance.profile_registration import ProfileRegistrar
@@ -18,6 +19,7 @@ from qs_ai.config import Settings
 from qs_ai.infrastructure.persistence.mysql.asset_catalog import MySQLAssetCatalog
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
 from qs_ai.infrastructure.persistence.mysql.evaluation_management import MySQLEvaluationManagement
+from qs_ai.infrastructure.persistence.mysql.evaluation_planning import MySQLEvaluationPlanner
 from qs_ai.infrastructure.persistence.mysql.evaluation_requests import MySQLEvaluationRequests
 from qs_ai.infrastructure.persistence.mysql.evaluation_runs import MySQLRunCreator
 from qs_ai.infrastructure.persistence.mysql.evaluation_suites import MySQLSuiteRegistrar
@@ -35,6 +37,9 @@ class IntegrationProvider(Provider):
         MySQLPromptLifecycleReader, provides=PromptLifecycleReader, scope=Scope.REQUEST
     )
     asset_catalog = provide(MySQLAssetCatalog, provides=AssetCatalog, scope=Scope.REQUEST)
+    evaluation_planner = provide(
+        MySQLEvaluationPlanner, provides=EvaluationPlanner, scope=Scope.REQUEST
+    )
     suite_registrar = provide(MySQLSuiteRegistrar, provides=SuiteRegistrar, scope=Scope.REQUEST)
     profile_registrar = provide(
         MySQLProfileRegistrar, provides=ProfileRegistrar, scope=Scope.REQUEST
