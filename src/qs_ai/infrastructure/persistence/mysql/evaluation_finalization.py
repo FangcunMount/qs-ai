@@ -12,6 +12,7 @@ from qs_ai.application.evaluation.checkpoints import CheckpointConflict, Checkpo
 from qs_ai.application.evaluation.finalization import final_record, final_transition
 from qs_ai.application.evaluation.management import ManagementScope
 from qs_ai.application.interpretation.ports import NotFound
+from qs_ai.domain.evaluation.reopening import eligible_candidate_ids
 from qs_ai.infrastructure.persistence.mysql.evaluation_checkpoints import save_checkpoint
 from qs_ai.infrastructure.persistence.mysql.evaluation_gates import (
     GateSnapshot,
@@ -119,8 +120,8 @@ async def save_progress(
 
 async def read_finalization(
     db: AsyncSession, scope: ManagementScope, run: Mapping[str, Any]
-) -> str:
-    """A stored status or JSON gate alone is not sufficient evidence of approval."""
+) -> tuple[str, bool]:
+    """Read the verified gate and derive reopening eligibility from the same snapshot."""
     progress = run["progress_json"]
     record = progress.get("gate_result")
     if record is None and progress["status"] not in ("approved", "rejected"):
@@ -128,9 +129,22 @@ async def read_finalization(
             raise ValueError("Finalization audit without a gate decision")
         if has_review_rounds(progress):
             await load_snapshot(db, scope, run, run["version"], datetime.now(UTC))
-        return ""
-    await verified_final_snapshot(db, scope, run)
-    return json.dumps(record, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
+        return "", False
+    snapshot = await verified_final_snapshot(db, scope, run)
+    can_reopen = bool(
+        eligible_candidate_ids(
+            snapshot.candidates,
+            snapshot.reviews,
+            snapshot.preview.quality,
+            snapshot.closed_at,
+            status=progress["status"],
+            gate_policy_version="v2",
+            reopening_count=len(progress.get("review_reopenings", [])),
+        )
+    )
+    return json.dumps(
+        record, ensure_ascii=False, separators=(",", ":"), allow_nan=False
+    ), can_reopen
 
 
 async def verified_final_snapshot(

@@ -75,3 +75,18 @@ async def test_reopen_failure_is_redacted_without_retry(handler, error, code):
         await service.ReopenReview(reopen_command(), Context())
     assert caught.value.args[0] == code and "private" not in str(caught.value)
     assert store.reopen.await_count == 1
+
+
+@pytest.mark.parametrize("allowed", [None, False, True])
+async def test_get_preserves_reopening_eligibility_presence_and_value(handler, allowed):
+    service, store = handler
+    query = reopen_command().scope
+    store.get.return_value = EvaluationView(
+        query.run_id, 13, "rejected", 0, "[]", can_reopen_review=allowed
+    )
+    response = await service.Get(query, Context())
+    assert response.HasField("can_reopen_review") is (allowed is not None)
+    if allowed is not None:
+        assert response.can_reopen_review is allowed
+    assert pb.EvaluationState.FromString(response.SerializeToString()) == response
+    store.reopen.assert_not_awaited()
