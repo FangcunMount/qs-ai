@@ -2,6 +2,10 @@
 
 2026-09-13：M3 尚未完成。本表把已注册的旧 AI 管理入口逐项映射到新服务，区分代码可用、历史保留与尚缺等价能力，避免按新增 PR 数量判断接管进度。生产治理与执行仍按 M1/M2 前置验收开放；本表不是切换批准。
 
+本次集中审核更新：当前代码包已包括任务目录/诊断、评测与参与者容量、参与者受控恢复、Prompt/Profile/发布管理，以及 Operating 新管理入口和小程序新工作流。QS 新增正式常驻命令投递与成果接收，AI 部署接入独立管理、发布绑定、生成和评测开关。关联审核为 [AI #83](https://github.com/FangcunMount/qs-ai/pull/83)、[QS #108](https://github.com/FangcunMount/qs-server/pull/108)、[Operating #34](https://github.com/FangcunMount/qs-operating-system/pull/34)、[Collection #1](https://github.com/FangcunMount/qs-collection-system/pull/1)。下方逐批记录中的“本地未推送”“待补入口”属于当时状态，以本段和 PR 实际检查为准。
+
+尚待关闭的是正式发布与实际业务验收：生产模型凭据配置、当前 v6 及评测依赖载入/对账、真实授权与撤权案例、完整管理操作与配置回退、客户端成果展示，以及关闭旧入口后的 24 小时观察。保留完整“草稿→评测→审核→发布→生成→回退”，不以固定 v6 执行或测试替身代替；旧调试 Profile、历史结果和复查续跑不迁移，存储不删除。
+
 ## 范围与证据
 
 - QS 基线：`ac170ec3a93eacafa77583406bcadfe5bae3df9d`，`internal/apiserver/transport/rest/routes_interpretation.go`。已读取 v1/v2 的实际注册；旧管理共 25 个 method-path 操作。QS 原工作区不修改，取消代理在本任务独立 worktree 的 `codex/ai-evaluation-cancellation` 分支。
