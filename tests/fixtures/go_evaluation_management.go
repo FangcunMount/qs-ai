@@ -16,6 +16,7 @@ func main() {
 	var input struct {
 		RunID, Action, Decision, Reason string
 		Release                         app.EvaluationRelease
+		Plan                            app.EvaluationPlanQuery
 		Review                          app.EvaluationReview
 		UserID                          int64
 		OrgID, Version                  int64
@@ -48,7 +49,9 @@ func main() {
 	}
 	scope := app.EvaluationScope{RunID: input.RunID, OrganizationID: input.OrgID, OperatorUserID: input.UserID}
 	var result any
-	if input.Action == "reopen" {
+	if input.Action == "prepare" {
+		result, err = service.Prepare(ctx, app.DraftScope{OrganizationID: input.OrgID, OperatorUserID: input.UserID}, input.Plan)
+	} else if input.Action == "reopen" {
 		result, err = service.ReopenReview(ctx, scope, app.EvaluationReopen{ExpectedVersion: input.Version, Reason: input.Reason, Confirm: input.Confirm})
 	} else if input.Action == "finalize" {
 		result, err = service.Finalize(ctx, scope, app.EvaluationFinalize{ExpectedVersion: input.Version, ExpectedPassed: input.ExpectedPassed, Reason: input.Reason, Confirm: input.Confirm})
