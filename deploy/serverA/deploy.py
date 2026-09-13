@@ -1,5 +1,6 @@
 """Server-side release transaction; standard library only, run as deploy user."""
 
+import contextlib
 import fcntl
 import hashlib
 import json
@@ -225,15 +226,64 @@ def apply(release: Path, state: dict) -> None:
     print(json.dumps({"deployed": revision, "database": after, "release": release.name}))
 
 
+@contextlib.contextmanager
+def global_deploy_lock():
+    directory = "/var/lib/fangcun-image-retention"
+    path = directory + "/deploy.lock"
+    run("retention directory", ["sudo", "-n", "mkdir", "-p", directory])
+    run("retention directory mode", ["sudo", "-n", "chmod", "0755", directory])
+    run("deployment lock", ["sudo", "-n", "touch", path])
+    run("deployment lock mode", ["sudo", "-n", "chmod", "0666", path])
+    with open(path, "r+") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        yield
+
+
+def retain_successful_image(release):
+    # Cleanup has its own failure status; never trigger application rollback.
+    try:
+        revision = json.loads((release / "manifest.json").read_text())["revision"]
+        script = Path(__file__)
+        helper = (
+            script.with_name("image-retention.py")
+            if script.name == "deploy.py"
+            else (script.with_name(script.stem + "-retention.py"))
+        )
+        previous = json.loads((ROOT / "state.json").read_text()).get("previous")
+        protected = []
+        if previous:
+            previous_manifest = json.loads((release_path(previous) / "manifest.json").read_text())
+            protected = ["--protect-image-id", previous_manifest["image_id"]]
+        run(
+            "image retention",
+            [
+                "sudo",
+                "-n",
+                "python3",
+                str(helper),
+                "--service",
+                "qs-ai",
+                "--image-ref",
+                f"qs-ai:{revision}",
+                "--apply",
+                "--deployment-locked",
+                *protected,
+            ],
+        )
+    except Exception:
+        print("::warning::Deployment succeeded, but image retention failed; inspect server audit.")
+
+
 def main() -> None:
     os.umask(0o077)
     ROOT.mkdir(exist_ok=True)
-    with (ROOT / "deploy.lock").open("a") as lock:
+    with global_deploy_lock(), (ROOT / "deploy.lock").open("a") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         path = ROOT / "state.json"
         state = json.loads(path.read_text()) if path.exists() else {}
         if sys.argv[1] == "rollback":
             restore(state)
+            retain_successful_image(release_path(state["previous"]))
         else:
             release = release_path(sys.argv[1])
             try:
@@ -248,6 +298,7 @@ def main() -> None:
                     },
                 )
                 raise
+            retain_successful_image(release)
 
 
 if __name__ == "__main__":
