@@ -1,6 +1,7 @@
 from dishka import Provider, Scope, provide
 
 from qs_ai.application.evaluation.catalog import EvaluationCatalog
+from qs_ai.application.evaluation.diagnostics import EvaluationDiagnostics
 from qs_ai.application.evaluation.management import EvaluationManagementStore
 from qs_ai.application.evaluation.planning import EvaluationPlanner
 from qs_ai.application.evaluation.requests import EvaluationRequests
@@ -20,6 +21,7 @@ from qs_ai.config import Settings
 from qs_ai.infrastructure.persistence.mysql.asset_catalog import MySQLAssetCatalog
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
 from qs_ai.infrastructure.persistence.mysql.evaluation_catalog import MySQLEvaluationCatalog
+from qs_ai.infrastructure.persistence.mysql.evaluation_diagnostics import MySQLEvaluationDiagnostics
 from qs_ai.infrastructure.persistence.mysql.evaluation_management import MySQLEvaluationManagement
 from qs_ai.infrastructure.persistence.mysql.evaluation_planning import MySQLEvaluationPlanner
 from qs_ai.infrastructure.persistence.mysql.evaluation_requests import MySQLEvaluationRequests
@@ -55,6 +57,9 @@ class IntegrationProvider(Provider):
     )
     evaluation_catalog = provide(
         MySQLEvaluationCatalog, provides=EvaluationCatalog, scope=Scope.REQUEST
+    )
+    evaluation_diagnostics = provide(
+        MySQLEvaluationDiagnostics, provides=EvaluationDiagnostics, scope=Scope.REQUEST
     )
     evaluation_management = provide(
         MySQLEvaluationManagement, provides=EvaluationManagementStore, scope=Scope.REQUEST
