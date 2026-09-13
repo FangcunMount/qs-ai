@@ -1,0 +1,214 @@
+{
+  "scope": "production runtime configuration rollback and restore with no in-flight AI jobs",
+  "rollback_workflow": 34761323207,
+  "restore_workflow": 34761471931,
+  "stages": {
+    "before": {
+      "observed_at": "2026-09-13T13:58:33.006419+00:00",
+      "current_release": "7620178f9b06ab01b99d202193cdc49f1a46a624-34759204722-1",
+      "previous_release": "7620178f9b06ab01b99d202193cdc49f1a46a624-34758383533-1",
+      "database": {
+        "mysql_version": "8.0.36",
+        "current": [
+          "0026_participant_retries"
+        ],
+        "expected": [
+          "0026_participant_retries"
+        ]
+      },
+      "services": [
+        {
+          "name": "qs-ai-api",
+          "health": "healthy",
+          "flags": {}
+        },
+        {
+          "name": "qs-ai-grpc",
+          "health": "healthy",
+          "flags": {
+            "QS_AI_GRPC__GOVERNANCE_ENABLED": "true",
+            "QS_AI_GENERATION__USE_PUBLICATIONS": "false"
+          }
+        },
+        {
+          "name": "qs-ai-evaluation",
+          "health": "healthy",
+          "flags": {
+            "QS_AI_EVALUATION__ENABLED": "true"
+          }
+        },
+        {
+          "name": "qs-apiserver",
+          "health": "healthy",
+          "flags": {}
+        },
+        {
+          "name": "qs-collection-server-1",
+          "health": "healthy",
+          "flags": {}
+        },
+        {
+          "name": "qs-collection-server-2",
+          "health": "healthy",
+          "flags": {}
+        }
+      ],
+      "absent": []
+    },
+    "closed": {
+      "observed_at": "2026-09-13T14:01:35.433857+00:00",
+      "current_release": "7620178f9b06ab01b99d202193cdc49f1a46a624-34758383533-1",
+      "previous_release": "7620178f9b06ab01b99d202193cdc49f1a46a624-34759204722-1",
+      "database": {
+        "mysql_version": "8.0.36",
+        "current": [
+          "0026_participant_retries"
+        ],
+        "expected": [
+          "0026_participant_retries"
+        ]
+      },
+      "services": [
+        {
+          "name": "qs-ai-api",
+          "health": "healthy",
+          "flags": {}
+        },
+        {
+          "name": "qs-ai-grpc",
+          "health": "healthy",
+          "flags": {
+            "QS_AI_GRPC__GOVERNANCE_ENABLED": "false",
+            "QS_AI_GENERATION__USE_PUBLICATIONS": "false"
+          }
+        },
+        {
+          "name": "qs-apiserver",
+          "health": "healthy",
+          "flags": {}
+        },
+        {
+          "name": "qs-collection-server-1",
+          "health": "healthy",
+          "flags": {}
+        },
+        {
+          "name": "qs-collection-server-2",
+          "health": "healthy",
+          "flags": {}
+        }
+      ],
+      "absent": [
+        "qs-ai-evaluation"
+      ],
+      "database_counts_and_receiver_flags": {
+        "counts": {
+          "profile_assets": 1,
+          "prompt_assets": 6,
+          "route_assets": 2,
+          "schema_assets": 2,
+          "configuration_publications": 0,
+          "configuration_publication_pointers": 0,
+          "configuration_publication_changes": 0,
+          "evaluation_runs": 0,
+          "evaluation_suites": 0,
+          "prompt_drafts": 0,
+          "profile_registrations": 0,
+          "jobs": 0,
+          "model_calls": 0,
+          "artifacts": 0,
+          "result_outbox": 0
+        },
+        "flags": {
+          "generation": false,
+          "evaluation": false,
+          "governance": false,
+          "publications": false
+        }
+      }
+    },
+    "restored": {
+      "observed_at": "2026-09-13T14:04:12.180259+00:00",
+      "current_release": "7620178f9b06ab01b99d202193cdc49f1a46a624-34759204722-1",
+      "previous_release": "7620178f9b06ab01b99d202193cdc49f1a46a624-34758383533-1",
+      "database": {
+        "mysql_version": "8.0.36",
+        "current": [
+          "0026_participant_retries"
+        ],
+        "expected": [
+          "0026_participant_retries"
+        ]
+      },
+      "services": [
+        {
+          "name": "qs-ai-api",
+          "health": "healthy",
+          "flags": {}
+        },
+        {
+          "name": "qs-ai-grpc",
+          "health": "healthy",
+          "flags": {
+            "QS_AI_GRPC__GOVERNANCE_ENABLED": "true",
+            "QS_AI_GENERATION__USE_PUBLICATIONS": "false"
+          }
+        },
+        {
+          "name": "qs-ai-evaluation",
+          "health": "healthy",
+          "flags": {
+            "QS_AI_EVALUATION__ENABLED": "true"
+          }
+        },
+        {
+          "name": "qs-apiserver",
+          "health": "healthy",
+          "flags": {}
+        },
+        {
+          "name": "qs-collection-server-1",
+          "health": "healthy",
+          "flags": {}
+        },
+        {
+          "name": "qs-collection-server-2",
+          "health": "healthy",
+          "flags": {}
+        }
+      ],
+      "absent": [],
+      "database_counts_and_receiver_flags": {
+        "counts": {
+          "profile_assets": 1,
+          "prompt_assets": 6,
+          "route_assets": 2,
+          "schema_assets": 2,
+          "configuration_publications": 0,
+          "configuration_publication_pointers": 0,
+          "configuration_publication_changes": 0,
+          "evaluation_runs": 0,
+          "evaluation_suites": 0,
+          "prompt_drafts": 0,
+          "profile_registrations": 0,
+          "jobs": 0,
+          "model_calls": 0,
+          "artifacts": 0,
+          "result_outbox": 0
+        },
+        "flags": {
+          "generation": false,
+          "evaluation": false,
+          "governance": true,
+          "publications": false
+        }
+      }
+    }
+  },
+  "restored_management_probe": "QS certificate -> AssetCatalog.List(empty) = INVALID_ARGUMENT",
+  "limitations": [
+    "No running-model or in-flight-result fault injection",
+    "No business publication rollback or real participant acceptance",
+    "No old engine retirement or 24-hour traffic acceptance"
+  ]
+}

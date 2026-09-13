@@ -61,6 +61,7 @@ async def stage_state(db: AsyncSession, session: Session) -> None:
         session_id=session.id,
         version=session.version,
         payload=asdict(event),
+        created_at=func.utc_timestamp(6),
     )
     # Evidence freezing can save the same user-visible state/version again.
     await db.execute(statement.on_duplicate_key_update(event_id=result_outbox.c.event_id))
@@ -92,8 +93,8 @@ class MySQLResultOutbox:
         async with self.transactions.open() as db:
             await db.execute(
                 update(result_outbox)
-                .where(result_outbox.c.event_id == event_id)
-                .values(delivered=True)
+                .where(result_outbox.c.event_id == event_id, result_outbox.c.delivered.is_(False))
+                .values(delivered=True, delivered_at=func.utc_timestamp(6))
             )
             await db.commit()
 

@@ -1,0 +1,60 @@
+{
+  "observed_at": "2026-09-13T14:00:58.485Z",
+  "scope": "selected_v6_route_v8_aggregate_only",
+  "selection": {
+    "profile_fingerprint": "sha256:cc747df0a6ae4b02b65b7447ce08845fa8c4e91b9d674f51ac25fbcbffd2a2a2",
+    "route_revision": "v8"
+  },
+  "quantile_method": "nearest_rank",
+  "run_count": 7,
+  "status_counts": {
+    "succeeded": 6,
+    "failed": 1
+  },
+  "observed_window": {
+    "first": "2026-09-05T14:47:55.733Z",
+    "last": "2026-09-08T10:18:53.035Z"
+  },
+  "provider_ms_successful": {
+    "n": 6,
+    "min": 116.523019,
+    "p50": 147.26241,
+    "p95": 201.306788,
+    "max": 201.306788,
+    "mean": 154.8191335
+  },
+  "successful_execution_ms": {
+    "n": 6,
+    "min": 13030,
+    "p50": 14376,
+    "p95": 22362,
+    "max": 22362,
+    "mean": 15762.833333333334
+  },
+  "input_tokens_successful": {
+    "n": 6,
+    "min": 4249,
+    "p50": 4274,
+    "p95": 4614,
+    "max": 4614,
+    "mean": 4435.666666666667
+  },
+  "output_tokens_successful": {
+    "n": 6,
+    "min": 795,
+    "p50": 918,
+    "p95": 1470,
+    "max": 1470,
+    "mean": 1023.5
+  },
+  "limitations": [
+    "Small historical sample; not an SLA or 24-hour acceptance",
+    "Execution elapsed starts at run claim; no old queue or QS result delivery measurement",
+    "Selected immutable profile and route only; no report bodies or participant identities exported"
+  ],
+  "measurement_notes": {
+    "provider_ms_successful": "Legacy ProviderReceipt latency stops when httpClient.Do returns response headers; excludes body consumption. Not full generation latency.",
+    "successful_execution_ms": "Run finished_at minus started_at. Not original request queue or QS receipt latency.",
+    "source_verified": "qs-server bc1a3c4096810ea4a6b691817fd8357c9d7deecd internal/apiserver/infra/aiexplanation/responsesapi/provider.go; qs-ai ResponsesGateway measures through complete body consumption."
+  }
+}

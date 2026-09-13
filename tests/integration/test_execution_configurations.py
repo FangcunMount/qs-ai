@@ -3,7 +3,7 @@
 import asyncio
 import json
 from dataclasses import replace
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
@@ -23,12 +23,15 @@ from qs_ai.infrastructure.persistence.mysql.execution_configurations import (
     MySQLExecutionConfigurations,
 )
 from qs_ai.infrastructure.persistence.mysql.interpretation import MySQLUnitOfWorkFactory
+from qs_ai.infrastructure.persistence.mysql.observation import observe
 from qs_ai.infrastructure.persistence.mysql.publications import MySQLPublications
+from qs_ai.infrastructure.persistence.mysql.result_outbox import MySQLResultOutbox
 from qs_ai.infrastructure.persistence.mysql.schema import (
     artifacts,
     execution_configurations,
     idempotency,
     model_calls,
+    result_outbox,
     sessions,
 )
 from qs_ai.infrastructure.qs_server.evaluation_suite import V6_PUBLISHED
@@ -130,6 +133,88 @@ async def test_acceptance_replay_and_execution_keep_original_publication_after_r
             select(artifacts.c.id).where(artifacts.c.session_id == receipt.session_id)
         )
     assert model.calls == 1
+
+
+async def test_observation_uses_bound_profile_and_acknowledged_completion(admitted):
+    kit, service, key, receipt, evidence, first, (tx, scope, command, at) = admitted
+    profile = first.change.current.active.evidence.manifest.profile.fingerprint
+    begin = datetime(2026, 1, 1, tzinfo=UTC)
+    end = begin + timedelta(days=1)
+    async with tx.open() as db:
+        await db.execute(
+            update(sessions)
+            .where(sessions.c.id == receipt.session_id)
+            .values(created_at=begin.replace(tzinfo=None))
+        )
+        await db.commit()
+    before = await observe(tx, profile, begin, end)
+    assert before["request_status_counts"] == {"queued": 1}
+    assert before["completion_delivery_ms"]["p95"] is None
+    assert before["backlog"]["queued_ready"] == 1
+    assert before["acceptance_passed"] is False
+    outside = await observe(tx, profile, begin - timedelta(days=1), begin)
+    assert outside["request_status_counts"] == {}
+    assert outside["backlog"]["queued_ready"] == 1
+
+    assert await ExecuteNext(kit.store, kit.source, workflow(kit, Model())).once()
+    assert (await service.get(kit.actor, receipt.session_id)).session.status == "completed"
+    outbox = MySQLResultOutbox(tx)
+    for event in await outbox.pending(20):
+        await outbox.delivered(event.event_id)
+    async with tx.open() as db:
+        await db.execute(
+            update(artifacts)
+            .where(artifacts.c.session_id == receipt.session_id)
+            .values(created_at=(begin + timedelta(seconds=2)).replace(tzinfo=None))
+        )
+        completion = result_outbox.c.payload["status"].as_string() == "completed"
+        await db.execute(
+            update(result_outbox)
+            .where(result_outbox.c.session_id == receipt.session_id, completion)
+            .values(
+                created_at=(begin + timedelta(seconds=2)).replace(tzinfo=None),
+                delivered_at=(begin + timedelta(seconds=5)).replace(tzinfo=None),
+            )
+        )
+        await db.commit()
+    # Changing the active publication does not change which old sessions are observed.
+    await MySQLPublications(tx).apply(
+        scope,
+        MovePublication(
+            uuid4(),
+            command.selector,
+            1,
+            first.change.current.active.publication_id,
+            "暂停新的准入",
+            True,
+            None,
+        ),
+        at + timedelta(seconds=1),
+    )
+    observed = await observe(tx, profile, begin, end)
+    assert observed["request_status_counts"] == {"completed": 1}
+    assert observed["provider_full_response_ms"]["p95"] == 4
+    assert observed["request_to_artifact_ms"]["p95"] == 2000
+    assert observed["completion_delivery_ms"]["p95"] == 3000
+    assert observed["request_to_acknowledged_completion_ms"]["p95"] == 5000
+    assert observed["backlog"]["pending_result_events"] == 0
+    assert receipt.session_id not in json.dumps(observed)
+    assert receipt.run_id not in json.dumps(observed)
+    wrong_profile = await observe(tx, "sha256:" + "f" * 64, begin, end)
+    assert wrong_profile["request_status_counts"] == {}
+    assert wrong_profile["provider_full_response_ms"]["n"] == 0
+
+    async with tx.open() as db:
+        await db.execute(
+            update(result_outbox)
+            .where(result_outbox.c.session_id == receipt.session_id, completion)
+            .values(created_at=None)
+        )
+        await db.commit()
+    incomplete = await observe(tx, profile, begin, end)
+    assert incomplete["completion_delivery_ms"]["n"] == 0
+    assert incomplete["completion_delivery_ms"]["missing"] == 1
+    assert incomplete["request_to_acknowledged_completion_ms"]["p95"] is None
 
 
 async def test_disabled_pointer_does_not_rebind_accepted_task_or_allow_new_acceptance(admitted):
