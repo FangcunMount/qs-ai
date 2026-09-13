@@ -66,6 +66,8 @@ func main() {
 		result, err = service.Create(ctx, scope, input.DraftID, input.Create)
 	case "revise":
 		result, err = service.Revise(ctx, scope, input.DraftID, input.Revise)
+	case "lifecycle":
+		result, err = service.GetLifecycle(ctx, scope, input.DraftID)
 	case "get":
 		result, err = service.Get(ctx, scope, input.DraftID, input.Revision)
 	case "freeze":
