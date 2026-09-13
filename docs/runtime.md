@@ -133,7 +133,7 @@ uv run python -m qs_ai.bootstrap.import_prompts --imported-by <操作人标识>
 
 迁移 `0010_schema_assets` 保存原规范字节、schema_id/version、SHA-256 和首次导入审计。命令为 `uv run python -m qs_ai.bootstrap.import_schemas --imported-by <操作人标识>`。两份 v1 规范从固定 QS 提交提取，先验证文件校验和及 JSON Schema，再插入不可变资产；重复导入不覆盖，同版异内容报冲突。
 
-只读对账范围现为 `fixed_profile_prompt_route_schema_baseline`，包括 1 个 Profile、6 个 Prompt、1 个 route/revision 和 2 份规范，以及 Profile 对输入/输出规范版本的引用。隔离 MySQL 8.4 整套导入后 matched；规范首次插入 2 条、再次 0 条。matched 只证明基线内容与引用相符，不能当作 release 审批或运行验收。旧输入 null/array 契约差异与新执行版本的修正见 [输入规范](../integrations/qs_server/schemas/README.md)。生产尚未迁移或导入。
+只读对账范围现为 `fixed_profile_prompt_route_schema_baseline`，包括 1 个 Profile、6 个 Prompt、1 个 route/revision 和 2 份规范，以及 Profile 对输入/输出规范版本的引用。隔离 MySQL 8.4 整套导入后 matched；规范首次插入 2 条、再次 0 条。matched 只证明基线内容与引用相符，不能当作 release 审批或运行验收。旧输入 null/array 契约差异与新执行版本的修正见 [输入规范](../integrations/qs_server/schemas/README.md)。2026-09-13 已完成该固定历史基线的生产导入，10 项内容及引用对账 matched，发布相关三表仍为 0、四个执行开关关闭；见[现场记录](evidence/2026-09-13-m3-fixed-baseline-import.json)。这不代表全部现网资产盘点、审批或发布完成。
 
 ## 构建生成清单（不审批、不激活）
 

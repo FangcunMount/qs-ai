@@ -1,0 +1,176 @@
+{
+  "observed_at": "2026-09-13T05:34:57.315768+00:00",
+  "environment": "serverA / qs-ai production MySQL",
+  "runtime_revision": "9b972e61b98a818a8c885d9206a56842dfb7a6e1",
+  "scope": "fixed_profile_prompt_route_schema_baseline",
+  "limitations": [
+    "Fixed historical baseline only; not a fresh complete QS production inventory",
+    "No publication, model call, real-user authorization or management acceptance"
+  ],
+  "before": {
+    "counts": {
+      "profile_assets": 0,
+      "prompt_assets": 0,
+      "route_assets": 0,
+      "schema_assets": 0,
+      "configuration_publications": 0,
+      "configuration_publication_pointers": 0,
+      "configuration_publication_changes": 0
+    },
+    "flags": {
+      "generation": false,
+      "evaluation": false,
+      "governance": false,
+      "publications": false
+    }
+  },
+  "after": {
+    "counts": {
+      "profile_assets": 1,
+      "prompt_assets": 6,
+      "route_assets": 1,
+      "schema_assets": 2,
+      "configuration_publications": 0,
+      "configuration_publication_pointers": 0,
+      "configuration_publication_changes": 0
+    },
+    "provenance": {
+      "profile_assets": [
+        {
+          "profile_id": "participant-scale-score-range-default",
+          "version": "v6",
+          "source_ref": "qs-server:ea166d2b40826208050909dd9e470232928e0a38",
+          "imported_by": "migration:codex:m3-baseline-2026-09-13",
+          "created_at": "2026-09-13 13:32:54.578298"
+        }
+      ],
+      "prompt_assets": [
+        {
+          "template_id": "cross-dimension-participant-scale",
+          "version": "v1",
+          "source_ref": "qs-server:1b52081ea42c94dc5653ce91e8c7a1db9f85fc44",
+          "imported_by": "migration:codex:m3-baseline-2026-09-13",
+          "created_at": "2026-09-13 13:32:21.186163"
+        },
+        {
+          "template_id": "cross-dimension-participant-scale",
+          "version": "v2",
+          "source_ref": "qs-server:1b52081ea42c94dc5653ce91e8c7a1db9f85fc44",
+          "imported_by": "migration:codex:m3-baseline-2026-09-13",
+          "created_at": "2026-09-13 13:32:21.192677"
+        },
+        {
+          "template_id": "cross-dimension-participant-scale",
+          "version": "v3",
+          "source_ref": "qs-server:1b52081ea42c94dc5653ce91e8c7a1db9f85fc44",
+          "imported_by": "migration:codex:m3-baseline-2026-09-13",
+          "created_at": "2026-09-13 13:32:21.199214"
+        },
+        {
+          "template_id": "cross-dimension-participant-scale",
+          "version": "v4",
+          "source_ref": "qs-server:1b52081ea42c94dc5653ce91e8c7a1db9f85fc44",
+          "imported_by": "migration:codex:m3-baseline-2026-09-13",
+          "created_at": "2026-09-13 13:32:21.207212"
+        },
+        {
+          "template_id": "cross-dimension-participant-scale",
+          "version": "v5",
+          "source_ref": "qs-server:1b52081ea42c94dc5653ce91e8c7a1db9f85fc44",
+          "imported_by": "migration:codex:m3-baseline-2026-09-13",
+          "created_at": "2026-09-13 13:32:21.213998"
+        },
+        {
+          "template_id": "cross-dimension-participant-scale",
+          "version": "v6",
+          "source_ref": "qs-server:1b52081ea42c94dc5653ce91e8c7a1db9f85fc44",
+          "imported_by": "migration:codex:m3-baseline-2026-09-13",
+          "created_at": "2026-09-13 13:32:21.220675"
+        }
+      ],
+      "route_assets": [
+        {
+          "route": "balanced_text_v1",
+          "revision": "v8",
+          "source_ref": "qs-server:runtime-observed-2026-09-11",
+          "imported_by": "migration:codex:m3-baseline-2026-09-13",
+          "created_at": "2026-09-13 13:32:32.207347"
+        }
+      ],
+      "schema_assets": [
+        {
+          "schema_id": "ai-explanation-input",
+          "version": "v1",
+          "source_ref": "qs-server:1b52081ea42c94dc5653ce91e8c7a1db9f85fc44",
+          "imported_by": "migration:codex:m3-baseline-2026-09-13",
+          "created_at": "2026-09-13 13:32:42.982540"
+        },
+        {
+          "schema_id": "ai-explanation-output",
+          "version": "v1",
+          "source_ref": "qs-server:1b52081ea42c94dc5653ce91e8c7a1db9f85fc44",
+          "imported_by": "migration:codex:m3-baseline-2026-09-13",
+          "created_at": "2026-09-13 13:32:42.989521"
+        }
+      ]
+    },
+    "flags": {
+      "generation": false,
+      "evaluation": false,
+      "governance": false,
+      "publications": false
+    }
+  },
+  "content_audit": {
+    "audit": "matched",
+    "scope": "fixed_profile_prompt_route_schema_baseline",
+    "profile_source": "qs-server:ea166d2b40826208050909dd9e470232928e0a38",
+    "prompt_source": "qs-server:1b52081ea42c94dc5653ce91e8c7a1db9f85fc44",
+    "profiles_checked": 1,
+    "prompts_checked": 6,
+    "routes_checked": 1,
+    "schemas_checked": 2,
+    "schema_source": "qs-server:1b52081ea42c94dc5653ce91e8c7a1db9f85fc44",
+    "route_source": "qs-server:runtime-observed-2026-09-11",
+    "mismatches": [],
+    "activated": false
+  },
+  "unapproved_manifest": {
+    "manifest": {
+      "generation_route": {
+        "content_sha256": "4f0c312b23e8d16a953395dc2a85ea365393f5bb7249db1142a073984c51ad46",
+        "fingerprint": "sha256:4f0c312b23e8d16a953395dc2a85ea365393f5bb7249db1142a073984c51ad46",
+        "identity": "balanced_text_v1",
+        "version": "v8"
+      },
+      "input_schema": {
+        "content_sha256": "b09a06cf80befdbb4a7968b8baa8865cd5afa28777c3858c6517a23609b1259a",
+        "fingerprint": "sha256:b09a06cf80befdbb4a7968b8baa8865cd5afa28777c3858c6517a23609b1259a",
+        "identity": "ai-explanation-input",
+        "version": "v1"
+      },
+      "output_schema": {
+        "content_sha256": "103cc2efc7abef6722729b30d1591f6e19ed2164f37901f7f5d789982fbb2744",
+        "fingerprint": "sha256:103cc2efc7abef6722729b30d1591f6e19ed2164f37901f7f5d789982fbb2744",
+        "identity": "ai-explanation-output",
+        "version": "v1"
+      },
+      "profile": {
+        "content_sha256": "cc747df0a6ae4b02b65b7447ce08845fa8c4e91b9d674f51ac25fbcbffd2a2a2",
+        "fingerprint": "sha256:cc747df0a6ae4b02b65b7447ce08845fa8c4e91b9d674f51ac25fbcbffd2a2a2",
+        "identity": "participant-scale-score-range-default",
+        "version": "v6"
+      },
+      "prompt": {
+        "content_sha256": "aae608db7183b9e3ed00d1cdbf39fb8ad73faaa809f312f47df52212b7991c3b",
+        "fingerprint": "sha256:480f7f02de8cf75e29f5778ec1567098fb081472976f188a82cbb42fbdcc873e",
+        "identity": "cross-dimension-participant-scale",
+        "version": "v6"
+      },
+      "schema_version": "qs-ai-generation-manifest/v1"
+    },
+    "fingerprint": "sha256:617a7b766fc69681efb5cabc6cdc03f313cb0c12665dbbb06a4a15486c2bc53a",
+    "approved": false,
+    "activated": false
+  }
+}
