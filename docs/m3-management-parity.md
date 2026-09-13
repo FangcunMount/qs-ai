@@ -11,6 +11,14 @@
 
 表内 v1 = `/internal/v1/interpretation/ai-explanation`，v2 = `/internal/v2/interpretation/ai-explanation`。新管理由 QS `/internal/v2/interpretation/ai-workflow` 授权代理到 AI；Operating 只负责界面。所有“有实现”均不等于实际管理闭环验收通过。
 
+## 当前迁移范围（2026-09-13 用户收缩）
+
+只迁移切换时当前可用、已发布的 Profile 及其实际引用的 Prompt、路由、输入/输出规范和必要评测资源。对候选集合先只读盘点，按精确 ID/版本及递归引用形成清单；对账只覆盖该清单，不要求迁移旧草稿、废弃版本、未引用 Prompt 或全部调试运行。旧来源、版本和内容指纹保留；导入不伪造 qs-ai 的评测批准或发布记录。
+
+旧调试任务、候选、审核及复查记录留在 QS 只读，不要求迁入继续执行能力。需要重新验证时，在 qs-ai 使用有效配置创建新任务。P20 旧调试复查执行兼容移出本轮必交范围，但切换时关闭原写入口、保留历史读取仍须验收。已经交付用户的结果、生产在途任务及失败/未知调用不归为可忽略的调试数据；其排空、处置和历史读取继续按 M2/M4/M5 验收，P10 原生受控重试保留。
+
+P06 仅补新服务资产的生命周期读取；P07 仅核对入选资产引用，不建设全历史状态还原。此前已导入的额外版本保持原样，不自动删除，也不因已导入就扩大验收范围。先前日志记录的全历史映射需求以本节为准，历史证据不改写。
+
 ## 25 个旧入口及去向
 
 | ID | 旧入口 | 责任去向 / 新实现 | 尚需关闭的差异 |
@@ -20,12 +28,12 @@
 | P03 | v1 GET `/prompt-evaluations/:run_id/attempts/:case_id/:attempt` | QS 保留旧执行历史 | 回归原始输出与失败证据读取，不因生成实现退役丢失 |
 | P04 | v1 GET `/prompt-evaluations/:run_id/attempts/:case_id/:attempt/rechecks` | QS 保留旧复查历史列表 | 历史保留验收 |
 | P05 | v1 GET `/prompt-evaluations/:run_id/attempts/:case_id/:attempt/rechecks/:recheck_id` | QS 保留旧复查详情 | 历史保留验收 |
-| P06 | v1 GET `/profiles` | AI AssetCatalog.List + 草稿/发布生命周期；旧版本仍由 QS 读 | 不可变资产列表不等于旧 draft/published/disabled 状态筛选；补做列表语义与实际在用版本映射 |
-| P07 | v1 GET `/profiles/:profile_id/versions/:version` | AI AssetCatalog.Get；旧版本读取保留 | 旧 ID/版本与新内容指纹逐条对账 |
+| P06 | v1 GET `/profiles` | AI AssetCatalog.List + 草稿/发布生命周期；旧版本仍由 QS 读 | 不可变资产列表不等于旧 draft/published/disabled 状态筛选；补新服务列表语义；仅对当前有效入选版本保留来源映射 |
+| P07 | v1 GET `/profiles/:profile_id/versions/:version` | AI AssetCatalog.Get；旧版本读取保留 | 仅入选的当前有效 Profile 及必要依赖按 ID/版本与内容指纹对账 |
 | P08 | v1 GET `/prompt-evaluation-capacity` | AI 应承接评测容量与准入状态 | 已补 GetCapacity、Start 原子日预算预留/活动限制及恢复准入；QS 沿用 OrgAdmin 查询权限，Operating 只展示服务端快照。并发/跨日/取消不退预算/恢复不重复扣费测试通过；生产限额对账及集中审核待完成 |
 | P09 | v1 GET `/participant-capacity` | AI 应承接生成执行容量；QS 保留业务权限 | 已本地接入快照生成的三级日预算、活动名额、租约恢复复用及终结释放；日预算拒绝通过原回执与结果 Outbox 返回 blocked。容量管理 RPC、QS 授权代理与 Operating 查询已本地贯通；生产政策对账尚未完成 |
-| P10 | v1 POST `/generations/:generation_id/retry` | AI 承接受控恢复，QS 只发授权命令 | AI 本地已实现独立重试事务：原尝试 CAS、命令幂等、当前参与者授权、未知风险确认、新额度预留及新旧 Run/原请求关联；管理 RPC、QS 授权代理、Operating 操作和回执恢复已本地接通；旧 Generation ID 映射及生产验收未完成 |
-| P11 | v1 POST `/profiles` | AI PromptDraft Create/Revise/Freeze + Profile Register | 有组成能力；验收完整编辑/校验/注册流程，明确原 Profile 草稿语义映射 |
+| P10 | v1 POST `/generations/:generation_id/retry` | AI 承接受控恢复，QS 只发授权命令 | AI 本地已实现独立重试事务：原尝试 CAS、命令幂等、当前参与者授权、未知风险确认、新额度预留及新旧 Run/原请求关联；管理 RPC、QS 授权代理、Operating 操作和回执恢复已本地接通；生产在途/失败/未知记录处置及验收未完成；旧调试 Generation 不要求迁入恢复 |
+| P11 | v1 POST `/profiles` | AI PromptDraft Create/Revise/Freeze + Profile Register | 有组成能力；验收新服务编辑/校验/注册流程；不迁入旧 Profile 调试草稿 |
 | P12 | v1 POST `/profiles/:profile_id/versions/:version/publish` | AI PublicationManagement.Publish | 有实现；实际质量门槛→发布→新生成版本绑定验收及旧写关闭 |
 | P13 | v1 POST `/profiles/:profile_id/versions/:version/disable` | AI PublicationManagement.Disable | 有实现；核对发布 selector 映射、停用对在途及新任务的行为 |
 | P14 | v2 GET `/prompt-evaluations` | AI 原生评测列表；QS 保留旧 v2 列表 | AI List 首批 CI 已通过；QS 代理、Operating 列表/选择已本地完成。目录和详情跨语言联测通过；合并入集中审核包，不单独发布。最终 CI 与真实管理验收待完成 |
@@ -34,7 +42,7 @@
 | P17 | v2 GET `/prompt-evaluations/:run_id/executions/:execution_id/output` | AI 运行执行证据查询 | 已补原 execution 列表/输出 RPC、QS 只读代理与 Operating 展示，包含失败/未形成候选及未知结果。MySQL 与跨语言联测通过；集中审核、最终 CI 和真实读取验收待完成 |
 | P18 | v2 POST `/prompt-evaluations` | AI Prepare→Create→Start | 有实现；核对容量准入、费用确认及实际启动闭环，不能只验证固定引用 |
 | P19 | v2 POST `/prompt-evaluations/:run_id/cancel` | AI Cancel + QS 管理代理 + Operating | AI PR #76 与 QS #104 已发布；Operating #33 已实现并通过 CI，等待依赖发布。普通取消/待审核废弃保持区分 |
-| P20 | v2 POST `/legacy-prompt-evaluations/:run_id/attempts/:case_id/:attempt/rechecks` | 新复查执行迁至 AI，旧结果/复查历史在 QS 读 | 不能长期保留 QS 旧模型调用写入口；需旧证据导入或明确映射为新 AI 运行，保留前后来源并验收 |
+| P20 | v2 POST `/legacy-prompt-evaluations/:run_id/attempts/:case_id/:attempt/rechecks` | 旧调试继续执行不迁移；旧结果/复查历史在 QS 读 | 切换时关闭旧写入口；需要重新验证时在 AI 新建任务，不补旧执行证据迁入与原任务续跑 |
 | P21 | v2 POST `/prompt-evaluations/:run_id/reviews` | AI Review（单项） | 有实现；权限、原文核对、双职责签名的实际操作验收 |
 | P22 | v2 POST `/prompt-evaluations/:run_id/reviews/batch` | AI Review（批次） | 有实现；批次原子性已测，实际管理及旧写关闭仍待验收 |
 | P23 | v2 POST `/prompt-evaluations/:run_id/finalize` | AI PreviewGates/Finalize | 有实现；真实审批拒绝/通过与发布引用验证 |
@@ -53,16 +61,16 @@
 
 | 工作包 | 必须覆盖 | 实现取舍与交付证据 |
 | --- | --- | --- |
-| A 查询与操作 | P06/P07/P14/P17/P19 | 复用现有资产、任务、调用记录及取消事务；补状态/旧版本映射、任务目录、失败执行诊断与页面接入。列表进入现有详情，不新建一套管理工作台。 |
+| A 查询与操作 | P06/P07/P14/P17/P19 | 复用现有资产、任务、调用记录及取消事务；补新服务状态/入选版本来源、任务目录、失败执行诊断与页面接入。列表进入现有详情，不新建一套管理工作台。 |
 | B 准入与恢复 | P08/P09/P10/P18 | qs-ai 统一持久预算、活动占用和受控恢复；复用冻结版本/调用记录/原回执。QS 负责当前授权及转发，Operating 展示容量和显式操作，不重算配额与状态机。 |
-| C 旧记录衔接与接管 | P20 及配置对账/旧写切换 | QS 保留旧证据查询；新复查通过明确来源映射由 AI 执行，旧草稿/ID 可追溯。形成配置对账与逐项旧写切换方案；不删除历史、不自动批准旧任务。 |
+| C 旧记录衔接与接管 | P20 及配置对账/旧写切换 | QS 保留旧证据查询；旧调试复查不续跑，新验证在 AI 新建任务。形成有效配置及其依赖对账与逐项旧写切换方案；不删除历史、不自动批准旧任务。 |
 
 集中审核包包括：三端最终契约、必需数据库迁移、相关功能与故障回归、完整 CI、在用 v6 配置对照及剩余业务验收清单。小步提交可保留，完整回归、PR 审核和部署按整批组织，不为已稳定部分重复全量发布。
 
-本调整改变交付节奏，不削减原有能力或验收门槛。代码及隔离联测完成可提交审核；M1/M2 真实案例和模型闭环、M3 真实管理操作、完整生产配置对账及旧写关闭仍分别验收。统一审核前不扩展 Prompt 可视化、多报告/记忆或通用控制器重构。
+集中交付改变交付节奏；当前迁移范围另按上方用户收缩条款执行。有效配置、生产任务和历史读取的验收门槛保持。代码及隔离联测完成可提交审核；M1/M2 真实案例和模型闭环、M3 真实管理操作、完整生产配置对账及旧写关闭仍分别验收。统一审核前不扩展 Prompt 可视化、多报告/记忆或通用控制器重构。
 
 1. **查询与操作完整性**：集中处理 P06/P14/P17/P19。验收可从列表找到任务，读取各阶段原执行/失败诊断，普通取消或明确废弃后仍能审计原输出；旧 ID 与新 UUID 的入口清楚区分。
-2. **准入与恢复完整性**：集中核对 P08/P09/P10/P18/P20 的实际生产政策、存储与调用链，再实现尚缺的等价行为。组织日配额、用户/测评预算、并发预留和未知调用风险属于原有能力，不能作为新增产品排除。配额数值复用当前 QS 配置，不自行提高限额。
+2. **准入与恢复完整性**：集中核对 P08/P09/P10/P18 的实际生产政策、存储与调用链，再实现尚缺的等价行为。组织日配额、用户/测评预算、并发预留和未知调用风险属于原有能力，不能作为新增产品排除。配额数值复用当前 QS 配置，不自行提高限额。
 3. **真实接管验收**：前置 M1/M2 真实报告、授权/撤权、模型结果和可靠回传通过后，从 Operating 完成“修改→评测→审核→发布→生成→回退”，附实际版本与脱敏证据。对全部生产在用配置完成数量、版本、引用和来源对账。
 4. **关闭旧写权威**：逐行确认写入口的替代/映射和回退方案，关闭旧准入及模型执行写路径，再删除无调用者实现。历史只读、标准报告和业务权限保留；不自动清理历史数据或共享凭据。
 
@@ -109,3 +117,16 @@ P10 仍需管理状态读取、重试 RPC/回执查询、QS 授权代理与 Oper
 Operating 已接入原生参与者查询/重试区域，重试前持久保存待确认命令。网络超时、刷新或回执暂未找到时保留原编号，只查回执，不自动发新命令；账号切换不展示旧响应。真实临时 mTLS Go→Python→MySQL 与核心重试合计 8 项通过，含权限撤回、非 QS 身份、跨机构、风险确认、重放、原操作人回执与无重复配额。QS 四包 race 与 lint 通过；Operating 三套件 27 项通过，类型、lint 和生产构建通过（本地构建，不是部署）；AI 非集成 968 项通过、11 跳过。
 
 QS 源提交 `1860f70b0bf628badb62b6939f5e3433c31c1abc` 已固定本地 AI CI；当前协议 103 RPC/23 服务、REST 246 operations/224 paths。三端均为集中包本地修改，未单项推送或发布。P10 的原生管理能力已接通，但旧 Generation ID 的显式映射、P06/P07、P20 和真实接管验收仍未完成。
+
+
+### Profile 生命周期与有效依赖对账（本地集中包）
+
+P06 已本地贯通：AI 从不可变 Profile 资产与既有发布指针/审计派生 draft/published/disabled，不新增生命周期表或写流程。按 identity/status 在分页前筛选，游标绑定精确筛选；发布、停用、回退保持原 ID/版本/指纹。导入但尚未在 AI 发布的资产为 draft，Operating 明示“未在 qs-ai 发布”和迁入来源。QS 复用现有审计权限与可信 scope，不重算发布政策；共享资产查询不返回操作人审计。
+
+QS 源提交 `72ec328b6fa199f7dbdcc204bef21c017567ffd1` 固定于 AI CI 的治理互操作 checkout；QS 文档提交 `1cfcf7415` 同步 105 RPC/23 服务、REST 248 operations/226 paths。Operating 源提交 `a6e84bc` 将状态筛选与来源展示接入既有资产目录，正文与状态必须绑定同一不可变引用，权限拒绝后清除旧页及详情。详情查询只读，不替代发布确认。
+
+验证：3 项实际 MySQL 生命周期测试通过，覆盖导入/发布/停用/回退、筛选先于分页、大小写精确键与无审计指针拒绝；1 项真实 Go→临时 mTLS→Python→MySQL 联测通过，覆盖审计角色、撤权、错误工作负载、共享配置读取及正文/操作者信息不泄露。QS 四包 race、lint 零问题、80 项文档测试及 API 一致性通过；Operating 2 套 27 项测试、类型、lint、生产构建通过；AI 968 项非集成回归通过、11 项跳过，mypy 231 源文件通过。以上使用隔离数据/测试证书，未完成真实管理验收。
+
+P07 对账工具增加 `bootstrap.audit_assets --referenced-only`，仅比较固定已发布 Profile 引用，未引用历史 Prompt 不阻塞，必要引用缺失/内容变化仍拒绝。4 项对账专项测试通过；默认完整基线模式保持。工具明示并未核实当前现网资产，最终有效配置清单和间接依赖仍需现场对账。
+
+本批均为本地提交，不单项推送或发布。P20 旧调试续跑按用户调整移出必交；代码审核前继续整理当前有效配置及生产政策对账、生产任务处置清单与旧写切换方案；代码及只读清单齐备后整包提交审核。生产在途/失败/未知记录处置和真实闭环是独立的上线验收门槛。没有删除旧数据、增加生产调用或开启治理开关。

@@ -7,6 +7,7 @@ from qs_ai.application.evaluation.management import EvaluationManagementStore
 from qs_ai.application.evaluation.planning import EvaluationPlanner
 from qs_ai.application.evaluation.requests import EvaluationRequests
 from qs_ai.application.governance.asset_catalog import AssetCatalog
+from qs_ai.application.governance.profile_lifecycle import ProfileLifecycleReader
 from qs_ai.application.governance.profile_registration import ProfileRegistrar
 from qs_ai.application.governance.prompt_drafts import PromptDraftStore
 from qs_ai.application.governance.prompt_freeze import PromptFreezer
@@ -29,6 +30,7 @@ from qs_ai.infrastructure.persistence.mysql.evaluation_planning import MySQLEval
 from qs_ai.infrastructure.persistence.mysql.evaluation_requests import MySQLEvaluationRequests
 from qs_ai.infrastructure.persistence.mysql.evaluation_runs import MySQLRunCreator
 from qs_ai.infrastructure.persistence.mysql.evaluation_suites import MySQLSuiteRegistrar
+from qs_ai.infrastructure.persistence.mysql.profile_lifecycle import MySQLProfileLifecycle
 from qs_ai.infrastructure.persistence.mysql.profile_registrations import MySQLProfileRegistrar
 from qs_ai.infrastructure.persistence.mysql.prompt_drafts import MySQLPromptDrafts
 from qs_ai.infrastructure.persistence.mysql.prompt_freezes import MySQLPromptFreezer
@@ -47,6 +49,9 @@ class IntegrationProvider(Provider):
 
     prompt_lifecycle = provide(
         MySQLPromptLifecycleReader, provides=PromptLifecycleReader, scope=Scope.REQUEST
+    )
+    profile_lifecycle = provide(
+        MySQLProfileLifecycle, provides=ProfileLifecycleReader, scope=Scope.REQUEST
     )
     asset_catalog = provide(MySQLAssetCatalog, provides=AssetCatalog, scope=Scope.REQUEST)
     evaluation_planner = provide(

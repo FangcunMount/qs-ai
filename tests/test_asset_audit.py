@@ -75,3 +75,64 @@ async def test_schema_reconciliation_requires_both_profile_contract_versions():
         "output_schema_version_not_in_baseline",
     ]
     store.put.assert_not_called()
+
+
+async def test_referenced_audit_ignores_retired_prompts_but_still_blocks_missing_active_prompt(
+    monkeypatch,
+):
+    from types import SimpleNamespace
+
+    from pydantic import SecretStr
+
+    from qs_ai.bootstrap import audit_assets as cli
+
+    selected_profile = profiles()[1][0]
+    selected_prompt = next(p for p in prompts()[1] if p.version == "v6")
+    profile_store, prompt_store, route_store, schema_store = (
+        AsyncMock(),
+        AsyncMock(),
+        AsyncMock(),
+        AsyncMock(),
+    )
+    profile_store.get.return_value = selected_profile
+    prompt_store.get.side_effect = lambda identity, version: (
+        selected_prompt if (identity, version) == (selected_prompt.template_id, "v6") else None
+    )
+    route_store.get.return_value = cli.route_baseline()[1][0]
+    schemas = {(s.schema_id, s.version): s for s in cli.schema_baseline()[1]}
+    schema_store.get.side_effect = lambda identity, version: schemas.get((identity, version))
+    db = AsyncMock()
+    monkeypatch.setattr(
+        cli, "Settings", lambda: SimpleNamespace(database_url=SecretStr("test-only"))
+    )
+    monkeypatch.setattr(cli, "Database", lambda _: db)
+    monkeypatch.setattr(cli, "Transactions", lambda _: object())
+    for name, store in (
+        ("MySQLProfileAssets", profile_store),
+        ("MySQLPromptAssets", prompt_store),
+        ("MySQLRouteAssets", route_store),
+        ("MySQLSchemaAssets", schema_store),
+    ):
+        monkeypatch.setattr(cli, name, lambda _, store=store: store)
+    selected = await cli.run(referenced_only=True)
+    assert selected["audit"] == "matched" and selected["prompts_checked"] == 1
+    assert selected["scope"] == "fixed_published_profile_references"
+    assert selected["current_production_inventory_verified"] is False
+    assert selected["activated"] is False
+    full = await cli.run()
+    assert full["audit"] == "mismatch" and full["prompts_checked"] == 6
+    assert len(full["mismatches"]) == 5
+    prompt_store.get.side_effect = None
+    prompt_store.get.return_value = None
+    missing = await cli.run(referenced_only=True)
+    assert missing["audit"] == "mismatch"
+    assert missing["mismatches"] == [
+        {
+            "kind": "prompt",
+            "identity": selected_prompt.template_id,
+            "version": "v6",
+            "reason": "missing",
+        }
+    ]
+    for store in (profile_store, prompt_store, route_store, schema_store):
+        store.put.assert_not_called()

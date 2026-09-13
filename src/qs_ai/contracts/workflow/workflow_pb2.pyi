@@ -1193,3 +1193,19 @@ class ParticipantExecution(_message.Message):
     unknown_result_risk: bool
     retry_provider_invocations: int
     def __init__(self, organization_id: _Optional[int] = ..., session_id: _Optional[str] = ..., request_id: _Optional[str] = ..., run_id: _Optional[str] = ..., version: _Optional[int] = ..., status: _Optional[str] = ..., subject_id: _Optional[str] = ..., testee_id: _Optional[str] = ..., assessment_ids: _Optional[_Iterable[str]] = ..., failure_code: _Optional[str] = ..., model_call_status: _Optional[str] = ..., invocation_id: _Optional[str] = ..., source_run_id: _Optional[str] = ..., can_retry: _Optional[bool] = ..., unknown_result_risk: _Optional[bool] = ..., retry_provider_invocations: _Optional[int] = ...) -> None: ...
+
+class ProfileLifecycleQuery(_message.Message):
+    __slots__ = ("scope", "identity", "version", "status", "limit", "cursor")
+    SCOPE_FIELD_NUMBER: _ClassVar[int]
+    IDENTITY_FIELD_NUMBER: _ClassVar[int]
+    VERSION_FIELD_NUMBER: _ClassVar[int]
+    STATUS_FIELD_NUMBER: _ClassVar[int]
+    LIMIT_FIELD_NUMBER: _ClassVar[int]
+    CURSOR_FIELD_NUMBER: _ClassVar[int]
+    scope: PublicationScope
+    identity: str
+    version: str
+    status: str
+    limit: int
+    cursor: str
+    def __init__(self, scope: _Optional[_Union[PublicationScope, _Mapping]] = ..., identity: _Optional[str] = ..., version: _Optional[str] = ..., status: _Optional[str] = ..., limit: _Optional[int] = ..., cursor: _Optional[str] = ...) -> None: ...

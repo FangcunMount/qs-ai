@@ -14,6 +14,8 @@ import (
 
 func main() {
 	var input struct {
+		ProfileLifecycle                app.ProfileLifecycleQuery
+		ProfileVersion                  string
 		SessionID, CommandID            string
 		ParticipantRetry                app.ParticipantRetry
 		RunID, Action, Decision, Reason string
@@ -57,7 +59,11 @@ func main() {
 	}
 	scope := app.EvaluationScope{RunID: input.RunID, OrganizationID: input.OrgID, OperatorUserID: input.UserID}
 	var result any
-	if input.Action == "participant-get" {
+	if input.Action == "profile-list" {
+		result, err = (&app.ProfileAdministration{Gateway: clients.Profiles}).ListLifecycle(ctx, app.DraftScope{OrganizationID: input.OrgID, OperatorUserID: input.UserID}, input.ProfileLifecycle)
+	} else if input.Action == "profile-lifecycle" {
+		result, err = (&app.ProfileAdministration{Gateway: clients.Profiles}).GetLifecycle(ctx, app.DraftScope{OrganizationID: input.OrgID, OperatorUserID: input.UserID}, input.ProfileLifecycle.Identity, input.ProfileVersion)
+	} else if input.Action == "participant-get" {
 		result, err = (&app.ParticipantAdministration{Gateway: clients.Participants}).Get(ctx, app.DraftScope{OrganizationID: input.OrgID, OperatorUserID: input.UserID}, input.SessionID)
 	} else if input.Action == "participant-retry" {
 		result, err = (&app.ParticipantAdministration{Gateway: clients.Participants}).Retry(ctx, app.DraftScope{OrganizationID: input.OrgID, OperatorUserID: input.UserID}, input.SessionID, input.ParticipantRetry)

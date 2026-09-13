@@ -280,3 +280,9 @@ QS 授权代理已实现，入口为 `GET /internal/v2/interpretation/ai-workflo
 列表按原创建时刻和 Run ID 倒序，以 keyset 分页；时刻按原 audit 的时区换算至 UTC，不重写历史记录。摘要包含版本、状态、原创建者、Profile/Prompt 版本、发布指纹、候选/审核/未知数量与最近状态变化，不读取模型原始输出、完整套件或生成清单。目录条目不代表审核通过，也不能代替写操作的当前权限、版本和持久证据复核。遇到不一致的机构、原创建证据、时间、状态或检查点，拒绝返回错误摘要。
 
 迁移 `0023_evaluation_catalog_index` 只为 evaluation_runs 增加机构索引，兼容现有写入；时间排序仍从原创建证据计算，M4 容量验收需覆盖实际机构记录量下的查询时延。该索引不会启用管理或模型执行。AI 接口有实现不代表 QS 代理、Operating 目录或真实管理验收已完成。
+
+### 有效 Profile 依赖对账
+
+M3 缩小迁移范围后，使用 `uv run python -m qs_ai.bootstrap.audit_assets --referenced-only` 核对固定已发布 Profile 及其实际引用。当前固定快照会检查 1 个 Profile、Prompt v6、1 条明确 revision 的路由和 2 个规范；v1–v5 缺失不阻塞该范围的对账。缺失被引用资产或字节不一致仍失败。默认不带参数保留原完整固定基线检查，两个模式均不删除、不写入、不激活。
+
+输出 `scope=fixed_published_profile_references` 仍指仓库固定快照；`current_production_inventory_verified=false` 明确表示没有实时盘点现网。最终迁移前必须重新核实当前已发布 Profile 清单、路由 revision 及执行/评测所需间接依赖，不能以该工具单次 matched 代替 M3 管理与生产验收。

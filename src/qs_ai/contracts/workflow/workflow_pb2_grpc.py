@@ -1686,6 +1686,16 @@ class ProfileManagementStub:
                 request_serializer=workflow__pb2.ProfileRegistrationQuery.SerializeToString,
                 response_deserializer=workflow__pb2.ProfileRegistrationReceipt.FromString,
                 _registered_method=True)
+        self.ListLifecycle = channel.unary_unary(
+                '/qsai.workflow.v1.ProfileManagement/ListLifecycle',
+                request_serializer=workflow__pb2.ProfileLifecycleQuery.SerializeToString,
+                response_deserializer=workflow__pb2.AssetCatalogResponse.FromString,
+                _registered_method=True)
+        self.GetLifecycle = channel.unary_unary(
+                '/qsai.workflow.v1.ProfileManagement/GetLifecycle',
+                request_serializer=workflow__pb2.ProfileLifecycleQuery.SerializeToString,
+                response_deserializer=workflow__pb2.AssetCatalogResponse.FromString,
+                _registered_method=True)
 
 
 class ProfileManagementServicer:
@@ -1705,6 +1715,18 @@ class ProfileManagementServicer:
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def ListLifecycle(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetLifecycle(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_ProfileManagementServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -1717,6 +1739,16 @@ def add_ProfileManagementServicer_to_server(servicer, server):
                     servicer.GetReceipt,
                     request_deserializer=workflow__pb2.ProfileRegistrationQuery.FromString,
                     response_serializer=workflow__pb2.ProfileRegistrationReceipt.SerializeToString,
+            ),
+            'ListLifecycle': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListLifecycle,
+                    request_deserializer=workflow__pb2.ProfileLifecycleQuery.FromString,
+                    response_serializer=workflow__pb2.AssetCatalogResponse.SerializeToString,
+            ),
+            'GetLifecycle': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetLifecycle,
+                    request_deserializer=workflow__pb2.ProfileLifecycleQuery.FromString,
+                    response_serializer=workflow__pb2.AssetCatalogResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -1775,6 +1807,60 @@ class ProfileManagement:
             '/qsai.workflow.v1.ProfileManagement/GetReceipt',
             workflow__pb2.ProfileRegistrationQuery.SerializeToString,
             workflow__pb2.ProfileRegistrationReceipt.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListLifecycle(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.ProfileManagement/ListLifecycle',
+            workflow__pb2.ProfileLifecycleQuery.SerializeToString,
+            workflow__pb2.AssetCatalogResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetLifecycle(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.ProfileManagement/GetLifecycle',
+            workflow__pb2.ProfileLifecycleQuery.SerializeToString,
+            workflow__pb2.AssetCatalogResponse.FromString,
             options,
             channel_credentials,
             insecure,
