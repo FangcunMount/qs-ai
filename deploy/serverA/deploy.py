@@ -8,6 +8,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 
@@ -16,6 +17,7 @@ class DeploymentError(RuntimeError):
 
 
 ROOT = Path("/opt/qs-ai")
+RETENTION_ROOT = Path("/var/lib/fangcun-image-retention")
 
 
 def secret_override(database_url: str) -> dict:
@@ -228,12 +230,24 @@ def apply(release: Path, state: dict) -> None:
 
 @contextlib.contextmanager
 def global_deploy_lock():
-    directory = "/var/lib/fangcun-image-retention"
-    path = directory + "/deploy.lock"
+    directory = str(RETENTION_ROOT)
+    path = RETENTION_ROOT / "deploy.lock"
     run("retention directory", ["sudo", "-n", "mkdir", "-p", directory])
     run("retention directory mode", ["sudo", "-n", "chmod", "0755", directory])
-    run("deployment lock", ["sudo", "-n", "touch", path])
-    run("deployment lock mode", ["sudo", "-n", "chmod", "0666", path])
+    if not path.exists():
+        # sudoers permits chown/chmod/ln, not touch. Publish a root-owned inode
+        # without replacing a concurrent initializer's file or held flock.
+        # ROOT and RETENTION_ROOT must reside on the same filesystem.
+        with tempfile.TemporaryDirectory(prefix=".retention-lock-", dir=ROOT) as temporary:
+            candidate = Path(temporary) / "lock"
+            candidate.touch(exist_ok=False)
+            run("deployment lock owner", ["sudo", "-n", "chown", "root:root", str(candidate)])
+            run("deployment lock mode", ["sudo", "-n", "chmod", "0666", str(candidate)])
+            try:
+                run("deployment lock", ["sudo", "-n", "ln", "--", str(candidate), str(path)])
+            except DeploymentError:
+                if not path.is_file():
+                    raise
     with open(path, "r+") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         yield

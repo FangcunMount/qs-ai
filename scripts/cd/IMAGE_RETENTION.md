@@ -18,6 +18,10 @@
 
 所有部署入口共用 `/var/lib/fangcun-image-retention/deploy.lock`，覆盖导入到清理全程。
 目录 root 所有，0755；锁文件 0666 允许不同部署账号锁定同一个 inode，不能删除或替换锁文件。
+qs-ai 的 Python 发布入口使用账号已获准的 mkdir/chown/chmod/ln 初始化锁：
+在 `/opt/qs-ai` 准备 root 所有的临时 inode，以不覆盖目标的硬链接发布到共享锁路径。
+初始化竞争使用先成功创建的锁；后续部署直接复用，不依赖 sudo touch。
+`/opt/qs-ai` 与共享锁目录必须位于同一文件系统，链接失败时不开始部署。
 版本记录和最近清理记录 root 所有，0600：
 
 - `<service>.json`：成功版本与过渡期保护列表，原子更新。
@@ -40,3 +44,8 @@ sudo python3 /path/to/image-retention.py --service SERVICE --image-ref REPOSITOR
 修改策略时同步 qs-server、iam、qs-operating-system、qs-ai 中的脚本和测试。
 本改动不安装定时任务，不调整远程镜像仓库策略，不清理发布目录或备份。
 合并并成功执行新版 CI/CD 后才在生产生效；本地测试通过不代表生产已接入。
+
+2026-09-13：serverA 的 deploy 账号允许上述文件初始化命令及 sudo docker，
+但不允许 sudo touch 或 sudo python3。已现场验证锁初始化、同 inode 复用与竞争拒绝，
+部署状态保持不变。清理助手仍要求其独立的受控执行权限；当前权限不足时按既有规则告警，
+不能将服务部署成功记为镜像清理成功。本修复不调整 sudoers，也不更改四仓共用的保留策略脚本。
