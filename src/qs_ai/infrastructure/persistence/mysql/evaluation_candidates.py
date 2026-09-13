@@ -22,6 +22,7 @@ from qs_ai.domain.evaluation.identity import EvidenceReleaseIdentity, FrozenCont
 from qs_ai.domain.evaluation.preflight import AssertionReceipt
 from qs_ai.domain.evaluation.review import ReviewCandidate
 from qs_ai.domain.evaluation.semantic_completion import SemanticCompletion
+from qs_ai.infrastructure.persistence.mysql.evaluation_cancellation import read_cancellation
 from qs_ai.infrastructure.persistence.mysql.evaluation_finalization import read_finalization
 from qs_ai.infrastructure.persistence.mysql.evaluation_projection import (
     decode_completion,
@@ -74,8 +75,11 @@ async def get_candidate(
     run = await header(db, scope)
     if run["version"] != expected_version:
         raise CheckpointConflict("Candidate view version changed")
-    if has_review_rounds(run["progress_json"] or {}):
-        await read_finalization(db, scope, dict(run))
+    source = dict(run)
+    if run["progress_json"] is not None:
+        _, source = await read_cancellation(db, scope, source)
+    if has_review_rounds(source["progress_json"] or {}):
+        await read_finalization(db, scope, source)
     selected = (
         (
             await db.execute(

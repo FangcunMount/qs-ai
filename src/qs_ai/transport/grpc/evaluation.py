@@ -124,6 +124,31 @@ class EvaluationManagement(rpc.EvaluationManagementServicer):
             return pb.EvaluationState(**asdict(view))
         raise AssertionError("abort must raise")
 
+    async def Cancel(
+        self, request: pb.EvaluationCancelCommand, context: aio.ServicerContext[Any, Any]
+    ) -> pb.EvaluationState:
+        async with self.operation(context):
+            scope = scope_from(request.scope)
+            if (
+                request.ByteSize() > 8192
+                or request.expected_version < 1
+                or not request.confirm
+                or not request.HasField("discard")
+            ):
+                raise ValueError("Explicit version, discard decision and confirmation required")
+            async with self.container() as operation:
+                store = await operation.get(EvaluationManagementStore)
+                view = await store.cancel(
+                    scope,
+                    request.expected_version,
+                    request.reason,
+                    datetime.now(UTC),
+                    discard=request.discard,
+                    confirm=True,
+                )
+            return pb.EvaluationState(**asdict(view))
+        raise AssertionError("abort must raise")
+
     async def ListCandidates(
         self, request: pb.EvaluationQuery, context: aio.ServicerContext[Any, Any]
     ) -> pb.EvaluationCandidateIndex:

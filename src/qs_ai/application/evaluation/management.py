@@ -41,9 +41,21 @@ class EvaluationView:
     finalization_json: str = ""
     reopenings_json: str = "[]"
     creation_json: str = ""
+    cancellation_json: str = ""
 
 
 class EvaluationManagementStore(Protocol):
+    async def cancel(
+        self,
+        scope: ManagementScope,
+        expected_version: int,
+        reason: str,
+        at: datetime,
+        *,
+        discard: bool,
+        confirm: bool,
+    ) -> EvaluationView: ...
+
     async def list_unknowns(
         self, scope: ManagementScope, expected_version: int
     ) -> UnknownExecutionIndex: ...
