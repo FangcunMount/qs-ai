@@ -8,6 +8,7 @@ import pytest
 from sqlalchemy import select
 
 from qs_ai.application.execution.capacity import ParticipantCapacityPolicy
+from qs_ai.application.execution.errors import LeaseLost
 from qs_ai.application.execution.generation import DurableGeneration
 from qs_ai.application.execution.retry import ParticipantRetry, RetryParticipant
 from qs_ai.application.governance.prompt_drafts import DraftScope
@@ -15,7 +16,6 @@ from qs_ai.application.interpretation.ports import AccessDenied, NotFound, Workf
 from qs_ai.application.interpretation.provider import ProviderFailure
 from qs_ai.domain.interpretation.model import RuleViolation
 from qs_ai.infrastructure.persistence.model_call_codec import JSONModelCallCodec
-from qs_ai.infrastructure.persistence.mysql.leases import LeaseLost
 from qs_ai.infrastructure.persistence.mysql.participant_retries import MySQLParticipantRetries
 from qs_ai.infrastructure.persistence.mysql.schema import (
     model_calls,

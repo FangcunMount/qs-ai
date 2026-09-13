@@ -11,7 +11,7 @@ from tests.probes.p1_runtime import OfflineWorkflow, SyntheticEvidence
 class CrashWindow(OfflineWorkflow):
     async def execute(self, claim, evidence):
         await super().execute(claim, evidence)
-        print("CHECKPOINT_SAVED", flush=True)
+        print("WORKFLOW_RETURNED", flush=True)
         await asyncio.Event().wait()
 
 

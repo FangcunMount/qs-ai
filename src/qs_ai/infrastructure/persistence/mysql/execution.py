@@ -16,6 +16,7 @@ from qs_ai.application.execution.capacity import (
     ParticipantCapacityPolicy,
 )
 from qs_ai.application.execution.configuration import ConfigurationUnavailable
+from qs_ai.application.execution.errors import LeaseLost
 from qs_ai.application.execution.generation import GeneratedExplanation
 from qs_ai.application.interpretation.ports import Claim, WorkflowResult
 from qs_ai.application.interpretation.provider import ModelCall, ProviderFailure
@@ -24,14 +25,13 @@ from qs_ai.infrastructure.persistence.model_call_codec import JSONModelCallCodec
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
 from qs_ai.infrastructure.persistence.mysql.execution_configurations import validate_generation
 from qs_ai.infrastructure.persistence.mysql.interpretation import MySQLUnitOfWork, session_from
-from qs_ai.infrastructure.persistence.mysql.leases import LeaseLost
 from qs_ai.infrastructure.persistence.mysql.participant_capacity import acquire as acquire_capacity
 from qs_ai.infrastructure.persistence.mysql.participant_capacity import release as release_capacity
 from qs_ai.infrastructure.persistence.mysql.schema import (
     artifacts,
     evidence_sets,
+    execution_leases,
     jobs,
-    leases,
     model_calls,
     participant_retries,
     questions,
@@ -215,26 +215,32 @@ class MySQLExecutionStore:
                         update(runs).where(runs.c.id == job["run_id"]).values(status="blocked")
                     )
                     await db.execute(
-                        update(leases)
-                        .where(leases.c.thread_id == session.id)
-                        .values(fence=leases.c.fence + 1, expires_at=func.utc_timestamp(6))
+                        update(execution_leases)
+                        .where(execution_leases.c.thread_id == session.id)
+                        .values(
+                            fence=execution_leases.c.fence + 1, expires_at=func.utc_timestamp(6)
+                        )
                     )
                     if session.uses_qs_snapshot:
                         await release_capacity(db, session, datetime.now(UTC))
                     await db.commit()
                     return None
-                statement = mysql_insert(leases).values(
+                statement = mysql_insert(execution_leases).values(
                     thread_id=session.id, fence=0, expires_at=func.utc_timestamp(6)
                 )
-                await db.execute(statement.on_duplicate_key_update(thread_id=leases.c.thread_id))
+                await db.execute(
+                    statement.on_duplicate_key_update(thread_id=execution_leases.c.thread_id)
+                )
                 guard = (
                     (
                         await db.execute(
                             select(
-                                leases,
-                                (leases.c.expires_at <= func.utc_timestamp(6)).label("expired"),
+                                execution_leases,
+                                (execution_leases.c.expires_at <= func.utc_timestamp(6)).label(
+                                    "expired"
+                                ),
                             )
-                            .where(leases.c.thread_id == session.id)
+                            .where(execution_leases.c.thread_id == session.id)
                             .with_for_update()
                         )
                     )
@@ -256,8 +262,8 @@ class MySQLExecutionStore:
                 session.running()
                 await MySQLUnitOfWork(db).save(session)
                 await db.execute(
-                    update(leases)
-                    .where(leases.c.thread_id == session.id)
+                    update(execution_leases)
+                    .where(execution_leases.c.thread_id == session.id)
                     .values(fence=fence, expires_at=expiry(ttl_seconds))
                 )
                 await db.execute(
@@ -297,8 +303,11 @@ class MySQLExecutionStore:
         guard = (
             (
                 await db.execute(
-                    select(leases, (leases.c.expires_at > func.utc_timestamp(6)).label("active"))
-                    .where(leases.c.thread_id == session.id)
+                    select(
+                        execution_leases,
+                        (execution_leases.c.expires_at > func.utc_timestamp(6)).label("active"),
+                    )
+                    .where(execution_leases.c.thread_id == session.id)
                     .with_for_update()
                 )
             )
@@ -320,8 +329,9 @@ class MySQLExecutionStore:
     @staticmethod
     async def _check_active(db: AsyncSession, claim: Claim) -> None:
         active = await db.scalar(
-            select(leases.c.expires_at > func.utc_timestamp(6)).where(
-                leases.c.thread_id == claim.session.id, leases.c.fence == claim.fence
+            select(execution_leases.c.expires_at > func.utc_timestamp(6)).where(
+                execution_leases.c.thread_id == claim.session.id,
+                execution_leases.c.fence == claim.fence,
             )
         )
         if not active:
@@ -333,8 +343,8 @@ class MySQLExecutionStore:
         async with self.transactions.open() as db:
             await self._guard(db, claim)
             await db.execute(
-                update(leases)
-                .where(leases.c.thread_id == claim.session.id)
+                update(execution_leases)
+                .where(execution_leases.c.thread_id == claim.session.id)
                 .values(expires_at=expiry(ttl_seconds))
             )
             await db.execute(
@@ -485,8 +495,8 @@ class MySQLExecutionStore:
             await db.execute(update(jobs).where(jobs.c.id == claim.job_id).values(status="done"))
             await self._check_active(db, claim)
             await db.execute(
-                update(leases)
-                .where(leases.c.thread_id == session.id)
+                update(execution_leases)
+                .where(execution_leases.c.thread_id == session.id)
                 .values(expires_at=func.utc_timestamp(6))
             )
             if session.uses_qs_snapshot:

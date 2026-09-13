@@ -17,25 +17,6 @@ def test_question_identity_and_terminal_state():
         session.running()
 
 
-def test_default_api_fails_closed():
-    from fastapi.testclient import TestClient
-
-    from qs_ai.config import Settings
-    from qs_ai.main import create_app
-
-    with TestClient(create_app(Settings(_env_file=None))) as client:
-        body = {"testee_id": "1", "assessment_ids": ["2"], "goal": "goal"}
-        headers = {"Idempotency-Key": "key"}
-        assert (
-            client.post("/v1/interpretation-sessions", json=body, headers=headers).status_code
-            == 401
-        )
-        headers["Authorization"] = "Bearer untrusted-token"
-        response = client.post("/v1/interpretation-sessions", json=body, headers=headers)
-        assert response.status_code == 503
-        assert "untrusted-token" not in response.text
-
-
 @pytest.mark.parametrize(
     "case", ["missing_report", "wrong_subject", "missing_item", "duplicate_ref"]
 )

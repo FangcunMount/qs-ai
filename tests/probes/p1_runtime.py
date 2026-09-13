@@ -1,12 +1,7 @@
-"""Synthetic facts and deterministic graph for tests only; never production bindings."""
-
-from langgraph.types import Command
+"""Synthetic facts and deterministic workflow for tests only; never production bindings."""
 
 from qs_ai.application.interpretation.ports import AccessDenied, Claim, WorkflowResult
 from qs_ai.domain.interpretation.model import Actor, EvidenceItem, EvidenceSet, Fact
-from qs_ai.infrastructure.persistence.mysql.leases import Lease
-from qs_ai.infrastructure.workflows.langgraph.checkpoints import guarded_saver
-from tests.probes.clarification import build_demo
 
 
 class SyntheticEvidence:
@@ -37,23 +32,14 @@ class SyntheticEvidence:
 
 
 class OfflineWorkflow:
+    """Deterministic adapter: business state owns interruption and recovery in tests."""
+
     def __init__(self, dsn: str):
-        self.dsn = dsn
+        pass
 
     async def execute(self, claim: Claim, evidence: EvidenceSet) -> WorkflowResult:
         assert claim.session.workflow_version in {"interpretation-v1", "qs-snapshot-v1"}
-        config = {"configurable": {"thread_id": claim.session.id}}
-        async with guarded_saver(self.dsn, Lease(claim.session.id, claim.fence)) as saver:
-            graph = build_demo(saver)
-            snapshot = await graph.aget_state(config)
-            if not snapshot.values:
-                await graph.ainvoke({"question": "Who answered?"}, config)
-            elif claim.question_id and snapshot.next:
-                await graph.ainvoke(
-                    Command(resume="[skipped]" if claim.skipped else claim.answer), config
-                )
-            snapshot = await graph.aget_state(config)
-            reference = snapshot.config["configurable"]["checkpoint_id"]
-            if snapshot.next:
-                return WorkflowResult(reference, question=snapshot.values["question"])
+        reference = f"offline:{claim.run_id}"
+        if claim.question_id:
             return WorkflowResult(reference, failure_code="model_not_connected")
+        return WorkflowResult(reference, question="Who answered?")

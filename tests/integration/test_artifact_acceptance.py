@@ -6,13 +6,13 @@ import pytest
 from sqlalchemy import select
 
 from qs_ai.application.execution.artifact import build_artifact
+from qs_ai.application.execution.errors import LeaseLost
 from qs_ai.application.execution.generation import DurableGeneration, FrozenGeneration
 from qs_ai.application.interpretation.commands import CancelCommand
 from qs_ai.application.interpretation.ports import WorkflowResult
 from qs_ai.application.interpretation.preparation import prepare_explanation
 from qs_ai.domain.interpretation.model import RuleViolation, Status
 from qs_ai.infrastructure.persistence.model_call_codec import JSONModelCallCodec
-from qs_ai.infrastructure.persistence.mysql.leases import LeaseLost
 from qs_ai.infrastructure.persistence.mysql.result_outbox import MySQLResultOutbox
 from qs_ai.infrastructure.persistence.mysql.schema import artifacts, sessions
 from qs_ai.infrastructure.qs_server.output import QSOutputParser

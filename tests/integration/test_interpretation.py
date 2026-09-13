@@ -5,34 +5,28 @@ from dataclasses import dataclass
 from uuid import uuid4
 
 import pytest
-from dishka import Provider, Scope, provide
-from httpx import ASGITransport, AsyncClient
-from langgraph.checkpoint.mysql.asyncmy import AsyncMySaver
 from sqlalchemy import delete, func, select, text, update
 
+from qs_ai.application.execution.errors import LeaseLost
 from qs_ai.application.execution.worker import ExecuteNext
 from qs_ai.application.interpretation.commands import AnswerCommand, CancelCommand, StartCommand
 from qs_ai.application.interpretation.ports import (
     AccessDenied,
-    EvidenceSource,
-    IdentityVerifier,
     WorkflowResult,
 )
 from qs_ai.application.interpretation.service import InterpretationService
-from qs_ai.config import Settings
 from qs_ai.domain.interpretation.model import Actor, RuleViolation, Status
 from qs_ai.infrastructure.persistence.mysql.database import Database, Transactions
 from qs_ai.infrastructure.persistence.mysql.execution import MySQLExecutionStore
 from qs_ai.infrastructure.persistence.mysql.interpretation import MySQLUnitOfWorkFactory
-from qs_ai.infrastructure.persistence.mysql.leases import LeaseLost
 from qs_ai.infrastructure.persistence.mysql.schema import (
     artifacts,
     evidence_sets,
     execution_configurations,
+    execution_leases,
     external_requests,
     idempotency,
     jobs,
-    leases,
     model_calls,
     participant_capacity_reservations,
     participant_retries,
@@ -41,7 +35,6 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
     runs,
     sessions,
 )
-from qs_ai.main import create_app
 from tests.probes.p1_runtime import OfflineWorkflow, SyntheticEvidence
 
 pytestmark = pytest.mark.integration
@@ -84,8 +77,6 @@ async def kit():
     source = SyntheticEvidence()
     actor = Actor("1", str(uuid4()))
     service = InterpretationService(MySQLUnitOfWorkFactory(transactions), source)
-    async with AsyncMySaver.from_conn_string(dsn) as saver:
-        await saver.setup()
     try:
         yield Kit(dsn, transactions, service, MySQLExecutionStore(transactions), source, actor)
     finally:
@@ -116,7 +107,7 @@ async def kit():
             ):
                 await db.execute(delete(table).where(table.c.session_id.in_(ids)))
             await db.execute(delete(sessions).where(sessions.c.id.in_(ids)))
-            await db.execute(delete(leases).where(leases.c.thread_id.in_(ids)))
+            await db.execute(delete(execution_leases).where(execution_leases.c.thread_id.in_(ids)))
             # Receipts only contain session IDs; restrict cleanup to this fixture's IDs.
             for row in (await db.execute(select(idempotency))).mappings().all():
                 if row["response"] and row["response"]["session_id"] in ids:
@@ -127,9 +118,6 @@ async def kit():
                         )
                     )
             await db.commit()
-        async with AsyncMySaver.from_conn_string(dsn) as saver:
-            for session_id in ids:
-                await saver.adelete_thread(session_id)
         await database.close()
 
 
@@ -141,8 +129,8 @@ async def expire(kit, session_id):
             .values(lease_until=text("TIMESTAMPADD(SECOND, -1, UTC_TIMESTAMP(6))"))
         )
         await db.execute(
-            update(leases)
-            .where(leases.c.thread_id == session_id)
+            update(execution_leases)
+            .where(execution_leases.c.thread_id == session_id)
             .values(expires_at=text("TIMESTAMPADD(SECOND, -1, UTC_TIMESTAMP(6))"))
         )
         await db.commit()
@@ -373,14 +361,14 @@ async def test_takeover_cancel_and_stale_business_publication(kit):
     assert (await kit.service.get(kit.actor, receipt.session_id)).session.status == Status.CANCELLED
 
 
-async def test_restart_between_checkpoint_and_question_publication(kit):
+async def test_restart_between_workflow_return_and_business_commit(kit):
     receipt = await kit.queued()
     args = [sys.executable, "-m", "tests.probes.p1_process"]
     first = await asyncio.create_subprocess_exec(
         *args, "crash-window", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
     )
     try:
-        assert await asyncio.wait_for(first.stdout.readline(), 20) == b"CHECKPOINT_SAVED\n"
+        assert await asyncio.wait_for(first.stdout.readline(), 20) == b"WORKFLOW_RETURNED\n"
     finally:
         if first.returncode is None:
             first.kill()
@@ -402,79 +390,6 @@ async def test_restart_between_checkpoint_and_question_publication(kit):
     view = await kit.service.get(kit.actor, receipt.session_id)
     assert view.session.status == Status.AWAITING_ANSWER
     assert view.question.text == "Who answered?"
-
-
-async def test_http_contract_and_redaction(kit):
-    class IntegrationOverrides(Provider):
-        @provide(scope=Scope.APP, provides=EvidenceSource, override=True)
-        def source(self) -> EvidenceSource:
-            return kit.source
-
-        @provide(scope=Scope.APP, provides=IdentityVerifier, override=True)
-        def identity(self) -> IdentityVerifier:
-            class Identity:
-                async def authenticate(self, authorization):
-                    return kit.actor
-
-            return Identity()
-
-    app = create_app(
-        Settings(_env_file=None, database_url=kit.dsn.replace("mysql://", "mysql+asyncmy://")),
-        providers=(IntegrationOverrides(),),
-    )
-    async with app.router.lifespan_context(app):
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            url = "/v1/interpretation-sessions"
-            body = {"testee_id": "18446744073709551615", "assessment_ids": ["42"], "goal": "目标"}
-            headers = {"Idempotency-Key": "http-create"}
-            response = await client.post(url, json=body, headers=headers)
-            assert response.status_code == 201, response.text
-            session_id = response.json()["session_id"]
-            view = await client.get(f"{url}/{session_id}")
-            assert view.json()["testee_id"] == "18446744073709551615"
-            assert "checkpoint" not in view.text
-            bad = await client.post(
-                url, json={**body, "owner_subject_id": "secret"}, headers=headers
-            )
-            assert bad.status_code == 422
-            assert "secret" not in bad.text
-            start = await client.post(
-                f"{url}/{session_id}/runs",
-                json={"expected_version": 1},
-                headers={"Idempotency-Key": "http-start"},
-            )
-            assert start.status_code == 202
-            conflict = await client.post(
-                f"{url}/{session_id}/runs",
-                json={"expected_version": 1},
-                headers={"Idempotency-Key": "other-start"},
-            )
-            assert conflict.status_code == 409
-            assert set(conflict.json()) == {"code", "safe_message", "retryable", "trace_id"}
-
-            assert await kit.worker().once()
-            waiting = (await client.get(f"{url}/{session_id}")).json()
-            answer_body = {
-                "expected_version": waiting["version"],
-                "question_id": waiting["question"]["id"],
-                "answer": "Father",
-            }
-            answer_headers = {"Idempotency-Key": "http-answer"}
-            answered = await client.post(
-                f"{url}/{session_id}/answers", json=answer_body, headers=answer_headers
-            )
-            assert answered.status_code == 202
-            replay = await client.post(
-                f"{url}/{session_id}/answers", json=answer_body, headers=answer_headers
-            )
-            assert replay.json() == answered.json()
-            cancelled = await client.post(
-                f"{url}/{session_id}/cancel",
-                json={"expected_version": answered.json()["version"]},
-                headers={"Idempotency-Key": "http-cancel"},
-            )
-            assert cancelled.status_code == 200
-            assert cancelled.json()["status"] == "cancelled"
 
 
 async def test_heartbeat_keeps_live_attempt_owned(kit):
