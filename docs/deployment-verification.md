@@ -217,3 +217,11 @@ QS 管理开关补丁 PR #109 已合并为 `bc1a3c4096810ea4a6b691817fd8357c9d7d
 Operating `b5d2aee2e6a98efc476df02db2450f73fcc1f05b` 的主干 CI 34759094726 通过，[部署 34759195162](https://github.com/FangcunMount/qs-operating-system/actions/runs/34759195162) 第三次尝试成功。首次只构建镜像并临时暂停替换，等待后端就绪；第二次在创建共享锁时被 serverB 的 sudo 策略拒绝，未替换容器。root 按既有规范初始化缺失的共享锁（目录 root:root/0755、普通锁文件 root:root/0666），不替换已有锁 inode；随后仅重跑部署步骤，复用构建镜像。现场容器镜像为上述 SHA、healthy，HTTP 3000 返回 200。PRODUCTION_DEPLOY_PAUSED 已恢复 false。该记录证明管理页面交付和服务部署，完整登录操作及业务闭环另行验收。
 
 serverB 本次发布另有非阻塞告警：deploy 账号无 sudo python3 执行镜像保留脚本的权限，服务部署成功，但自动镜像保留/清理没有执行；已有镜像保留。后续应在 infra 的主机部署权限与镜像保留机制中集中解决，不能把本次成功发布记为镜像保留也已成功。
+
+## 2026-09-13 实际运行配置回退与恢复
+
+以当前资产/任务/调用计数为前置检查，确认新链路无在途任务后，执行 [回退 34761323207](https://github.com/FangcunMount/qs-ai/actions/runs/34761323207)，成功回到同镜像同 0026 数据库版本的关闭基线 34758383533。现场确认 evaluation 容器被移除、治理关闭、API/gRPC 健康、数据库资产与业务计数不变。
+
+随后执行 [恢复 34761471931](https://github.com/FangcunMount/qs-ai/actions/runs/34761471931)，恢复原管理发布 34759204722。现场治理接口和 evaluation 容器恢复、服务健康、资产与任务/调用/成果计数不变；QS 证书到管理接口的空请求探针再次取得预期 INVALID_ARGUMENT。当前生产已恢复管理开启状态。
+
+[演练记录](evidence/2026-09-13-runtime-rollback.json) 证明部署配置能够真实回退与恢复；本轮没有在执行的模型调用，不证明带流量故障恢复，也不是 Profile 发布指针的业务回退。该部分管理闭环与真实参与者验收仍待完成。
