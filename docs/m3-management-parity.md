@@ -24,7 +24,7 @@
 | P07 | v1 GET `/profiles/:profile_id/versions/:version` | AI AssetCatalog.Get；旧版本读取保留 | 旧 ID/版本与新内容指纹逐条对账 |
 | P08 | v1 GET `/prompt-evaluation-capacity` | AI 应承接评测容量与准入状态 | 已补 GetCapacity、Start 原子日预算预留/活动限制及恢复准入；QS 沿用 OrgAdmin 查询权限，Operating 只展示服务端快照。并发/跨日/取消不退预算/恢复不重复扣费测试通过；生产限额对账及集中审核待完成 |
 | P09 | v1 GET `/participant-capacity` | AI 应承接生成执行容量；QS 保留业务权限 | 已本地接入快照生成的三级日预算、活动名额、租约恢复复用及终结释放；日预算拒绝通过原回执与结果 Outbox 返回 blocked。容量管理 RPC、QS 授权代理与 Operating 查询已本地贯通；生产政策对账尚未完成 |
-| P10 | v1 POST `/generations/:generation_id/retry` | AI 承接受控恢复，QS 只发授权命令 | 评测 ResolveUnknown 不覆盖参与者 Generation；需原尝试、命令幂等、风险确认、费用预留与历史 ID 关联的完整映射 |
+| P10 | v1 POST `/generations/:generation_id/retry` | AI 承接受控恢复，QS 只发授权命令 | AI 本地已实现独立重试事务：原尝试 CAS、命令幂等、当前参与者授权、未知风险确认、新额度预留及新旧 Run/原请求关联；管理 RPC/代理/操作入口与旧 Generation ID 映射未完成 |
 | P11 | v1 POST `/profiles` | AI PromptDraft Create/Revise/Freeze + Profile Register | 有组成能力；验收完整编辑/校验/注册流程，明确原 Profile 草稿语义映射 |
 | P12 | v1 POST `/profiles/:profile_id/versions/:version/publish` | AI PublicationManagement.Publish | 有实现；实际质量门槛→发布→新生成版本绑定验收及旧写关闭 |
 | P13 | v1 POST `/profiles/:profile_id/versions/:version/disable` | AI PublicationManagement.Disable | 有实现；核对发布 selector 映射、停用对在途及新任务的行为 |
@@ -88,8 +88,16 @@ QS 本批源提交 `65ca7370845e1c8637982a636499ec7d4dc16803` 尚未推送；AI 
 
 配置默认值沿用 QS 仓库生产政策：日预算 500/5/3、活动占用 10/2/1；实际生产政策对账仍待完成。44 项实际 MySQL 的容量/快照/生成/租约/结果 Outbox 回归通过；961 项非集成通过、11 项跳过，Ruff 和 mypy 224 源文件通过。新增迁移仅用于一次性测试库。
 
-P09 管理读取与三端展示已本地贯通；P10 受控重试尚未实现。本记录不代表 B 包完成，也不代表整个 M3 已提交审核。
+P09 管理读取与三端展示已本地贯通；P10 受控重试核心已本地实现，管理接口与操作入口尚未闭合。本记录不代表 B 包完成，也不代表整个 M3 已提交审核。
 
 ### 参与者容量管理三端收尾
 
 已提供机构/用户/测评额度及当日预留、当前活动占用读取，复用治理开关和 QS 当前 OrgAdmin 权限。筛选对象不替换调用身份；跨机构结果隔离，撤权拒绝，页面清除过期结果。真实临时 mTLS 的 Go→Python→MySQL 测试通过；QS 四包 race 测试与 lint 通过；Operating 2 套件 19 项测试、类型和 lint 通过。QS 源提交 `08930e38eadd5a3617239fd1a1dae8755db6a96d` 已固定到本地 AI CI。新接口清单为 100 RPC/23 服务，REST 243 operations/221 paths。仍为集中包本地提交，未推送或部署；P10、P06/P07、P20 和接管验收未完成。
+
+### 参与者受控重试核心（集中包本地进展）
+
+新增 0026 重试审计及原请求快照表。只允许原快照会话当前 blocked Run 在预期版本下显式创建新 Run，保留原失败/未知调用、原请求 ID、会话、报告及已接受发布配置。命令幂等、重试审计、新日预算、排队和结果 Outbox 在同一事务提交；额度不足全部回滚。原调用未知时必须确认重复调用风险，新尝试使用独立 invocation ID，旧执行受 Run/租约隔离。重试前及原回执查询均重新检查参与者现行访问权，QS 当前管理授权仍需随接入入口执行。
+
+71 项相关 MySQL/领域回归通过；另 1 项已发布配置的人工重试完整执行测试通过：未知调用→发布指针变化→原版本重试→原会话成果 Outbox，使用隔离数据库及替身模型。968 项非集成测试通过、11 跳过；mypy 229 源文件、Ruff 与 Alembic 模型一致性通过。QS 原桥接真实隔离 MySQL 测试验证 blocked→queued 与旧失败事件乱序，禁止替换原会话。这些不是生产真实模型或跨服务完整业务验收。
+
+P10 仍需管理状态读取、重试 RPC/回执查询、QS 授权代理与 Operating 显式风险确认/恢复入口，以及旧历史标识映射；不能把核心服务当作可直接使用的完整功能。P06/P07、P20、生产政策对账与验收依然未完成。没有单项推送、发布或生产开关变更。

@@ -503,3 +503,25 @@ participant_capacity_reservations = sa.Table(
     mysql_engine="InnoDB",
     mysql_charset="utf8mb4",
 )
+
+participant_retries = sa.Table(
+    "participant_retries",
+    metadata,
+    sa.Column("organization_id", EXTERNAL_ID, primary_key=True),
+    sa.Column("command_id", ID, primary_key=True),
+    sa.Column("session_id", ID, nullable=False),
+    sa.Column("request_id", ID, nullable=False),
+    sa.Column("source_run_id", ID, nullable=False, unique=True),
+    sa.Column("run_id", ID, nullable=False, unique=True),
+    sa.Column("operator_user_id", EXTERNAL_ID, nullable=False),
+    sa.Column("expected_version", sa.Integer, nullable=False),
+    sa.Column("reason", sa.Text, nullable=False),
+    sa.Column("accepted_unknown_risk", sa.Boolean, nullable=False),
+    sa.Column("source_failure_code", sa.String(64)),
+    sa.Column("frozen_request_json", mysql.LONGTEXT),
+    sa.Column("receipt", sa.JSON, nullable=False),
+    sa.Column("created_at", mysql.DATETIME(fsp=6), server_default=sa.text("CURRENT_TIMESTAMP(6)")),
+    sa.Index("ix_participant_retry_session", "session_id"),
+    mysql_engine="InnoDB",
+    mysql_charset="utf8mb4",
+)

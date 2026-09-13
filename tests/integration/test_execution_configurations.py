@@ -330,3 +330,76 @@ async def test_concurrent_pointer_change_does_not_mix_admission_snapshot(admitte
         )
         assert binding["publication_id"] == str(first.change.current.active.publication_id)
         assert binding["pointer_version"] == 1
+
+
+async def test_manual_retry_preserves_accepted_publication_and_completes_original_session(admitted):
+    from qs_ai.application.execution.capacity import ParticipantCapacityPolicy
+    from qs_ai.application.execution.retry import ParticipantRetry, RetryParticipant
+    from qs_ai.application.governance.prompt_drafts import DraftScope
+    from qs_ai.infrastructure.persistence.mysql.participant_retries import MySQLParticipantRetries
+    from qs_ai.infrastructure.persistence.mysql.schema import result_outbox
+
+    kit, service, key, accepted, _, first, (tx, scope, command, at) = admitted
+    failed = Model(ProviderFailure("provider_timeout", result_unknown=True))
+    assert await ExecuteNext(kit.store, kit.source, workflow(kit, failed)).once()
+    before = (await service.get(kit.actor, accepted.session_id)).session
+    assert before.status == "blocked"
+    async with tx.open() as db:
+        original = (
+            (await db.execute(select(model_calls).where(model_calls.c.run_id == accepted.run_id)))
+            .mappings()
+            .one()
+        )
+    await MySQLPublications(tx).apply(
+        scope,
+        replace(
+            command,
+            command_id=uuid4(),
+            expected_version=1,
+            expected_active_id=first.change.current.active.publication_id,
+        ),
+        at + timedelta(seconds=1),
+    )
+    retry = RetryParticipant(MySQLParticipantRetries(tx, ParticipantCapacityPolicy()), kit.source)
+    receipt = await retry.execute(
+        ParticipantRetry(
+            DraftScope(1, 42),
+            before.id,
+            str(uuid4()),
+            before.active_run_id,
+            before.version,
+            "确认未知调用风险后重试原发布",
+            True,
+            1,
+            True,
+        )
+    )
+    model = Model()
+    assert await ExecuteNext(kit.store, kit.source, workflow(kit, model)).once()
+    after = (await service.get(kit.actor, accepted.session_id)).session
+    assert after.status == "completed" and after.active_run_id == receipt.run_id
+    async with tx.open() as db:
+        old = (
+            (await db.execute(select(model_calls).where(model_calls.c.run_id == accepted.run_id)))
+            .mappings()
+            .one()
+        )
+        new = (
+            (await db.execute(select(model_calls).where(model_calls.c.run_id == receipt.run_id)))
+            .mappings()
+            .one()
+        )
+        event = await db.scalar(
+            select(result_outbox.c.payload).where(
+                result_outbox.c.session_id == after.id, result_outbox.c.version == after.version
+            )
+        )
+    assert old == original and old["status"] == "unknown"
+    assert (
+        new["request_json"] == old["request_json"] and new["invocation_id"] != old["invocation_id"]
+    )
+    assert json.loads(new["request_json"])["publication_id"] == str(
+        first.change.current.active.publication_id
+    )
+    assert event["request_id"] == key and event["status"] == "completed" and event["artifact_json"]
+    assert failed.calls == model.calls == 1

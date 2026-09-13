@@ -33,6 +33,7 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
     jobs,
     leases,
     model_calls,
+    participant_retries,
     questions,
     runs,
     sessions,
@@ -67,6 +68,16 @@ class MySQLExecutionStore:
                 .mappings()
                 .first()
             )
+            if row is None:
+                original_request = await db.scalar(
+                    select(participant_retries.c.frozen_request_json).where(
+                        participant_retries.c.run_id == claim.run_id,
+                        participant_retries.c.session_id == session.id,
+                        participant_retries.c.organization_id == int(session.actor.org_id),
+                    )
+                )
+                if original_request is not None:
+                    request_json = original_request
             if session.workflow_version == "qs-published-snapshot-v1":
                 try:
                     await validate_generation(

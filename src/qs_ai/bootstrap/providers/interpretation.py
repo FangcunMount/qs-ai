@@ -6,6 +6,7 @@ from dishka import Provider, Scope, provide
 
 from qs_ai.application.execution.capacity import ParticipantCapacityPolicy
 from qs_ai.application.execution.management import ParticipantCapacityReader
+from qs_ai.application.execution.retry import ParticipantRetryStore, RetryParticipant
 from qs_ai.application.execution.worker import ExecuteNext
 from qs_ai.application.interpretation.ports import (
     EvidenceSource,
@@ -24,6 +25,7 @@ from qs_ai.infrastructure.persistence.mysql.interpretation import MySQLUnitOfWor
 from qs_ai.infrastructure.persistence.mysql.participant_management import (
     MySQLParticipantCapacityReader,
 )
+from qs_ai.infrastructure.persistence.mysql.participant_retries import MySQLParticipantRetries
 from qs_ai.infrastructure.qs_server.access import QSAccessSource
 from qs_ai.infrastructure.qs_server.report_probe import mtls_channel
 
@@ -36,6 +38,8 @@ class InterpretationProvider(Provider):
     capacity_reader = provide(
         MySQLParticipantCapacityReader, provides=ParticipantCapacityReader, scope=Scope.REQUEST
     )
+    retries = provide(MySQLParticipantRetries, provides=ParticipantRetryStore, scope=Scope.REQUEST)
+    retry_participant = provide(RetryParticipant, scope=Scope.REQUEST)
     identity = provide(UnconfiguredIdentity, provides=IdentityVerifier, scope=Scope.APP)
 
     @provide(scope=Scope.APP)
