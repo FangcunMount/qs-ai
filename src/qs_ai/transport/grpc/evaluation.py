@@ -15,7 +15,9 @@ from grpc import aio
 from qs_ai.application.evaluation.candidates import validate_candidate_query
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict
 from qs_ai.application.evaluation.management import EvaluationManagementStore, ManagementScope
+from qs_ai.application.evaluation.planning import EvaluationPlanner, EvaluationPlanQuery
 from qs_ai.application.evaluation.requests import EvaluationRequests
+from qs_ai.application.governance.prompt_drafts import DraftScope
 from qs_ai.application.interpretation.ports import NotFound
 from qs_ai.contracts.workflow import workflow_pb2 as pb
 from qs_ai.contracts.workflow import workflow_pb2_grpc as rpc
@@ -35,6 +37,27 @@ def scope_from(request: pb.EvaluationQuery) -> ManagementScope:
 class EvaluationManagement(rpc.EvaluationManagementServicer):
     def __init__(self, container: AsyncContainer) -> None:
         self.container = container
+
+    async def Prepare(
+        self, request: pb.EvaluationPlanQuery, context: aio.ServicerContext[Any, Any]
+    ) -> pb.EvaluationPlan:
+        async with self.operation(context):
+            if request.ByteSize() > 8192:
+                raise ValueError("Evaluation plan query exceeds limit")
+            scope = DraftScope(request.scope.organization_id, request.scope.operator_user_id)
+            refs = [
+                FrozenContractRef(v.id, v.version, v.fingerprint)
+                for v in (request.suite, request.generation_route, request.semantic_route)
+            ]
+            async with self.container() as operation:
+                planner = await operation.get(EvaluationPlanner)
+                plan = await planner.prepare(EvaluationPlanQuery(scope, *refs))
+            raw = json.dumps(asdict(plan), ensure_ascii=False, separators=(",", ":"))
+            response = pb.EvaluationPlan(schema_version="qs-ai-evaluation-plan/v1", plan_json=raw)
+            if response.ByteSize() > 32768:
+                raise ValueError("Evaluation plan exceeds limit")
+            return response
+        raise AssertionError("abort must raise")
 
     @asynccontextmanager
     async def operation(self, context: aio.ServicerContext[Any, Any]) -> AsyncIterator[None]:

@@ -222,6 +222,11 @@ class EvaluationManagementStub:
         Args:
             channel: A grpc.Channel.
         """
+        self.Prepare = channel.unary_unary(
+                '/qsai.workflow.v1.EvaluationManagement/Prepare',
+                request_serializer=workflow__pb2.EvaluationPlanQuery.SerializeToString,
+                response_deserializer=workflow__pb2.EvaluationPlan.FromString,
+                _registered_method=True)
         self.Create = channel.unary_unary(
                 '/qsai.workflow.v1.EvaluationManagement/Create',
                 request_serializer=workflow__pb2.EvaluationCreateCommand.SerializeToString,
@@ -277,6 +282,13 @@ class EvaluationManagementStub:
 class EvaluationManagementServicer:
     """Trusted QS backend only. QS authorizes governance writes and candidate audit reads.
     """
+
+    def Prepare(self, request, context):
+        """Resolve all eleven immutable references and policy budgets; no creation or scheduling.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
 
     def Create(self, request, context):
         """The caller reuses scope.run_id for retries of the identical creation request.
@@ -347,6 +359,11 @@ class EvaluationManagementServicer:
 
 def add_EvaluationManagementServicer_to_server(servicer, server):
     rpc_method_handlers = {
+            'Prepare': grpc.unary_unary_rpc_method_handler(
+                    servicer.Prepare,
+                    request_deserializer=workflow__pb2.EvaluationPlanQuery.FromString,
+                    response_serializer=workflow__pb2.EvaluationPlan.SerializeToString,
+            ),
             'Create': grpc.unary_unary_rpc_method_handler(
                     servicer.Create,
                     request_deserializer=workflow__pb2.EvaluationCreateCommand.FromString,
@@ -408,6 +425,33 @@ def add_EvaluationManagementServicer_to_server(servicer, server):
 class EvaluationManagement:
     """Trusted QS backend only. QS authorizes governance writes and candidate audit reads.
     """
+
+    @staticmethod
+    def Prepare(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.EvaluationManagement/Prepare',
+            workflow__pb2.EvaluationPlanQuery.SerializeToString,
+            workflow__pb2.EvaluationPlan.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
 
     @staticmethod
     def Create(request,

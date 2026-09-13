@@ -170,3 +170,11 @@ QS 主分支 CI 34727835812 与 [部署 34728242088](https://github.com/FangcunM
 AI API/gRPC 实际仍为 `614d93ec46fc12c8e4fea44b0cbd952aac44f6e9` 且 healthy；MySQL 8.0.36 当前/预期头均为 `0022_evaluation_suites`，readyz ready/connected，自身份 mTLS 探针 PERMISSION_DENIED。现场读取 generation、evaluation、grpc.governance_enabled、generation.use_publications 均为 false。AI 生命周期 PR #63/#64 已合并，但主分支 CI/发布仍待验证，因此后台生命周期 PR #22 尚不合并上线。
 
 后台配置/草稿页面部署 34726712122 的日志确认 serverB `qs-operating-system` 为 `sha-de0cefb6fa1a1ef46eeb9563e9ac90b16685f7a2` 且 healthy。策略注册页面的主分支 CI 34728517909 与部署 34728591943 均成功，部署日志确认 serverB 容器 `sha-f08729eb242fda73c34c4fd72940f3bdc5336f3c` healthy 并验证同一镜像版本。这里保留日志与独立 SSH 证据的区别；没有真实后台登录、配置发布或测评流量，M1–M5 未验收。
+
+## 2026-09-13 AI 生命周期版本发布
+
+主分支 CI 34728513626/34728617198、部署 34729255625/34729352958 均成功。独立 SSH 确认 AI API/gRPC 实际镜像为 `5cfe298699e3ff5d21f014d042257fd24739811f` 且 healthy；交付工作流 head `76e7e15d5f2cbfeaa30c6da447f8b8f472236404` 仅含后续互操作增量，不冒充实际镜像版本。
+
+MySQL 8.0.36 当前/预期头均为 0022，readyz ready/connected，自身份 mTLS 探针 PERMISSION_DENIED，容器内协议描述包含 GetLifecycle。生成、评测、治理、发布四项开关均 false。QS API 和两份 collection 保持 `63083526f6f6d64c4c2a2f2407f3d6c780a65e3c` healthy。
+
+这验证已部署代码和禁用流量的服务基线；不证明 GetLifecycle 的生产授权读取、真实后台冻结或模型测评。后台生命周期 PR #22 已在此版本核验后合并，页面部署与业务验收继续跟进。
