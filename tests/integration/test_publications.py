@@ -13,6 +13,7 @@ from sqlalchemy import delete, select, update
 
 from qs_ai.application.governance.publication import (
     MovePublication,
+    PublicationHistoryQuery,
     PublicationScope,
     PublishConfiguration,
 )
@@ -482,3 +483,98 @@ async def test_two_independently_approved_runs_contend_for_one_selector(ready, m
                 await db.execute(delete(pointers).where(pointers.c.selector_key == key))
                 await db.execute(delete(publications).where(publications.c.selector_key == key))
                 await db.commit()
+
+
+async def test_history_pages_and_exact_version_reads_preserve_all_publication_audits(ready):
+    tx, scope, command, at = ready
+    store = MySQLPublications(tx)
+    first = await store.apply(scope, command, at)
+    old = first.change.current.active
+    assert old is not None
+    second = await store.apply(
+        scope,
+        replace(
+            command, command_id=uuid4(), expected_version=1, expected_active_id=old.publication_id
+        ),
+        at + timedelta(seconds=1),
+    )
+    new = second.change.current.active
+    assert new is not None
+    back = await store.apply(
+        PublicationScope(2, 43),
+        MovePublication(
+            uuid4(), command.selector, 2, new.publication_id, "回退核验", True, old.publication_id
+        ),
+        at + timedelta(seconds=2),
+    )
+    stopped = await store.apply(
+        PublicationScope(2, 43),
+        MovePublication(uuid4(), command.selector, 3, old.publication_id, "停用核验", True, None),
+        at + timedelta(seconds=3),
+    )
+    before = await inventory(tx)
+    before_run = await rows(tx, command.run_id)
+    page = await store.list_history(PublicationHistoryQuery(command.selector, limit=2))
+    assert [v.version for v in page.entries] == [4, 3] and page.next_before_version == 3
+    assert [v.action for v in page.entries] == ["disable", "rollback"]
+    assert [v.actor for v in page.entries] == ["user:43", "user:43"]
+    assert page.entries[0].publication_id is None and page.entries[0].run_id is None
+    assert page.entries[1].publication_id == old.publication_id
+    assert page.entries[1].profile_id == old.evidence.profile.profile_id
+    for version, expected in enumerate((first, second, back, stopped), 1):
+        assert await store.get_history(command.selector, version) == expected
+    with pytest.raises(NotFound):
+        await store.get_receipt(PublicationScope(2, 43), first.command_id)
+    assert await inventory(tx) == before and await rows(tx, command.run_id) == before_run
+    # A later publication must not move an existing exclusive cursor or repeat entries.
+    await store.apply(
+        scope,
+        replace(command, command_id=uuid4(), expected_version=4, expected_active_id=None),
+        at + timedelta(seconds=4),
+    )
+    remaining = await store.list_history(PublicationHistoryQuery(command.selector, 3, 2))
+    assert [v.version for v in remaining.entries] == [2, 1] and remaining.next_before_version == 0
+    assert remaining.entries[0].publication_id == new.publication_id
+    assert remaining.entries[1].publication_id == old.publication_id
+    empty = await store.list_history(PublicationHistoryQuery(command.selector, 1, 2))
+    assert not empty.entries and empty.next_before_version == 0
+
+
+async def test_history_reads_are_exact_selector_and_never_create_empty_pointers(ready):
+    tx, scope, command, at = ready
+    store = MySQLPublications(tx)
+    await store.apply(scope, command, at)
+    other = replace(command.selector, model_code="unpublished-history-selector")
+    before = await inventory(tx)
+    assert not (await store.list_history(PublicationHistoryQuery(other))).entries
+    for selector, version in ((other, 1), (command.selector, 2)):
+        with pytest.raises(NotFound):
+            await store.get_history(selector, version)
+    assert await inventory(tx) == before
+
+
+@pytest.mark.parametrize("corrupt", ["audit_actor", "content_digest"])
+async def test_history_rejects_corrupted_retained_records(ready, corrupt):
+    tx, scope, command, at = ready
+    store = MySQLPublications(tx)
+    await store.apply(scope, command, at)
+    async with tx.open() as db:
+        if corrupt == "audit_actor":
+            await db.execute(
+                update(changes)
+                .where(changes.c.command_id == str(command.command_id))
+                .values(operator_user_id=999)
+            )
+        else:
+            await db.execute(
+                update(publications)
+                .where(publications.c.run_id == str(command.run_id))
+                .values(content_sha256="0" * 64)
+            )
+        await db.commit()
+    before = await inventory(tx)
+    with pytest.raises(ValueError):
+        await store.list_history(PublicationHistoryQuery(command.selector))
+    with pytest.raises(ValueError):
+        await store.get_history(command.selector, 1)
+    assert await inventory(tx) == before

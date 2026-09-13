@@ -575,3 +575,12 @@ M1 → M2 → M3 → M4 → M5。M3 清单分析可提前开展，生产切换�
 
 - 准备接口发布复核：AI 主分支 CI 34731086379 与部署 34731798690 成功；SSH 确认 API/gRPC 实际镜像 `eb4257babb296cbab15aaf0058aa12a4a94496e7` healthy，MySQL 8.0.36/0022、readyz/database connected，自身份 mTLS 拒绝探针通过。QS API 与两个 collection 均为 `5925f08bd7b1069e6a480a5cc8b3cc1bb3d86126` 且 healthy。没有以空请求/健康探针替代真实管理操作。
 - AI 准备互操作 PR #67 精确 head `6e5f457ca8d68749338ead6c0a357f6cfd7f86d1` 两版 MySQL 与镜像 CI 34731121266 全通过，合并为 `12d9a0b84deb747c79095e1c5338f3ff9219dc45`。创建回执 PR #68 合入该主分支后继续检查；QS 回执 PR #101 仍在 CI。本任务发现 AI 共享检出已切回 main，后续代码维护使用独立 qs-ai-evaluation-management worktree，不依赖共享目录当前分支。
+
+### 2026-09-13：创建回执上线与发布历史查询补齐
+
+- AI 创建回执合并版本 `6d81565d309cdbcd8d863f802b405b858a703e5a` 的主分支 CI `34733400610`、部署 `34734120513` 均通过。serverA 现场确认 qs-ai-api/qs-ai-grpc 实际镜像为该 SHA 且 healthy；MySQL 8.0.36/`0022_evaluation_suites`、就绪及 mTLS 探针通过。generation/evaluation/governance/use_publications 四开关仍为 false，没有触发生产模型调用。
+- 同期 QS API 与两份 collection 实际镜像仍为 `7295f40efb7e9002ff8ce5d264ab6350d04029ab` 且健康。后端依赖满足后，运营端 PR #25 以精确 CI 通过的 head 合并为 `ae68a2e7f9e892956b69275346ca5af453a318d8`；主分支 CI `34734384862` 通过，部署 `34734468897` 进行中，尚不视为现场验收。UI #26 与主分支对齐，验证合并前后代码树完全一致，新的精确 head CI `34734464182` 进行中；UI #27 最终审核 CI `34733968638` 已通过但仍待依赖合并。
+- 为运营端回退提供可核对目标，qs-ai 新增 `PublicationManagement.ListHistory/GetHistory`。按精确全局 selector 查询版本历史与原前后发布证据，保留原操作者；分页使用既有 selector/version 唯一索引和排他版本游标，无数据库迁移。历史摘要不包含 Prompt/Profile 正文，64 KiB 页上限；详情复用 1 MiB 原变更回执上限。
+- 历史查询复核保留记录的索引、摘要、版本与原请求/审计关系，不写指针、不重放命令、不执行模型。原命令恢复 `GetReceipt` 仍限制原组织/原操作者；QS 后续应在新历史读入口校验审计能力，写入口继续要求管理能力。历史可读不保证回退此刻仍可执行，写路径仍重验原 Run 和完整发布门槛。
+- 代码与验证：相关 138 项测试通过，包括 MySQL 8.0.36 生命周期、跨操作者历史/原命令隔离、精确选择器、后续发布下稳定分页、损坏审计与内容摘要拒绝及真实临时 mTLS 服务查询；另 2 项既有 Go→Python→MySQL 发布链路测试通过，验证新增 RPC 对旧客户端兼容。Ruff、mypy（211 源文件）、协议生成和文档检查通过。
+- 新历史 API 的 QS 适配、Go 历史查询联调和运营端发布页面尚未实现；原有发布/回退写接口继续保留。上述均为服务/隔离测试证据，M1–M5 真实验收与旧写路径退役未完成。

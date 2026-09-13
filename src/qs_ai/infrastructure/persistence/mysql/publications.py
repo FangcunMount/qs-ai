@@ -19,6 +19,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from qs_ai.application.evaluation.management import ManagementScope
 from qs_ai.application.governance.publication import (
     MovePublication,
+    PublicationHistoryPage,
+    PublicationHistoryQuery,
     PublicationReceipt,
     PublicationScope,
     PublishConfiguration,
@@ -34,6 +36,7 @@ from qs_ai.domain.governance.publication import (
     ReleaseSelector,
     change_publication,
 )
+from qs_ai.infrastructure.persistence.mysql import publication_history
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
 from qs_ai.infrastructure.persistence.mysql.evaluation_finalization import lock_run_in_transaction
 from qs_ai.infrastructure.persistence.mysql.publication_evidence import publication_evidence
@@ -238,3 +241,11 @@ class MySQLPublications:
                 .one_or_none()
             )
             return PublicationPointer(selector) if row is None else await load_pointer(db, row)
+
+    async def list_history(self, query: PublicationHistoryQuery) -> PublicationHistoryPage:
+        async with self.transactions.open() as db:
+            return await publication_history.list_history(db, query)
+
+    async def get_history(self, selector: ReleaseSelector, version: int) -> PublicationReceipt:
+        async with self.transactions.open() as db:
+            return await publication_history.get_history(db, selector, version)

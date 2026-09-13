@@ -1,3 +1,4 @@
+import json
 from contextlib import asynccontextmanager
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
@@ -8,7 +9,12 @@ import grpc
 import pytest
 
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict
-from qs_ai.application.governance.publication import PublicationReceipt, PublicationStore
+from qs_ai.application.governance.publication import (
+    PublicationHistoryPage,
+    PublicationHistoryQuery,
+    PublicationReceipt,
+    PublicationStore,
+)
 from qs_ai.application.interpretation.ports import NotFound
 from qs_ai.bootstrap.container import create_container
 from qs_ai.config import Settings
@@ -75,6 +81,10 @@ async def handler(evidence):
 def request_for(method, evidence, old):
     scope = pb.PublicationScope(organization_id=1, operator_user_id=42)
     selector = selector_message(evidence.selector)
+    if method == "ListHistory":
+        return pb.PublicationHistoryQuery(scope=scope, selector=selector, limit=20)
+    if method == "GetHistory":
+        return pb.PublicationHistoryVersionQuery(scope=scope, selector=selector, version=1)
     if method == "Get":
         return pb.PublicationQuery(scope=scope, selector=selector)
     if method == "GetReceipt":
@@ -102,7 +112,9 @@ def request_for(method, evidence, old):
     return pb.PublicationDisableCommand(**common)
 
 
-@pytest.mark.parametrize("method", ["Publish", "Rollback", "Disable", "Get", "GetReceipt"])
+@pytest.mark.parametrize(
+    "method", ["Publish", "Rollback", "Disable", "Get", "GetReceipt", "ListHistory", "GetHistory"]
+)
 @pytest.mark.parametrize(
     "auth",
     [
@@ -220,3 +232,64 @@ async def test_dependency_graph_resolves_publication_store_without_activating_go
             assert isinstance(await operation.get(PublicationStore), MySQLPublications)
     finally:
         await container.close()
+
+
+@pytest.mark.parametrize("method", ["ListHistory", "GetHistory"])
+@pytest.mark.parametrize("invalid", ["scope", "selector", "version"])
+async def test_history_rejects_invalid_queries_before_store(handler, method, invalid):
+    service, store, evidence, old = handler
+    request = request_for(method, evidence, old)
+    if invalid == "scope":
+        request.scope.organization_id = 0
+    elif invalid == "selector":
+        request.selector.model_version = "v1"
+    elif method == "ListHistory":
+        request.before_version = -1
+    else:
+        request.version = 0
+    with pytest.raises(Aborted) as error:
+        await getattr(service, method)(request, Context())
+    assert error.value.args[0] == grpc.StatusCode.INVALID_ARGUMENT
+    assert store.mock_calls == []
+
+
+@pytest.mark.parametrize("limit", [0, -1, 21])
+async def test_history_page_limit_is_bounded(handler, limit):
+    service, store, evidence, old = handler
+    request = request_for("ListHistory", evidence, old)
+    request.limit = limit
+    with pytest.raises(Aborted):
+        await service.ListHistory(request, Context())
+    assert store.mock_calls == []
+
+
+async def test_history_queries_preserve_original_actor_without_mutation(handler):
+    service, store, evidence, old = handler
+    request = request_for("Publish", evidence, old)
+    await service.Publish(request, Context())
+    receipt = await store.apply.side_effect(*store.apply.await_args.args)
+    store.apply.reset_mock()
+    store.get_history.return_value = receipt
+    query = request_for("GetHistory", evidence, old)
+    query.scope.operator_user_id = 99
+    result = await service.GetHistory(query, Context())
+    assert result.actor == "user:42"
+    store.get_history.assert_awaited_once_with(evidence.selector, 1)
+    store.get_receipt.assert_not_awaited()
+    store.list_history.return_value = PublicationHistoryPage(evidence.selector, ())
+    reply = await service.ListHistory(request_for("ListHistory", evidence, old), Context())
+    body = json.loads(reply.payload_json)
+    assert body["schema_version"] == reply.schema_version == "qs-ai-publication-history/v1"
+    assert body["entries"] == [] and body["next_before_version"] == 0
+    store.list_history.assert_awaited_once_with(PublicationHistoryQuery(evidence.selector))
+    store.apply.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    "kwargs", [{"limit": True}, {"before_version": True}, {"before_version": 2**63}, {"limit": 1.5}]
+)
+def test_history_query_rejects_unsafe_domain_values(kwargs):
+    from qs_ai.domain.governance.publication import ReleaseSelector
+
+    with pytest.raises(ValueError):
+        PublicationHistoryQuery(ReleaseSelector("participant", "scale", "score_range"), **kwargs)

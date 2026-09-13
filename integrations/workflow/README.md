@@ -45,12 +45,12 @@ export QS_AI_BRIDGE_BIN=/tmp/qs-ai-bridge
 uv run pytest -q
 ```
 
-这些是本地开发凭据。缺少跨语言环境时 interop 测试跳过；当前 CI 固定检出 QS 源版本并执行已有命令、成果及评测管理跨语言回归。新增发布管理的 Go 入口联调仍需后续接入，不能由 Python mTLS 测试替代。
+这些是本地开发凭据。缺少跨语言环境时 interop 测试跳过；当前 CI 固定检出 QS 源版本并执行已有命令、成果及评测管理跨语言回归。发布管理已有 Go 入口跨语言回归；新增历史查询仍需接入 QS 客户端并补 Go 联调，不能由 Python mTLS 测试替代。
 
 
 ## 配置发布管理
 
-`PublicationManagement` 提供 `Publish`、`Rollback`、`Disable`、`Get`、`GetReceipt` 五个内部 RPC。与评测管理一样，只在 `grpc.governance_enabled=true` 时注册，并强制校验 mTLS 的 `qs-apiserver.svc` 工作负载；QS 必须先完成当前操作者的管理授权，再填入可信机构与操作者。qs-ai 不接收直接来自浏览器的用户声明，不自建用户或权限目录。
+`PublicationManagement` 提供 `Publish`、`Rollback`、`Disable`、`Get`、`GetReceipt`、`ListHistory`、`GetHistory` 七个内部 RPC。与评测管理一样，只在 `grpc.governance_enabled=true` 时注册，并强制校验 mTLS 的 `qs-apiserver.svc` 工作负载；QS 必须先完成当前操作者的管理授权，再填入可信机构与操作者。qs-ai 不接收直接来自浏览器的用户声明，不自建用户或权限目录。
 
 写操作必须有规范 UUID command_id、显式 expected 指针、原因和确认。发布绑定 Run UUID/版本/完整 release 摘要；回退只传原 publication UUID，不能上传拼装的审批或配置。AI 使用服务端时间，从冻结证据和全部 G1–G5 重算是否可发布。共享 selector 目录保持 QS 语义，不按机构复制一套生效配置。
 
@@ -58,4 +58,16 @@ uv run pytest -q
 
 响应丢失后可用原机构/操作者和 command_id 调用 `GetReceipt`，不会新增发布或执行模型；其他机构/操作者与不存在命令统一返回 NOT_FOUND。相同原命令也可显式重放以取得原回执，服务器不自动重试写操作。版本/命令冲突映射 ABORTED，输入或证据不合格映射 INVALID_ARGUMENT，依赖异常映射 UNAVAILABLE 并提示查询原命令；错误响应不包含内部异常或资产正文。
 
-这批只接通 AI 端管理入口。QS 管理客户端/REST 代理、实际用户权限联调、运行时按 publication 解析及在途版本冻结仍待完成；当前生产治理开关为 false，不会自动替换 QS 的旧管理或生成路径。
+QS 已有发布管理客户端/REST 代理；运行时发布版本绑定已实现但未完成真实业务验收。新增历史查询的 QS 代理与运营端发布页面继续后续批次。当前生产治理开关为 false，不会自动替换 QS 的旧管理或生成路径。
+
+### 发布历史与原命令恢复
+
+`ListHistory` 面向 QS 授权的配置审计读者，按精确 selector 查询全局配置变更历史；保留原操作者，不要求读者是原发布者。`before_version=0` 从最新开始，后续使用上一页的 `next_before_version` 作为严格小于的游标；`limit` 必须为 1–20。结果按版本降序，游标为 0 表示没有下一页。新发布不会进入已开始的后续旧版本分页，不实施运行时 selector 回退匹配。
+
+`payload_json` 使用 `qs-ai-publication-history/v1`，包含 selector、entries、next_before_version。每条摘要含版本、command_id、动作、原操作者/理由/时间、前后 publication ID，以及当前发布的 Run/Profile 标识和版本；停用条目的当前发布字段为空。不返回可执行 Prompt 或 Profile 正文，页上限 64 KiB。
+
+`GetHistory` 用精确 selector 与正版本读取原变更的完整前后发布证据，返回 `PublicationReceipt`（上限 1 MiB），供管理员核对回退目标。其 actor 是原操作者，不是当前读者。历史查询不会改变当前指针、重放命令、重算或批准评测，也不会调用模型；执行回退时仍由原写路径重新验证原评测及全部发布门槛。
+
+历史摘要和详情均复用已保留记录的摘要、索引、请求、版本与审计校验；损坏记录不会被作为可回退版本返回。使用现有 selector/version 唯一索引，无新增数据库迁移。QS 必须在两个新读入口校验配置审计能力，并与写操作 OrgAdmin 能力区分。
+
+这与 `GetReceipt` 的用途不同：后者继续限制原机构/原操作者，用来恢复其命令的未知结果。新增历史审计读接口不放宽 `GetReceipt`，也不提供写权限或代替一次明确的发布/回退确认。

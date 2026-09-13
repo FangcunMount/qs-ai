@@ -98,12 +98,55 @@ class PublicationReceipt:
     change: PublicationChange
 
 
+@dataclass(frozen=True)
+class PublicationHistoryQuery:
+    selector: ReleaseSelector
+    before_version: int = 0
+    limit: int = 20
+
+    def __post_init__(self) -> None:
+        if (
+            not isinstance(self.selector, ReleaseSelector)
+            or not valid_version(self.before_version, initial=True)
+            or type(self.limit) is not int
+            or not 1 <= self.limit <= 20
+        ):
+            raise ValueError("Bounded publication history query required")
+
+
+@dataclass(frozen=True)
+class PublicationHistoryEntry:
+    version: int
+    command_id: UUID
+    action: str
+    actor: str
+    reason: str
+    changed_at: datetime
+    previous_publication_id: UUID | None
+    publication_id: UUID | None
+    run_id: UUID | None
+    run_version: int | None
+    profile_id: str | None
+    profile_version: str | None
+
+
+@dataclass(frozen=True)
+class PublicationHistoryPage:
+    selector: ReleaseSelector
+    entries: tuple[PublicationHistoryEntry, ...]
+    next_before_version: int = 0
+
+
 class PublicationStore(Protocol):
     async def get_receipt(
         self, scope: PublicationScope, command_id: UUID
     ) -> PublicationReceipt: ...
 
     async def get(self, selector: ReleaseSelector) -> PublicationPointer: ...
+
+    async def list_history(self, query: PublicationHistoryQuery) -> PublicationHistoryPage: ...
+
+    async def get_history(self, selector: ReleaseSelector, version: int) -> PublicationReceipt: ...
 
     async def apply(
         self,

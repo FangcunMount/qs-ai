@@ -760,6 +760,16 @@ class PublicationManagementStub:
                 request_serializer=workflow__pb2.PublicationReceiptQuery.SerializeToString,
                 response_deserializer=workflow__pb2.PublicationReceipt.FromString,
                 _registered_method=True)
+        self.ListHistory = channel.unary_unary(
+                '/qsai.workflow.v1.PublicationManagement/ListHistory',
+                request_serializer=workflow__pb2.PublicationHistoryQuery.SerializeToString,
+                response_deserializer=workflow__pb2.PublicationHistoryPage.FromString,
+                _registered_method=True)
+        self.GetHistory = channel.unary_unary(
+                '/qsai.workflow.v1.PublicationManagement/GetHistory',
+                request_serializer=workflow__pb2.PublicationHistoryVersionQuery.SerializeToString,
+                response_deserializer=workflow__pb2.PublicationReceipt.FromString,
+                _registered_method=True)
 
 
 class PublicationManagementServicer:
@@ -798,6 +808,20 @@ class PublicationManagementServicer:
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def ListHistory(self, request, context):
+        """QS audit-authorized global configuration history; preserves original actors.
+        These reads never replay commands or select an active publication.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetHistory(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_PublicationManagementServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -824,6 +848,16 @@ def add_PublicationManagementServicer_to_server(servicer, server):
             'GetReceipt': grpc.unary_unary_rpc_method_handler(
                     servicer.GetReceipt,
                     request_deserializer=workflow__pb2.PublicationReceiptQuery.FromString,
+                    response_serializer=workflow__pb2.PublicationReceipt.SerializeToString,
+            ),
+            'ListHistory': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListHistory,
+                    request_deserializer=workflow__pb2.PublicationHistoryQuery.FromString,
+                    response_serializer=workflow__pb2.PublicationHistoryPage.SerializeToString,
+            ),
+            'GetHistory': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetHistory,
+                    request_deserializer=workflow__pb2.PublicationHistoryVersionQuery.FromString,
                     response_serializer=workflow__pb2.PublicationReceipt.SerializeToString,
             ),
     }
@@ -963,6 +997,60 @@ class PublicationManagement:
             target,
             '/qsai.workflow.v1.PublicationManagement/GetReceipt',
             workflow__pb2.PublicationReceiptQuery.SerializeToString,
+            workflow__pb2.PublicationReceipt.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListHistory(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.PublicationManagement/ListHistory',
+            workflow__pb2.PublicationHistoryQuery.SerializeToString,
+            workflow__pb2.PublicationHistoryPage.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetHistory(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.PublicationManagement/GetHistory',
+            workflow__pb2.PublicationHistoryVersionQuery.SerializeToString,
             workflow__pb2.PublicationReceipt.FromString,
             options,
             channel_credentials,
