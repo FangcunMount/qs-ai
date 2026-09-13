@@ -211,3 +211,9 @@ AI 主干 `7620178f9b06ab01b99d202193cdc49f1a46a624` 的 [CI 34758011297](https:
 QS 集中包 `4f7e488f6a32ddbf5e0144b9f6df6b6b916efb06` 的主干 CI 34758000245 和部署 34758543834 成功；serverA apiserver 及两个 collection 均 healthy。以真实服务证书发送空请求，QS→AI AssetCatalog.List、AI→QS Authorize、AI→QS Results.Accept 均返回预期 INVALID_ARGUMENT，证明接口注册和身份链路；这些探针不执行业务写入，不代表真实操作者或参与者授权验收。
 
 截至本节首轮取证，原生评测、发布指针、生成 Job、模型调用、成果均为零。完整管理操作、真实授权/撤权、生成展示、配置回退和 24 小时观察仍待执行。小程序主干 CI 34759107648 成功只证明代码检查；仓库没有微信上传/发布工作流，不据此宣称微信版本已发布。
+
+QS 管理开关补丁 PR #109 已合并为 `bc1a3c4096810ea4a6b691817fd8357c9d7deecd`；主干 CI 34759879740 和 [部署 34760481696](https://github.com/FangcunMount/qs-server/actions/runs/34760481696) 成功。serverA 现场核验 apiserver/两个 collection 为新镜像且健康，挂载生产配置的 workflow_management.enabled=true，配置写入早于容器启动且无环境覆盖。旧 AI 总开关仍为 true，新 workflow_enabled=false；本轮只完成新管理入口启用，尚未切换参与者生成。
+
+Operating `b5d2aee2e6a98efc476df02db2450f73fcc1f05b` 的主干 CI 34759094726 通过，[部署 34759195162](https://github.com/FangcunMount/qs-operating-system/actions/runs/34759195162) 第三次尝试成功。首次只构建镜像并临时暂停替换，等待后端就绪；第二次在创建共享锁时被 serverB 的 sudo 策略拒绝，未替换容器。root 按既有规范初始化缺失的共享锁（目录 root:root/0755、普通锁文件 root:root/0666），不替换已有锁 inode；随后仅重跑部署步骤，复用构建镜像。现场容器镜像为上述 SHA、healthy，HTTP 3000 返回 200。PRODUCTION_DEPLOY_PAUSED 已恢复 false。该记录证明管理页面交付和服务部署，完整登录操作及业务闭环另行验收。
+
+serverB 本次发布另有非阻塞告警：deploy 账号无 sudo python3 执行镜像保留脚本的权限，服务部署成功，但自动镜像保留/清理没有执行；已有镜像保留。后续应在 infra 的主机部署权限与镜像保留机制中集中解决，不能把本次成功发布记为镜像保留也已成功。

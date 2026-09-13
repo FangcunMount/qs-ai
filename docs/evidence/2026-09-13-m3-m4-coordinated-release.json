@@ -1,5 +1,5 @@
 {
-  "observed_at": "2026-09-13T13:21:42.206842+00:00",
+  "observed_at": "2026-09-13T13:51:20.416164+00:00",
   "services": [
     {
       "name": "qs-ai-api",
@@ -35,8 +35,8 @@
     },
     {
       "name": "qs-apiserver",
-      "image": "ghcr.io/fangcunmount/qs-apiserver:4f7e488f6a32ddbf5e0144b9f6df6b6b916efb06",
-      "image_id": "sha256:3b5b83e9408ef74f0dfa7db9859cce18795c8a226e68ef8ebd2463c35f3ffcbc",
+      "image": "ghcr.io/fangcunmount/qs-apiserver:bc1a3c4096810ea4a6b691817fd8357c9d7deecd",
+      "image_id": "sha256:21ac177037a42b18144a65005232e8163e30bb44bf60b6d84c2426c154a5869d",
       "health": "healthy",
       "running": true,
       "flags": {},
@@ -44,8 +44,8 @@
     },
     {
       "name": "qs-collection-server-1",
-      "image": "ghcr.io/fangcunmount/qs-collection-server:4f7e488f6a32ddbf5e0144b9f6df6b6b916efb06",
-      "image_id": "sha256:70594157972e9dbf674b91ab94e788e0896d6d49e50dfd68bbd19a1e497e5a4e",
+      "image": "ghcr.io/fangcunmount/qs-collection-server:bc1a3c4096810ea4a6b691817fd8357c9d7deecd",
+      "image_id": "sha256:abfbff07f3c18b29425dd9481caa97d310a4b7d4740b64c6140617fdbc9b1dd7",
       "health": "healthy",
       "running": true,
       "flags": {},
@@ -53,8 +53,8 @@
     },
     {
       "name": "qs-collection-server-2",
-      "image": "ghcr.io/fangcunmount/qs-collection-server:4f7e488f6a32ddbf5e0144b9f6df6b6b916efb06",
-      "image_id": "sha256:70594157972e9dbf674b91ab94e788e0896d6d49e50dfd68bbd19a1e497e5a4e",
+      "image": "ghcr.io/fangcunmount/qs-collection-server:bc1a3c4096810ea4a6b691817fd8357c9d7deecd",
+      "image_id": "sha256:abfbff07f3c18b29425dd9481caa97d310a4b7d4740b64c6140617fdbc9b1dd7",
       "health": "healthy",
       "running": true,
       "flags": {},
@@ -111,7 +111,11 @@
     "operating_ci": 34759094726,
     "operating_image_build": 34759195162,
     "mini_program_main": "16bcdc51e2e5d33aca1ae56c1ce0ea9d7c795a26",
-    "mini_program_ci": 34759107648
+    "mini_program_ci": 34759107648,
+    "qs_management_activation_ci": 34759879740,
+    "qs_management_activation_deploy": 34760481696,
+    "operating_deploy": 34759195162,
+    "operating_deploy_attempt": 3
   },
   "assets_and_receiver_flags": {
     "counts": {
@@ -162,7 +166,36 @@
     "No real participant generation or authorization acceptance",
     "No native management draft/evaluation/review/publication/rollback acceptance",
     "No participant cutover or 24-hour observation",
-    "Mini-program CI is not a WeChat upload or release",
-    "QS management activation and Operating deployment pending in this snapshot"
-  ]
+    "Mini-program CI is not a WeChat upload or release"
+  ],
+  "qs_management_activation": {
+    "observed_at": "2026-09-13T13:45:39.473344+00:00",
+    "scope": "mounted_configuration_and_explicit_environment_overrides",
+    "image": "ghcr.io/fangcunmount/qs-apiserver:bc1a3c4096810ea4a6b691817fd8357c9d7deecd",
+    "started_at": "2026-09-13T13:44:49.223048744Z",
+    "config_modified_at": "2026-09-13T13:44:26+00:00",
+    "configuration": {
+      "enabled": true,
+      "workflow_enabled": false,
+      "workflow_management.enabled": true,
+      "participant_enabled": true,
+      "evaluation.enabled": true
+    },
+    "environment_overrides": {},
+    "models_called": false,
+    "writes_performed": false
+  },
+  "operating_production": {
+    "image": "crpi-x3r4i68cpfmwtcll.cn-beijing.personal.cr.aliyuncs.com/fangcunmount/qs-operating-system:sha-b5d2aee2e6a98efc476df02db2450f73fcc1f05b",
+    "health": "healthy",
+    "started_at": "2026-09-13T13:51:21.632511932Z",
+    "image_id": "sha256:597092ce30a15cfaea1588db0621574e3750598d99132c87e2527173460c0887",
+    "http_status": 200
+  },
+  "operations": {
+    "serverB_lock": "Initialized missing root-owned 0666 regular deploy.lock in root-owned 0755 retention directory; did not replace an existing inode",
+    "image_build_reused": true,
+    "image_retention_sudo_permission": "Observed warning: deploy user cannot sudo python3 image-retention.py; service deployment succeeded and prior images were retained. Host retention provisioning remains a separate follow-up.",
+    "operating_production_deploy_paused": false
+  }
 }
