@@ -635,3 +635,27 @@ M1 → M2 → M3 → M4 → M5。M3 清单分析可提前开展，生产切换�
 - AI 治理互操作固定上述 QS 源码。Go application/client→临时 mTLS→Python→隔离 MySQL 8.0.36 的两种阶段明细读取、原执行取消及旧管理回归共 5 项通过（12.66 秒）。返回字段逐项与同版本 AI 快照一致，审计只读、撤权、非法主体、跨机构、错误工作负载和过期版本均拒绝；查询未写库，取消后旧版本读取冲突、新版本未决列表为空，原始模型执行证据保持不变。临时库已删除。
 - 上述权限快照和模型证据均为合成输入，不代表真实 IAM、模型调用或生产管理验收。AI 新查询与 QS 代理仍需各自精确 CI、顺序部署，随后接 Operating 未决明细/处置入口；M1–M5 仍未验收。
 - 用户询问独立域名和代理代码量：当前内部 gRPC 不要求新增公网域名，Operating 仍经 QS 授权代理。限定范围统计包含本批手写管理代码约 4,200 行（含注释/接口文档，不含测试和生成代码）；部分回执校验绑定候选/审核数量和复审轮数，属于需评估的边界耦合。此为分析结论，尚未批准或实施直连管理 API、独立域名及代理结构重构；不借此改变本轮业务接管与验收目标。
+
+
+### 2026-09-13：未知调用两端发布与运营入口验证
+
+- AI 查询 #72 精确 PR CI `34738116139` 通过后合并为 `9b972e61b98a818a8c885d9206a56842dfb7a6e1`；主分支 CI `34738849088`、部署 `34739562613` 成功。本轮独立读取 serverA，API/gRPC 实际镜像均为该 SHA 且 healthy，MySQL 8.0.36 的迁移为 `0022_evaluation_suites`、readyz connected、mTLS 探针返回预期 PERMISSION_DENIED。探针证明通信与身份拒绝行为，不代替真实操作者授权。
+- 跨语言原调用查询 #73 的精确 head `f839857b96e4a2289969d4a3bc46ccf2b6fd1d0c` 通过两种 MySQL 与镜像 CI `34738910676`，合并为 `04fbb3df90f209505e0abc6e8c15d21350a03914`。QS #103 精确 head `11f16d95842b2b009dc9c7aa44e0392970538b00` 的适用检查全部通过，合并为 `ac170ec3a93eacafa77583406bcadfe5bae3df9d`；主干 CI `34739980137` 已成功，部署 `34740407408` 已完成 API/worker 阶段，collection 阶段仍在跟进。
+- Operating [PR #30](https://github.com/FangcunMount/qs-operating-system/pull/30) 增加版本绑定的原调用读取、取消/替代授权、独立风险确认、预算禁用、取消后只读及原回执恢复。超时/409/错误回执按账号保留原执行/决定/操作者，必须读到匹配审计才能解除待确认状态；不以版本推进代替原操作回执。
+- Operating 本地全库 114 套测试、517 项通过，类型、ESLint 零警告及生产构建通过；实际组件的隔离 Chromium 验证取消与替代两个流程，确认页面及结果无横向溢出。API/记录均为合成数据，未访问生产 IAM/QS/模型。前端精确 head `35e79c21f3bc0c5d9f8f08ba8d10c4ced2a62705` 的 CI `34740334020` 已成功，等待 QS 后端部署后再合并发布。
+- serverA 本轮读取 `generation.enabled`、`evaluation.enabled`、`grpc.governance_enabled`、`generation.use_publications` 均为 false。没有启用真实生成、关闭 QS 旧管理写入或删除历史数据。M1/M2 真实授权报告、撤权、模型成果与恢复证据，M3 实际管理闭环/生产配置对账，以及 M4/M5 全量切换与退役均未验收。
+
+### 2026-09-13：GitHub Actions 并行提速验收
+
+- 用户指出 workflow 等待过长。基线 checks `34738116139` 为 17 分 59 秒，最慢 MySQL pytest 占 16 分 35 秒；依赖安装约 2 秒，QS 桥接构建约 4–5 秒。主要瓶颈为串行数据库集成测试及反复准备测试数据。
+- [PR #74](https://github.com/FangcunMount/qs-ai/pull/74) 保留两种 MySQL，每种分四个隔离批次，新增完整测试执行汇总，要求每项测试在每种数据库恰好通过一次；漏批、遗漏、重复、跳过或提交不一致均失败。只取消同 PR 的过期检查，不取消 main 检查与生产发布。
+- 首轮 `34739241483` 为 6 分 48 秒，最终 head `84b654e5362787d3e5c91cf6a1a485dcf1a2d83b` 的 `34739626009` 为 6 分 27 秒；每种 MySQL 全部 1,370 项通过。合并 `b8ffb8ef50a2487c8792a8e924c44c852062e28c` 后，主干 `34739974760` 为 6 分 12 秒且全部成功。与基线相比，最终 PR 单次等待缩短约 64%，主干约 66%；不是完整发布链路时长或长期容量承诺。
+- 本批仅修改 CI/测试/文档，`Deploy serverA` 的 `34740229467` gate 成功，build/deploy 正确跳过；生产仍为已核实的 `9b972e6`。额外 runner 初始化用量增加，后续可依据慢测计时均衡分配，不削减验收覆盖。本记录为工程验证，不改变 M1–M5 业务验收状态。
+
+
+### 2026-09-13：固定迁移基线在生产入库，未激活
+
+- 等待 QS 发布期间运行已有只读 `bootstrap.audit_assets`：生产资产表中固定基线 10 项均缺失。随后使用已部署的四个 insert-only 导入命令，按 Prompt→route→schema→Profile 顺序导入；操作者标记为 `migration:codex:m3-baseline-2026-09-13`，没有冒用真实用户或评审身份。
+- 分别新增 6 个 Prompt（v1–v6）、1 条 balanced_text_v1/v8 路线、2 份输入/输出 v1 Schema 和 1 个 participant-scale-score-range-default/v6 Profile。只读完整内容及引用对账为 matched，10 行原来源/操作者/导入时间齐全。没有导入或伪造旧批准、评测、发布状态。
+- 只读重建原基线清单成功，指纹为 `sha256:617a7b766fc69681efb5cabc6cdc03f313cb0c12665dbbb06a4a15486c2bc53a`，approved/activated 均 false。另查数据库确认 configuration_publications、configuration_publication_pointers、configuration_publication_changes 导入前后均为 0；生成、评测、治理及发布选择四开关保持 false。
+- [脱敏现场记录](evidence/2026-09-13-m3-fixed-baseline-import.json) 只含固定资产版本、来源、数量、指纹、导入审计与开关，不包含报告、Prompt 正文或凭据。本次证明已固定历史基线入库与一致性，不代表当前 QS 全部现网配置盘点或 M3 实际管理验收；新输入修正规范及原生发布仍走后续正式管理流程。
