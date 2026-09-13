@@ -45,6 +45,8 @@ class Commands(rpc.CommandsServicer):
         except AccessDenied:
             await context.abort(grpc.StatusCode.PERMISSION_DENIED, "Resource access denied")
         except RuleViolation as error:
+            if error.code == "participant_daily_capacity_exceeded":
+                await context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, error.code)
             code = (
                 grpc.StatusCode.ABORTED
                 if "conflict" in error.code or error.code == "invalid_state"

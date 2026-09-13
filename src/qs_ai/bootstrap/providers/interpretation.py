@@ -4,6 +4,7 @@ from pathlib import Path
 
 from dishka import Provider, Scope, provide
 
+from qs_ai.application.execution.capacity import ParticipantCapacityPolicy
 from qs_ai.application.execution.worker import ExecuteNext
 from qs_ai.application.interpretation.ports import (
     EvidenceSource,
@@ -24,6 +25,10 @@ from qs_ai.infrastructure.qs_server.report_probe import mtls_channel
 
 
 class InterpretationProvider(Provider):
+    @provide(scope=Scope.APP)
+    def participant_capacity(self, settings: Settings) -> ParticipantCapacityPolicy:
+        return ParticipantCapacityPolicy(**settings.participant_capacity.model_dump())
+
     identity = provide(UnconfiguredIdentity, provides=IdentityVerifier, scope=Scope.APP)
 
     @provide(scope=Scope.APP)

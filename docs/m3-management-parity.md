@@ -23,7 +23,7 @@
 | P06 | v1 GET `/profiles` | AI AssetCatalog.List + 草稿/发布生命周期；旧版本仍由 QS 读 | 不可变资产列表不等于旧 draft/published/disabled 状态筛选；补做列表语义与实际在用版本映射 |
 | P07 | v1 GET `/profiles/:profile_id/versions/:version` | AI AssetCatalog.Get；旧版本读取保留 | 旧 ID/版本与新内容指纹逐条对账 |
 | P08 | v1 GET `/prompt-evaluation-capacity` | AI 应承接评测容量与准入状态 | 已补 GetCapacity、Start 原子日预算预留/活动限制及恢复准入；QS 沿用 OrgAdmin 查询权限，Operating 只展示服务端快照。并发/跨日/取消不退预算/恢复不重复扣费测试通过；生产限额对账及集中审核待完成 |
-| P09 | v1 GET `/participant-capacity` | AI 应承接生成执行容量；QS 保留业务权限 | 未找到等价管理 RPC；需核对机构/用户/测评日预算及机构活动执行占用，不能只显示进程并发配置 |
+| P09 | v1 GET `/participant-capacity` | AI 应承接生成执行容量；QS 保留业务权限 | 已本地接入快照生成的三级日预算、活动名额、租约恢复复用及终结释放；日预算拒绝通过原回执与结果 Outbox 返回 blocked。容量管理 RPC/代理/展示、生产政策对账尚未完成 |
 | P10 | v1 POST `/generations/:generation_id/retry` | AI 承接受控恢复，QS 只发授权命令 | 评测 ResolveUnknown 不覆盖参与者 Generation；需原尝试、命令幂等、风险确认、费用预留与历史 ID 关联的完整映射 |
 | P11 | v1 POST `/profiles` | AI PromptDraft Create/Revise/Freeze + Profile Register | 有组成能力；验收完整编辑/校验/注册流程，明确原 Profile 草稿语义映射 |
 | P12 | v1 POST `/profiles/:profile_id/versions/:version/publish` | AI PublicationManagement.Publish | 有实现；实际质量门槛→发布→新生成版本绑定验收及旧写关闭 |
@@ -78,3 +78,14 @@
 验证：961 项非集成通过、11 项跳过；13 项容量/原管理/诊断跨语言组合通过；另 2 项恢复预算回归通过。QS 四包 race 与 lint 通过；Operating 四套 69 项测试及类型/定向 lint 通过。测试使用一次性 MySQL 与测试证书/合成权限，不代表生产验收。
 
 QS 本批源提交 `65ca7370845e1c8637982a636499ec7d4dc16803` 尚未推送；AI CI pin 已随本地代码更新。最终推送顺序必须先 QS，确保 AI CI 能检出源提交。P09/P10 参与者容量与受控重试、P06/P07 生命周期与旧版本对账、P20 旧复查映射仍未完成；当前尚不提交最终审核、不单独发布。
+
+
+### 参与者容量核心（本地，尚未提交集中审核）
+
+新增 `0025_participant_capacity`：QS 快照生成在入队事务内按机构/用户/测评各预留 1 次调用；worker 领取时检查三级活动占用。活动名额不足仅延后领取，不增加执行尝试、不调用模型；同 Run 租约接管复用名额；取消、阻塞、完成和执行尝试耗尽按原租约事务释放活动名额，保留日预算。非快照原型问答不因本轮迁移增加预算语义。
+
+已核对 QS Relay 对发送错误会重投：因此日预算拒绝在 qs-ai 记录原请求的 blocked Run、失败原因和结果 Outbox，不只返回 RPC 错误。原请求重放取得原回执，不在下一天自动启动被拒绝的旧请求。不同请求各自留下明确的拒绝记录，但不预留预算和创建执行 Job。后续受控恢复应使用新的明确命令和 Run，不重写此回执。
+
+配置默认值沿用 QS 仓库生产政策：日预算 500/5/3、活动占用 10/2/1；实际生产政策对账仍待完成。44 项实际 MySQL 的容量/快照/生成/租约/结果 Outbox 回归通过；961 项非集成通过、11 项跳过，Ruff 和 mypy 224 源文件通过。新增迁移仅用于一次性测试库。
+
+P09 仍缺管理读取与三端展示；P10 受控重试尚未实现。本记录不代表 B 包完成，也不代表整个 M3 已提交审核。

@@ -477,3 +477,29 @@ evaluation_capacity_reservations = sa.Table(
     mysql_engine="InnoDB",
     mysql_charset="utf8mb4",
 )
+
+participant_admission_locks = sa.Table(
+    "participant_admission_locks",
+    metadata,
+    sa.Column("organization_id", EXTERNAL_ID, primary_key=True),
+    mysql_engine="InnoDB",
+    mysql_charset="utf8mb4",
+)
+participant_capacity_reservations = sa.Table(
+    "participant_capacity_reservations",
+    metadata,
+    sa.Column("run_id", ID, primary_key=True),
+    sa.Column("session_id", ID, nullable=False),
+    sa.Column("organization_id", EXTERNAL_ID, nullable=False),
+    sa.Column("subject_id", sa.String(128, collation="utf8mb4_bin"), nullable=False),
+    sa.Column("assessment_ids", sa.JSON, nullable=False),
+    sa.Column("budget_day", sa.Date, nullable=False),
+    sa.Column("reserved_at", mysql.DATETIME(fsp=6), nullable=False),
+    sa.Column("active", sa.Boolean, nullable=False),
+    sa.Column("acquired_at", mysql.DATETIME(fsp=6)),
+    sa.Column("released_at", mysql.DATETIME(fsp=6)),
+    sa.Index("ix_participant_capacity_day", "organization_id", "budget_day"),
+    sa.Index("ix_participant_capacity_active", "organization_id", "active"),
+    mysql_engine="InnoDB",
+    mysql_charset="utf8mb4",
+)
