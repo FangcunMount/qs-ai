@@ -2040,6 +2040,21 @@ class ParticipantManagementStub:
                 request_serializer=workflow__pb2.ParticipantCapacityQuery.SerializeToString,
                 response_deserializer=workflow__pb2.ParticipantCapacitySnapshot.FromString,
                 _registered_method=True)
+        self.GetExecution = channel.unary_unary(
+                '/qsai.workflow.v1.ParticipantManagement/GetExecution',
+                request_serializer=workflow__pb2.ParticipantExecutionQuery.SerializeToString,
+                response_deserializer=workflow__pb2.ParticipantExecution.FromString,
+                _registered_method=True)
+        self.Retry = channel.unary_unary(
+                '/qsai.workflow.v1.ParticipantManagement/Retry',
+                request_serializer=workflow__pb2.ParticipantRetryCommand.SerializeToString,
+                response_deserializer=workflow__pb2.Receipt.FromString,
+                _registered_method=True)
+        self.GetRetryReceipt = channel.unary_unary(
+                '/qsai.workflow.v1.ParticipantManagement/GetRetryReceipt',
+                request_serializer=workflow__pb2.ParticipantRetryReceiptQuery.SerializeToString,
+                response_deserializer=workflow__pb2.Receipt.FromString,
+                _registered_method=True)
 
 
 class ParticipantManagementServicer:
@@ -2052,6 +2067,24 @@ class ParticipantManagementServicer:
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def GetExecution(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def Retry(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetRetryReceipt(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_ParticipantManagementServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -2059,6 +2092,21 @@ def add_ParticipantManagementServicer_to_server(servicer, server):
                     servicer.GetCapacity,
                     request_deserializer=workflow__pb2.ParticipantCapacityQuery.FromString,
                     response_serializer=workflow__pb2.ParticipantCapacitySnapshot.SerializeToString,
+            ),
+            'GetExecution': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetExecution,
+                    request_deserializer=workflow__pb2.ParticipantExecutionQuery.FromString,
+                    response_serializer=workflow__pb2.ParticipantExecution.SerializeToString,
+            ),
+            'Retry': grpc.unary_unary_rpc_method_handler(
+                    servicer.Retry,
+                    request_deserializer=workflow__pb2.ParticipantRetryCommand.FromString,
+                    response_serializer=workflow__pb2.Receipt.SerializeToString,
+            ),
+            'GetRetryReceipt': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetRetryReceipt,
+                    request_deserializer=workflow__pb2.ParticipantRetryReceiptQuery.FromString,
+                    response_serializer=workflow__pb2.Receipt.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -2089,6 +2137,87 @@ class ParticipantManagement:
             '/qsai.workflow.v1.ParticipantManagement/GetCapacity',
             workflow__pb2.ParticipantCapacityQuery.SerializeToString,
             workflow__pb2.ParticipantCapacitySnapshot.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetExecution(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.ParticipantManagement/GetExecution',
+            workflow__pb2.ParticipantExecutionQuery.SerializeToString,
+            workflow__pb2.ParticipantExecution.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def Retry(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.ParticipantManagement/Retry',
+            workflow__pb2.ParticipantRetryCommand.SerializeToString,
+            workflow__pb2.Receipt.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetRetryReceipt(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.ParticipantManagement/GetRetryReceipt',
+            workflow__pb2.ParticipantRetryReceiptQuery.SerializeToString,
+            workflow__pb2.Receipt.FromString,
             options,
             channel_credentials,
             insecure,

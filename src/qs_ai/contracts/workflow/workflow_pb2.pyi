@@ -1119,3 +1119,77 @@ class ParticipantCapacitySnapshot(_message.Message):
     daily_truncated: bool
     active_truncated: bool
     def __init__(self, organization_id: _Optional[int] = ..., budget_day: _Optional[str] = ..., policy: _Optional[_Union[ParticipantCapacityPolicy, _Mapping]] = ..., organization: _Optional[_Union[ParticipantCapacityUsage, _Mapping]] = ..., subject: _Optional[_Union[ParticipantCapacityUsage, _Mapping]] = ..., assessment: _Optional[_Union[ParticipantCapacityUsage, _Mapping]] = ..., daily_reservations: _Optional[_Iterable[_Union[ParticipantReservation, _Mapping]]] = ..., active_reservations: _Optional[_Iterable[_Union[ParticipantReservation, _Mapping]]] = ..., daily_truncated: _Optional[bool] = ..., active_truncated: _Optional[bool] = ...) -> None: ...
+
+class ParticipantExecutionQuery(_message.Message):
+    __slots__ = ("scope", "session_id")
+    SCOPE_FIELD_NUMBER: _ClassVar[int]
+    SESSION_ID_FIELD_NUMBER: _ClassVar[int]
+    scope: PublicationScope
+    session_id: str
+    def __init__(self, scope: _Optional[_Union[PublicationScope, _Mapping]] = ..., session_id: _Optional[str] = ...) -> None: ...
+
+class ParticipantRetryReceiptQuery(_message.Message):
+    __slots__ = ("scope", "command_id")
+    SCOPE_FIELD_NUMBER: _ClassVar[int]
+    COMMAND_ID_FIELD_NUMBER: _ClassVar[int]
+    scope: PublicationScope
+    command_id: str
+    def __init__(self, scope: _Optional[_Union[PublicationScope, _Mapping]] = ..., command_id: _Optional[str] = ...) -> None: ...
+
+class ParticipantRetryCommand(_message.Message):
+    __slots__ = ("scope", "session_id", "command_id", "expected_run_id", "expected_version", "reason", "confirm", "expected_provider_invocations", "accept_result_unknown_risk")
+    SCOPE_FIELD_NUMBER: _ClassVar[int]
+    SESSION_ID_FIELD_NUMBER: _ClassVar[int]
+    COMMAND_ID_FIELD_NUMBER: _ClassVar[int]
+    EXPECTED_RUN_ID_FIELD_NUMBER: _ClassVar[int]
+    EXPECTED_VERSION_FIELD_NUMBER: _ClassVar[int]
+    REASON_FIELD_NUMBER: _ClassVar[int]
+    CONFIRM_FIELD_NUMBER: _ClassVar[int]
+    EXPECTED_PROVIDER_INVOCATIONS_FIELD_NUMBER: _ClassVar[int]
+    ACCEPT_RESULT_UNKNOWN_RISK_FIELD_NUMBER: _ClassVar[int]
+    scope: PublicationScope
+    session_id: str
+    command_id: str
+    expected_run_id: str
+    expected_version: int
+    reason: str
+    confirm: bool
+    expected_provider_invocations: int
+    accept_result_unknown_risk: bool
+    def __init__(self, scope: _Optional[_Union[PublicationScope, _Mapping]] = ..., session_id: _Optional[str] = ..., command_id: _Optional[str] = ..., expected_run_id: _Optional[str] = ..., expected_version: _Optional[int] = ..., reason: _Optional[str] = ..., confirm: _Optional[bool] = ..., expected_provider_invocations: _Optional[int] = ..., accept_result_unknown_risk: _Optional[bool] = ...) -> None: ...
+
+class ParticipantExecution(_message.Message):
+    __slots__ = ("organization_id", "session_id", "request_id", "run_id", "version", "status", "subject_id", "testee_id", "assessment_ids", "failure_code", "model_call_status", "invocation_id", "source_run_id", "can_retry", "unknown_result_risk", "retry_provider_invocations")
+    ORGANIZATION_ID_FIELD_NUMBER: _ClassVar[int]
+    SESSION_ID_FIELD_NUMBER: _ClassVar[int]
+    REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
+    RUN_ID_FIELD_NUMBER: _ClassVar[int]
+    VERSION_FIELD_NUMBER: _ClassVar[int]
+    STATUS_FIELD_NUMBER: _ClassVar[int]
+    SUBJECT_ID_FIELD_NUMBER: _ClassVar[int]
+    TESTEE_ID_FIELD_NUMBER: _ClassVar[int]
+    ASSESSMENT_IDS_FIELD_NUMBER: _ClassVar[int]
+    FAILURE_CODE_FIELD_NUMBER: _ClassVar[int]
+    MODEL_CALL_STATUS_FIELD_NUMBER: _ClassVar[int]
+    INVOCATION_ID_FIELD_NUMBER: _ClassVar[int]
+    SOURCE_RUN_ID_FIELD_NUMBER: _ClassVar[int]
+    CAN_RETRY_FIELD_NUMBER: _ClassVar[int]
+    UNKNOWN_RESULT_RISK_FIELD_NUMBER: _ClassVar[int]
+    RETRY_PROVIDER_INVOCATIONS_FIELD_NUMBER: _ClassVar[int]
+    organization_id: int
+    session_id: str
+    request_id: str
+    run_id: str
+    version: int
+    status: str
+    subject_id: str
+    testee_id: str
+    assessment_ids: _containers.RepeatedScalarFieldContainer[str]
+    failure_code: str
+    model_call_status: str
+    invocation_id: str
+    source_run_id: str
+    can_retry: bool
+    unknown_result_risk: bool
+    retry_provider_invocations: int
+    def __init__(self, organization_id: _Optional[int] = ..., session_id: _Optional[str] = ..., request_id: _Optional[str] = ..., run_id: _Optional[str] = ..., version: _Optional[int] = ..., status: _Optional[str] = ..., subject_id: _Optional[str] = ..., testee_id: _Optional[str] = ..., assessment_ids: _Optional[_Iterable[str]] = ..., failure_code: _Optional[str] = ..., model_call_status: _Optional[str] = ..., invocation_id: _Optional[str] = ..., source_run_id: _Optional[str] = ..., can_retry: _Optional[bool] = ..., unknown_result_risk: _Optional[bool] = ..., retry_provider_invocations: _Optional[int] = ...) -> None: ...

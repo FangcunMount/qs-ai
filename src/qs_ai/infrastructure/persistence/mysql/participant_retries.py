@@ -6,7 +6,11 @@ from uuid import uuid4
 from sqlalchemy import insert, select
 
 from qs_ai.application.execution.capacity import ParticipantCapacityPolicy
-from qs_ai.application.execution.retry import ParticipantRetry, ParticipantTarget
+from qs_ai.application.execution.retry import (
+    ParticipantExecution,
+    ParticipantRetry,
+    ParticipantTarget,
+)
 from qs_ai.application.governance.prompt_drafts import DraftScope
 from qs_ai.application.interpretation.ports import NotFound, Receipt
 from qs_ai.application.interpretation.service import fingerprint
@@ -27,6 +31,79 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
 class MySQLParticipantRetries:
     def __init__(self, transactions: Transactions, capacity: ParticipantCapacityPolicy) -> None:
         self.transactions, self.capacity = transactions, capacity
+
+    async def get(self, scope: DraftScope, session_id: str) -> ParticipantExecution:
+        async with self.transactions.open() as db:
+            await db.connection(execution_options={"isolation_level": "REPEATABLE READ"})
+            row = (
+                (
+                    await db.execute(
+                        select(sessions).where(
+                            sessions.c.id == session_id,
+                            sessions.c.org_id == scope.organization_id,
+                        )
+                    )
+                )
+                .mappings()
+                .one_or_none()
+            )
+            if row is None:
+                raise NotFound
+            session = session_from(row)
+            request_id = await db.scalar(
+                select(external_requests.c.request_id).where(
+                    external_requests.c.session_id == session.id,
+                )
+            )
+            if not session.uses_qs_snapshot or request_id is None or session.active_run_id is None:
+                raise NotFound
+            run_status = await db.scalar(
+                select(runs.c.status).where(
+                    runs.c.id == session.active_run_id,
+                    runs.c.session_id == session.id,
+                )
+            )
+            job_status = await db.scalar(
+                select(jobs.c.status).where(
+                    jobs.c.run_id == session.active_run_id,
+                )
+            )
+            call = (
+                (
+                    await db.execute(
+                        select(model_calls.c.status, model_calls.c.invocation_id).where(
+                            model_calls.c.run_id == session.active_run_id,
+                        )
+                    )
+                )
+                .mappings()
+                .one_or_none()
+            )
+            source_run_id = await db.scalar(
+                select(participant_retries.c.source_run_id).where(
+                    participant_retries.c.run_id == session.active_run_id,
+                    participant_retries.c.session_id == session.id,
+                )
+            )
+            return ParticipantExecution(
+                scope.organization_id,
+                session.id,
+                request_id,
+                session.active_run_id,
+                session.version,
+                session.status,
+                session.actor.subject_id,
+                session.testee_id,
+                session.assessment_ids,
+                session.failure_code or "",
+                call["status"] if call else "",
+                call["invocation_id"] if call else "",
+                source_run_id or "",
+                session.status == "blocked"
+                and run_status == "blocked"
+                and job_status in {None, "done", "dead"},
+                bool(call and call["status"] in {"dispatched", "unknown"}),
+            )
 
     async def target(self, scope: DraftScope, session_id: str) -> ParticipantTarget:
         async with self.transactions.open() as db:

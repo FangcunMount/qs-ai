@@ -45,7 +45,28 @@ class ParticipantTarget:
     assessment_ids: tuple[str, ...]
 
 
+@dataclass(frozen=True)
+class ParticipantExecution:
+    organization_id: int
+    session_id: str
+    request_id: str
+    run_id: str
+    version: int
+    status: str
+    subject_id: str
+    testee_id: str
+    assessment_ids: tuple[str, ...]
+    failure_code: str
+    model_call_status: str
+    invocation_id: str
+    source_run_id: str
+    can_retry: bool
+    unknown_result_risk: bool
+    retry_provider_invocations: int = 1
+
+
 class ParticipantRetryStore(Protocol):
+    async def get(self, scope: DraftScope, session_id: str) -> ParticipantExecution: ...
     async def target(self, scope: DraftScope, session_id: str) -> ParticipantTarget: ...
     async def retry(self, command: ParticipantRetry) -> Receipt: ...
     async def receipt(self, scope: DraftScope, command_id: str) -> Receipt: ...

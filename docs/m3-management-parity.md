@@ -24,7 +24,7 @@
 | P07 | v1 GET `/profiles/:profile_id/versions/:version` | AI AssetCatalog.Get；旧版本读取保留 | 旧 ID/版本与新内容指纹逐条对账 |
 | P08 | v1 GET `/prompt-evaluation-capacity` | AI 应承接评测容量与准入状态 | 已补 GetCapacity、Start 原子日预算预留/活动限制及恢复准入；QS 沿用 OrgAdmin 查询权限，Operating 只展示服务端快照。并发/跨日/取消不退预算/恢复不重复扣费测试通过；生产限额对账及集中审核待完成 |
 | P09 | v1 GET `/participant-capacity` | AI 应承接生成执行容量；QS 保留业务权限 | 已本地接入快照生成的三级日预算、活动名额、租约恢复复用及终结释放；日预算拒绝通过原回执与结果 Outbox 返回 blocked。容量管理 RPC、QS 授权代理与 Operating 查询已本地贯通；生产政策对账尚未完成 |
-| P10 | v1 POST `/generations/:generation_id/retry` | AI 承接受控恢复，QS 只发授权命令 | AI 本地已实现独立重试事务：原尝试 CAS、命令幂等、当前参与者授权、未知风险确认、新额度预留及新旧 Run/原请求关联；管理 RPC/代理/操作入口与旧 Generation ID 映射未完成 |
+| P10 | v1 POST `/generations/:generation_id/retry` | AI 承接受控恢复，QS 只发授权命令 | AI 本地已实现独立重试事务：原尝试 CAS、命令幂等、当前参与者授权、未知风险确认、新额度预留及新旧 Run/原请求关联；管理 RPC、QS 授权代理、Operating 操作和回执恢复已本地接通；旧 Generation ID 映射及生产验收未完成 |
 | P11 | v1 POST `/profiles` | AI PromptDraft Create/Revise/Freeze + Profile Register | 有组成能力；验收完整编辑/校验/注册流程，明确原 Profile 草稿语义映射 |
 | P12 | v1 POST `/profiles/:profile_id/versions/:version/publish` | AI PublicationManagement.Publish | 有实现；实际质量门槛→发布→新生成版本绑定验收及旧写关闭 |
 | P13 | v1 POST `/profiles/:profile_id/versions/:version/disable` | AI PublicationManagement.Disable | 有实现；核对发布 selector 映射、停用对在途及新任务的行为 |
@@ -101,3 +101,11 @@ P09 管理读取与三端展示已本地贯通；P10 受控重试核心已本地
 71 项相关 MySQL/领域回归通过；另 1 项已发布配置的人工重试完整执行测试通过：未知调用→发布指针变化→原版本重试→原会话成果 Outbox，使用隔离数据库及替身模型。968 项非集成测试通过、11 跳过；mypy 229 源文件、Ruff 与 Alembic 模型一致性通过。QS 原桥接真实隔离 MySQL 测试验证 blocked→queued 与旧失败事件乱序，禁止替换原会话。这些不是生产真实模型或跨服务完整业务验收。
 
 P10 仍需管理状态读取、重试 RPC/回执查询、QS 授权代理与 Operating 显式风险确认/恢复入口，以及旧历史标识映射；不能把核心服务当作可直接使用的完整功能。P06/P07、P20、生产政策对账与验收依然未完成。没有单项推送、发布或生产开关变更。
+
+### 原生参与者重试管理链路闭合（本地）
+
+已接通 GetExecution/Retry/GetRetryReceipt 与对应 QS 管理路由，沿用默认关闭的治理开关和当前 OrgAdmin 权限。运行状态查询不派发；显式重试要求原 Run/版本、稳定命令编号、一次调用费用与未知风险确认；回执读取绑定原操作人，并在 AI 复查原参与者现行权限。QS 写请求只调用一次，畸形成功回执按结果未知返回，不能误报为明确拒绝。
+
+Operating 已接入原生参与者查询/重试区域，重试前持久保存待确认命令。网络超时、刷新或回执暂未找到时保留原编号，只查回执，不自动发新命令；账号切换不展示旧响应。真实临时 mTLS Go→Python→MySQL 与核心重试合计 8 项通过，含权限撤回、非 QS 身份、跨机构、风险确认、重放、原操作人回执与无重复配额。QS 四包 race 与 lint 通过；Operating 三套件 27 项通过，类型和 lint 通过；AI 非集成 968 项通过、11 跳过。
+
+QS 源提交 `1860f70b0bf628badb62b6939f5e3433c31c1abc` 已固定本地 AI CI；当前协议 103 RPC/23 服务、REST 246 operations/224 paths。三端均为集中包本地修改，未单项推送或发布。P10 的原生管理能力已接通，但旧 Generation ID 的显式映射、P06/P07、P20 和真实接管验收仍未完成。

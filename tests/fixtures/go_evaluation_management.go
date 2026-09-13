@@ -14,6 +14,8 @@ import (
 
 func main() {
 	var input struct {
+		SessionID, CommandID            string
+		ParticipantRetry                app.ParticipantRetry
 		RunID, Action, Decision, Reason string
 		Release                         app.EvaluationRelease
 		Plan                            app.EvaluationPlanQuery
@@ -55,7 +57,13 @@ func main() {
 	}
 	scope := app.EvaluationScope{RunID: input.RunID, OrganizationID: input.OrgID, OperatorUserID: input.UserID}
 	var result any
-	if input.Action == "participant-capacity" {
+	if input.Action == "participant-get" {
+		result, err = (&app.ParticipantAdministration{Gateway: clients.Participants}).Get(ctx, app.DraftScope{OrganizationID: input.OrgID, OperatorUserID: input.UserID}, input.SessionID)
+	} else if input.Action == "participant-retry" {
+		result, err = (&app.ParticipantAdministration{Gateway: clients.Participants}).Retry(ctx, app.DraftScope{OrganizationID: input.OrgID, OperatorUserID: input.UserID}, input.SessionID, input.ParticipantRetry)
+	} else if input.Action == "participant-receipt" {
+		result, err = (&app.ParticipantAdministration{Gateway: clients.Participants}).RetryReceipt(ctx, app.DraftScope{OrganizationID: input.OrgID, OperatorUserID: input.UserID}, input.CommandID)
+	} else if input.Action == "participant-capacity" {
 		result, err = (&app.ParticipantAdministration{Gateway: clients.Participants}).Capacity(ctx, app.DraftScope{OrganizationID: input.OrgID, OperatorUserID: input.UserID}, input.ParticipantCapacity)
 	} else if input.Action == "capacity" {
 		result, err = service.Capacity(ctx, app.DraftScope{OrganizationID: input.OrgID, OperatorUserID: input.UserID})
