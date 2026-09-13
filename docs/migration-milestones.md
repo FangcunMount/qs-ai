@@ -522,3 +522,9 @@ M1 → M2 → M3 → M4 → M5。M3 清单分析可提前开展，生产切换�
 - 同机构管理员可读状态，冻结摘要不携带他人原命令 ID/理由；原命令回执仍限制原操作者。历史 revision 参数被拒绝，跨机构或缺失对象 NOT_FOUND，损坏记录不能降级为 editable。
 - 隔离 MySQL 8.4 中原草稿/冻结/mTLS 回归 33 项通过；随后增加并发快照场景，生命周期专项 7 项通过，验证读取中另一事务修订并冻结时不会拼接混合版本，以及过期可编辑状态不能覆盖已冻结草稿。非集成回归 851 项通过、11 跳过。该证据不等于真实 IAM/管理页面或生产冻结验收。
 - QS 目录代理主分支 CI 34725963890、部署 34726489463 成功，SSH 确认 serverA apiserver 和两个 collection 实际为 11116577a960def5590294b413274a9417e8e89c 且 healthy；AI 仍为目录版本 614d93ec46fc12c8e4fea44b0cbd952aac44f6e9。本生命周期增量尚未合并/部署，也尚未接通 QS 与页面适配。
+
+### 2026-09-13：QS 与管理页面生命周期适配
+
+- QS 专属分支 codex/ai-prompt-lifecycle，源码 0dc807399352c095992829cf8fcb9039ce6762e4：增加受解读审计授权的 GET prompt-drafts/{draft_id}/lifecycle；禁止历史 revision，核对状态/修订/资产/时间并限制响应 260 KiB，沿用 5 秒期限与共享 mTLS。应用/客户端/REST/容器回归、lint、80 项文档检查及 API 生成对齐通过。REST 230 operations/208 paths、gRPC 22 services/90 RPC。
+- 本分支 Go fixture 增加 lifecycle，CI 固定上述 QS 源提交。隔离 MySQL 8.4 下生命周期及旧草稿/冻结/Profile/套件/目录互操作 17 项通过（43.99 秒），包括另一同机构操作者读取冻结摘要、不能取得原命令回执、跨机构和非 QS 身份拒绝。权限上下文仍为合成输入，无真实 IAM/模型调用。
+- 后台 codex/ai-prompt-lifecycle 源码 fd511bea1718195ed5b6da2d2e5f8455ef370b23：重新打开及恢复旧保存回执都读取当前生命周期；明确冻结才显示只读，接口失败/未知或不一致状态不开放编辑、不回退旧 Get。23 项相关测试、TypeScript、全库 ESLint 零警告及构建通过。两端 PR/CI/发布后还需实际管理入口联调，不能当作已完成的冻结业务验收。
