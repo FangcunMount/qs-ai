@@ -1,0 +1,347 @@
+{
+  "schema_version": "qs-ai-migration-usage-evidence/v1",
+  "observed_at": "2026-09-13T06:52:28.146Z",
+  "environment": "serverA production QS MongoDB and qs-ai MySQL",
+  "runtime_before_deploy": {
+    "qs_apiserver": "ac170ec3a93eacafa77583406bcadfe5bae3df9d",
+    "qs_ai": "3db269b6ee98f5566b56ea6530c881630ba58f65"
+  },
+  "method": {
+    "mongo": "read-only aggregation by stored version/status, projected configuration refs, published_evidence_run_id to domain_id lookup",
+    "mysql": "SQLAlchemy COUNT(*) on explicit existing tables",
+    "max_time_ms_per_mongo_aggregation": 10000,
+    "profile_limit": 101,
+    "query_source": "2026-09-13-m3-production-usage-query.js"
+  },
+  "limitations": [
+    "Counts describe currently retained documents, not complete lifetime usage or a traffic observation window.",
+    "Several sequential reads; not a cross-database transaction snapshot.",
+    "No user/report identifiers, model bodies, reasons, credentials or permission tests collected.",
+    "Stored review records do not independently prove human identity or current user authorization.",
+    "No model invocation, activation, cancellation, retry, publication, rollback or deletion performed.",
+    "Profile selectors identify configuration scopes; this is not a full assessment-type inventory."
+  ],
+  "qs": {
+    "observed_at": "2026-09-13T06:52:28.146Z",
+    "scope": "aggregate_only_no_subjects_or_bodies",
+    "profiles": [
+      {
+        "fingerprint": "sha256:f01557e0009b4320911a325495049c4e5a6e5a301c95129c1f85d5a4adf12aef",
+        "status": "draft",
+        "profile_id": "participant-scale-score-range-default",
+        "version": "v1",
+        "selector": {
+          "audience": "participant",
+          "model_kind": "scale",
+          "decision_kind": "score_range",
+          "model_code": null,
+          "model_version": null
+        },
+        "generation_policy": {
+          "prompt_template_id": "cross-dimension-participant-scale",
+          "prompt_version": "v1",
+          "provider_route": "balanced_text_v1",
+          "input_schema_version": "ai-explanation-input/v1",
+          "output_schema_version": "ai-explanation-output/v1",
+          "max_output_characters": 8000
+        }
+      },
+      {
+        "fingerprint": "sha256:b65858730aef2a6ff63f9049f27215d05b219a0840c267cf00dd45a9ceca37e1",
+        "status": "draft",
+        "profile_id": "participant-scale-score-range-default",
+        "version": "v3",
+        "selector": {
+          "audience": "participant",
+          "model_kind": "scale",
+          "decision_kind": "score_range",
+          "model_code": null,
+          "model_version": null
+        },
+        "generation_policy": {
+          "prompt_template_id": "cross-dimension-participant-scale",
+          "prompt_version": "v3",
+          "provider_route": "balanced_text_v1",
+          "input_schema_version": "ai-explanation-input/v1",
+          "output_schema_version": "ai-explanation-output/v1",
+          "max_output_characters": 8000
+        }
+      },
+      {
+        "fingerprint": "sha256:cc747df0a6ae4b02b65b7447ce08845fa8c4e91b9d674f51ac25fbcbffd2a2a2",
+        "status": "published",
+        "disabled_at": null,
+        "published_at": "2026-09-05T14:11:19.831Z",
+        "profile_id": "participant-scale-score-range-default",
+        "version": "v6",
+        "selector": {
+          "audience": "participant",
+          "model_kind": "scale",
+          "decision_kind": "score_range",
+          "model_code": null,
+          "model_version": null
+        },
+        "generation_policy": {
+          "prompt_template_id": "cross-dimension-participant-scale",
+          "prompt_version": "v6",
+          "provider_route": "balanced_text_v1",
+          "input_schema_version": "ai-explanation-input/v1",
+          "output_schema_version": "ai-explanation-output/v1",
+          "max_output_characters": 8000
+        }
+      }
+    ],
+    "evaluations": [
+      {
+        "_id": {
+          "evidence_version": "v2",
+          "status": "canceled"
+        },
+        "count": 5,
+        "first_created": "2026-09-01T16:30:25.326Z",
+        "last_created": "2026-09-05T09:53:37.305Z",
+        "review_count": 0,
+        "human_review_count": 0,
+        "reopening_rounds": 0,
+        "unknown_resolution_count": 1,
+        "unknown_count": 0,
+        "legacy_recovery_count": 0,
+        "with_checkpoint": 0
+      },
+      {
+        "_id": {
+          "evidence_version": "v1",
+          "status": "canceled"
+        },
+        "count": 12,
+        "first_created": "2026-08-28T03:32:15.839Z",
+        "last_created": "2026-08-31T03:15:25.903Z",
+        "review_count": 0,
+        "human_review_count": 0,
+        "reopening_rounds": 0,
+        "unknown_resolution_count": 0,
+        "unknown_count": 0,
+        "legacy_recovery_count": 0,
+        "with_checkpoint": 0
+      },
+      {
+        "_id": {
+          "evidence_version": "v1",
+          "status": "awaiting_review"
+        },
+        "count": 3,
+        "first_created": "2026-08-28T15:46:39.517Z",
+        "last_created": "2026-08-31T06:22:33.481Z",
+        "review_count": 0,
+        "human_review_count": 0,
+        "reopening_rounds": 0,
+        "unknown_resolution_count": 0,
+        "unknown_count": 0,
+        "legacy_recovery_count": 0,
+        "with_checkpoint": 0
+      },
+      {
+        "_id": {
+          "evidence_version": "v2",
+          "status": "rejected"
+        },
+        "count": 3,
+        "first_created": "2026-09-01T03:03:05.823Z",
+        "last_created": "2026-09-01T14:31:55.480Z",
+        "review_count": 0,
+        "human_review_count": 210,
+        "reopening_rounds": 0,
+        "unknown_resolution_count": 0,
+        "unknown_count": 0,
+        "legacy_recovery_count": 0,
+        "with_checkpoint": 0
+      },
+      {
+        "_id": {
+          "evidence_version": "v2",
+          "status": "approved"
+        },
+        "count": 1,
+        "first_created": "2026-09-05T10:46:14.178Z",
+        "last_created": "2026-09-05T10:46:14.178Z",
+        "review_count": 0,
+        "human_review_count": 70,
+        "reopening_rounds": 1,
+        "unknown_resolution_count": 0,
+        "unknown_count": 0,
+        "legacy_recovery_count": 0,
+        "with_checkpoint": 0
+      }
+    ],
+    "evaluation_rechecks": [
+      {
+        "_id": {
+          "status": "completed"
+        },
+        "count": 2,
+        "first_created": "2026-08-29T12:20:28.531Z",
+        "last_created": "2026-08-29T12:40:11.965Z"
+      },
+      {
+        "_id": {
+          "status": "failed"
+        },
+        "count": 1,
+        "first_created": "2026-08-29T13:46:56.328Z",
+        "last_created": "2026-08-29T13:46:56.328Z"
+      }
+    ],
+    "generations": [
+      {
+        "_id": {
+          "status": "failed",
+          "profile": {
+            "id": "participant-scale-score-range-default",
+            "version": "v6",
+            "fingerprint": "sha256:cc747df0a6ae4b02b65b7447ce08845fa8c4e91b9d674f51ac25fbcbffd2a2a2"
+          },
+          "audience": "participant",
+          "prompt": {
+            "template_id": "cross-dimension-participant-scale",
+            "version": "v6",
+            "fingerprint": "sha256:480f7f02de8cf75e29f5778ec1567098fb081472976f188a82cbb42fbdcc873e",
+            "git_blob_sha": "cb07dd09b0a4c8965faa500667145c1cb43eee31"
+          },
+          "execution_spec": {
+            "route": "balanced_text_v1",
+            "route_revision": "v8",
+            "resolved_provider": "deepseek",
+            "resolved_model": "deepseek-v4-pro",
+            "fingerprint": "sha256:4f0c312b23e8d16a953395dc2a85ea365393f5bb7249db1142a073984c51ad46"
+          }
+        },
+        "count": 1,
+        "first_created": "2026-09-08T03:51:20.081Z",
+        "last_created": "2026-09-08T03:51:20.081Z"
+      },
+      {
+        "_id": {
+          "status": "generated",
+          "profile": {
+            "id": "participant-scale-score-range-default",
+            "version": "v6",
+            "fingerprint": "sha256:cc747df0a6ae4b02b65b7447ce08845fa8c4e91b9d674f51ac25fbcbffd2a2a2"
+          },
+          "audience": "participant",
+          "prompt": {
+            "template_id": "cross-dimension-participant-scale",
+            "version": "v6",
+            "fingerprint": "sha256:480f7f02de8cf75e29f5778ec1567098fb081472976f188a82cbb42fbdcc873e",
+            "git_blob_sha": "cb07dd09b0a4c8965faa500667145c1cb43eee31"
+          },
+          "execution_spec": {
+            "route": "balanced_text_v1",
+            "route_revision": "v8",
+            "resolved_provider": "deepseek",
+            "resolved_model": "deepseek-v4-pro",
+            "fingerprint": "sha256:4f0c312b23e8d16a953395dc2a85ea365393f5bb7249db1142a073984c51ad46"
+          }
+        },
+        "count": 6,
+        "first_created": "2026-09-05T14:47:55.571Z",
+        "last_created": "2026-09-08T10:18:38.570Z"
+      }
+    ],
+    "generation_runs": [
+      {
+        "_id": {
+          "status": "succeeded",
+          "invocation_phase": "response_received"
+        },
+        "count": 6,
+        "first_created": "2026-09-05T14:47:55.752Z",
+        "last_created": "2026-09-08T10:18:38.674Z",
+        "attempt_gt_one": 0,
+        "retry_authorized": 0
+      },
+      {
+        "_id": {
+          "status": "failed",
+          "invocation_phase": "response_received"
+        },
+        "count": 1,
+        "first_created": "2026-09-08T03:51:20.186Z",
+        "last_created": "2026-09-08T03:51:20.186Z",
+        "attempt_gt_one": 0,
+        "retry_authorized": 0
+      }
+    ],
+    "evaluation_budgets": [
+      {
+        "_id": null,
+        "documents": 5,
+        "reserved": 2316,
+        "reservations": 27,
+        "earliest": "2026-08-28T00:00:00.000Z",
+        "latest": "2026-09-05T00:00:00.000Z"
+      }
+    ],
+    "participant_budgets": [
+      {
+        "_id": null,
+        "documents": 3,
+        "reserved": 7,
+        "reservations": 7,
+        "earliest": "2026-09-05T00:00:00.000Z",
+        "latest": "2026-09-08T00:00:00.000Z"
+      }
+    ],
+    "active_capacity": [
+      {
+        "_id": null,
+        "documents": 1,
+        "active": 0,
+        "reservations": 0
+      }
+    ],
+    "published_evaluation_links": [
+      {
+        "profile_id": "participant-scale-score-range-default",
+        "version": "v6",
+        "matched_evaluations": 1,
+        "evaluation_statuses": [
+          "approved"
+        ],
+        "evidence_versions": [
+          "v2"
+        ],
+        "reopening_counts": [
+          1
+        ],
+        "human_review_counts": [
+          70
+        ]
+      }
+    ]
+  },
+  "qs_ai": {
+    "counts": {
+      "profile_assets": 1,
+      "prompt_assets": 6,
+      "route_assets": 1,
+      "schema_assets": 2,
+      "configuration_publications": 0,
+      "configuration_publication_pointers": 0,
+      "configuration_publication_changes": 0,
+      "evaluation_runs": 0,
+      "evaluation_suites": 0,
+      "prompt_drafts": 0,
+      "profile_registrations": 0,
+      "jobs": 0,
+      "model_calls": 0,
+      "artifacts": 0,
+      "result_outbox": 0
+    },
+    "flags": {
+      "generation": false,
+      "evaluation": false,
+      "governance": false,
+      "publications": false
+    }
+  }
+}
