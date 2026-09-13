@@ -17,6 +17,7 @@ from qs_ai.application.evaluation.checkpoints import CheckpointConflict
 from qs_ai.application.evaluation.management import EvaluationManagementStore, ManagementScope
 from qs_ai.application.evaluation.planning import EvaluationPlanner, EvaluationPlanQuery
 from qs_ai.application.evaluation.requests import EvaluationRequests
+from qs_ai.application.evaluation.unknowns import validate_unknown_query
 from qs_ai.application.governance.prompt_drafts import DraftScope
 from qs_ai.application.interpretation.ports import NotFound
 from qs_ai.contracts.workflow import workflow_pb2 as pb
@@ -253,6 +254,23 @@ class EvaluationManagement(rpc.EvaluationManagementServicer):
                     scope, request.expected_version, request.reason, datetime.now(UTC), confirm=True
                 )
             return pb.EvaluationState(**asdict(view))
+        raise AssertionError("abort must raise")
+
+    async def ListUnknownExecutions(
+        self, request: pb.EvaluationUnknownQuery, context: aio.ServicerContext[Any, Any]
+    ) -> pb.EvaluationUnknownIndex:
+        async with self.operation(context):
+            if request.ByteSize() > 8192:
+                raise ValueError("Unknown-call query exceeds limit")
+            scope = scope_from(request.scope)
+            validate_unknown_query(request.expected_version)
+            async with self.container() as operation:
+                store = await operation.get(EvaluationManagementStore)
+                view = await store.list_unknowns(scope, request.expected_version)
+            response = pb.EvaluationUnknownIndex(**asdict(view))
+            if len(response.executions) > 140 or response.ByteSize() > 256 * 1024:
+                raise ValueError("Unknown-call evidence exceeds response bound")
+            return response
         raise AssertionError("abort must raise")
 
     async def ResolveUnknown(

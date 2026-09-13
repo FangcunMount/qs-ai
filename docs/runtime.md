@@ -163,7 +163,13 @@ uv run python -m qs_ai.bootstrap.build_manifest \
 
 `PreviewGates` 接受 scope 和显式 expected_version，使用同一 REPEATABLE READ 快照重建 G1–G5：冻结身份与策略、预检和执行账本、恢复授权、质量指标及人工审核。仅允许没有活动执行的 awaiting_review Run；机构不可见返回 NOT_FOUND，旧版本或进行中状态返回 ABORTED。响应包含 Run 版本、发布摘要及 `qs-ai-evaluation-gate-preview/v1` JSON，时间由 AI 服务端生成，大小上限 256 KiB。它不写入最终门槛记录，不批准或发布；后续批准必须在写事务中重新计算，不能接受客户端回传的预览作为授权。QS 转发适配见 [PR #90](https://github.com/FangcunMount/qs-server/pull/90)：`GET /internal/v2/interpretation/ai-workflow/evaluations/{run_id}/gates?expected_version=N`，沿用解读审计权限；合并、部署和真实业务验收分别跟踪，默认治理开关仍保持关闭。
 
-审计 actor 按 QS 现有 `user:<operator_user_id>` 规则生成，处置时间由服务端生成。回读只包含处置审计，不包含报告、Prompt 或模型正文。调用结果不明时先回读核对版本和决定；重复提交旧版本会冲突，不能据网络错误创建新的人工授权。当前仅完成 AI 侧接口与替身鉴权上下文测试，QS 协议同步、OrgAdmin 转发和跨服务真实 mTLS 管理验收待完成。
+审计 actor 按 QS 现有 `user:<operator_user_id>` 规则生成，处置时间由服务端生成。回读只包含处置审计，不包含报告、Prompt 或模型正文。调用结果不明时先回读核对版本和决定；重复提交旧版本会冲突，不能据网络错误创建新的人工授权。既有 Get/ResolveUnknown 已有 QS 授权转发与隔离跨语言验证；真实账号、生产报告及管理闭环验收仍按 M1–M5 台账推进。
+
+`ListUnknownExecutions` 接受同一可信 scope 和显式 `expected_version`。它在组织范围内建立 REPEATABLE READ 快照，核对冻结发布、执行策略、dispatch、终态原始证据及已处置记录，再列出尚未处置的调用。外部组织或不存在的 Run 返回 NOT_FOUND；版本变化、活动检查点尚未恢复或证据不一致不能作为操作目标。读取不提交事务、不调用模型、不修改原输出或处置历史。
+
+返回 Run/版本/发布摘要、状态、未决数，以及每个调用的 execution_id、invocation_id、生成/语义阶段、案例与候选、执行序号、开始/结束时间和失败分类。生成未产生候选时 candidate_id 为空。每项附目标与阶段的已用调用数及冻结上限，`replacement_allowed` 仅表示该快照下预算和状态允许申请，不能代替 ResolveUnknown 的 CAS 或下一次 dispatch 的预算预留。`provider_call_count` 表示发送记录，不代表供应商确认收费或已取得结果。
+
+最多读取冻结策略允许的 70 次生成、70 次语义调用和 140 条 dispatch；响应至多 140 条、256 KiB，不包含 Prompt、模型输出、凭据或供应商错误正文。已取消的 Run 可读取剩余未决条目，但 `can_resolve=false`，不能继续补发。本接口为增量协议，既有 Get 和 ResolveUnknown 字段保持兼容；QS 的审计代理和 Operating 入口仍需在后端部署后接通。
 
 ### 最终评审事务（默认关闭）
 

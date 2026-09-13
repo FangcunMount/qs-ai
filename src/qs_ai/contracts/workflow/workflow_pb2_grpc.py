@@ -242,6 +242,11 @@ class EvaluationManagementStub:
                 request_serializer=workflow__pb2.EvaluationQuery.SerializeToString,
                 response_deserializer=workflow__pb2.EvaluationState.FromString,
                 _registered_method=True)
+        self.ListUnknownExecutions = channel.unary_unary(
+                '/qsai.workflow.v1.EvaluationManagement/ListUnknownExecutions',
+                request_serializer=workflow__pb2.EvaluationUnknownQuery.SerializeToString,
+                response_deserializer=workflow__pb2.EvaluationUnknownIndex.FromString,
+                _registered_method=True)
         self.ResolveUnknown = channel.unary_unary(
                 '/qsai.workflow.v1.EvaluationManagement/ResolveUnknown',
                 request_serializer=workflow__pb2.UnknownResolutionCommand.SerializeToString,
@@ -306,6 +311,13 @@ class EvaluationManagementServicer:
 
     def Get(self, request, context):
         """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListUnknownExecutions(self, request, context):
+        """Read-only version-bound uncertain calls and frozen budget; never authorizes a retry.
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
@@ -378,6 +390,11 @@ def add_EvaluationManagementServicer_to_server(servicer, server):
                     servicer.Get,
                     request_deserializer=workflow__pb2.EvaluationQuery.FromString,
                     response_serializer=workflow__pb2.EvaluationState.SerializeToString,
+            ),
+            'ListUnknownExecutions': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListUnknownExecutions,
+                    request_deserializer=workflow__pb2.EvaluationUnknownQuery.FromString,
+                    response_serializer=workflow__pb2.EvaluationUnknownIndex.SerializeToString,
             ),
             'ResolveUnknown': grpc.unary_unary_rpc_method_handler(
                     servicer.ResolveUnknown,
@@ -524,6 +541,33 @@ class EvaluationManagement:
             '/qsai.workflow.v1.EvaluationManagement/Get',
             workflow__pb2.EvaluationQuery.SerializeToString,
             workflow__pb2.EvaluationState.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListUnknownExecutions(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.EvaluationManagement/ListUnknownExecutions',
+            workflow__pb2.EvaluationUnknownQuery.SerializeToString,
+            workflow__pb2.EvaluationUnknownIndex.FromString,
             options,
             channel_credentials,
             insecure,

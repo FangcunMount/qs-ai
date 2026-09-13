@@ -258,6 +258,70 @@ class UnknownResolutionCommand(_message.Message):
     acknowledged_duplicate_call_and_cost_risk: bool
     def __init__(self, scope: _Optional[_Union[EvaluationQuery, _Mapping]] = ..., expected_version: _Optional[int] = ..., execution_id: _Optional[str] = ..., decision: _Optional[str] = ..., reason: _Optional[str] = ..., confirm: _Optional[bool] = ..., acknowledged_duplicate_call_and_cost_risk: _Optional[bool] = ...) -> None: ...
 
+class EvaluationUnknownQuery(_message.Message):
+    __slots__ = ("scope", "expected_version")
+    SCOPE_FIELD_NUMBER: _ClassVar[int]
+    EXPECTED_VERSION_FIELD_NUMBER: _ClassVar[int]
+    scope: EvaluationQuery
+    expected_version: int
+    def __init__(self, scope: _Optional[_Union[EvaluationQuery, _Mapping]] = ..., expected_version: _Optional[int] = ...) -> None: ...
+
+class EvaluationUnknownExecution(_message.Message):
+    __slots__ = ("execution_id", "invocation_id", "kind", "case_id", "slot_ordinal", "candidate_id", "execution_ordinal", "started_at", "finished_at", "provider_call_count", "failure_stage", "failure_code", "target_execution_count", "target_execution_limit", "stage_execution_count", "stage_execution_limit", "replacement_allowed")
+    EXECUTION_ID_FIELD_NUMBER: _ClassVar[int]
+    INVOCATION_ID_FIELD_NUMBER: _ClassVar[int]
+    KIND_FIELD_NUMBER: _ClassVar[int]
+    CASE_ID_FIELD_NUMBER: _ClassVar[int]
+    SLOT_ORDINAL_FIELD_NUMBER: _ClassVar[int]
+    CANDIDATE_ID_FIELD_NUMBER: _ClassVar[int]
+    EXECUTION_ORDINAL_FIELD_NUMBER: _ClassVar[int]
+    STARTED_AT_FIELD_NUMBER: _ClassVar[int]
+    FINISHED_AT_FIELD_NUMBER: _ClassVar[int]
+    PROVIDER_CALL_COUNT_FIELD_NUMBER: _ClassVar[int]
+    FAILURE_STAGE_FIELD_NUMBER: _ClassVar[int]
+    FAILURE_CODE_FIELD_NUMBER: _ClassVar[int]
+    TARGET_EXECUTION_COUNT_FIELD_NUMBER: _ClassVar[int]
+    TARGET_EXECUTION_LIMIT_FIELD_NUMBER: _ClassVar[int]
+    STAGE_EXECUTION_COUNT_FIELD_NUMBER: _ClassVar[int]
+    STAGE_EXECUTION_LIMIT_FIELD_NUMBER: _ClassVar[int]
+    REPLACEMENT_ALLOWED_FIELD_NUMBER: _ClassVar[int]
+    execution_id: str
+    invocation_id: str
+    kind: str
+    case_id: str
+    slot_ordinal: int
+    candidate_id: str
+    execution_ordinal: int
+    started_at: str
+    finished_at: str
+    provider_call_count: int
+    failure_stage: str
+    failure_code: str
+    target_execution_count: int
+    target_execution_limit: int
+    stage_execution_count: int
+    stage_execution_limit: int
+    replacement_allowed: bool
+    def __init__(self, execution_id: _Optional[str] = ..., invocation_id: _Optional[str] = ..., kind: _Optional[str] = ..., case_id: _Optional[str] = ..., slot_ordinal: _Optional[int] = ..., candidate_id: _Optional[str] = ..., execution_ordinal: _Optional[int] = ..., started_at: _Optional[str] = ..., finished_at: _Optional[str] = ..., provider_call_count: _Optional[int] = ..., failure_stage: _Optional[str] = ..., failure_code: _Optional[str] = ..., target_execution_count: _Optional[int] = ..., target_execution_limit: _Optional[int] = ..., stage_execution_count: _Optional[int] = ..., stage_execution_limit: _Optional[int] = ..., replacement_allowed: _Optional[bool] = ...) -> None: ...
+
+class EvaluationUnknownIndex(_message.Message):
+    __slots__ = ("run_id", "version", "release_fingerprint", "status", "unresolved_result_unknown_count", "can_resolve", "executions")
+    RUN_ID_FIELD_NUMBER: _ClassVar[int]
+    VERSION_FIELD_NUMBER: _ClassVar[int]
+    RELEASE_FINGERPRINT_FIELD_NUMBER: _ClassVar[int]
+    STATUS_FIELD_NUMBER: _ClassVar[int]
+    UNRESOLVED_RESULT_UNKNOWN_COUNT_FIELD_NUMBER: _ClassVar[int]
+    CAN_RESOLVE_FIELD_NUMBER: _ClassVar[int]
+    EXECUTIONS_FIELD_NUMBER: _ClassVar[int]
+    run_id: str
+    version: int
+    release_fingerprint: str
+    status: str
+    unresolved_result_unknown_count: int
+    can_resolve: bool
+    executions: _containers.RepeatedCompositeFieldContainer[EvaluationUnknownExecution]
+    def __init__(self, run_id: _Optional[str] = ..., version: _Optional[int] = ..., release_fingerprint: _Optional[str] = ..., status: _Optional[str] = ..., unresolved_result_unknown_count: _Optional[int] = ..., can_resolve: _Optional[bool] = ..., executions: _Optional[_Iterable[_Union[EvaluationUnknownExecution, _Mapping]]] = ...) -> None: ...
+
 class EvaluationState(_message.Message):
     __slots__ = ("run_id", "version", "status", "unresolved_result_unknown_count", "resolutions_json", "reviews_json", "finalization_json", "reopenings_json", "creation_json")
     RUN_ID_FIELD_NUMBER: _ClassVar[int]

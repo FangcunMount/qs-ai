@@ -29,7 +29,7 @@ from qs_ai.infrastructure.persistence.mysql.evaluation_projection import (
     decode_semantic_completion,
     project_slots,
 )
-from qs_ai.infrastructure.persistence.mysql.evaluation_resolution import decode_resolutions
+from qs_ai.infrastructure.persistence.mysql.evaluation_resolution_evidence import decode_resolutions
 from qs_ai.infrastructure.persistence.mysql.evaluation_review_codec import decode_reviews
 from qs_ai.infrastructure.persistence.mysql.evaluation_review_history import validate_rounds
 from qs_ai.infrastructure.persistence.mysql.evaluation_snapshot import header
