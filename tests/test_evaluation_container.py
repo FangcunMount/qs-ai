@@ -77,11 +77,13 @@ def test_evaluation_defaults_are_independent_and_disabled(monkeypatch):
 
 @pytest.mark.parametrize("mode", ["probe", "once", "serve"])
 async def test_entrypoint_scopes_and_modes(mode, monkeypatch, capsys):
+    from inspect import signature
     from unittest.mock import AsyncMock
 
     from dishka import Provider, Scope, provide
 
     from qs_ai.application.operations.health import CheckReadiness, Readiness
+    from qs_ai.bootstrap.daemon import serve_loop
 
     workers = []
 
@@ -105,6 +107,8 @@ async def test_entrypoint_scopes_and_modes(mode, monkeypatch, capsys):
     )
 
     async def serve(attempt, **options):
+        # Keep the fake bound to the actual daemon API, including future config fields.
+        signature(serve_loop).bind(attempt, **options)
         assert "enabled" not in options
         assert options["health_file"] == configured().evaluation.health_file
         assert await attempt()

@@ -1,5 +1,24 @@
 # CI/CD 与 serverA 部署验证
 
+## M3/M4 集中发布配置
+
+发布脚本读取以下 GitHub Repository Variables，默认均为 `false`，只接受 `true` / `false`。修改变量后须重新部署已通过 CI 的确切提交才生效。
+
+| 变量 | 作用与执行进程 |
+| --- | --- |
+| `QS_AI_GOVERNANCE_ENABLED` | 在 gRPC 注册完整管理接口；配置当前授权回查地址，不启动模型调用 |
+| `QS_AI_PUBLICATIONS_ENABLED` | gRPC 接单时绑定当前已发布配置；不改变已接收任务的配置 |
+| `QS_AI_EXECUTION_ENABLED` | 启动 `qs-ai-worker` 和 `qs-ai-delivery`，执行用户解读并可靠回传 |
+| `QS_AI_EVALUATION_ENABLED` | 单独启动 `qs-ai-evaluation`；只推进管理员已启动的评测，不自动启动待确认运行 |
+
+管理、发布绑定或生成启用时要求 `QS_AI_QS_ADDRESS` 为内网 `host:port`，生产默认 `qs-apiserver:9090`。接收进程也必须获得此地址，用于接单和管理重试时重新检查当前权限。只开评测进程不依赖此地址。
+
+生成或评测启用时要求 HTTPS `QS_AI_MODEL_ENDPOINT` 和 Secret `QS_AI_MODEL_API_KEY`；凭据只交给对应执行进程，不传入 API、gRPC 或成果投递进程。所有后台服务使用同一发布镜像、只读文件系统和独立健康文件；证书仍仅挂载 CA 证书链、qs-ai 证书链与私钥。评测进程退出等待为 190 秒，容器等待 200 秒，覆盖当前 180 秒的语义评测路线。
+
+集中发布先保持四开关关闭，完成兼容迁移并保存可回退基线；随后载入当前 v6 及管理所需引用，核对 QS 转发权限和评测套件。开启管理/评测，完成草稿、评测、审核和发布操作；启用发布绑定与生成，完成授权案例和成果展示，再验证配置回退。QS 旧入口关闭前重新检查在途任务和当天预算。实际管理操作、真实生成、客户端与 24 小时观察仍分别验收，本节是操作配置，不是完成证据。
+
+## 基础发布记录
+
 2026-09-11：serverA 基础 API 首发已完成。自动发布与回滚演练分别记录；真实 AI 执行链路不在本批上线范围。
 
 已实现固定 SHA 的 CI 门禁、ACR 镜像构建、qlume runner 上传、分项 MySQL Secrets 转换、serverA 镜像身份检查、独立迁移、就绪验收、版本记录和 schema 受限回滚。新增 CI 镜像启动检查与固定 QS 提交的跨语言数据库联调。

@@ -301,7 +301,45 @@ def test_execution_runtime_is_opt_in_and_key_is_worker_only():
             module.runtime_config(env)
 
 
-def test_execution_compose_resolves_isolation_tls_and_health(tmp_path):
+@pytest.mark.parametrize("flag", ["EXECUTION", "GOVERNANCE", "PUBLICATIONS", "EVALUATION"])
+def test_runtime_flags_reject_ambiguous_values(flag):
+    module = load("scripts/cd/deploy.py")
+    with pytest.raises(ValueError, match=f"QS_AI_{flag}_ENABLED"):
+        module.runtime_config({**execution_environment(), f"QS_AI_{flag}_ENABLED": "yes"})
+
+
+@pytest.mark.parametrize("flag", ["GOVERNANCE", "PUBLICATIONS"])
+def test_management_and_publication_binding_need_access_but_not_model_credentials(flag):
+    module = load("scripts/cd/deploy.py")
+    env = execution_environment()
+    env["QS_AI_EXECUTION_ENABLED"] = "false"
+    env[f"QS_AI_{flag}_ENABLED"] = "true"
+    del env["QS_AI_MODEL_ENDPOINT"], env["QS_AI_MODEL_API_KEY"]
+    services = module.runtime_config(env)["services"]
+    assert set(services) == {"api", "grpc"}
+    assert services["grpc"]["environment"]["QS_AI_GRPC__ACCESS_ADDRESS"] == "qs-apiserver:9090"
+    for address in ("", "https://qs-apiserver:9090", "qs-apiserver:0", "qs-apiserver:65536"):
+        env["QS_AI_QS_ADDRESS"] = address
+        with pytest.raises(ValueError):
+            module.runtime_config(env)
+
+
+def test_evaluation_is_independent_and_requires_credentials_before_deployment():
+    module = load("scripts/cd/deploy.py")
+    env = execution_environment()
+    env["QS_AI_EXECUTION_ENABLED"] = "false"
+    env["QS_AI_EVALUATION_ENABLED"] = "true"
+    del env["QS_AI_QS_ADDRESS"]
+    services = module.runtime_config(env)["services"]
+    assert set(services) == {"api", "grpc", "evaluation"}
+    for key in ("QS_AI_MODEL_API_KEY", "QS_AI_MODEL_ENDPOINT"):
+        incomplete = {name: value for name, value in env.items() if name != key}
+        with pytest.raises(ValueError):
+            module.runtime_config(incomplete)
+
+
+@pytest.mark.parametrize("mode", ["disabled", "governance", "execution", "evaluation", "all"])
+def test_execution_compose_resolves_isolation_tls_and_health(tmp_path, mode):
     import os
     import shutil
     import subprocess
@@ -310,9 +348,10 @@ def test_execution_compose_resolves_isolation_tls_and_health(tmp_path):
         pytest.skip("Docker Compose is required for release configuration verification")
     module = load("scripts/cd/deploy.py")
     shutil.copy(ROOT / "deploy/serverA/compose.yaml", tmp_path / "compose.yaml")
-    (tmp_path / "runtime.json").write_text(
-        json.dumps(module.runtime_config(execution_environment()))
-    )
+    environment = execution_environment()
+    for flag in ("EXECUTION", "GOVERNANCE", "PUBLICATIONS", "EVALUATION"):
+        environment[f"QS_AI_{flag}_ENABLED"] = str(mode in {flag.lower(), "all"}).lower()
+    (tmp_path / "runtime.json").write_text(json.dumps(module.runtime_config(environment)))
     result = subprocess.run(
         [
             "docker",
@@ -331,8 +370,18 @@ def test_execution_compose_resolves_isolation_tls_and_health(tmp_path):
         check=True,
     )
     services = json.loads(result.stdout)["services"]
-    assert set(services) == {"api", "grpc", "worker", "delivery"}
-    for name in ("worker", "delivery"):
+    background = set()
+    if mode in {"execution", "all"}:
+        background.update(("worker", "delivery"))
+    if mode in {"evaluation", "all"}:
+        background.add("evaluation")
+    assert set(services) == {"api", "grpc"} | background
+    grpc_env = services["grpc"]["environment"]
+    assert grpc_env["QS_AI_GRPC__GOVERNANCE_ENABLED"] == str(mode in {"governance", "all"}).lower()
+    assert grpc_env["QS_AI_GENERATION__USE_PUBLICATIONS"] == str(mode == "all").lower()
+    if mode in {"governance", "execution", "all"}:
+        assert grpc_env["QS_AI_GRPC__ACCESS_ADDRESS"] == "qs-apiserver:9090"
+    for name in background:
         service = services[name]
         assert not service.get("ports")
         assert service["read_only"]
@@ -340,8 +389,24 @@ def test_execution_compose_resolves_isolation_tls_and_health(tmp_path):
         assert all(volume["read_only"] for volume in service["volumes"])
         assert service["environment"]["QS_AI_ENVIRONMENT"] == "production"
         assert "qs_ai.bootstrap.daemon_health" in service["healthcheck"]["test"]
-    # Canonical Compose config preserves escaping for subsequent re-parsing.
-    assert services["worker"]["environment"]["QS_AI_MODEL_API_KEY"] == "synthetic-$$key-only"
+    for name, service in services.items():
+        if name in {"worker", "evaluation"}:
+            # Canonical config preserves escaping for subsequent re-parsing.
+            assert service["environment"]["QS_AI_MODEL_API_KEY"] == "synthetic-$$key-only"
+        else:
+            assert "QS_AI_MODEL_API_KEY" not in service["environment"]
+    if "evaluation" in services:
+        from qs_ai.config import Settings
+
+        service = services["evaluation"]
+        assert service["command"][-2:] == ["qs_ai.bootstrap.evaluation", "--serve"]
+        assert service["environment"]["QS_AI_EVALUATION__ENABLED"] == "true"
+        assert "QS_AI_GENERATION__ENABLED" not in service["environment"]
+        drain = float(service["environment"]["QS_AI_EVALUATION__SHUTDOWN_SECONDS"])
+        assert drain >= 180
+        assert service["stop_grace_period"] in {"200s", "3m20s"}
+        assert drain < 200
+        assert Settings().evaluation.max_active_runs == 1
 
 
 def test_deployment_receipt_uses_actual_remote_revision(tmp_path, monkeypatch):
