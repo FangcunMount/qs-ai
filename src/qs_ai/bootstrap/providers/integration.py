@@ -6,6 +6,7 @@ from qs_ai.application.governance.asset_catalog import AssetCatalog
 from qs_ai.application.governance.profile_registration import ProfileRegistrar
 from qs_ai.application.governance.prompt_drafts import PromptDraftStore
 from qs_ai.application.governance.prompt_freeze import PromptFreezer
+from qs_ai.application.governance.prompt_lifecycle import PromptLifecycleReader
 from qs_ai.application.governance.publication import PublicationStore
 from qs_ai.application.governance.suite_registration import SuiteRegistrar
 from qs_ai.application.integration.events import (
@@ -23,12 +24,16 @@ from qs_ai.infrastructure.persistence.mysql.evaluation_suites import MySQLSuiteR
 from qs_ai.infrastructure.persistence.mysql.profile_registrations import MySQLProfileRegistrar
 from qs_ai.infrastructure.persistence.mysql.prompt_drafts import MySQLPromptDrafts
 from qs_ai.infrastructure.persistence.mysql.prompt_freezes import MySQLPromptFreezer
+from qs_ai.infrastructure.persistence.mysql.prompt_lifecycle import MySQLPromptLifecycleReader
 from qs_ai.infrastructure.persistence.mysql.publications import MySQLPublications
 from qs_ai.infrastructure.persistence.mysql.result_outbox import MySQLResultOutbox
 from qs_ai.infrastructure.workflow_transport.results import UnconfiguredReceiver
 
 
 class IntegrationProvider(Provider):
+    prompt_lifecycle = provide(
+        MySQLPromptLifecycleReader, provides=PromptLifecycleReader, scope=Scope.REQUEST
+    )
     asset_catalog = provide(MySQLAssetCatalog, provides=AssetCatalog, scope=Scope.REQUEST)
     suite_registrar = provide(MySQLSuiteRegistrar, provides=SuiteRegistrar, scope=Scope.REQUEST)
     profile_registrar = provide(

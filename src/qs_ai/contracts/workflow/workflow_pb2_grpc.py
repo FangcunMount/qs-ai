@@ -957,6 +957,11 @@ class PromptDraftManagementStub:
                 request_serializer=workflow__pb2.PromptDraftQuery.SerializeToString,
                 response_deserializer=workflow__pb2.PromptDraftState.FromString,
                 _registered_method=True)
+        self.GetLifecycle = channel.unary_unary(
+                '/qsai.workflow.v1.PromptDraftManagement/GetLifecycle',
+                request_serializer=workflow__pb2.PromptDraftQuery.SerializeToString,
+                response_deserializer=workflow__pb2.PromptDraftLifecycle.FromString,
+                _registered_method=True)
         self.GetReceipt = channel.unary_unary(
                 '/qsai.workflow.v1.PromptDraftManagement/GetReceipt',
                 request_serializer=workflow__pb2.PromptDraftReceiptQuery.SerializeToString,
@@ -997,6 +1002,14 @@ class PromptDraftManagementServicer:
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def GetLifecycle(self, request, context):
+        """Latest head and freeze state from one snapshot. Revision selectors are rejected.
+        Read-only status does not grant a lease or authorize a later modification.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def GetReceipt(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
@@ -1033,6 +1046,11 @@ def add_PromptDraftManagementServicer_to_server(servicer, server):
                     servicer.Get,
                     request_deserializer=workflow__pb2.PromptDraftQuery.FromString,
                     response_serializer=workflow__pb2.PromptDraftState.SerializeToString,
+            ),
+            'GetLifecycle': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetLifecycle,
+                    request_deserializer=workflow__pb2.PromptDraftQuery.FromString,
+                    response_serializer=workflow__pb2.PromptDraftLifecycle.SerializeToString,
             ),
             'GetReceipt': grpc.unary_unary_rpc_method_handler(
                     servicer.GetReceipt,
@@ -1133,6 +1151,33 @@ class PromptDraftManagement:
             '/qsai.workflow.v1.PromptDraftManagement/Get',
             workflow__pb2.PromptDraftQuery.SerializeToString,
             workflow__pb2.PromptDraftState.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetLifecycle(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.PromptDraftManagement/GetLifecycle',
+            workflow__pb2.PromptDraftQuery.SerializeToString,
+            workflow__pb2.PromptDraftLifecycle.FromString,
             options,
             channel_credentials,
             insecure,

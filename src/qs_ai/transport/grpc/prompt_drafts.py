@@ -22,6 +22,7 @@ from qs_ai.application.governance.prompt_freeze import (
     FrozenPromptReceipt,
     PromptFreezer,
 )
+from qs_ai.application.governance.prompt_lifecycle import PromptLifecycleReader
 from qs_ai.application.interpretation.ports import NotFound
 from qs_ai.contracts.workflow import workflow_pb2 as pb
 from qs_ai.contracts.workflow import workflow_pb2_grpc as rpc
@@ -63,6 +64,40 @@ def response(draft: PromptDraft) -> pb.PromptDraftState:
 class PromptDraftManagement(rpc.PromptDraftManagementServicer):
     def __init__(self, container: AsyncContainer) -> None:
         self.container = container
+
+    async def GetLifecycle(
+        self, request: pb.PromptDraftQuery, context: aio.ServicerContext[Any, Any]
+    ) -> pb.PromptDraftLifecycle:
+        async with self.operation(context):
+            if request.HasField("revision") or request.ByteSize() > 8192:
+                raise ValueError("Lifecycle requires a bounded current-head query")
+            scope = DraftScope(request.scope.organization_id, request.scope.operator_user_id)
+            async with self.container() as operation:
+                reader = await operation.get(PromptLifecycleReader)
+                state = await reader.get(scope, identifier(request.draft_id))
+            result = pb.PromptDraftLifecycle(
+                schema_version="qs-ai-prompt-lifecycle/v1",
+                draft=response(state.draft),
+                status="frozen" if state.frozen else "editable",
+            )
+            if state.frozen:
+                ref = state.frozen.asset
+                result.frozen.CopyFrom(
+                    pb.PromptDraftFrozenVersion(
+                        asset=pb.PromptDraftSource(
+                            identity=ref.identity,
+                            version=ref.version,
+                            fingerprint=ref.fingerprint,
+                            content_sha256=ref.content_sha256,
+                        ),
+                        revision=state.frozen.revision,
+                        frozen_at=state.frozen.frozen_at.isoformat(),
+                    )
+                )
+            if result.ByteSize() > 266240:
+                raise ValueError("Lifecycle response exceeds limit")
+            return result
+        raise AssertionError("abort must raise")
 
     async def Freeze(
         self, request: pb.PromptDraftFreezeCommand, context: aio.ServicerContext[Any, Any]
