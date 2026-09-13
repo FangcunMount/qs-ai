@@ -14,12 +14,13 @@ from grpc import aio
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict
 from qs_ai.application.governance.publication import (
     MovePublication,
+    PublicationHistoryQuery,
     PublicationReceipt,
     PublicationScope,
     PublicationStore,
     PublishConfiguration,
 )
-from qs_ai.application.governance.publication_codec import publication_json
+from qs_ai.application.governance.publication_codec import canonical, publication_json
 from qs_ai.application.interpretation.ports import NotFound
 from qs_ai.contracts.workflow import workflow_pb2 as pb
 from qs_ai.contracts.workflow import workflow_pb2_grpc as rpc
@@ -27,6 +28,7 @@ from qs_ai.domain.governance.publication import (
     PublicationConflict,
     PublicationPointer,
     ReleaseSelector,
+    valid_version,
 )
 from qs_ai.transport.grpc.identity import require_qs_workload
 
@@ -179,6 +181,39 @@ class PublicationManagement(rpc.PublicationManagementServicer):
             async with self.container() as operation:
                 store = await operation.get(PublicationStore)
                 receipt = await store.get_receipt(scope, command_id)
+            return receipt_message(receipt)
+        raise AssertionError("abort must raise")
+
+    async def ListHistory(
+        self, request: pb.PublicationHistoryQuery, context: aio.ServicerContext[Any, Any]
+    ) -> pb.PublicationHistoryPage:
+        async with self.operation(context):
+            PublicationScope(request.scope.organization_id, request.scope.operator_user_id)
+            query = PublicationHistoryQuery(
+                selector_from(request.selector), request.before_version, request.limit
+            )
+            async with self.container() as operation:
+                store = await operation.get(PublicationStore)
+                page = await store.list_history(query)
+            payload = canonical({"schema_version": "qs-ai-publication-history/v1", **asdict(page)})
+            if len(payload.encode()) > 64 * 1024:
+                raise ValueError("Publication history page exceeds transport bound")
+            return pb.PublicationHistoryPage(
+                schema_version="qs-ai-publication-history/v1", payload_json=payload
+            )
+        raise AssertionError("abort must raise")
+
+    async def GetHistory(
+        self, request: pb.PublicationHistoryVersionQuery, context: aio.ServicerContext[Any, Any]
+    ) -> pb.PublicationReceipt:
+        async with self.operation(context):
+            PublicationScope(request.scope.organization_id, request.scope.operator_user_id)
+            selector = selector_from(request.selector)
+            if not valid_version(request.version):
+                raise ValueError("Positive publication history version required")
+            async with self.container() as operation:
+                store = await operation.get(PublicationStore)
+                receipt = await store.get_history(selector, request.version)
             return receipt_message(receipt)
         raise AssertionError("abort must raise")
 

@@ -480,6 +480,36 @@ class PublicationReceiptQuery(_message.Message):
     command_id: str
     def __init__(self, scope: _Optional[_Union[PublicationScope, _Mapping]] = ..., command_id: _Optional[str] = ...) -> None: ...
 
+class PublicationHistoryQuery(_message.Message):
+    __slots__ = ("scope", "selector", "before_version", "limit")
+    SCOPE_FIELD_NUMBER: _ClassVar[int]
+    SELECTOR_FIELD_NUMBER: _ClassVar[int]
+    BEFORE_VERSION_FIELD_NUMBER: _ClassVar[int]
+    LIMIT_FIELD_NUMBER: _ClassVar[int]
+    scope: PublicationScope
+    selector: PublicationSelector
+    before_version: int
+    limit: int
+    def __init__(self, scope: _Optional[_Union[PublicationScope, _Mapping]] = ..., selector: _Optional[_Union[PublicationSelector, _Mapping]] = ..., before_version: _Optional[int] = ..., limit: _Optional[int] = ...) -> None: ...
+
+class PublicationHistoryVersionQuery(_message.Message):
+    __slots__ = ("scope", "selector", "version")
+    SCOPE_FIELD_NUMBER: _ClassVar[int]
+    SELECTOR_FIELD_NUMBER: _ClassVar[int]
+    VERSION_FIELD_NUMBER: _ClassVar[int]
+    scope: PublicationScope
+    selector: PublicationSelector
+    version: int
+    def __init__(self, scope: _Optional[_Union[PublicationScope, _Mapping]] = ..., selector: _Optional[_Union[PublicationSelector, _Mapping]] = ..., version: _Optional[int] = ...) -> None: ...
+
+class PublicationHistoryPage(_message.Message):
+    __slots__ = ("schema_version", "payload_json")
+    SCHEMA_VERSION_FIELD_NUMBER: _ClassVar[int]
+    PAYLOAD_JSON_FIELD_NUMBER: _ClassVar[int]
+    schema_version: str
+    payload_json: str
+    def __init__(self, schema_version: _Optional[str] = ..., payload_json: _Optional[str] = ...) -> None: ...
+
 class PublicationState(_message.Message):
     __slots__ = ("selector", "version", "active_publication_id", "publication_json", "changed_at")
     SELECTOR_FIELD_NUMBER: _ClassVar[int]

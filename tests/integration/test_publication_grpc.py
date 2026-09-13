@@ -358,3 +358,36 @@ async def test_wrong_workload_foreign_scope_and_stale_confirmation_cannot_mutate
     assert await inventory(tx) == before
     with pytest.raises(NotFound):
         await MySQLPublications(tx).get_receipt(scope, uuid4())
+
+
+async def test_history_over_real_mtls_preserves_audit_and_original_receipt_scope(running):
+    tx, scope, command, client = running
+    store = MySQLPublications(tx)
+    from datetime import UTC, datetime
+
+    receipt = await store.apply(scope, command, datetime.now(UTC))
+    before = await inventory(tx)
+    other = pb.PublicationScope(organization_id=2, operator_user_id=43)
+    query = pb.PublicationHistoryQuery(
+        scope=other, selector=selector_message(command.selector), limit=20
+    )
+    stub = client()
+    response = await stub.ListHistory(query)
+    body = json.loads(response.payload_json)
+    assert body["entries"][0]["actor"] == "user:42"
+    assert body["entries"][0]["version"] == 1
+    assert "definition_json" not in response.payload_json
+    history = await stub.GetHistory(
+        pb.PublicationHistoryVersionQuery(scope=other, selector=query.selector, version=1)
+    )
+    assert history.command_id == str(receipt.command_id) and history.actor == "user:42"
+    assert history.current.publication_json
+    with pytest.raises(grpc.aio.AioRpcError) as denied:
+        await stub.GetReceipt(
+            pb.PublicationReceiptQuery(scope=other, command_id=str(receipt.command_id))
+        )
+    assert denied.value.code() == grpc.StatusCode.NOT_FOUND
+    with pytest.raises(grpc.aio.AioRpcError) as wrong_identity:
+        await client("ai").ListHistory(query)
+    assert wrong_identity.value.code() == grpc.StatusCode.PERMISSION_DENIED
+    assert await inventory(tx) == before

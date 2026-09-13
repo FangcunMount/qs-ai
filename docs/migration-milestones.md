@@ -588,3 +588,12 @@ M1 → M2 → M3 → M4 → M5。M3 清单分析可提前开展，生产切换�
 - QS [PR #101](https://github.com/FangcunMount/qs-server/pull/101) 主分支 CI `34732647386` 与部署 `34733078368` 成功；serverA 现场确认 API 及两份 collection 镜像均为 `7295f40efb7e9002ff8ce5d264ab6350d04029ab` 且 healthy。同期 AI 实际 API/gRPC 镜像仍为 `eb4257babb296cbab15aaf0058aa12a4a94496e7`，MySQL 8.0.36/迁移 `0022_evaluation_suites`、就绪及 mTLS 探针通过。这只是部署/基础通信证据。
 - M1/M2 仍缺真实授权案例、撤权及模型解读闭环；没有新增真实模型调用或生产切换。M3 下一步是运营端发布/回退/停用、复审和未知调用处置，以及真实管理验收和配置对账。M4/M5 仍待前置验收；未关闭 QS 旧管理写入口、未删除旧实现或历史数据。
 - 本次仅更新 qs-ai 台账，纯文档不主动部署生产。运营端详细代码与验证记录位于该项目 `docs/ai-workflow-management.md`。
+
+### 2026-09-13：创建回执上线与发布历史查询补齐
+
+- AI 创建回执合并版本 `6d81565d309cdbcd8d863f802b405b858a703e5a` 的主分支 CI `34733400610`、部署 `34734120513` 均通过。serverA 现场确认 qs-ai-api/qs-ai-grpc 实际镜像为该 SHA 且 healthy；MySQL 8.0.36/`0022_evaluation_suites`、就绪及 mTLS 探针通过。generation/evaluation/governance/use_publications 四开关仍为 false，没有触发生产模型调用。
+- 同期 QS API 与两份 collection 实际镜像仍为 `7295f40efb7e9002ff8ce5d264ab6350d04029ab` 且健康。后端依赖满足后，运营端 PR #25 以精确 CI 通过的 head 合并为 `ae68a2e7f9e892956b69275346ca5af453a318d8`；主分支 CI `34734384862` 通过，部署 `34734468897` 进行中，尚不视为现场验收。UI #26 与主分支对齐，验证合并前后代码树完全一致，新的精确 head CI `34734464182` 进行中；UI #27 最终审核 CI `34733968638` 已通过但仍待依赖合并。
+- 为运营端回退提供可核对目标，qs-ai 新增 `PublicationManagement.ListHistory/GetHistory`。按精确全局 selector 查询版本历史与原前后发布证据，保留原操作者；分页使用既有 selector/version 唯一索引和排他版本游标，无数据库迁移。历史摘要不包含 Prompt/Profile 正文，64 KiB 页上限；详情复用 1 MiB 原变更回执上限。
+- 历史查询复核保留记录的索引、摘要、版本与原请求/审计关系，不写指针、不重放命令、不执行模型。原命令恢复 `GetReceipt` 仍限制原组织/原操作者；QS 后续应在新历史读入口校验审计能力，写入口继续要求管理能力。历史可读不保证回退此刻仍可执行，写路径仍重验原 Run 和完整发布门槛。
+- 代码与验证：相关 138 项测试通过，包括 MySQL 8.0.36 生命周期、跨操作者历史/原命令隔离、精确选择器、后续发布下稳定分页、损坏审计与内容摘要拒绝及真实临时 mTLS 服务查询；另 2 项既有 Go→Python→MySQL 发布链路测试通过，验证新增 RPC 对旧客户端兼容。Ruff、mypy（211 源文件）、协议生成和文档检查通过。
+- 新历史 API 的 QS 适配、Go 历史查询联调和运营端发布页面尚未实现；原有发布/回退写接口继续保留。上述均为服务/隔离测试证据，M1–M5 真实验收与旧写路径退役未完成。
