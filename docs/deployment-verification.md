@@ -199,3 +199,15 @@ AI API/gRPC 实际仍为 `614d93ec46fc12c8e4fea44b0cbd952aac44f6e9` 且 healthy�
 MySQL 8.0.36 当前/预期头均为 0022，readyz ready/connected，自身份 mTLS 探针 PERMISSION_DENIED，容器内协议描述包含 GetLifecycle。生成、评测、治理、发布四项开关均 false。QS API 和两份 collection 保持 `63083526f6f6d64c4c2a2f2407f3d6c780a65e3c` healthy。
 
 这验证已部署代码和禁用流量的服务基线；不证明 GetLifecycle 的生产授权读取、真实后台冻结或模型测评。后台生命周期 PR #22 已在此版本核验后合并，页面部署与业务验收继续跟进。
+
+## 2026-09-13 M3/M4 集中包生产发布
+
+集中包已经合并：AI PR #83、QS PR #108、Operating PR #34、小程序 PR #1。QS 保留原提交祖先，AI 跨语言验证所固定的 QS 源提交仍可追溯。生产取证见 [集中发布证据](evidence/2026-09-13-m3-m4-coordinated-release.json)。
+
+AI 主干 `7620178f9b06ab01b99d202193cdc49f1a46a624` 的 [CI 34758011297](https://github.com/FangcunMount/qs-ai/actions/runs/34758011297) 和 [关闭状态基线部署 34758383533](https://github.com/FangcunMount/qs-ai/actions/runs/34758383533) 成功。数据库升级至 MySQL 8.0.36 / `0026_participant_retries`，API/gRPC 健康、readyz connected；随后补入当前 semantic_judge_v1/v5，未修改发布指针。
+
+[管理与评测进程启用 34759204722](https://github.com/FangcunMount/qs-ai/actions/runs/34759204722) 成功。API、gRPC、evaluation 均为上述镜像且 healthy，评测心跳检查通过。gRPC 开启治理接口，evaluation 独立开启；生成与发布绑定保持关闭。模型 Secret 已配置且只传入 evaluation，API/gRPC 不持有模型密钥。state.current/previous 指向同一镜像、同一 0026 数据库版本的启用/关闭发布；这是可回退基线核验，不是实际回退演练。
+
+QS 集中包 `4f7e488f6a32ddbf5e0144b9f6df6b6b916efb06` 的主干 CI 34758000245 和部署 34758543834 成功；serverA apiserver 及两个 collection 均 healthy。以真实服务证书发送空请求，QS→AI AssetCatalog.List、AI→QS Authorize、AI→QS Results.Accept 均返回预期 INVALID_ARGUMENT，证明接口注册和身份链路；这些探针不执行业务写入，不代表真实操作者或参与者授权验收。
+
+截至本节首轮取证，原生评测、发布指针、生成 Job、模型调用、成果均为零。完整管理操作、真实授权/撤权、生成展示、配置回退和 24 小时观察仍待执行。小程序主干 CI 34759107648 成功只证明代码检查；仓库没有微信上传/发布工作流，不据此宣称微信版本已发布。

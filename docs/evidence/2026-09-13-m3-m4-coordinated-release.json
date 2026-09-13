@@ -1,0 +1,168 @@
+{
+  "observed_at": "2026-09-13T13:21:42.206842+00:00",
+  "services": [
+    {
+      "name": "qs-ai-api",
+      "image": "qs-ai:7620178f9b06ab01b99d202193cdc49f1a46a624",
+      "image_id": "sha256:8f03fa1bacfe5f0a4bbea363391b4ab5074e7a5bc8d7dee59f4631ce2e87c815",
+      "health": "healthy",
+      "running": true,
+      "flags": {},
+      "model_key_present": false
+    },
+    {
+      "name": "qs-ai-grpc",
+      "image": "qs-ai:7620178f9b06ab01b99d202193cdc49f1a46a624",
+      "image_id": "sha256:8f03fa1bacfe5f0a4bbea363391b4ab5074e7a5bc8d7dee59f4631ce2e87c815",
+      "health": "healthy",
+      "running": true,
+      "flags": {
+        "QS_AI_GRPC__GOVERNANCE_ENABLED": "true",
+        "QS_AI_GENERATION__USE_PUBLICATIONS": "false"
+      },
+      "model_key_present": false
+    },
+    {
+      "name": "qs-ai-evaluation",
+      "image": "qs-ai:7620178f9b06ab01b99d202193cdc49f1a46a624",
+      "image_id": "sha256:8f03fa1bacfe5f0a4bbea363391b4ab5074e7a5bc8d7dee59f4631ce2e87c815",
+      "health": "healthy",
+      "running": true,
+      "flags": {
+        "QS_AI_EVALUATION__ENABLED": "true"
+      },
+      "model_key_present": true
+    },
+    {
+      "name": "qs-apiserver",
+      "image": "ghcr.io/fangcunmount/qs-apiserver:4f7e488f6a32ddbf5e0144b9f6df6b6b916efb06",
+      "image_id": "sha256:3b5b83e9408ef74f0dfa7db9859cce18795c8a226e68ef8ebd2463c35f3ffcbc",
+      "health": "healthy",
+      "running": true,
+      "flags": {},
+      "model_key_present": null
+    },
+    {
+      "name": "qs-collection-server-1",
+      "image": "ghcr.io/fangcunmount/qs-collection-server:4f7e488f6a32ddbf5e0144b9f6df6b6b916efb06",
+      "image_id": "sha256:70594157972e9dbf674b91ab94e788e0896d6d49e50dfd68bbd19a1e497e5a4e",
+      "health": "healthy",
+      "running": true,
+      "flags": {},
+      "model_key_present": null
+    },
+    {
+      "name": "qs-collection-server-2",
+      "image": "ghcr.io/fangcunmount/qs-collection-server:4f7e488f6a32ddbf5e0144b9f6df6b6b916efb06",
+      "image_id": "sha256:70594157972e9dbf674b91ab94e788e0896d6d49e50dfd68bbd19a1e497e5a4e",
+      "health": "healthy",
+      "running": true,
+      "flags": {},
+      "model_key_present": null
+    }
+  ],
+  "releases": {
+    "current": {
+      "release": "7620178f9b06ab01b99d202193cdc49f1a46a624-34759204722-1",
+      "manifest_revision": "7620178f9b06ab01b99d202193cdc49f1a46a624",
+      "verification": {
+        "phase": "ready",
+        "database": {
+          "mysql_version": "8.0.36",
+          "current": [
+            "0026_participant_retries"
+          ],
+          "expected": [
+            "0026_participant_retries"
+          ]
+        },
+        "image_id": "sha256:8f03fa1bacfe5f0a4bbea363391b4ab5074e7a5bc8d7dee59f4631ce2e87c815"
+      }
+    },
+    "previous": {
+      "release": "7620178f9b06ab01b99d202193cdc49f1a46a624-34758383533-1",
+      "manifest_revision": "7620178f9b06ab01b99d202193cdc49f1a46a624",
+      "verification": {
+        "phase": "ready",
+        "database": {
+          "mysql_version": "8.0.36",
+          "current": [
+            "0026_participant_retries"
+          ],
+          "expected": [
+            "0026_participant_retries"
+          ]
+        },
+        "image_id": "sha256:8f03fa1bacfe5f0a4bbea363391b4ab5074e7a5bc8d7dee59f4631ce2e87c815"
+      }
+    }
+  },
+  "scope": "M3/M4 coordinated release; infrastructure evidence only",
+  "github": {
+    "ai_main": "7620178f9b06ab01b99d202193cdc49f1a46a624",
+    "ai_ci": 34758011297,
+    "ai_baseline_deploy": 34758383533,
+    "ai_management_activation_deploy": 34759204722,
+    "qs_baseline_main": "4f7e488f6a32ddbf5e0144b9f6df6b6b916efb06",
+    "qs_baseline_ci": 34758000245,
+    "qs_baseline_deploy": 34758543834,
+    "qs_management_activation_main": "bc1a3c4096810ea4a6b691817fd8357c9d7deecd",
+    "operating_main": "b5d2aee2e6a98efc476df02db2450f73fcc1f05b",
+    "operating_ci": 34759094726,
+    "operating_image_build": 34759195162,
+    "mini_program_main": "16bcdc51e2e5d33aca1ae56c1ce0ea9d7c795a26",
+    "mini_program_ci": 34759107648
+  },
+  "assets_and_receiver_flags": {
+    "counts": {
+      "profile_assets": 1,
+      "prompt_assets": 6,
+      "route_assets": 2,
+      "schema_assets": 2,
+      "configuration_publications": 0,
+      "configuration_publication_pointers": 0,
+      "configuration_publication_changes": 0,
+      "evaluation_runs": 0,
+      "evaluation_suites": 0,
+      "prompt_drafts": 0,
+      "profile_registrations": 0,
+      "jobs": 0,
+      "model_calls": 0,
+      "artifacts": 0,
+      "result_outbox": 0
+    },
+    "flags": {
+      "generation": false,
+      "evaluation": false,
+      "governance": true,
+      "publications": false
+    }
+  },
+  "transport_probes": [
+    {
+      "path": "QS identity -> AI AssetCatalog.List",
+      "request": "empty",
+      "expected": "INVALID_ARGUMENT",
+      "actual": "INVALID_ARGUMENT"
+    },
+    {
+      "path": "AI identity -> QS AIWorkflowAccessService.Authorize",
+      "request": "empty",
+      "expected": "INVALID_ARGUMENT",
+      "actual": "INVALID_ARGUMENT"
+    },
+    {
+      "path": "AI identity -> QS Results.Accept",
+      "request": "empty",
+      "expected": "INVALID_ARGUMENT",
+      "actual": "INVALID_ARGUMENT"
+    }
+  ],
+  "limits": [
+    "No real participant generation or authorization acceptance",
+    "No native management draft/evaluation/review/publication/rollback acceptance",
+    "No participant cutover or 24-hour observation",
+    "Mini-program CI is not a WeChat upload or release",
+    "QS management activation and Operating deployment pending in this snapshot"
+  ]
+}
