@@ -81,6 +81,10 @@ async def test_qs_reopens_resigns_and_finalizes_while_preserving_prior_round(
 
     try:
         before = await rows(tx, scope.run_id)
+        observed = await call(Action="get", AuditOnly=True, UserID=99)
+        assert observed["Code"] == "OK", observed
+        assert observed["State"]["version"] == version
+        assert observed["State"]["can_reopen_review"] is True
         assert (await call(AuditOnly=True))["Denied"]
         assert (await call(Allowed=False))["Denied"]
         assert (await call(OrgID=2))["Code"] == "NotFound"
@@ -91,6 +95,7 @@ async def test_qs_reopens_resigns_and_finalizes_while_preserving_prior_round(
         opened = await call()
         assert opened["Code"] == "OK", opened
         state = opened["State"]
+        assert state["can_reopen_review"] is False
         history = state["review_reopenings"]
         entry = history[0]
         assert entry["actor"] == "user:42" and entry["source_version"] == version
@@ -142,6 +147,7 @@ async def test_qs_reopens_resigns_and_finalizes_while_preserving_prior_round(
         result = await call(Action="finalize", ExpectedPassed=True)
         assert result["Code"] == "OK", result
         assert result["State"]["status"] == "approved"
+        assert result["State"]["can_reopen_review"] is False
         assert result["State"]["review_reopenings"] == history
         assert (await call(Action="get", AuditOnly=True))["State"] == result["State"]
         assert await outputs(tx, scope.run_id) == original

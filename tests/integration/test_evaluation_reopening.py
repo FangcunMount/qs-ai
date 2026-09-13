@@ -77,6 +77,8 @@ async def test_reopen_preserves_old_round_and_dual_review_can_approve(rejected_r
     reopened = await open_round(rejected_round)
     assert reopened.status == "awaiting_review" and reopened.version == final.version + 1
     assert reopened.finalization_json == ""
+    assert final.can_reopen_review is True
+    assert reopened.can_reopen_review is False
     history = json.loads(reopened.reopenings_json)
     assert len(history) == 1
     entry = history[0]
@@ -116,6 +118,7 @@ async def test_reopen_preserves_old_round_and_dual_review_can_approve(rejected_r
         state = await store.review(actor, state.version, tuple(reviews))
     approved = await store.finalize(scope, state.version, True, "复核后通过", at, confirm=True)
     assert approved.status == "approved" and await store.get(scope) == approved
+    assert approved.can_reopen_review is False
     assert json.loads(approved.reopenings_json) == history
     candidate = await store.get_candidate(scope, "candidate:1", approved.version)
     assert json.loads(candidate.evidence_json)["semantic_adjudication"] is not None
@@ -169,6 +172,7 @@ async def test_three_committed_rounds_keep_history_and_fourth_cannot_reopen(reje
             scope, state.version, False, "语义分歧仍未解决", at, confirm=True
         )
         assert final.status == "rejected" and await store.get(scope) == final
+        assert final.can_reopen_review is (count < 3)
         assert json.loads(final.reopenings_json) == history
         at += timedelta(seconds=1)
     before = await rows(tx, scope.run_id)
@@ -243,3 +247,16 @@ async def test_every_read_revalidates_archived_round_and_current_signatures(reje
     ):
         with pytest.raises((ValueError, CheckpointConflict)):
             await operation
+
+
+async def test_reopening_eligibility_read_uses_original_evidence_without_writes(rejected_round):
+    tx, scope, final, _ = rejected_round
+    before = await rows(tx, scope.run_id)
+    outputs_before = await outputs(tx, scope.run_id)
+    store = MySQLEvaluationManagement(tx)
+    result = await store.get(scope)
+    assert result.version == final.version and result.can_reopen_review is True
+    assert await rows(tx, scope.run_id) == before
+    assert await outputs(tx, scope.run_id) == outputs_before
+    with pytest.raises(NotFound):
+        await store.get(replace(scope, organization_id=scope.organization_id + 1))

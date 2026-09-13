@@ -337,7 +337,7 @@ class EvaluationUnknownIndex(_message.Message):
     def __init__(self, run_id: _Optional[str] = ..., version: _Optional[int] = ..., release_fingerprint: _Optional[str] = ..., status: _Optional[str] = ..., unresolved_result_unknown_count: _Optional[int] = ..., can_resolve: _Optional[bool] = ..., executions: _Optional[_Iterable[_Union[EvaluationUnknownExecution, _Mapping]]] = ...) -> None: ...
 
 class EvaluationState(_message.Message):
-    __slots__ = ("run_id", "version", "status", "unresolved_result_unknown_count", "resolutions_json", "reviews_json", "finalization_json", "reopenings_json", "creation_json", "cancellation_json")
+    __slots__ = ("run_id", "version", "status", "unresolved_result_unknown_count", "resolutions_json", "reviews_json", "finalization_json", "reopenings_json", "creation_json", "cancellation_json", "can_reopen_review")
     RUN_ID_FIELD_NUMBER: _ClassVar[int]
     VERSION_FIELD_NUMBER: _ClassVar[int]
     STATUS_FIELD_NUMBER: _ClassVar[int]
@@ -348,6 +348,7 @@ class EvaluationState(_message.Message):
     REOPENINGS_JSON_FIELD_NUMBER: _ClassVar[int]
     CREATION_JSON_FIELD_NUMBER: _ClassVar[int]
     CANCELLATION_JSON_FIELD_NUMBER: _ClassVar[int]
+    CAN_REOPEN_REVIEW_FIELD_NUMBER: _ClassVar[int]
     run_id: str
     version: int
     status: str
@@ -358,7 +359,8 @@ class EvaluationState(_message.Message):
     reopenings_json: str
     creation_json: str
     cancellation_json: str
-    def __init__(self, run_id: _Optional[str] = ..., version: _Optional[int] = ..., status: _Optional[str] = ..., unresolved_result_unknown_count: _Optional[int] = ..., resolutions_json: _Optional[str] = ..., reviews_json: _Optional[str] = ..., finalization_json: _Optional[str] = ..., reopenings_json: _Optional[str] = ..., creation_json: _Optional[str] = ..., cancellation_json: _Optional[str] = ...) -> None: ...
+    can_reopen_review: bool
+    def __init__(self, run_id: _Optional[str] = ..., version: _Optional[int] = ..., status: _Optional[str] = ..., unresolved_result_unknown_count: _Optional[int] = ..., resolutions_json: _Optional[str] = ..., reviews_json: _Optional[str] = ..., finalization_json: _Optional[str] = ..., reopenings_json: _Optional[str] = ..., creation_json: _Optional[str] = ..., cancellation_json: _Optional[str] = ..., can_reopen_review: _Optional[bool] = ...) -> None: ...
 
 class SemanticContradictionReview(_message.Message):
     __slots__ = ("policy_version", "execution_id", "output_fingerprint", "assertion_ordinal", "original_detail", "candidate_excerpt", "reason")

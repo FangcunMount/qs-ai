@@ -61,6 +61,7 @@ async def read_view(db: AsyncSession, scope: ManagementScope) -> EvaluationView:
     if progress is None:
         raise ValueError("Legacy progress needs reconciliation")
     cancellation, source = await read_cancellation(db, scope, dict(row))
+    finalization, can_reopen = await read_finalization(db, scope, source)
     return EvaluationView(
         str(scope.run_id),
         row["version"],
@@ -68,10 +69,11 @@ async def read_view(db: AsyncSession, scope: ManagementScope) -> EvaluationView:
         progress.get("unresolved_result_unknown_count", 0),
         json.dumps(progress.get("result_unknown_resolutions", []), ensure_ascii=False),
         json.dumps(progress.get("human_reviews", []), ensure_ascii=False),
-        await read_finalization(db, scope, source),
+        finalization,
         canonical(progress.get("review_reopenings", [])),
         creation_receipt(dict(row)),
         cancellation,
+        can_reopen and not bool(cancellation),
     )
 
 

@@ -42,6 +42,8 @@ class EvaluationView:
     reopenings_json: str = "[]"
     creation_json: str = ""
     cancellation_json: str = ""
+    # None preserves response presence for older adapters; persisted reads return a bool.
+    can_reopen_review: bool | None = None
 
 
 class EvaluationManagementStore(Protocol):
