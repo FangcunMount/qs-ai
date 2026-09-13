@@ -22,6 +22,8 @@ func main() {
 		Disable            app.PublicationCommand
 		Selector           app.PublicationSelector
 		CommandID          string
+		History            app.PublicationHistoryQuery
+		Version            int64
 	}
 	if json.NewDecoder(os.Stdin).Decode(&input) != nil {
 		os.Exit(2)
@@ -53,6 +55,10 @@ func main() {
 		result, err = service.Get(ctx, scope, input.Selector)
 	case "receipt":
 		result, err = service.GetReceipt(ctx, scope, input.CommandID)
+	case "history":
+		result, err = service.ListHistory(ctx, scope, input.History)
+	case "history-version":
+		result, err = service.GetHistory(ctx, scope, input.Selector, input.Version)
 	default:
 		os.Exit(2)
 	}
