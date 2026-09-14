@@ -81,28 +81,33 @@ class MongoStore:
         if not re.fullmatch(r"m5_restore_[a-f0-9]{32}", database):
             raise Stop("restore destination must be an isolated generated database")
         db = self.client[database]
-        for name, item in snapshot.items():
-            if item["action"] == "preserve":
-                continue
-            metadata = BSON(base64.b64decode(item["metadata"])).decode()
-            collection = db.create_collection(name, **metadata["options"])
-            rows = [BSON(base64.b64decode(row)).decode() for row in item["rows"]]
-            if rows:
-                collection.insert_many(rows)
-            for index in metadata["indexes"]:
-                if index["name"] == "_id_":
+        try:
+            for name, item in snapshot.items():
+                if item["action"] == "preserve":
                     continue
-                index = dict(index)
-                keys = list(index.pop("key").items())
-                index.pop("v", None)
-                index.pop("ns", None)
-                collection.create_index(keys, **index)
+                metadata = BSON(base64.b64decode(item["metadata"])).decode()
+                collection = db.create_collection(name, **metadata["options"])
+                rows = [BSON(base64.b64decode(row)).decode() for row in item["rows"]]
+                if rows:
+                    collection.insert_many(rows)
+                for index in metadata["indexes"]:
+                    if index["name"] == "_id_":
+                        continue
+                    index = dict(index)
+                    keys = list(index.pop("key").items())
+                    index.pop("v", None)
+                    index.pop("ns", None)
+                    collection.create_index(keys, **index)
+        except BaseException:
+            self.client.drop_database(database)
+            raise
         return db
 
     def verify_restore(self, snapshot, *, keep=False):
         name = "m5_restore_" + uuid4().hex
         restored = self.restore(snapshot, name)
         original = self.db
+        verified = False
         try:
             self.db = restored
             actual = self.snapshot()
@@ -112,9 +117,10 @@ class MongoStore:
                 for field in ("count", "sha256", "metadata"):
                     if actual[key][field] != item[field]:
                         raise Stop("Mongo restoration verification failed")
+            verified = True
         finally:
             self.db = original
-            if not keep:
+            if not keep or not verified:
                 self.client.drop_database(name)
         return name
 
@@ -265,6 +271,9 @@ class MySQLStore:
                     cursor.execute(item["metadata"]["ddl"])
                     for row in item["rows"]:
                         cursor.execute(row["insert"])
+            except BaseException:
+                cursor.execute("DROP DATABASE " + quoted(database))
+                raise
             finally:
                 cursor.execute("USE " + quoted(self.database))
 
@@ -272,6 +281,7 @@ class MySQLStore:
         name = "m5_restore_" + uuid4().hex
         self.restore(snapshot, name)
         original = self.database
+        verified = False
         try:
             self.database = name
             with self.connection.cursor() as cursor:
@@ -283,11 +293,12 @@ class MySQLStore:
                 for field in ("count", "sha256", "metadata"):
                     if actual[key][field] != item[field]:
                         raise Stop("SQL restoration verification failed")
+            verified = True
         finally:
             self.database = original
             with self.connection.cursor() as cursor:
                 cursor.execute("USE " + quoted(original))
-                if not keep:
+                if not keep or not verified:
                     cursor.execute("DROP DATABASE " + quoted(name))
         return name
 

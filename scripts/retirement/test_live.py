@@ -111,3 +111,31 @@ def test_live_drift_blocks_every_database_before_first_drop(tmp_path, stores):
     with pytest.raises(core.Stop, match="changed before deletion"):
         core.apply(directory, stores, sha, proof)
     assert set(COLLECTIONS) <= set(stores[0].db.list_collection_names())
+
+
+@pytest.mark.parametrize("store_index", [0, 1])
+def test_failed_partial_restore_removes_only_its_scratch_database(stores, store_index):
+    import binascii
+    from copy import deepcopy
+
+    store = stores[store_index]
+    original = store.snapshot()
+    snapshot = deepcopy(original)
+    if store_index == 0:
+        name = COLLECTIONS[-1]
+        snapshot[name]["rows"] = ["invalid BSON"]
+        before = set(store.client.list_database_names())
+    else:
+        snapshot[SHARED_TABLES[-1]]["rows"][0]["insert"] = "INSERT INTO missing_table VALUES (1)"
+        with store.connection.cursor() as cursor:
+            cursor.execute("SHOW DATABASES")
+            before = cursor.fetchall()
+    with pytest.raises((binascii.Error, pymysql.err.ProgrammingError)):
+        store.verify_restore(snapshot)
+    if store_index == 0:
+        assert set(store.client.list_database_names()) == before
+    else:
+        with store.connection.cursor() as cursor:
+            cursor.execute("SHOW DATABASES")
+            assert cursor.fetchall() == before
+    assert store.snapshot() == original
