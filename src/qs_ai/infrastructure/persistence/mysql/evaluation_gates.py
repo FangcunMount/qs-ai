@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict
 from qs_ai.application.evaluation.gates import GatePreview
 from qs_ai.application.evaluation.management import ManagementScope
+from qs_ai.domain.evaluation.acceptance import acceptance_version
 from qs_ai.domain.evaluation.closure import ClosureTransition, validate_closed_inventory
 from qs_ai.domain.evaluation.contract_recovery import decode_recoveries
 from qs_ai.domain.evaluation.identity import EvidenceReleaseIdentity, FrozenContractRef
@@ -268,12 +269,20 @@ async def load_snapshot(
     targets = tuple(c.evidence for c in candidates)
     reviews = decode_reviews(progress.get("human_reviews", []))
     thresholds = load_quality_thresholds()
+    rule = acceptance_version(creation, progress, run["version"], at)
 
     def calculate(
         values: tuple[CandidateHumanReview, ...], evaluated_at: datetime
     ) -> QualityGateResult:
         return evaluate_quality_gates(
-            tuple(candidates), generated, judged, values, thresholds, closed, evaluated_at
+            tuple(candidates),
+            generated,
+            judged,
+            values,
+            thresholds,
+            closed,
+            evaluated_at,
+            acceptance_rule=rule,
         )
 
     validate_rounds(

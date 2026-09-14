@@ -30,3 +30,5 @@
 真实管理、授权生成展示、撤权与恢复验收仍需独立证据；未来产品能力不作为本轮退役门槛。
 
 - [语义契约故障单次恢复](semantic-contract-recovery.md)：受信主机预览与授权、原证据保留和发布校验。
+
+- [候选最终结果验收](candidate-completion-acceptance.md)：版本化规则、旧 Run 采用、发布门槛与调用观测。

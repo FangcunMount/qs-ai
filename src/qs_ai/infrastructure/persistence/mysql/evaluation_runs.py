@@ -15,6 +15,7 @@ from qs_ai.application.interpretation.profile_assets import ProfileAssets
 from qs_ai.application.interpretation.prompt_assets import PromptAssets
 from qs_ai.application.interpretation.route_assets import RouteAssets
 from qs_ai.application.interpretation.schema_assets import SchemaAssets
+from qs_ai.domain.evaluation.acceptance import rule_document
 from qs_ai.domain.evaluation.identity import EvidenceReleaseIdentity
 from qs_ai.domain.governance.manifest import GenerationManifest
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
@@ -73,6 +74,7 @@ async def create_run(
         "release_fingerprint": release.fingerprint(),
         "execution_policy_json": policy.definition_json,
         "gate_policy_json": gate.definition_json,
+        "acceptance_rule": rule_document(),
         "suite_json": suite.definition_json,
         "status": "requested",
         "preflight": {"case_id": suite.preflight_case_id, "status": "pending"},
