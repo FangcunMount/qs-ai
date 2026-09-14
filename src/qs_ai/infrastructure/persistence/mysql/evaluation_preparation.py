@@ -109,6 +109,7 @@ async def prepare_execution(
         list(dispatches),
         list(semantic),
         run["progress_json"].get("result_unknown_resolutions", []),
+        run["progress_json"].get("semantic_contract_recoveries", []),
     )
     preflight = progress.get("preflight", creation["preflight"])
     action = next_action(
@@ -123,6 +124,11 @@ async def prepare_execution(
         raise CheckpointConflict("Next action is not a new model execution")
     if at < datetime.fromisoformat(creation["audit"]["created_at"]):
         raise ValueError("Preparation cannot precede Run creation")
+    if any(
+        at < datetime.fromisoformat(r["resolved_at"])
+        for r in progress.get("semantic_contract_recoveries", [])
+    ):
+        raise ValueError("Preparation cannot precede recovery authorization")
     prepared = ExecutionCheckpoint(
         execution_id,
         action.kind,

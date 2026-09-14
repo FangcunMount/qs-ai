@@ -68,6 +68,7 @@ async def load_resolution_evidence(
         dispatches,
         semantics,
         progress.get("result_unknown_resolutions", []),
+        progress.get("semantic_contract_recoveries", []),
     )
     unknowns = tuple(
         UnknownExecution(

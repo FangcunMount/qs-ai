@@ -148,6 +148,7 @@ async def accept_reviews(
         dispatches,
         semantics,
         progress.get("result_unknown_resolutions", []),
+        progress.get("semantic_contract_recoveries", []),
     )
     action = next_action(
         "collecting",
