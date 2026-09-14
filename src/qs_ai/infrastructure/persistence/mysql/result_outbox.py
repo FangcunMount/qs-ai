@@ -62,6 +62,7 @@ async def stage_state(db: AsyncSession, session: Session) -> None:
         version=session.version,
         payload=asdict(event),
         created_at=func.utc_timestamp(6),
+        available_at=func.utc_timestamp(6),
     )
     # Evidence freezing can save the same user-visible state/version again.
     await db.execute(statement.on_duplicate_key_update(event_id=result_outbox.c.event_id))
