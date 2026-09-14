@@ -74,14 +74,14 @@ async def test_replay_conflict_and_history_preserve_import_audit(asset_store):
     )
     assert await store.put(next_asset, "next", "operator")
     assert await store.get(asset.template_id, "v2") == next_asset
-    assert await store.get(asset.template_id, "v1") == asset
+    assert await store.get(asset.template_id, asset.version) == asset
     async with transactions.open() as db:
         row = (
             (
                 await db.execute(
                     select(prompt_assets).where(
                         prompt_assets.c.template_id == asset.template_id,
-                        prompt_assets.c.version == "v1",
+                        prompt_assets.c.version == asset.version,
                     )
                 )
             )
