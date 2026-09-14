@@ -6,6 +6,7 @@ from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime
 
+from qs_ai.domain.evaluation.acceptance import RULE_VERSION
 from qs_ai.domain.evaluation.adjudication import (
     SemanticAdjudication,
     effective_candidate_assertions,
@@ -92,7 +93,7 @@ class GateMetric:
     numerator: int
     denominator: int
     value: float
-    threshold: float
+    threshold: float | None
 
 
 @dataclass(frozen=True)
@@ -148,8 +149,12 @@ def evaluate_quality_gates(
     thresholds: QualityThresholds,
     closed_at: datetime,
     evaluated_at: datetime,
+    *,
+    acceptance_rule: str | None = None,
 ) -> QualityGateResult:
     """Compute quality and accountability after G1/G2 accepted a closed evidence inventory."""
+    if acceptance_rule not in (None, RULE_VERSION):
+        raise ValueError("Unsupported acceptance rule")
     if not all(isinstance(v, tuple) for v in (candidates, generations, semantics, reviews)):
         raise ValueError("Immutable quality evidence required")
     if (
@@ -204,8 +209,17 @@ def evaluate_quality_gates(
 
     def rate(name: str, numerator: int, denominator: int, minimum: float, code: str) -> None:
         value = numerator / denominator if denominator else 0.0
-        metrics.append(GateMetric(name, numerator, denominator, value, minimum))
-        if value < minimum:
+        observation = acceptance_rule == RULE_VERSION
+        metrics.append(
+            GateMetric(
+                "observed_" + name if observation else name,
+                numerator,
+                denominator,
+                value,
+                None if observation else minimum,
+            )
+        )
+        if not observation and value < minimum:
             reject("G3", code)
 
     executions: tuple[GenerationCompletion | SemanticCompletion, ...] = (*generations, *semantics)
@@ -233,6 +247,31 @@ def evaluate_quality_gates(
         thresholds.min_semantic_rate,
         "semantic_execution_success_rate_below_threshold",
     )
+    if acceptance_rule == RULE_VERSION:
+        # G1/G2 validated exact frozen slots, successful candidate/semantic receipts,
+        # authorized recovery, budgets and absence of unresolved calls before this calculation.
+        expected = thresholds.generation_cases * thresholds.candidates_per_case
+        complete = sum(c.evidence.semantic.status == "succeeded" for c in candidates)
+        metrics.append(
+            GateMetric("candidate_completion_rate", complete, expected, complete / expected, 1.0)
+        )
+        if complete != expected:
+            reject("G3", "candidate_completion_incomplete")
+        for kind, records in (("generation", generations), ("semantic", semantics)):
+            first = sum(r.execution_ordinal == 1 and r.status == "succeeded" for r in records)
+            retries = sum(r.execution_ordinal > 1 and r.provider_call_count == 1 for r in records)
+            metrics.extend(
+                (
+                    GateMetric(
+                        f"observed_{kind}_first_attempt_success_rate",
+                        first,
+                        expected,
+                        first / expected,
+                        None,
+                    ),
+                    GateMetric(f"observed_{kind}_retry_count", retries, 1, float(retries), None),
+                )
+            )
     case_passes = dict.fromkeys(counts, 0)
     totals = [0] * len(SCORE_NAMES)
     for item in candidates:

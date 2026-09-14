@@ -3,7 +3,7 @@ from datetime import datetime
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import func, select, update
+from sqlalchemy import func, select, text, update
 
 from qs_ai.application.integration.events import DeliverResults
 from qs_ai.application.interpretation.commands import CancelCommand
@@ -198,3 +198,29 @@ async def test_replayed_old_delivered_event_does_not_invent_delivery_time(kit): 
             .one()
         )
         assert row["created_at"] is None and row["delivered_at"] is None
+
+
+async def test_first_result_is_due_with_non_utc_database_sessions(kit):  # noqa: F811
+    receipt = await kit.service.start_external(
+        kit.actor, "7", ("42",), "goal", str(uuid4()), bound_case()[1].items
+    )
+    session = (await kit.service.get(kit.actor, receipt.session_id)).session
+    for zone in ("+00:00", "+08:00", "-05:00"):
+        # Roll back each staged version and timezone-independent assertion.
+        async with kit.transactions.open() as db:
+            original_zone = await db.scalar(text("SELECT @@session.time_zone"))
+            try:
+                await db.execute(text("SET SESSION time_zone = :zone"), {"zone": zone})
+                session.version += 1
+                await stage_state(db, session)
+                where = (result_outbox.c.session_id == session.id) & (
+                    result_outbox.c.version == session.version
+                )
+                assert await db.scalar(
+                    select(result_outbox.c.available_at <= func.utc_timestamp(6)).where(where)
+                )
+                planned = await db.scalar(select(result_outbox.c.available_at).where(where))
+                await stage_state(db, session)
+                assert await db.scalar(select(result_outbox.c.available_at).where(where)) == planned
+            finally:
+                await db.execute(text("SET SESSION time_zone = :zone"), {"zone": original_zone})

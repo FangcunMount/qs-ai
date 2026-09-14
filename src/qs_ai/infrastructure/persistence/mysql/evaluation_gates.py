@@ -13,7 +13,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict
 from qs_ai.application.evaluation.gates import GatePreview
 from qs_ai.application.evaluation.management import ManagementScope
+from qs_ai.domain.evaluation.acceptance import acceptance_version
 from qs_ai.domain.evaluation.closure import ClosureTransition, validate_closed_inventory
+from qs_ai.domain.evaluation.contract_recovery import decode_recoveries
 from qs_ai.domain.evaluation.identity import EvidenceReleaseIdentity, FrozenContractRef
 from qs_ai.domain.evaluation.preflight import AssertionReceipt, PreflightEvidence
 from qs_ai.domain.evaluation.quality_gates import (
@@ -193,7 +195,10 @@ async def load_snapshot(
         if len(records) > limit:
             raise ValueError("Persisted execution budget exceeded")
     resolutions = progress.get("result_unknown_resolutions", [])
-    slots = project_slots(creation["slots"], generations, dispatches, semantics, resolutions)
+    recoveries = progress.get("semantic_contract_recoveries", [])
+    slots = project_slots(
+        creation["slots"], generations, dispatches, semantics, resolutions, recoveries
+    )
     generated = tuple(decode_completion(r) for r in generations)
     judged = tuple(decode_semantic_completion(r) for r in semantics)
     closures = [
@@ -232,6 +237,7 @@ async def load_snapshot(
         judged,
         decode_resolutions(resolutions),
         policy,
+        decode_recoveries(recoveries),
     )
     for row in dispatches:
         cp = decode(row["checkpoint_json"])
@@ -263,12 +269,20 @@ async def load_snapshot(
     targets = tuple(c.evidence for c in candidates)
     reviews = decode_reviews(progress.get("human_reviews", []))
     thresholds = load_quality_thresholds()
+    rule = acceptance_version(creation, progress, run["version"], at)
 
     def calculate(
         values: tuple[CandidateHumanReview, ...], evaluated_at: datetime
     ) -> QualityGateResult:
         return evaluate_quality_gates(
-            tuple(candidates), generated, judged, values, thresholds, closed, evaluated_at
+            tuple(candidates),
+            generated,
+            judged,
+            values,
+            thresholds,
+            closed,
+            evaluated_at,
+            acceptance_rule=rule,
         )
 
     validate_rounds(

@@ -13,12 +13,23 @@ class ExecutionResult:
     status: str
     failure: ClassifiedFailure | None = None
     replacement_authorized: bool = False
+    contract_recovery_authorized: bool = False
 
     def __post_init__(self) -> None:
         if type(self.replacement_authorized) is not bool or (
             self.replacement_authorized and self.status != "result_unknown"
         ):
             raise ValueError("Replacement authorization requires unknown evidence")
+        if type(self.contract_recovery_authorized) is not bool or (
+            self.contract_recovery_authorized
+            and (
+                self.status != "failed"
+                or self.failure is None
+                or self.failure.code != "semantic_decision_contract_invalid"
+                or not self.failure.allows_semantic_retry()
+            )
+        ):
+            raise ValueError("Contract recovery requires a semantic contract failure")
         if self.status not in ("succeeded", "failed", "result_unknown"):
             raise ValueError("Invalid terminal execution status")
         if self.status == "succeeded" and self.failure is not None:
@@ -174,6 +185,10 @@ def next_action(
         limit = policy.generation_per_slot if candidate is None else policy.semantic_per_candidate
         if ordinal > limit:
             return action("block", kind + "_budget_exhausted")
+        if last.contract_recovery_authorized:
+            if kind != "semantic":
+                raise ValueError("Contract recovery cannot regenerate candidates")
+            return action(kind, "semantic_contract_recovery_approved")
         if last.replacement_authorized:
             return action(kind, "manual_recovery_approved")
         allowed = (

@@ -7,6 +7,7 @@ from typing import Any
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict
 from qs_ai.domain.evaluation.actions import CandidateProgress, ExecutionResult, SlotProgress
 from qs_ai.domain.evaluation.completion import GenerationCompletion, ProviderReceipt
+from qs_ai.domain.evaluation.contract_recovery import decode_recoveries, validate_recoveries
 from qs_ai.domain.evaluation.failure import ClassifiedFailure, ProviderDiagnostics
 from qs_ai.domain.evaluation.resolution import (
     ResultUnknownResolution,
@@ -45,9 +46,15 @@ def project_slots(
     dispatches: list[Any],
     semantic_records: list[Any] | None = None,
     resolutions: list[dict] | None = None,
+    contract_recoveries: list[dict] | None = None,
 ) -> tuple[SlotProgress, ...]:
     """Every dispatch must have terminal evidence before new preparation."""
     semantic_records = semantic_records or []
+    recovered = validate_recoveries(
+        decode_recoveries(contract_recoveries or []),
+        tuple(decode_semantic_completion(r) for r in semantic_records),
+        load_execution_policy(),
+    )
     authorized: set[str] = set()
     if resolutions:
         unknowns = tuple(
@@ -135,7 +142,7 @@ def project_slots(
                 ):
                     raise CheckpointConflict("Successful generation missing matching candidate")
                 candidate = project_candidate(
-                    stored, value, semantic_records, ledger, seen, authorized
+                    stored, value, semantic_records, ledger, seen, authorized, recovered
                 )
             elif stored is not None or row["candidate_id"] is not None:
                 raise CheckpointConflict("Failed execution cannot own candidate")
@@ -179,6 +186,7 @@ def project_candidate(
     ledger: dict,
     seen: set[str],
     authorized: set[str],
+    recovered: set[str],
 ) -> CandidateProgress:
     history = sorted(
         (r for r in records if r["candidate_id"] == stored["id"]),
@@ -251,7 +259,12 @@ def project_candidate(
         elif result is not None:
             raise CheckpointConflict("Failed semantic execution cannot contain result")
         executions.append(
-            ExecutionResult(value.status, value.failure, value.execution_id in authorized)
+            ExecutionResult(
+                value.status,
+                value.failure,
+                value.execution_id in authorized,
+                value.execution_id in recovered,
+            )
         )
     if (
         stored["review_ready"] != (accepted is not None)
