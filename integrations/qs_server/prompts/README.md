@@ -10,6 +10,4 @@ Profile 迁移解码器已校验 published 状态、全部策略字段及内容�
 
 prepare_explanation 已串联证据绑定、报告输入组装与 Prompt 渲染，返回输入摘要、Prompt 指纹、发布定义及 provider_route。尚未绑定执行 worker，真实模型路线配置、输出校验、持久成果仍待接通，不能据此宣称已具备真实生成能力。
 
-使用 `uv run python scripts/export_qs_prompts.py /path/to/clean/qs-server --check` 重新执行固定版本 Catalog 并逐字比较。导出器只在指定干净工作区的 scripts 下创建临时 Go 程序，退出后移除，不修改 QS 业务代码。CI 固定相同提交执行此验证。
-
-CI 同时设置 QS_AI_PROMPT_SOURCE 指向固定 QS 工作区，运行 tests/test_prompts.py 的跨语言用例：使用发布 Profile、无关注点/有关注点两组输入，对照原 Go Render 的 v1–v6 三段指令逐字结果与数据 JSON 语义。该验证只证明渲染兼容，不证明报告输入、模型质量或生产授权验收。
+旧源码导出器已随 M5 退役。原始资产和来源提交保持不变；字节摘要由资产测试验证，渲染、输入、输出、身份与候选断言的原 Go 结果保存在 `tests/fixtures/legacy_go_contracts.json`，记录固定来源提交并校验整份文件 SHA-256。九组离线基准测试不再编译旧引擎；Go→Python 新业务互操作仍在 CI 独立执行。固定基准仅证明迁移一致性，不代替生产验收。

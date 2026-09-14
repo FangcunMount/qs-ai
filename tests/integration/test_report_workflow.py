@@ -6,21 +6,17 @@ import pytest
 from sqlalchemy import select
 
 from qs_ai.application.execution.generation import DurableGeneration
-from qs_ai.application.execution.report_workflow import ReportWorkflow
 from qs_ai.application.execution.worker import ExecuteNext
 from qs_ai.application.interpretation.provider import ProviderFailure
 from qs_ai.infrastructure.persistence.model_call_codec import JSONModelCallCodec
 from qs_ai.infrastructure.persistence.mysql.result_outbox import MySQLResultOutbox
 from qs_ai.infrastructure.persistence.mysql.schema import artifacts
-from qs_ai.infrastructure.qs_server.output import QSOutputParser
-from qs_ai.infrastructure.qs_server.prompts import load_prompt
 from tests.integration.test_generation import Gateway
 from tests.integration.test_interpretation import kit as kit
-from tests.test_deepseek_request import prepared, route, schema
 from tests.test_input_binding import bound_case
 from tests.test_output_validation import candidate
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.usefixtures("published_configuration")]
 
 
 @pytest.mark.parametrize(
@@ -58,14 +54,14 @@ async def test_worker_to_validated_artifact_or_visible_failure(kit, scenario, ex
             return replace(response, raw_output=raw, validation_output=raw)
 
     model = Model()
-    release = prepared().release
-    workflow = ReportWorkflow(
+    from qs_ai.application.execution.configuration import PublishedReportWorkflow
+    from qs_ai.infrastructure.persistence.mysql.execution_configurations import (
+        MySQLExecutionConfigurations,
+    )
+
+    workflow = PublishedReportWorkflow(
+        MySQLExecutionConfigurations(kit.transactions),
         DurableGeneration(kit.store, model, JSONModelCallCodec()),
-        release,
-        load_prompt(release.render_policy.template_id, release.render_policy.version),
-        route(),
-        schema(),
-        QSOutputParser(),
     )
     assert await ExecuteNext(kit.store, kit.source, workflow).once()
     view = await kit.service.get(kit.actor, receipt.session_id)

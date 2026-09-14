@@ -301,14 +301,14 @@ def test_execution_runtime_is_opt_in_and_key_is_worker_only():
             module.runtime_config(env)
 
 
-@pytest.mark.parametrize("flag", ["EXECUTION", "GOVERNANCE", "PUBLICATIONS", "EVALUATION"])
+@pytest.mark.parametrize("flag", ["EXECUTION", "GOVERNANCE", "EVALUATION"])
 def test_runtime_flags_reject_ambiguous_values(flag):
     module = load("scripts/cd/deploy.py")
     with pytest.raises(ValueError, match=f"QS_AI_{flag}_ENABLED"):
         module.runtime_config({**execution_environment(), f"QS_AI_{flag}_ENABLED": "yes"})
 
 
-@pytest.mark.parametrize("flag", ["GOVERNANCE", "PUBLICATIONS"])
+@pytest.mark.parametrize("flag", ["GOVERNANCE"])
 def test_management_and_publication_binding_need_access_but_not_model_credentials(flag):
     module = load("scripts/cd/deploy.py")
     env = execution_environment()
@@ -349,7 +349,7 @@ def test_execution_compose_resolves_isolation_tls_and_health(tmp_path, mode):
     module = load("scripts/cd/deploy.py")
     shutil.copy(ROOT / "deploy/serverA/compose.yaml", tmp_path / "compose.yaml")
     environment = execution_environment()
-    for flag in ("EXECUTION", "GOVERNANCE", "PUBLICATIONS", "EVALUATION"):
+    for flag in ("EXECUTION", "GOVERNANCE", "EVALUATION"):
         environment[f"QS_AI_{flag}_ENABLED"] = str(mode in {flag.lower(), "all"}).lower()
     (tmp_path / "runtime.json").write_text(json.dumps(module.runtime_config(environment)))
     result = subprocess.run(
@@ -378,7 +378,7 @@ def test_execution_compose_resolves_isolation_tls_and_health(tmp_path, mode):
     assert set(services) == {"api", "grpc"} | background
     grpc_env = services["grpc"]["environment"]
     assert grpc_env["QS_AI_GRPC__GOVERNANCE_ENABLED"] == str(mode in {"governance", "all"}).lower()
-    assert grpc_env["QS_AI_GENERATION__USE_PUBLICATIONS"] == str(mode == "all").lower()
+    assert "QS_AI_GENERATION__USE_PUBLICATIONS" not in grpc_env
     if mode in {"governance", "execution", "all"}:
         assert grpc_env["QS_AI_GRPC__ACCESS_ADDRESS"] == "qs-apiserver:9090"
     for name in background:

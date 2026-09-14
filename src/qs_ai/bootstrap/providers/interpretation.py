@@ -64,8 +64,6 @@ class InterpretationProvider(Provider):
     def service(
         self, settings: Settings, uows: UnitOfWorkFactory, source: EvidenceSource
     ) -> InterpretationService:
-        return InterpretationService(
-            uows, source, use_publications=settings.generation.use_publications
-        )
+        return InterpretationService(uows, source)
 
     worker = provide(ExecuteNext, scope=Scope.REQUEST)

@@ -17,7 +17,6 @@ from qs_ai.application.interpretation.preparation import prepare_explanation
 from qs_ai.application.interpretation.provider import ProviderFailure
 from qs_ai.application.interpretation.service import InterpretationService
 from qs_ai.domain.interpretation.model import RuleViolation
-from qs_ai.infrastructure.interpretation.unconfigured import UnconfiguredWorkflow
 from qs_ai.infrastructure.persistence.model_call_codec import JSONModelCallCodec
 from qs_ai.infrastructure.persistence.mysql.execution_configurations import (
     MySQLExecutionConfigurations,
@@ -61,9 +60,7 @@ async def admitted(ready, kit):
     tx, scope, command, at = ready
     published = await MySQLPublications(tx).apply(scope, command, at)
     _, evidence, _ = bound_case()
-    service = InterpretationService(
-        MySQLUnitOfWorkFactory(kit.transactions), kit.source, use_publications=True
-    )
+    service = InterpretationService(MySQLUnitOfWorkFactory(kit.transactions), kit.source)
     key = str(uuid4())
     receipt = await service.start_external(kit.actor, "7", ("42",), "解读", key, evidence.items)
     return kit, service, key, receipt, evidence, published, (tx, scope, command, at)
@@ -80,7 +77,6 @@ def workflow(kit, model):
     return PublishedReportWorkflow(
         MySQLExecutionConfigurations(kit.transactions),
         DurableGeneration(kit.store, model, JSONModelCallCodec()),
-        UnconfiguredWorkflow(),
     )
 
 

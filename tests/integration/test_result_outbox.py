@@ -11,8 +11,9 @@ from qs_ai.domain.interpretation.model import RuleViolation
 from qs_ai.infrastructure.persistence.mysql.result_outbox import MySQLResultOutbox, stage_state
 from qs_ai.infrastructure.persistence.mysql.schema import external_requests, jobs, result_outbox
 from tests.integration.test_interpretation import kit  # noqa: F401
+from tests.test_input_binding import bound_case
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.usefixtures("published_configuration")]
 
 
 async def test_external_start_is_atomic_and_globally_idempotent(kit, monkeypatch):  # noqa: F811
@@ -27,7 +28,9 @@ async def test_external_start_is_atomic_and_globally_idempotent(kit, monkeypatch
 
     monkeypatch.setattr(persistence, "stage_state", failed_stage)
     with pytest.raises(RuntimeError):
-        await kit.service.start_external(kit.actor, "7", ("42",), "goal", request_id)
+        await kit.service.start_external(
+            kit.actor, "7", ("42",), "goal", request_id, bound_case()[1].items
+        )
     async with kit.transactions.open() as db:
         assert (
             await db.scalar(
@@ -39,7 +42,12 @@ async def test_external_start_is_atomic_and_globally_idempotent(kit, monkeypatch
         )
     monkeypatch.setattr(persistence, "stage_state", original)
     receipts = await asyncio.gather(
-        *[kit.service.start_external(kit.actor, "7", ("42",), "goal", request_id) for _ in range(2)]
+        *[
+            kit.service.start_external(
+                kit.actor, "7", ("42",), "goal", request_id, bound_case()[1].items
+            )
+            for _ in range(2)
+        ]
     )
     assert receipts[0] == receipts[1]
     session_id = receipts[0].session_id
@@ -52,11 +60,15 @@ async def test_external_start_is_atomic_and_globally_idempotent(kit, monkeypatch
                 == 1
             )
     with pytest.raises(RuleViolation, match="idempotency_conflict"):
-        await kit.service.start_external(kit.actor, "7", ("42",), "changed", request_id)
+        await kit.service.start_external(
+            kit.actor, "7", ("42",), "changed", request_id, bound_case()[1].items
+        )
 
 
 async def test_cancel_publishes_new_snapshot_and_failed_delivery_keeps_payload(kit):  # noqa: F811
-    receipt = await kit.service.start_external(kit.actor, "7", ("42",), "goal", str(uuid4()))
+    receipt = await kit.service.start_external(
+        kit.actor, "7", ("42",), "goal", str(uuid4()), bound_case()[1].items
+    )
     await kit.worker().once()
     view = await kit.service.get(kit.actor, receipt.session_id)
     await kit.service.cancel(
@@ -95,7 +107,9 @@ async def test_cancel_publishes_new_snapshot_and_failed_delivery_keeps_payload(k
 
 
 async def test_delivery_timing_survives_restage_retry_and_duplicate_ack(kit):  # noqa: F811
-    receipt = await kit.service.start_external(kit.actor, "7", ("42",), "goal", str(uuid4()))
+    receipt = await kit.service.start_external(
+        kit.actor, "7", ("42",), "goal", str(uuid4()), bound_case()[1].items
+    )
     store = MySQLResultOutbox(kit.transactions)
     [event] = await store.pending(20)
     created = datetime(2026, 1, 1)
@@ -160,7 +174,9 @@ async def test_delivery_timing_survives_restage_retry_and_duplicate_ack(kit):  #
 
 
 async def test_replayed_old_delivered_event_does_not_invent_delivery_time(kit):  # noqa: F811
-    await kit.service.start_external(kit.actor, "7", ("42",), "goal", str(uuid4()))
+    await kit.service.start_external(
+        kit.actor, "7", ("42",), "goal", str(uuid4()), bound_case()[1].items
+    )
     store = MySQLResultOutbox(kit.transactions)
     [event] = await store.pending(20)
     async with kit.transactions.open() as db:

@@ -7,7 +7,7 @@ from typing import Any, Protocol
 from qs_ai.application.execution.generation import DurableGeneration
 from qs_ai.application.execution.report_workflow import ReportWorkflow
 from qs_ai.application.interpretation.output import OutputParser
-from qs_ai.application.interpretation.ports import Claim, Workflow, WorkflowResult
+from qs_ai.application.interpretation.ports import Claim, WorkflowResult
 from qs_ai.application.interpretation.prompts import PromptPackage
 from qs_ai.application.interpretation.provider import ModelRoute
 from qs_ai.application.interpretation.release import ExplanationRelease
@@ -35,14 +35,12 @@ class ConfigurationReader(Protocol):
 
 
 class PublishedReportWorkflow:
-    def __init__(
-        self, reader: ConfigurationReader, generation: DurableGeneration, legacy: Workflow
-    ) -> None:
-        self.reader, self.generation, self.legacy = reader, generation, legacy
+    def __init__(self, reader: ConfigurationReader, generation: DurableGeneration) -> None:
+        self.reader, self.generation = reader, generation
 
     async def execute(self, claim: Claim, evidence: EvidenceSet) -> WorkflowResult:
         if claim.session.workflow_version != "qs-published-snapshot-v1":
-            return await self.legacy.execute(claim, evidence)
+            return WorkflowResult("", failure_code="configuration_invalid")
         try:
             config = await self.reader.get(claim, evidence)
         except ConfigurationUnavailable:

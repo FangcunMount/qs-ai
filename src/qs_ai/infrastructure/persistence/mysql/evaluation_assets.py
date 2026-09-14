@@ -20,11 +20,9 @@ from qs_ai.infrastructure.persistence.mysql.evaluation_suites import load_regist
 from qs_ai.infrastructure.persistence.mysql.schema import prompt_assets, route_assets
 from qs_ai.infrastructure.qs_server.evaluation_case import (
     prepare_asset_evaluation_case,
-    prepare_evaluation_case,
 )
 from qs_ai.infrastructure.qs_server.evaluation_suite import FrozenSuite, load_suite
 from qs_ai.infrastructure.qs_server.profiles import decode_published_profile
-from qs_ai.infrastructure.qs_server.routes import load_route
 
 
 def run_release(creation: dict[str, Any]) -> EvidenceReleaseIdentity:
@@ -44,12 +42,9 @@ def run_release(creation: dict[str, Any]) -> EvidenceReleaseIdentity:
 async def prepare_run_case(
     db: AsyncSession, creation: dict[str, Any], case_id: str
 ) -> PreparedExplanation:
+    require_generation_manifest(creation)
     release = run_release(creation)
     suite = await stored_run_suite(db, creation)
-    if "generation_manifest_json" not in creation:
-        # Retained legacy Runs can continue on their original registered baseline.
-        # Existing publication gates reject these Runs without a frozen manifest.
-        return prepare_evaluation_case(release, case_id)
     profile, manifest = await generation_snapshot(db, release)
     if (creation["generation_manifest_json"], creation["generation_manifest_fingerprint"]) != (
         manifest.canonical_json(),
@@ -76,15 +71,13 @@ async def prepare_run_case(
 async def run_model_route(
     db: AsyncSession, creation: dict[str, Any], *, semantic: bool
 ) -> ModelRoute:
+    require_generation_manifest(creation)
     release = run_release(creation)
     ref = release.semantic_route if semantic else release.generation_route
-    if "generation_manifest_json" not in creation:
-        route = load_route(ref.id, ref.version)
-    else:
-        asset = await AssetSnapshotReader(db, route_assets, RouteAsset).get(ref.id, ref.version)
-        if asset is None:
-            raise ValueError("Frozen model route unavailable")
-        route = executable_route(asset)
+    asset = await AssetSnapshotReader(db, route_assets, RouteAsset).get(ref.id, ref.version)
+    if asset is None:
+        raise ValueError("Frozen model route unavailable")
+    route = executable_route(asset)
     if route.fingerprint() != ref.fingerprint:
         raise ValueError("Execution route differs from frozen release")
     return route
@@ -101,3 +94,11 @@ async def stored_run_suite(db: AsyncSession, creation: dict[str, Any]) -> Frozen
     ) != (suite.manifest.canonical_json(), suite.manifest.fingerprint()):
         raise ValueError("Native suite requires its own frozen Run manifest")
     return suite
+
+
+def require_generation_manifest(creation: dict[str, Any]) -> None:
+    if not all(
+        isinstance(creation.get(key), str) and creation[key]
+        for key in ("generation_manifest_json", "generation_manifest_fingerprint")
+    ):
+        raise ValueError("Frozen generation manifest is required for execution")

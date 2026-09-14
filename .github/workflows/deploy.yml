@@ -126,7 +126,6 @@ jobs:
           MYSQL_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
           QS_AI_EXECUTION_ENABLED: ${{ vars.QS_AI_EXECUTION_ENABLED || 'false' }}
           QS_AI_GOVERNANCE_ENABLED: ${{ vars.QS_AI_GOVERNANCE_ENABLED || 'false' }}
-          QS_AI_PUBLICATIONS_ENABLED: ${{ vars.QS_AI_PUBLICATIONS_ENABLED || 'false' }}
           QS_AI_EVALUATION_ENABLED: ${{ vars.QS_AI_EVALUATION_ENABLED || 'false' }}
           QS_AI_MODEL_ENDPOINT: ${{ vars.QS_AI_MODEL_ENDPOINT }}
           QS_AI_MODEL_API_KEY: ${{ secrets.QS_AI_MODEL_API_KEY }}

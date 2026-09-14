@@ -38,7 +38,11 @@ class OfflineWorkflow:
         pass
 
     async def execute(self, claim: Claim, evidence: EvidenceSet) -> WorkflowResult:
-        assert claim.session.workflow_version in {"interpretation-v1", "qs-snapshot-v1"}
+        assert claim.session.workflow_version in {
+            "interpretation-v1",
+            "qs-snapshot-v1",
+            "qs-published-snapshot-v1",
+        }
         reference = f"offline:{claim.run_id}"
         if claim.question_id:
             return WorkflowResult(reference, failure_code="model_not_connected")

@@ -1,9 +1,5 @@
 import hashlib
 import json
-import os
-import shutil
-import subprocess
-import tempfile
 from dataclasses import replace
 from pathlib import Path
 
@@ -17,6 +13,7 @@ from qs_ai.application.interpretation.input import (
 )
 from qs_ai.application.interpretation.prompts import RenderPolicy, render_prompt
 from qs_ai.infrastructure.qs_server.prompts import load_prompt, prompt_directory
+from tests.legacy_go_baseline import legacy_go_result
 
 FIXTURE = Path(__file__).parent / "fixtures" / "report_snapshot.json"
 
@@ -55,7 +52,7 @@ def test_assembles_refs_nulls_order_and_deduplicated_suggestions(policy: InputPo
     assert a["ref"] == "dimension:A%2F%E8%A7%82%E5%AF%9F"
     assert a["parent_ref"] == "dimension:P"
     assert a["standard_suggestion_refs"] == ["suggestion:report:2"]
-    assert dimensions[1]["standard_suggestion_refs"] is None
+    assert dimensions[1]["standard_suggestion_refs"] == []
     assert dimensions[1]["level"] is None
     assert dimensions[1]["raw_score"]["max"] is None
     assert len(provider["facts"]["standard_suggestions"]) == 2
@@ -155,12 +152,8 @@ def test_context_and_duplicate_json_rejected(policy: InputPolicy) -> None:
         assemble_input('{"schema_version":"a","schema_version":"b"}', policy)
 
 
-@pytest.mark.interop
 @pytest.mark.parametrize("filter_parent", [False, True])
-def test_original_go_input_assembly_parity(policy: InputPolicy, filter_parent: bool) -> None:
-    source = os.environ.get("QS_AI_PROMPT_SOURCE")
-    if not source:
-        pytest.skip("QS_AI_PROMPT_SOURCE must name pinned QS checkout")
+def test_retained_go_input_assembly_parity(policy: InputPolicy, filter_parent: bool) -> None:
     baseline = json.loads((prompt_directory() / "published-profile-baseline.json").read_text())
     definition = baseline["profiles"][0]["definition"]
     if filter_parent:
@@ -176,36 +169,19 @@ def test_original_go_input_assembly_parity(policy: InputPolicy, filter_parent: b
         ).hexdigest()
     )
     policy = replace(policy, profile_fingerprint=fingerprint)
-    checkout = Path(source).resolve()
     request = {
         "Definition": definition,
         "Snapshot": json.loads(FIXTURE.read_text()),
         "Focus": ["sleep_routine"],
     }
-    with tempfile.TemporaryDirectory(prefix="qs_ai_input_test_", dir=checkout / "scripts") as name:
-        program = Path(name) / "main.go"
-        shutil.copyfile(FIXTURE.parent / "go_input_assembler.go", program)
-        original = subprocess.run(
-            ["go", "run", str(program)],
-            cwd=checkout,
-            input=json.dumps(request),
-            text=True,
-            capture_output=True,
-            check=True,
-            timeout=120,
-        )
+    original = legacy_go_result(request)
     actual = assemble_input(FIXTURE.read_text(), policy, focus_areas=("sleep_routine",))
     legacy = json.loads(original.stdout)
-    assert json.loads(actual.canonical_json) == legacy
-    published = assemble_input(
-        FIXTURE.read_text(), policy, focus_areas=("sleep_routine",), empty_reference_arrays=True
-    )
-    # The sole intentional input contract correction: absent reference lists
-    # are arrays. Keep the actual Go output as evidence of the original behavior.
+    # Normalize the approved Input v1 correction; keep the original Go bytes in the fixture.
     empty_refs = 0
     for dimension in legacy["facts"]["dimensions"]:
         if dimension["standard_suggestion_refs"] is None:
             empty_refs += 1
             dimension["standard_suggestion_refs"] = []
     assert empty_refs > 0
-    assert json.loads(published.canonical_json) == legacy
+    assert json.loads(actual.canonical_json) == legacy

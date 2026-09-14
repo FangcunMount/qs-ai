@@ -346,7 +346,16 @@ async def test_second_failed_execution_exhausts_slot_and_blocks_new_preparation(
     assert len(await stored(tx, run_id)) == 2
 
 
-async def test_frozen_case_entry_computes_reference_failure_instead_of_trusting_caller(dispatched):
+@pytest.fixture
+async def frozen_case_creation(persisted_assets, monkeypatch):
+    from tests.integration import test_evaluation_completions, test_evaluation_step
+
+    monkeypatch.setattr(test_evaluation_completions, "create", test_evaluation_step.create)
+
+
+async def test_frozen_case_entry_computes_reference_failure_instead_of_trusting_caller(
+    frozen_case_creation, dispatched
+):
     from qs_ai.infrastructure.persistence.mysql.evaluation_completions import (
         complete_evaluated_generation,
     )

@@ -55,19 +55,7 @@ class ParticipantCapacityOptions(Options):
 
 class GenerationOptions(Options):
     enabled: bool
-    use_publications: bool = False
-    profile_id: str = Field(min_length=1)
-    profile_version: str = Field(min_length=1)
     endpoint: str | None
-    route: str = Field(min_length=1)
-    revision: str = Field(min_length=1)
-    provider: Literal["deepseek"]
-    model: str = Field(min_length=1)
-    protocol: Literal["responses"]
-    structured_output_mode: Literal["json_schema"]
-    timeout_milliseconds: int = Field(ge=1000, le=600000)
-    max_output_tokens: int = Field(ge=1, le=100000)
-    reasoning_effort: Literal["none", "low", "medium", "high"]
 
 
 class GRPCOptions(Options):

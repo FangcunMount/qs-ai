@@ -56,7 +56,7 @@ def runtime_config(environment: dict) -> dict:
         "services": {name: {"environment": {"QS_AI_DATABASE_URL": url}} for name in ("api", "grpc")}
     }
     flags = {}
-    for name in ("EXECUTION", "GOVERNANCE", "PUBLICATIONS", "EVALUATION"):
+    for name in ("EXECUTION", "GOVERNANCE", "EVALUATION"):
         key = f"QS_AI_{name}_ENABLED"
         value = environment.get(key, "false")
         if value not in {"true", "false"}:
@@ -66,10 +66,9 @@ def runtime_config(environment: dict) -> dict:
     grpc_environment.update(
         {
             "QS_AI_GRPC__GOVERNANCE_ENABLED": str(flags["GOVERNANCE"]).lower(),
-            "QS_AI_GENERATION__USE_PUBLICATIONS": str(flags["PUBLICATIONS"]).lower(),
         }
     )
-    if flags["EXECUTION"] or flags["GOVERNANCE"] or flags["PUBLICATIONS"]:
+    if flags["EXECUTION"] or flags["GOVERNANCE"]:
         address = required(environment, "QS_AI_QS_ADDRESS")
         if (
             not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9.-]*:[0-9]{1,5}", address)

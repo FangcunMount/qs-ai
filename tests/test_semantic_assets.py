@@ -1,8 +1,6 @@
 import hashlib
 import json
-import os
 import shutil
-from pathlib import Path
 
 import pytest
 
@@ -34,19 +32,3 @@ def test_semantic_instructions_cannot_change_with_recomputed_manifest(tmp_path):
     (tmp_path / "manifest.json").write_text(json.dumps(manifest))
     with pytest.raises(ValueError, match="fingerprint"):
         load_semantic_assets(directory=tmp_path)
-
-
-def test_semantic_assets_match_original_qs_source_bytes():
-    source = os.getenv("QS_AI_PROMPT_SOURCE")
-    if not source:
-        pytest.skip("Requires original QS source")
-    assets = load_semantic_assets()
-    directory = Path(source) / "api/schema/interpretation"
-    assert (
-        assets.prompt_markdown.encode()
-        == (directory / "ai-explanation-semantic-evaluator-prompt-v2.md").read_bytes()
-    )
-    assert (
-        assets.output_schema_json.encode()
-        == (directory / "ai-explanation-semantic-evaluation-output-v1.schema.json").read_bytes()
-    )

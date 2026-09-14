@@ -1,8 +1,4 @@
 import json
-import os
-import shutil
-import subprocess
-import tempfile
 from dataclasses import replace
 from pathlib import Path
 
@@ -16,6 +12,7 @@ from qs_ai.application.interpretation.safety import check_safety
 from qs_ai.infrastructure.qs_server.output import QSOutputParser
 from qs_ai.infrastructure.qs_server.profiles import load_migrated_release
 from qs_ai.infrastructure.qs_server.prompts import load_prompt
+from tests.legacy_go_baseline import legacy_go_result
 
 A = "dimension:A%2F%E8%A7%82%E5%AF%9F"
 B = "dimension:B"
@@ -156,14 +153,10 @@ def test_raw_character_limit(prepared: PreparedExplanation) -> None:
         validate_output(" " * 8001, prepared, QSOutputParser())
 
 
-@pytest.mark.interop
 @pytest.mark.parametrize("safety", [False, True])
-def test_original_go_deterministic_validation_parity(
+def test_retained_go_deterministic_validation_parity(
     prepared: PreparedExplanation, safety: bool
 ) -> None:
-    source = os.environ.get("QS_AI_PROMPT_SOURCE")
-    if not source:
-        pytest.skip("QS_AI_PROMPT_SOURCE must name the pinned QS checkout")
     values = [candidate() for _ in range(3)]
     values[1]["integrated_insights"][0]["evidence_refs"][1]["ref"] = "dimension:unknown"
     values[2]["integrated_insights"][0]["evidence_refs"][1]["ref"] = "dimension:P"
@@ -178,19 +171,11 @@ def test_original_go_deterministic_validation_parity(
         "Candidates": values,
         "Safety": safety,
     }
-    checkout = Path(source).resolve()
-    with tempfile.TemporaryDirectory(prefix="qs_ai_output_test_", dir=checkout / "scripts") as name:
-        program = Path(name) / "main.go"
-        shutil.copyfile(Path(__file__).parent / "fixtures" / "go_output_validator.go", program)
-        result = subprocess.run(
-            ["go", "run", str(program)],
-            cwd=checkout,
-            input=json.dumps(request),
-            text=True,
-            capture_output=True,
-            check=True,
-            timeout=120,
-        )
+    # The old Go input encoded absent references as null; normalize only this approved delta.
+    for dimension in request["Input"]["facts"]["dimensions"]:
+        if dimension["standard_suggestion_refs"] == []:
+            dimension["standard_suggestion_refs"] = None
+    result = legacy_go_result(request)
     actual = []
     for value in values:
         try:

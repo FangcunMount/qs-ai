@@ -197,13 +197,13 @@ QS 转发路径为 `POST /internal/v2/interpretation/ai-workflow/evaluations/{ru
 
 ## 发布配置绑定执行
 
-`generation.use_publications` 默认 `false`，控制 QS `start_external` 新请求是否绑定已发布配置；它不启用模型调用。`generation.enabled`、治理/评测开关及生产准入仍独立控制。此开关不改变已有 request_id 的接受回执，也不改变已接收会话的执行路线。
+QS `start_external` 必须携带标准报告快照，并在接单事务中绑定已发布配置。不存在固定文件配置或选择发布绑定的开关；`generation.enabled`、治理/评测开关及生产准入仍独立控制。已接单任务和重复 request_id 使用原发布绑定。
 
-开启后，接单在同一 REPEATABLE READ 事务中解析可信标准报告的测评编码/版本，按具体版本、测评、通用选择器顺序解析发布配置。`0018_execution_configurations` 保存会话/证据摘要、publication_id、发布正文摘要、原指针版本及查询选择器，关联原不可变发布清单。缺少适用配置、资产不匹配或输入不满足规范时回滚整个接单，不能留下接受回执或静默回落 YAML。
+接单在同一 REPEATABLE READ 事务中解析可信标准报告的测评编码/版本，按具体版本、测评、通用选择器顺序解析发布配置。`0018_execution_configurations` 保存会话/证据摘要、publication_id、发布正文摘要、原指针版本及查询选择器，关联原不可变发布清单。缺少适用配置、资产不匹配或输入不满足规范时回滚整个接单，不能留下接受回执或静默回落 YAML。
 
 新会话使用 `qs-published-snapshot-v1`。worker 按该绑定读取五项原始生成资产和历史发布审计，构造 Profile/Prompt/模型参数/输入输出规范；发送前和成果入库前均从持久记录复核，后者也重建已校验成果以防内容或版本替换。FrozenGeneration 保留 publication_id 和 manifest_fingerprint，恢复只能使用同一冻结请求和原调用回执。指针替换、停用或回退不影响已接受任务，未知调用结果仍不自动重发。
 
-旧 `qs-snapshot-v1` 继续通过固定迁移基线执行，保留旧输入与持久调用恢复行为；部署回退不得运行不识别新工作流版本的旧引擎。单独关闭 use_publications 仅停止新请求绑定，已有绑定任务仍由支持该版本的 worker 处理。生产只读保留 0018 数据，迁移 downgrade 仅用于空的隔离验证库。
+执行只接受 `qs-published-snapshot-v1`；旧工作流或损坏的发布绑定明确失败，不读取迁移文件兜底。评测模型执行同样必须具备完整冻结资产清单。原始资产指纹和迁移账本保留。发布前必须完成旧在途任务盘点与验收，不能直接退回依赖旧表的引擎。
 
 当前仅支持既有 participant scale/score_range、DeepSeek Responses/json_schema 路线。业务配置来自冻结资产，访问地址和凭据来自私有部署设置。接单开关仍关闭；新输入构造版本的独立套件绑定已实现，必须通过新 Run 重新评测和批准；任意案例编辑、真实管理页面/生成/回退验收尚未完成，不能将本地发布执行测试作为 M3 验收。
 
