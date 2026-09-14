@@ -7,6 +7,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from scripts.retirement.policy import COLLECTIONS, EVENTS, SHARED_TABLES, TECHNICAL_TABLES
+from scripts.retirement.prompt_policy import TEMPLATE_ID, VERSIONS
 
 
 class Stop(RuntimeError):
@@ -41,7 +42,12 @@ def read(path: Path):
 
 def summary(snapshot):
     return {
-        key: {name: value for name, value in item.items() if name != "rows"}
+        key: {
+            **{name: value for name, value in item.items() if name != "rows"},
+            "selected_ids": [
+                row["id"] for row in item["rows"] if isinstance(row, dict) and "id" in row
+            ],
+        }
         for key, item in snapshot.items()
     }
 
@@ -63,6 +69,7 @@ def plan(directory: Path, adapters):
             "events": EVENTS,
             "sql_message_tables": SHARED_TABLES,
             "sql_inventory_only": TECHNICAL_TABLES,
+            "retired_prompts": {"template_id": TEMPLATE_ID, "versions": VERSIONS},
         },
         "created_at": datetime.now(UTC).isoformat(),
         "targets": {a.name: a.identity for a in adapters},

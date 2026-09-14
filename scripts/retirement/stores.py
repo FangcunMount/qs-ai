@@ -6,6 +6,7 @@ from uuid import uuid4
 
 from scripts.retirement.core import Stop, digest
 from scripts.retirement.policy import COLLECTIONS, SHARED_TABLES, TECHNICAL_TABLES, old_event
+from scripts.retirement.prompt_policy import candidate, reference_tables, unreferenced
 
 
 def record(action, rows, protected, metadata):
@@ -199,6 +200,15 @@ class MySQLStore:
                 (self.database,),
             )
             names = [row["TABLE_NAME"] for row in cursor.fetchall()]
+            tables = {}
+            for name in names:
+                cursor.execute("SELECT * FROM " + quoted(name))
+                tables[name] = list(cursor.fetchall())
+            prompt_keys = (
+                unreferenced(tables.get("prompt_assets", []), tables)
+                if self.name == "ai_mysql"
+                else set()
+            )
             for name in names:
                 cursor.execute("SHOW CREATE TABLE " + quoted(name))
                 ddl = cursor.fetchone().get("Create Table")
@@ -217,12 +227,13 @@ class MySQLStore:
                 references = list(cursor.fetchall())
                 action = (
                     "delete_rows"
-                    if self.name == "qs_mysql" and name in SHARED_TABLES
+                    if (self.name == "qs_mysql" and name in SHARED_TABLES)
+                    or (self.name == "ai_mysql" and name == "prompt_assets" and not references)
                     else "preserve"
                 )
-                cursor.execute("SELECT * FROM " + quoted(name))
                 selected, protected = [], []
-                for row in cursor.fetchall():
+                retained = []
+                for row in tables[name]:
                     columns = list(row)
                     statement = (
                         "INSERT INTO "
@@ -234,16 +245,29 @@ class MySQLStore:
                         + ")"
                     )
                     encoded = cursor.mogrify(statement, tuple(row.values()))
-                    target = action == "delete_rows" and old_event(
-                        row,
-                        payload=name != "domain_event_outbox",
+                    prompt = self.name == "ai_mysql" and name == "prompt_assets"
+                    identity = (
+                        [row.get("template_id"), row.get("version")] if prompt else row.get("id")
                     )
+                    target = action == "delete_rows" and (
+                        tuple(identity) in prompt_keys
+                        if prompt
+                        else old_event(row, payload=name != "domain_event_outbox")
+                    )
+                    if prompt and candidate(row) and not target:
+                        retained.append(
+                            {
+                                "id": identity,
+                                "reason": "foreign_key_reference_or_incomplete_identity",
+                                "reference_tables": reference_tables(row, tables),
+                            }
+                        )
                     if target:
-                        if references or not isinstance(row.get("id"), int):
+                        if references or (not prompt and not isinstance(identity, int)):
                             raise Stop(
                                 "selected SQL records have references or unsupported identity"
                             )
-                        selected.append({"id": row["id"], "insert": encoded})
+                        selected.append({"id": identity, "insert": encoded})
                     else:
                         protected.append(encoded)
                 selected.sort(key=lambda row: row["id"])
@@ -258,6 +282,7 @@ class MySQLStore:
                         "technical_inventory_only": name in TECHNICAL_TABLES,
                     },
                 )
+                result[name]["retained_candidates"] = retained
         return result
 
     def restore(self, snapshot, database):
@@ -308,9 +333,10 @@ class MySQLStore:
         self.connection.begin()
         try:
             with self.connection.cursor() as cursor:
-                # Range-lock every shared table, including nonselected rows, while deleting.
-                for name in SHARED_TABLES:
-                    if name in snapshot and self.name == "qs_mysql":
+                # Lock all AI reference tables; keep the full maintenance write pause too.
+                lock_names = snapshot if self.name == "ai_mysql" else SHARED_TABLES
+                for name in sorted(lock_names):
+                    if name in snapshot:
                         cursor.execute("SELECT * FROM " + quoted(name) + " FOR UPDATE")
                         cursor.fetchall()
                 if self.snapshot() != snapshot:
@@ -318,10 +344,19 @@ class MySQLStore:
                 for name, item in snapshot.items():
                     if item["action"] == "preserve":
                         continue
-                    if self.name != "qs_mysql" or name not in SHARED_TABLES:
+                    prompt = self.name == "ai_mysql" and name == "prompt_assets"
+                    if not prompt and (self.name != "qs_mysql" or name not in SHARED_TABLES):
                         raise Stop("SQL target outside fixed whitelist")
                     for row in item["rows"]:
-                        cursor.execute("DELETE FROM " + quoted(name) + " WHERE id=%s", (row["id"],))
+                        if prompt:
+                            cursor.execute(
+                                "DELETE FROM prompt_assets WHERE template_id=%s AND version=%s",
+                                tuple(row["id"]),
+                            )
+                        else:
+                            cursor.execute(
+                                "DELETE FROM " + quoted(name) + " WHERE id=%s", (row["id"],)
+                            )
                         if cursor.rowcount != 1:
                             raise Stop("SQL deletion count mismatch")
             self.verify_deleted(snapshot)
