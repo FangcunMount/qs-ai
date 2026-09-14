@@ -139,3 +139,26 @@ def test_failed_partial_restore_removes_only_its_scratch_database(stores, store_
             cursor.execute("SHOW DATABASES")
             assert cursor.fetchall() == before
     assert store.snapshot() == original
+
+
+def test_incoming_cross_database_reference_prevents_deletion(stores):
+    qs, ai = stores[1:]
+    with ai.connection.cursor() as cursor:
+        cursor.execute(
+            "CREATE TABLE retirement_reference (id BIGINT PRIMARY KEY, "
+            f"FOREIGN KEY (id) REFERENCES `{qs.database}`.domain_event_outbox(id) "
+            "ON DELETE CASCADE)"
+        )
+        cursor.execute("INSERT INTO retirement_reference VALUES (1)")
+    try:
+        with pytest.raises(core.Stop, match="references"):
+            qs.snapshot()
+        with qs.connection.cursor() as cursor:
+            cursor.execute("SELECT COUNT(*) AS n FROM domain_event_outbox")
+            assert cursor.fetchone()["n"] == 8
+        with ai.connection.cursor() as cursor:
+            cursor.execute("SELECT COUNT(*) AS n FROM retirement_reference")
+            assert cursor.fetchone()["n"] == 1
+    finally:
+        with ai.connection.cursor() as cursor:
+            cursor.execute("DROP TABLE retirement_reference")

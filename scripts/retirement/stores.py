@@ -205,12 +205,14 @@ class MySQLStore:
                 if ddl is None:
                     raise Stop("SQL views require separate review")
                 cursor.execute(
-                    "SELECT TABLE_NAME, COLUMN_NAME, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME "
-                    "FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA=%s "
-                    "AND REFERENCED_TABLE_NAME IS NOT NULL "
-                    "AND (TABLE_NAME=%s OR REFERENCED_TABLE_NAME=%s) "
-                    "ORDER BY TABLE_NAME, COLUMN_NAME",
-                    (self.database, name, name),
+                    "SELECT TABLE_SCHEMA, TABLE_NAME, COLUMN_NAME, REFERENCED_TABLE_SCHEMA, "
+                    "REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME "
+                    "FROM information_schema.KEY_COLUMN_USAGE "
+                    "WHERE REFERENCED_TABLE_NAME IS NOT NULL AND "
+                    "((TABLE_SCHEMA=%s AND TABLE_NAME=%s) OR "
+                    "(REFERENCED_TABLE_SCHEMA=%s AND REFERENCED_TABLE_NAME=%s)) "
+                    "ORDER BY TABLE_SCHEMA, TABLE_NAME, COLUMN_NAME",
+                    (self.database, name, self.database, name),
                 )
                 references = list(cursor.fetchall())
                 action = (

@@ -6,7 +6,7 @@
 
 策略位于 [policy.py](../scripts/retirement/policy.py)。只允许删除九个明确的旧 AI Mongo 集合，以及 Mongo `domain_event_outbox`、MySQL `domain_event_outbox` / `event_delivery_dead_letter` / `retry_event_hold` 内六种完整旧事件名称对应的记录。后两表按 QS 消息信封顶层 `type` 匹配，无法识别或不合法的正文保留。SQL 删除使用清单中的原始主键；共享表保留结构及其他消息。
 
-所有其他集合和表均盘点其数量、内容摘要及结构；SQL 同时记录外键关系，选中记录存在外键时停止。技术表全部只盘点，不自动删除：`checkpoint_leases` 曾承载生产 fence，应先经过 0028 原样迁成 `execution_leases`；不能因为暂时零行而删除。其余 LangGraph 技术表若在其他环境发现，另行确认来源；当前没有可批准删除的实际对象。没有明确调试记录 ID 清单时，不删除 qs-ai 业务数据。
+所有其他集合和表均盘点其数量、内容摘要及结构；SQL 同时记录本库和跨库外键关系，选中记录存在外键时停止。技术表全部只盘点，不自动删除：`checkpoint_leases` 曾承载生产 fence，应先经过 0028 原样迁成 `execution_leases`；不能因为暂时零行而删除。其余 LangGraph 技术表若在其他环境发现，另行确认来源；当前没有可批准删除的实际对象。没有明确调试记录 ID 清单时，不删除 qs-ai 业务数据。
 
 工具不连接 NSQ 或 Redis，不清空共享 Topic/数据库，不改迁移账本或共享凭据。新链路及标准报告数据全部受保护。备份仅包含待删数据及恢复结构，不复制所有业务正文，但会读取受保护数据计算摘要；应在无相关写入的维护窗口执行，数据变动则重做清单，不放宽比较。
 
@@ -17,7 +17,7 @@
 - `M5_QS_MONGO_URI` 与 `M5_QS_MONGO_DATABASE`。
 - `M5_QS_MYSQL_URL` 与 `M5_AI_MYSQL_URL`，格式为 SQLAlchemy MySQL URL。
 
-MySQL URL 不支持查询选项，远程连接应通过受保护隧道；Mongo 可使用其标准 TLS URI。账号需能读取目标、创建并删除随机恢复验证数据库，并具备指定对象的删除权限。正式执行前先用只读账号盘点；写账号切换不会改变目标身份摘要。
+MySQL URL 不支持查询选项，远程连接应通过受保护隧道；Mongo 可使用其标准 TLS URI。账号需能读取目标及相关跨库外键元数据、创建并删除随机恢复验证数据库，并具备指定对象的删除权限。正式执行前先用只读账号盘点；写账号切换不会改变目标身份摘要。
 
 ```sh
 # 目录必须尚不存在，且在所有 Git 工作区之外。
