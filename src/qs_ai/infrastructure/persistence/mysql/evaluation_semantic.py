@@ -273,6 +273,7 @@ async def complete_semantic(
             list(dispatches),
             list(semantics),
             progress.get("result_unknown_resolutions", []),
+            progress.get("semantic_contract_recoveries", []),
         )
         preflight = progress["preflight"]
         action = next_action(

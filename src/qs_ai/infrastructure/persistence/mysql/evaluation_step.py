@@ -3,6 +3,7 @@
 import hashlib
 import json
 from collections.abc import Callable
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from typing import Any, Protocol
 from uuid import UUID, uuid4
@@ -17,6 +18,7 @@ from qs_ai.application.interpretation.provider import ModelResponse, ModelRoute,
 from qs_ai.application.interpretation.route_assets import RouteAssets
 from qs_ai.application.interpretation.schema_assets import SchemaAssets
 from qs_ai.domain.evaluation.completion import GenerationCompletion
+from qs_ai.domain.evaluation.contract_recovery import RECOVERY_INSTRUCTION, decode_recoveries
 from qs_ai.domain.evaluation.failure import ClassifiedFailure
 from qs_ai.domain.evaluation.identity import EvidenceReleaseIdentity, FrozenContractRef
 from qs_ai.domain.evaluation.preflight import AssertionReceipt
@@ -137,6 +139,22 @@ async def execute_step(
             messages = prepare_semantic_messages(
                 release, generation, assertions, prepared=prepared, frozen_suite=suite
             )
+            progress = (
+                await db.execute(
+                    select(evaluation_runs.c.progress_json).where(
+                        evaluation_runs.c.run_id == str(run_id)
+                    )
+                )
+            ).scalar_one()
+            recoveries = decode_recoveries(progress.get("semantic_contract_recoveries", []))
+            # Preparation validated the ledger and exact next attempt under CAS.
+            # Keep frozen prompt bytes intact; the separate v1 authorization owns this supplement.
+            if cp.execution_ordinal == 2 and any(
+                r.candidate_id == cp.candidate_id for r in recoveries
+            ):
+                messages = replace(
+                    messages, task_message=messages.task_message + "\n" + RECOVERY_INSTRUCTION
+                )
             schema = json.loads(load_semantic_assets().output_schema_json)
         state = await reserve_dispatch(db, run_id, state.version, owner, at)
         # This commit must finish before control reaches the external gateway.
