@@ -16,14 +16,7 @@ def prompt_directory() -> Path:
 
 def load_prompt(template_id: str, version: str, *, directory: Path | None = None) -> PromptPackage:
     # Explicit supported versions also prevent path traversal; never silently use latest.
-    if template_id != "cross-dimension-participant-scale" or version not in {
-        "v1",
-        "v2",
-        "v3",
-        "v4",
-        "v5",
-        "v6",
-    }:
+    if template_id != "cross-dimension-participant-scale" or version != "v6":
         raise InvalidPrompt("Unknown Prompt identity")
     directory = directory if directory is not None else prompt_directory()
     filename = f"{version}.json"

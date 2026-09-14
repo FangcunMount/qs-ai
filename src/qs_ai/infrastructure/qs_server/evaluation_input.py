@@ -19,8 +19,6 @@ from qs_ai.infrastructure.qs_server.output import schema_directory
 def validate_suite_input(
     suite: FrozenSuite, reference: FrozenContractRef, payload: dict[str, Any]
 ) -> None:
-    if suite.input_construction_version is None:
-        return  # Legacy frozen Run behavior and fingerprints stay unchanged.
     if (
         suite.input_construction_version != PUBLISHED_INPUT_VERSION
         or suite.input_schema != reference
@@ -46,9 +44,8 @@ def validate_suite_input(
 
 
 def validate_suite_inputs(suite: FrozenSuite, reference: FrozenContractRef) -> None:
-    if suite.input_construction_version is not None:
-        for case in json.loads(suite.definition_json)["cases"]:
-            # The single preflight case intentionally violates dimension bounds
-            # and must be rejected before dispatch by run_preflight.
-            if case["stage"] == "generation":
-                validate_suite_input(suite, reference, case["provider_payload"])
+    for case in json.loads(suite.definition_json)["cases"]:
+        # The single preflight case intentionally violates dimension bounds
+        # and must be rejected before dispatch by run_preflight.
+        if case["stage"] == "generation":
+            validate_suite_input(suite, reference, case["provider_payload"])

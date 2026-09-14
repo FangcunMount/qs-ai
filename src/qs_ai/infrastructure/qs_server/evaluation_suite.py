@@ -24,10 +24,13 @@ V6_PUBLISHED = FrozenContractRef(
     "sha256:42afcc73db6fa272ab54aa17bcb9b30dc8797a382ee9329d9453aa9c9953e382",
 )
 PUBLISHED_INPUT_VERSION = "qs-published-snapshot-v1"
-SUITE_FILES = {
+BASELINE_SUITE_FILES = {
     V6: "ai-explanation-prompt-evaluation-cases-v6.json",
+}
+SUITE_FILES = {
     V6_PUBLISHED: "qs-ai-published-input-cases-v1.json",
 }
+RETAINED_SUITE_FILES = {**BASELINE_SUITE_FILES, **SUITE_FILES}
 
 
 @dataclass(frozen=True)
@@ -56,10 +59,10 @@ def load_suite(
     definition_json: str | None = None,
 ) -> FrozenSuite:
     if definition_json is None:
-        if reference not in SUITE_FILES:
+        if reference not in RETAINED_SUITE_FILES:
             raise ValueError("Unsupported frozen suite identity")
         directory = directory if directory is not None else evaluation_directory()
-        raw = (directory / SUITE_FILES[reference]).read_bytes()
+        raw = (directory / RETAINED_SUITE_FILES[reference]).read_bytes()
     else:
         raw = definition_json.encode()
     if not 1 <= len(raw) <= 524288:
@@ -70,7 +73,7 @@ def load_suite(
     if (definition["suite_id"], definition["suite_version"]) != (reference.id, reference.version):
         raise ValueError("Frozen suite identity mismatch")
     manifest = None
-    if reference not in SUITE_FILES:
+    if reference not in RETAINED_SUITE_FILES:
         manifest = validate_native(definition, raw.decode())
     generation = tuple(c["case_id"] for c in definition["cases"] if c["stage"] == "generation")
     preflight = tuple(c["case_id"] for c in definition["cases"] if c["stage"] == "preflight")
@@ -193,7 +196,7 @@ def derive_suite(
     reference = FrozenContractRef(
         identity, version, "sha256:" + hashlib.sha256(raw.encode()).hexdigest()
     )
-    if (identity, version) in {(ref.id, ref.version) for ref in SUITE_FILES}:
+    if (identity, version) in {(ref.id, ref.version) for ref in RETAINED_SUITE_FILES}:
         raise ValueError("Retained suite identity cannot be replaced")
     return load_suite(reference, definition_json=raw)
 

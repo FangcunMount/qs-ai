@@ -22,14 +22,16 @@ async def test_reconciliation_detects_missing_content_and_unbundled_reference():
     by_ref[(original.template_id, original.version)] = replace(
         original, package_json=raw, package_sha256=hashlib.sha256(raw.encode()).hexdigest()
     )
-    del by_ref[(expected_prompts[1].template_id, expected_prompts[1].version)]
     profile_store.get.return_value = None
     failures = await audit_assets(profile_store, prompt_store, expected_profiles, expected_prompts)
     assert [(f.kind, f.reason) for f in failures] == [
         ("prompt", "content_mismatch"),
-        ("prompt", "missing"),
         ("profile", "missing"),
     ]
+    by_ref.clear()
+    assert (await audit_assets(profile_store, prompt_store, expected_profiles, expected_prompts))[
+        0
+    ].reason == "missing"
     profile_store.get.return_value = expected_profiles[0]
     failures = await audit_assets(profile_store, prompt_store, expected_profiles, ())
     assert [f.reason for f in failures] == ["prompt_not_in_baseline"]
@@ -120,8 +122,8 @@ async def test_referenced_audit_ignores_retired_prompts_but_still_blocks_missing
     assert selected["current_production_inventory_verified"] is False
     assert selected["activated"] is False
     full = await cli.run()
-    assert full["audit"] == "mismatch" and full["prompts_checked"] == 6
-    assert len(full["mismatches"]) == 5
+    assert full["audit"] == "matched" and full["prompts_checked"] == 1
+    assert full["mismatches"] == []
     prompt_store.get.side_effect = None
     prompt_store.get.return_value = None
     missing = await cli.run(referenced_only=True)

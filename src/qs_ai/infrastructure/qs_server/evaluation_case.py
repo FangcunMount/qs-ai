@@ -10,17 +10,6 @@ from qs_ai.application.interpretation.release import ExplanationRelease
 from qs_ai.domain.evaluation.identity import EvidenceReleaseIdentity
 from qs_ai.infrastructure.qs_server.evaluation_input import validate_suite_input
 from qs_ai.infrastructure.qs_server.evaluation_suite import FrozenSuite, resolve_suite, suite_prompt
-from qs_ai.infrastructure.qs_server.profiles import load_migrated_release
-from qs_ai.infrastructure.qs_server.prompts import load_prompt
-
-
-def prepare_evaluation_case(release: EvidenceReleaseIdentity, case_id: str) -> PreparedExplanation:
-    return prepare_asset_evaluation_case(
-        release,
-        case_id,
-        load_migrated_release(release.profile.id, release.profile.version),
-        load_prompt(release.prompt.id, release.prompt.version),
-    )
 
 
 def prepare_asset_evaluation_case(

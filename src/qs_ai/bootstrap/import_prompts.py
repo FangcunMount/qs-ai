@@ -17,7 +17,7 @@ def baseline_assets() -> tuple[str, tuple[PromptAsset, ...]]:
     manifest = json.loads((directory / "manifest.json").read_bytes())
     assets = []
     template_id = "cross-dimension-participant-scale"
-    for version in ("v1", "v2", "v3", "v4", "v5", "v6"):
+    for version in ("v6",):
         package = load_prompt(template_id, version, directory=directory)
         filename = f"{version}.json"
         raw = (directory / filename).read_bytes().decode("utf-8")

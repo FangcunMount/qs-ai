@@ -7,7 +7,7 @@ import pytest
 from qs_ai.domain.evaluation.preflight import AssertionReceipt
 from qs_ai.infrastructure.qs_server.evaluation_assertions import assertion_inventory
 from qs_ai.infrastructure.qs_server.semantic_assets import load_semantic_assets
-from qs_ai.infrastructure.qs_server.semantic_input import prepare_semantic_messages
+from tests.evaluation_helpers import prepare_semantic_messages
 from tests.test_evaluation_case import release
 from tests.test_generation_completion_assets import assets
 

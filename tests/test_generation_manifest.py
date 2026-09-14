@@ -165,13 +165,13 @@ async def complete_release(evaluation_release):
         load_execution_policy,
         load_gate_policy,
     )
-    from qs_ai.infrastructure.qs_server.evaluation_suite import V6
+    from qs_ai.infrastructure.qs_server.evaluation_suite import V6_PUBLISHED
     from qs_ai.infrastructure.qs_server.semantic_assets import load_semantic_assets
 
     policy, gate, semantic = load_execution_policy(), load_gate_policy(), load_semantic_assets()
     return replace(
         evaluation_release,
-        suite=V6,
+        suite=V6_PUBLISHED,
         execution_policy=FrozenContractRef(policy.policy_id, policy.version, policy.fingerprint),
         gate_policy=gate.reference,
         semantic_prompt=semantic.prompt,

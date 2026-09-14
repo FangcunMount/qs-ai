@@ -1,3 +1,5 @@
+当前运行资源只保留 v6。`manifest.json` 保留原始 v1–v6 导出的来源记录，实际保留文件及摘要见 `../retained-assets.json`；初始化和对账不再导入历史版本。
+
 # QS 可执行 Prompt 迁移资产
 
 从固定 QS 提交的 Go Catalog 导出 v1–v6，包含 SystemMessage、TaskTemplate、DataPreamble、白名单占位符与原始 PromptRef。来源与文件校验和见 manifest.json；原指纹语义保持不变，文件 SHA256 另行记录。
