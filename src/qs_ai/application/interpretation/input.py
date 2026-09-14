@@ -79,7 +79,12 @@ def _score(value: dict[str, Any] | None) -> dict[str, Any] | None:
 def _level(value: dict[str, Any] | None) -> dict[str, Any] | None:
     if value is None:
         return None
-    return {key: value[key] for key in ("code", "label", "severity")}
+    result = {key: value[key] for key in ("code", "label", "severity")}
+    # QS can persist a standard level code without a display label. Preserve that
+    # exact code as its label; do not infer a translation or risk severity.
+    if result["label"] == "":
+        result["label"] = _plain(result["code"], 2000)
+    return result
 
 
 def _norm(value: dict[str, Any] | None) -> dict[str, Any] | None:

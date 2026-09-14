@@ -38,3 +38,32 @@ def test_modified_schema_fails_verification(tmp_path):
     path.write_bytes(path.read_bytes() + b" ")
     with pytest.raises(ValueError):
         load_input_schema(directory=tmp_path)
+
+
+@pytest.mark.parametrize("code", ["low", "medium", "high", "custom_standard_level"])
+def test_code_only_report_level_keeps_source_code_without_inventing_severity(code):
+    release = load_migrated_release("participant-scale-score-range-default", "v6")
+    snapshot = json.loads((Path(__file__).parent / "fixtures/report_snapshot.json").read_text())
+    snapshot["dimensions"][0]["level"] = {"code": code, "label": "", "severity": ""}
+    result = assemble_input(json.dumps(snapshot), release.input_policy)
+    document = json.loads(result.canonical_json)
+    Draft202012Validator(load_input_schema()).validate(document)
+    source_code = snapshot["dimensions"][0]["code"]
+    level = next(d["level"] for d in document["facts"]["dimensions"] if d["code"] == source_code)
+    assert level == {"code": code, "label": code, "severity": ""}
+    assert snapshot["dimensions"][0]["level"]["label"] == ""
+
+
+def test_explicit_report_level_label_and_severity_are_preserved():
+    release = load_migrated_release("participant-scale-score-range-default", "v6")
+    snapshot = json.loads((Path(__file__).parent / "fixtures/report_snapshot.json").read_text())
+    level = {"code": "high", "label": "标准报告的原始等级", "severity": "low"}
+    snapshot["dimensions"][0]["level"] = level
+    result = assemble_input(json.dumps(snapshot), release.input_policy)
+    document = json.loads(result.canonical_json)
+    Draft202012Validator(load_input_schema()).validate(document)
+    source_code = snapshot["dimensions"][0]["code"]
+    assert (
+        next(d["level"] for d in document["facts"]["dimensions"] if d["code"] == source_code)
+        == level
+    )
