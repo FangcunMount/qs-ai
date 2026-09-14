@@ -484,3 +484,33 @@ async def test_manual_retry_preserves_accepted_publication_and_completes_origina
     )
     assert event["request_id"] == key and event["status"] == "completed" and event["artifact_json"]
     assert failed.calls == model.calls == 1
+
+
+async def test_code_only_levels_admit_replay_and_recover_original_snapshot(ready, kit):
+    from qs_ai.domain.interpretation.model import Fact
+
+    tx, scope, command, at = ready
+    await MySQLPublications(tx).apply(scope, command, at)
+    _, evidence, _ = bound_case()
+    original = evidence.items[0]
+    snapshot = json.loads(original.facts[0].value)
+    for dimension in snapshot["dimensions"]:
+        dimension["level"] = {"code": "medium", "label": "", "severity": ""}
+    raw = json.dumps(snapshot)
+    item = replace(original, facts=(Fact("standard_report", raw),))
+    service = InterpretationService(MySQLUnitOfWorkFactory(kit.transactions), kit.source)
+    key = str(uuid4())
+    receipt = await service.start_external(kit.actor, "7", ("42",), "解读", key, (item,))
+    assert receipt.status == "queued"
+    assert await service.start_external(kit.actor, "7", ("42",), "解读", key, (item,)) == receipt
+    claim = await kit.store.claim(30)
+    assert claim is not None
+    frozen = await kit.store.evidence(claim)
+    assert frozen.items[0].facts[0].value == raw
+    config = await MySQLExecutionConfigurations(kit.transactions).get(claim, frozen)
+    prepared = prepare_explanation(claim.session, frozen, config.release, config.package)
+    config.validate_input(prepared.assembled_input.canonical_json)
+    assert all(
+        dimension["level"] == {"code": "medium", "label": "medium", "severity": ""}
+        for dimension in json.loads(prepared.assembled_input.canonical_json)["facts"]["dimensions"]
+    )
