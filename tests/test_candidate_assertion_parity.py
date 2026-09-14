@@ -3,8 +3,8 @@ from copy import deepcopy
 
 from qs_ai.infrastructure.qs_server.candidate_assertions import evaluate_candidate_assertions
 from qs_ai.infrastructure.qs_server.evaluation_assertions import assertion_inventory
-from qs_ai.infrastructure.qs_server.evaluation_case import prepare_evaluation_case
 from qs_ai.infrastructure.qs_server.evaluation_suite import V6
+from tests.evaluation_helpers import prepare_evaluation_case
 from tests.legacy_go_baseline import legacy_go_result
 from tests.test_evaluation_case import release
 from tests.test_output_validation import candidate

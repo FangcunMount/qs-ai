@@ -5,7 +5,6 @@ from datetime import UTC, datetime
 
 import pytest
 
-from qs_ai.infrastructure.qs_server.evaluation_case import prepare_evaluation_case
 from qs_ai.infrastructure.qs_server.evaluation_input import (
     validate_suite_input,
     validate_suite_inputs,
@@ -17,6 +16,7 @@ from qs_ai.infrastructure.qs_server.evaluation_suite import (
     load_suite,
 )
 from qs_ai.infrastructure.qs_server.preflight import run_preflight
+from tests.evaluation_helpers import prepare_evaluation_case
 from tests.test_evaluation_case import release
 
 
@@ -43,8 +43,13 @@ def test_versioned_suite_prepares_the_same_case_under_explicit_schema(index):
     case_id = f"PROMPT-EVAL-{index:03}"
     # Existing V6 data already uses empty arrays. Only its new contract identity
     # changes, not the Prompt or synthetic case facts sent to the model.
-    assert prepare_evaluation_case(bound, case_id) == prepare_evaluation_case(release(), case_id)
-    assert bound.fingerprint() != release().fingerprint()
+    prepared = prepare_evaluation_case(bound, case_id)
+    original = next(
+        c for c in json.loads(load_suite(V6).definition_json)["cases"] if c["case_id"] == case_id
+    )
+    assert json.loads(prepared.assembled_input.provider_payload) == original["provider_payload"]
+    with pytest.raises(ValueError, match="input contract"):
+        prepare_evaluation_case(replace(bound, suite=V6), case_id)
 
 
 def test_preflight_still_rejects_without_a_provider_call():
@@ -72,4 +77,10 @@ def test_new_input_contract_rejects_schema_payload_and_version_drift(damage):
 
 def test_new_suite_cannot_render_with_legacy_placeholder_schema_reference():
     with pytest.raises(ValueError, match="input contract"):
-        prepare_evaluation_case(replace(release(), suite=V6_PUBLISHED), "PROMPT-EVAL-001")
+        prepare_evaluation_case(
+            replace(
+                release(),
+                input_schema=replace(release().input_schema, fingerprint="sha256:" + "a" * 64),
+            ),
+            "PROMPT-EVAL-001",
+        )

@@ -1,0 +1,31 @@
+{
+  "schema": "qs-ai-retained-assets/v1",
+  "purpose": "Current v6 runtime and immutable verification dependencies; source manifests are unchanged full-export provenance.",
+  "directories": {
+    "prompts": {
+      "manifest.json": "556f697faf9e79cbc23715e2678345590d3ad8cdd3a8c282bcc606ad21b4e07f",
+      "published-profile-baseline.json": "2fda83915e3ba053a656393fde952b3ac398c407af03407aa5e25b09dec35ec8",
+      "v6.json": "aae608db7183b9e3ed00d1cdbf39fb8ad73faaa809f312f47df52212b7991c3b"
+    },
+    "evaluation": {
+      "ai-explanation-evaluation-execution-policy-v1.schema.json": "2b2df4b33b3c628e677b42a1cb7653627ff7ead9ba610f8e16d9f8eaf179090a",
+      "ai-explanation-prompt-evaluation-cases-v6.json": "fbb84e4f2ba17f59e734d609ce1132a2704af8778048a79f08454115c84e115b",
+      "ai-explanation-release-gate-policy-v1.schema.json": "a3d2b7041377b3280185d45cf10f1323681e6f0798834c63a954b6341969352b",
+      "ai-explanation-semantic-evaluation-output-v1.schema.json": "dc0f9a6376bc2f12fe3af244f33f7d42384f1885488043ce5912447f091ad8c5",
+      "ai-explanation-semantic-evaluator-prompt-v2.md": "1789c53a44e1be065f5d2691faacaeb65a0a264f9fb0107138c8c8004a8ab572",
+      "manifest.json": "ed7d6e77dfc865f9524250da76cbfab470c6803b51096f7fd78c7bcef3308a6d",
+      "policies.json": "9e60d6c8dedbb9f682120e2c27a506df0b4e9225e573ed1380a32755c012e505",
+      "qs-ai-published-input-cases-v1.json": "42afcc73db6fa272ab54aa17bcb9b30dc8797a382ee9329d9453aa9c9953e382"
+    },
+    "routes": {
+      "balanced_text_v1-v8.json": "38568eb28fbfd57dcde2a4dd5deae7580124d3dc58df776e6a19640de3188695",
+      "manifest.json": "3f5eac218102d02ceff2abb5c3ecf089f5dc25e99dcfc7a84ff2327c04a122e5",
+      "semantic_judge_v1-v5.json": "94bebc5dcacedc4908eab29327f6fcb7ae6bbcb7663054568d0bf520f697e784"
+    },
+    "schemas": {
+      "ai-explanation-input-v1.schema.json": "b09a06cf80befdbb4a7968b8baa8865cd5afa28777c3858c6517a23609b1259a",
+      "ai-explanation-output-v1.schema.json": "103cc2efc7abef6722729b30d1591f6e19ed2164f37901f7f5d789982fbb2744",
+      "manifest.json": "06236133252501995ea5380803bbfef31e732c0086f2ef1c615b7a44a5aa83da"
+    }
+  }
+}

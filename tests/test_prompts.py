@@ -50,7 +50,7 @@ def payload(**context: object) -> str:
     )
 
 
-@pytest.mark.parametrize("version", [f"v{i}" for i in range(1, 7)])
+@pytest.mark.parametrize("version", ["v6"])
 def test_all_migrated_packages_render_without_moving_facts_into_instructions(
     policy: RenderPolicy,
     version: str,
@@ -70,7 +70,7 @@ def test_all_migrated_packages_render_without_moving_facts_into_instructions(
 
 def test_profile_identity_must_match(policy: RenderPolicy) -> None:
     with pytest.raises(InvalidPrompt, match="identity"):
-        render_prompt(load_prompt(TEMPLATE, "v5"), policy, payload())
+        render_prompt(replace(load_prompt(TEMPLATE, "v6"), version="v5"), policy, payload())
 
 
 @pytest.mark.parametrize(
@@ -149,7 +149,7 @@ def test_loader_rejects_modified_asset(tmp_path: Path) -> None:
         load_prompt(TEMPLATE, "v6", directory=path.parent)
 
 
-@pytest.mark.parametrize("version", ["latest", "v7", "../v6"])
+@pytest.mark.parametrize("version", ["v1", "v2", "v3", "v4", "v5", "latest", "v7", "../v6"])
 def test_no_implicit_version_or_path_traversal(version: str) -> None:
     with pytest.raises(InvalidPrompt):
         load_prompt(TEMPLATE, version)
@@ -160,9 +160,10 @@ def test_retained_go_renderer_parity(policy: RenderPolicy, focus: list[str]) -> 
     baseline = json.loads((prompt_directory() / "published-profile-baseline.json").read_text())
     raw = payload(focus_areas=focus)
     request = {"Definition": baseline["profiles"][0]["definition"], "Payload": json.loads(raw)}
-    # Go internal-package imports require a temporary program inside the QS module.
+    # Preserve the original Go capture; only the retained v6 is executable.
     result = legacy_go_result(request)
-    for version, original in json.loads(result.stdout).items():
+    for version in ("v6",):
+        original = json.loads(result.stdout)[version]
         messages = render_prompt(
             load_prompt(TEMPLATE, version), replace(policy, version=version), raw
         )

@@ -7,7 +7,7 @@ import pytest
 from qs_ai.application.interpretation.provider import ProviderFailure
 from qs_ai.infrastructure.qs_server.responses import DeepSeekResponses
 from qs_ai.infrastructure.qs_server.semantic_assets import load_semantic_assets
-from qs_ai.infrastructure.qs_server.semantic_input import prepare_semantic_messages
+from tests.evaluation_helpers import prepare_semantic_messages
 from tests.test_deepseek_request import prepared, response_body, route, schema
 from tests.test_semantic_input import inputs
 

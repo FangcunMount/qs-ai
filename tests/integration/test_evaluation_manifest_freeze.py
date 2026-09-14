@@ -23,7 +23,7 @@ from tests.test_generation_manifest import evaluation_release as evaluation_rele
 pytestmark = pytest.mark.integration
 
 
-@pytest.mark.parametrize("suite", [V6, V6_PUBLISHED])
+@pytest.mark.parametrize("suite", [V6_PUBLISHED])
 async def test_public_creator_freezes_actual_asset_bytes_with_run_transaction(
     setup_run, persisted_assets, complete_release, suite
 ):
@@ -84,5 +84,27 @@ async def test_manifest_mismatch_and_rollback_never_leave_partial_run(
             "回滚验证",
             datetime.now(UTC),
             generation_manifest=manifest,
+        )
+    assert await rows(tx, run_id) == [None, None, None]
+
+
+async def test_public_creator_rejects_retired_suite_without_any_records(
+    setup_run, persisted_assets, complete_release
+):
+    tx, run_id, _ = setup_run
+    stores = (
+        MySQLProfileAssets(tx),
+        MySQLPromptAssets(tx),
+        MySQLRouteAssets(tx),
+        MySQLSchemaAssets(tx),
+    )
+    with pytest.raises(ValueError, match="baseline"):
+        await MySQLRunCreator(tx, *stores).create(
+            run_id,
+            replace(complete_release, suite=V6),
+            1,
+            "user:42",
+            "旧套件禁止执行",
+            datetime.now(UTC),
         )
     assert await rows(tx, run_id) == [None, None, None]

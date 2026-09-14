@@ -11,7 +11,7 @@ from qs_ai.infrastructure.qs_server.prompts import load_prompt
 def test_all_original_packages_preserve_source_identity_and_bytes():
     source, assets = baseline_assets()
     assert source == "qs-server:1b52081ea42c94dc5653ce91e8c7a1db9f85fc44"
-    assert [a.version for a in assets] == [f"v{i}" for i in range(1, 7)]
+    assert [a.version for a in assets] == ["v6"]
     for asset in assets:
         package = load_prompt(asset.template_id, asset.version)
         data = json.loads(asset.package_json)

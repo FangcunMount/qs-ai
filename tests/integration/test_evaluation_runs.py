@@ -22,7 +22,7 @@ from qs_ai.infrastructure.qs_server.evaluation_policies import (
     load_execution_policy,
     load_gate_policy,
 )
-from qs_ai.infrastructure.qs_server.evaluation_suite import V6
+from qs_ai.infrastructure.qs_server.evaluation_suite import V6_PUBLISHED
 
 pytestmark = pytest.mark.integration
 
@@ -42,7 +42,7 @@ async def setup_run():
         for f in fields(EvidenceReleaseIdentity)
     }
     refs.update(
-        suite=V6,
+        suite=V6_PUBLISHED,
         execution_policy=FrozenContractRef(
             execution.policy_id, execution.version, execution.fingerprint
         ),

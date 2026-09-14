@@ -29,6 +29,7 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
     schema_assets,
 )
 from qs_ai.infrastructure.qs_server.evaluation_suite import (
+    BASELINE_SUITE_FILES,
     SUITE_FILES,
     V6_PUBLISHED,
     FrozenSuite,
@@ -71,6 +72,8 @@ def decode_record(row: RowMapping) -> tuple[FrozenSuite, SuiteRegistrationReceip
 
 
 async def load_registered_suite(db: AsyncSession, reference: FrozenContractRef) -> FrozenSuite:
+    if (reference.id, reference.version) in {(ref.id, ref.version) for ref in BASELINE_SUITE_FILES}:
+        raise ValueError("Retired suite is a verification baseline, not an executable suite")
     if reference in SUITE_FILES:
         return load_suite(reference)
     row = (

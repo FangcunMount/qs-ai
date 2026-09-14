@@ -4,10 +4,10 @@ from dataclasses import replace
 import pytest
 
 from qs_ai.domain.evaluation.identity import FrozenContractRef
-from qs_ai.infrastructure.qs_server.evaluation_case import prepare_evaluation_case
-from qs_ai.infrastructure.qs_server.evaluation_suite import V6, load_suite
+from qs_ai.infrastructure.qs_server.evaluation_suite import V6_PUBLISHED, load_suite
 from qs_ai.infrastructure.qs_server.profiles import load_migrated_release
 from qs_ai.infrastructure.qs_server.prompts import load_prompt
+from tests.evaluation_helpers import prepare_evaluation_case
 from tests.test_evaluation_identity import identity
 
 
@@ -16,7 +16,8 @@ def release():
     prompt = load_prompt(profile.render_policy.template_id, profile.render_policy.version)
     return replace(
         identity(),
-        suite=V6,
+        suite=V6_PUBLISHED,
+        input_schema=load_suite(V6_PUBLISHED).input_schema,
         profile=FrozenContractRef(
             profile.input_policy.profile_id,
             profile.input_policy.profile_version,
@@ -31,7 +32,9 @@ def test_original_case_facts_and_prompt_are_bound(index):
     case_id = f"PROMPT-EVAL-{index:03}"
     prepared = prepare_evaluation_case(release(), case_id)
     original = next(
-        c for c in json.loads(load_suite(V6).definition_json)["cases"] if c["case_id"] == case_id
+        c
+        for c in json.loads(load_suite(V6_PUBLISHED).definition_json)["cases"]
+        if c["case_id"] == case_id
     )
     assert json.loads(prepared.assembled_input.provider_payload) == original["provider_payload"]
     assert prepared.prompt_fingerprint == release().prompt.fingerprint

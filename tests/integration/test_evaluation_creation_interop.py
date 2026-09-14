@@ -68,7 +68,7 @@ async def persisted_assets(setup_run):
             await db.commit()
 
 
-@pytest.mark.parametrize("suite", [V6, V6_PUBLISHED])
+@pytest.mark.parametrize("suite", [V6_PUBLISHED])
 async def test_create_replay_conflicts_and_start_use_real_asset_storage(
     setup_run, persisted_assets, complete_release, go_management, tmp_path, suite
 ):
@@ -146,6 +146,9 @@ async def test_create_replay_conflicts_and_start_use_real_asset_storage(
         bad_release = copy.deepcopy(asdict(complete_release))
         bad_release["prompt"]["fingerprint"] = "sha256:" + "0" * 64
         assert (await call(Release=bad_release))["Code"] == "InvalidArgument"
+        assert await rows(tx, run_id) == [None, None, None]
+        retired_release = {**asdict(complete_release), "suite": asdict(V6)}
+        assert (await call(Release=retired_release))["Code"] == "InvalidArgument"
         assert await rows(tx, run_id) == [None, None, None]
         first, second = await asyncio.gather(call(), call())
         assert first == second and first["Code"] == "OK"

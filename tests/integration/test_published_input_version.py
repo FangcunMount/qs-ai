@@ -1,8 +1,10 @@
+from dataclasses import replace
+
 import pytest
 
-from qs_ai.application.execution.configuration import ConfigurationUnavailable
 from qs_ai.infrastructure.persistence.mysql.execution_configurations import compile_configuration
 from qs_ai.infrastructure.persistence.mysql.publications import MySQLPublications
+from qs_ai.infrastructure.qs_server.evaluation_suite import V6
 from tests.integration.test_publications import dispatched as dispatched
 from tests.integration.test_publications import freeze_creation as freeze_creation
 from tests.integration.test_publications import judge as judge
@@ -16,14 +18,25 @@ from tests.integration.test_publications import setup_run as setup_run
 pytestmark = pytest.mark.integration
 
 
-async def test_approved_legacy_suite_is_readable_but_not_new_input_execution_authority(ready):
+@pytest.mark.parametrize("case", ["legacy_suite", "input_contract"])
+async def test_invalid_execution_authority_preserves_publication_audit(ready, case):
     tx, scope, command, at = ready
     store = MySQLPublications(tx)
     receipt = await store.apply(scope, command, at)
     publication = receipt.change.current.active
     assert publication is not None
+    release = publication.evidence.release
+    if case == "legacy_suite":
+        release = replace(release, suite=V6)
+        error, message = ValueError, "verification baseline"
+    else:
+        release = replace(
+            release, input_schema=replace(release.input_schema, version="unsupported/v1")
+        )
+        error, message = ValueError, "generation assets differ"
     async with tx.open() as db:
-        with pytest.raises(ConfigurationUnavailable, match="input construction"):
-            await compile_configuration(db, publication)
+        with pytest.raises(error, match=message):
+            invalid = replace(publication, evidence=replace(publication.evidence, release=release))
+            await compile_configuration(db, invalid)
     # Blocking generation does not destroy the original publication or audit.
     assert await store.get_receipt(scope, command.command_id) == receipt

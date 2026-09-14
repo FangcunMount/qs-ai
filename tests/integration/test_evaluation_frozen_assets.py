@@ -54,14 +54,12 @@ async def frozen_ready(frozen_creation, ready):
 
 
 def forbid_legacy(monkeypatch):
-    from qs_ai.infrastructure.qs_server import evaluation_case
+    from qs_ai.infrastructure.qs_server import prompts, routes
 
     def fail(*args, **kwargs):
         raise AssertionError("Manifest-bound execution loaded a legacy file")
 
-    monkeypatch.setattr(evaluation_case, "load_prompt", fail)
-    monkeypatch.setattr(evaluation_case, "load_migrated_release", fail)
-    from qs_ai.infrastructure.qs_server import routes
+    monkeypatch.setattr(prompts, "load_prompt", fail)
 
     monkeypatch.setattr(routes, "load_route", fail)
 

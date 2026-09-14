@@ -11,7 +11,6 @@ from qs_ai.infrastructure.qs_server.evaluation_assertions import (
     assertion_inventory,
     semantic_obligations,
 )
-from qs_ai.infrastructure.qs_server.evaluation_case import prepare_evaluation_case
 from qs_ai.infrastructure.qs_server.evaluation_suite import FrozenSuite
 from qs_ai.infrastructure.qs_server.output import QSOutputParser
 from qs_ai.infrastructure.qs_server.semantic_assets import load_semantic_assets
@@ -22,7 +21,7 @@ def prepare_semantic_messages(
     generation: GenerationCompletion,
     assertions: tuple[AssertionReceipt, ...],
     *,
-    prepared: PreparedExplanation | None = None,
+    prepared: PreparedExplanation,
     frozen_suite: FrozenSuite | None = None,
 ) -> PromptMessages:
     if generation.status != "succeeded":
@@ -33,8 +32,6 @@ def prepare_semantic_messages(
         or release.semantic_output_schema != assets.output_schema
     ):
         raise ValueError("Semantic release assets mismatch")
-    if prepared is None:
-        prepared = prepare_evaluation_case(release, generation.case_id)
     if (
         prepared.prompt_fingerprint != release.prompt.fingerprint
         or prepared.release.input_policy.profile_fingerprint != release.profile.fingerprint
