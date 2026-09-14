@@ -29,10 +29,10 @@ from qs_ai.infrastructure.persistence.mysql.participant_capacity import reserve 
 from qs_ai.infrastructure.persistence.mysql.result_outbox import stage_state
 from qs_ai.infrastructure.persistence.mysql.schema import (
     evidence_sets,
+    execution_leases,
     external_requests,
     idempotency,
     jobs,
-    leases,
     questions,
     runs,
     sessions,
@@ -220,9 +220,9 @@ class MySQLUnitOfWork:
             .values(status="cancelled")
         )
         await self.db.execute(
-            update(leases)
-            .where(leases.c.thread_id == session.id)
-            .values(fence=leases.c.fence + 1, expires_at=func.utc_timestamp(6))
+            update(execution_leases)
+            .where(execution_leases.c.thread_id == session.id)
+            .values(fence=execution_leases.c.fence + 1, expires_at=func.utc_timestamp(6))
         )
 
         if session.uses_qs_snapshot:

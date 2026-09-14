@@ -1,9 +1,6 @@
 import base64
 import json
-import os
 import shutil
-import subprocess
-import tempfile
 from dataclasses import replace
 from pathlib import Path
 
@@ -11,6 +8,7 @@ import pytest
 
 from qs_ai.application.interpretation.prompts import InvalidPrompt, RenderPolicy, render_prompt
 from qs_ai.infrastructure.qs_server.prompts import load_prompt, prompt_directory
+from tests.legacy_go_baseline import legacy_go_result
 
 TEMPLATE = "cross-dimension-participant-scale"
 
@@ -157,29 +155,13 @@ def test_no_implicit_version_or_path_traversal(version: str) -> None:
         load_prompt(TEMPLATE, version)
 
 
-@pytest.mark.interop
 @pytest.mark.parametrize("focus", [[], ["sleep_routine"]])
-def test_original_go_renderer_parity(policy: RenderPolicy, focus: list[str]) -> None:
-    source = os.environ.get("QS_AI_PROMPT_SOURCE")
-    if not source:
-        pytest.skip("QS_AI_PROMPT_SOURCE must name the pinned QS checkout")
-    checkout = Path(source).resolve()
+def test_retained_go_renderer_parity(policy: RenderPolicy, focus: list[str]) -> None:
     baseline = json.loads((prompt_directory() / "published-profile-baseline.json").read_text())
     raw = payload(focus_areas=focus)
     request = {"Definition": baseline["profiles"][0]["definition"], "Payload": json.loads(raw)}
     # Go internal-package imports require a temporary program inside the QS module.
-    with tempfile.TemporaryDirectory(prefix="qs_ai_render_test_", dir=checkout / "scripts") as name:
-        program = Path(name) / "main.go"
-        shutil.copyfile(Path(__file__).parent / "fixtures" / "go_prompt_renderer.go", program)
-        result = subprocess.run(
-            ["go", "run", str(program)],
-            cwd=checkout,
-            input=json.dumps(request),
-            text=True,
-            capture_output=True,
-            check=True,
-            timeout=120,
-        )
+    result = legacy_go_result(request)
     for version, original in json.loads(result.stdout).items():
         messages = render_prompt(
             load_prompt(TEMPLATE, version), replace(policy, version=version), raw

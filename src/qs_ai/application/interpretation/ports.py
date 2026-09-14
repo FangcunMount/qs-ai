@@ -6,10 +6,6 @@ from qs_ai.domain.interpretation.artifact import ArtifactCandidate
 from qs_ai.domain.interpretation.model import Actor, EvidenceItem, EvidenceSet, Question, Session
 
 
-class Unauthenticated(Exception):
-    pass
-
-
 class AccessDenied(Exception):
     pass
 
@@ -20,10 +16,6 @@ class DependencyUnavailable(Exception):
 
 class NotFound(Exception):
     pass
-
-
-class IdentityVerifier(Protocol):
-    async def authenticate(self, authorization: str | None) -> Actor: ...
 
 
 class EvidenceSource(Protocol):

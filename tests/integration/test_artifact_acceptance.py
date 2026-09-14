@@ -6,24 +6,22 @@ import pytest
 from sqlalchemy import select
 
 from qs_ai.application.execution.artifact import build_artifact
+from qs_ai.application.execution.errors import LeaseLost
 from qs_ai.application.execution.generation import DurableGeneration, FrozenGeneration
 from qs_ai.application.interpretation.commands import CancelCommand
 from qs_ai.application.interpretation.ports import WorkflowResult
 from qs_ai.application.interpretation.preparation import prepare_explanation
 from qs_ai.domain.interpretation.model import RuleViolation, Status
 from qs_ai.infrastructure.persistence.model_call_codec import JSONModelCallCodec
-from qs_ai.infrastructure.persistence.mysql.leases import LeaseLost
 from qs_ai.infrastructure.persistence.mysql.result_outbox import MySQLResultOutbox
 from qs_ai.infrastructure.persistence.mysql.schema import artifacts, sessions
 from qs_ai.infrastructure.qs_server.output import QSOutputParser
-from qs_ai.infrastructure.qs_server.prompts import load_prompt
 from tests.integration.test_generation import Gateway
 from tests.integration.test_interpretation import kit as kit
-from tests.test_deepseek_request import prepared, route, schema
 from tests.test_input_binding import bound_case
 from tests.test_output_validation import candidate
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.usefixtures("published_configuration")]
 
 
 async def ready(kit):
@@ -31,10 +29,17 @@ async def ready(kit):
     await kit.service.start_external(kit.actor, "7", ("42",), "goal", str(uuid4()), source.items)
     claim = await kit.store.claim(60)
     evidence = await kit.store.evidence(claim)
-    release = prepared().release
-    package = load_prompt(release.render_policy.template_id, release.render_policy.version)
+    from qs_ai.infrastructure.persistence.mysql.execution_configurations import (
+        MySQLExecutionConfigurations,
+    )
+
+    config = await MySQLExecutionConfigurations(kit.transactions).get(claim, evidence)
     request = FrozenGeneration(
-        prepare_explanation(claim.session, evidence, release, package), route(), schema()
+        prepare_explanation(claim.session, evidence, config.release, config.package),
+        config.route,
+        config.schema,
+        publication_id=config.publication_id,
+        manifest_fingerprint=config.manifest_fingerprint,
     )
 
     class ValidGateway(Gateway):

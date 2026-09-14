@@ -50,12 +50,9 @@ def validate_session_input(testee_id: str, assessment_ids: tuple[str, ...], goal
 
 
 class InterpretationService:
-    def __init__(
-        self, uows: UnitOfWorkFactory, source: EvidenceSource, *, use_publications: bool = False
-    ) -> None:
+    def __init__(self, uows: UnitOfWorkFactory, source: EvidenceSource) -> None:
         self.uows = uows
         self.source = source
-        self.use_publications = use_publications
 
     async def _owned(self, actor: Actor, session_id: str) -> Session:
         async with self.uows.open() as uow:
@@ -194,14 +191,12 @@ class InterpretationService:
         if not external_id(actor.org_id) or not actor.subject_id or len(actor.subject_id) > 128:
             raise RuleViolation("invalid_session_input")
         validate_session_input(testee_id, assessment_ids, goal)
-        if evidence:
-            EvidenceSet("", "", "", evidence).validate(testee_id, assessment_ids)
-        else:
-            await self.source.authorize(actor, testee_id, assessment_ids)
+        if not evidence:
+            raise RuleViolation("published_configuration_requires_snapshot")
+        EvidenceSet("", "", "", evidence).validate(testee_id, assessment_ids)
         scope = fingerprint(["qs-server", "external-start-v1"])
         request_hash = fingerprint(
-            [asdict(actor), testee_id, assessment_ids, goal]
-            + ([asdict(item) for item in evidence] if evidence else [])
+            [asdict(actor), testee_id, assessment_ids, goal] + [asdict(item) for item in evidence]
         )
         async with self.uows.open() as uow:
             previous = await uow.reserve(scope, request_id, request_hash)
@@ -210,21 +205,16 @@ class InterpretationService:
             session = Session(str(uuid4()), actor, testee_id, assessment_ids, goal)
             session.queue(str(uuid4()))
             await uow.add(session)
-            if evidence:
-                session.workflow_version = "qs-snapshot-v1"
-                frozen = EvidenceSet(
-                    str(uuid4()),
-                    session.id,
-                    fingerprint([asdict(item) for item in evidence]),
-                    evidence,
-                )
-                await uow.add_evidence(frozen)
-                session.evidence_set_id = frozen.id
-            if self.use_publications:
-                if not evidence:
-                    raise RuleViolation("published_configuration_requires_snapshot")
-                session.workflow_version = "qs-published-snapshot-v1"
-                await uow.bind_configuration(session, frozen)
+            session.workflow_version = "qs-published-snapshot-v1"
+            frozen = EvidenceSet(
+                str(uuid4()),
+                session.id,
+                fingerprint([asdict(item) for item in evidence]),
+                evidence,
+            )
+            await uow.add_evidence(frozen)
+            session.evidence_set_id = frozen.id
+            await uow.bind_configuration(session, frozen)
             await uow.bind_request(session.id, request_id)
             try:
                 await uow.enqueue(session, None, False, None)

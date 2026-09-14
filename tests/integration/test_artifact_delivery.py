@@ -16,7 +16,11 @@ from tests.integration.test_artifact_acceptance import ready
 from tests.integration.test_delivery import certificates, stop
 from tests.integration.test_interpretation import kit as kit
 
-pytestmark = [pytest.mark.integration, pytest.mark.interop]
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.interop,
+    pytest.mark.usefixtures("published_configuration"),
+]
 
 
 async def test_complete_artifact_survives_go_receiver_restart_and_lost_ack(kit, tmp_path):

@@ -54,7 +54,6 @@ async def frozen_ready(frozen_creation, ready):
 
 
 def forbid_legacy(monkeypatch):
-    from qs_ai.infrastructure.persistence.mysql import evaluation_assets
     from qs_ai.infrastructure.qs_server import evaluation_case
 
     def fail(*args, **kwargs):
@@ -62,7 +61,9 @@ def forbid_legacy(monkeypatch):
 
     monkeypatch.setattr(evaluation_case, "load_prompt", fail)
     monkeypatch.setattr(evaluation_case, "load_migrated_release", fail)
-    monkeypatch.setattr(evaluation_assets, "load_route", fail)
+    from qs_ai.infrastructure.qs_server import routes
+
+    monkeypatch.setattr(routes, "load_route", fail)
 
 
 async def test_generation_acceptance_and_semantic_use_stored_assets(frozen_ready, monkeypatch):
@@ -100,6 +101,7 @@ async def alter_prompt(tx):
         "manifest_json",
         "manifest_fingerprint",
         "manifest_half",
+        "manifest_missing",
         "suite",
         "release_fingerprint",
     ],
@@ -126,7 +128,10 @@ async def test_invalid_or_missing_frozen_assets_never_dispatch(frozen_ready, mon
                     )
                 )
                 doc = json.loads(raw)
-                if damage == "manifest_half":
+                if damage == "manifest_missing":
+                    del doc["generation_manifest_json"]
+                    del doc["generation_manifest_fingerprint"]
+                elif damage == "manifest_half":
                     del doc["generation_manifest_json"]
                 elif damage == "manifest_json":
                     doc["generation_manifest_json"] += " "

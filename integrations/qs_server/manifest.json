@@ -1,9 +1,9 @@
 {
   "repository": "https://github.com/FangcunMount/qs-server",
-  "commit": "96638d4039d7f0e1e2fc477bcf1dc87e92293479",
+  "commit": "1ce436d7ec7c97a2647f3591eeddd9f7cab6aae6",
   "files": {
     "evaluation/evaluation.proto": "fc3ba454c9dad2457f9b8ba8fdfdee374d2210adac4b135e20611618684bcc31",
-    "interpretation/interpretation.proto": "6549e0193b4969b0c401739bba8315370ebdf73ef18cf6a6cab6c3c88f3160ff"
+    "interpretation/interpretation.proto": "35fa036d4f732df0c9c71bf38c603ad7ed968e28a0fd3522127b595823dbfea9"
   },
   "purpose": "Participant report probe and durable AIWorkflowAccessService authorization"
 }

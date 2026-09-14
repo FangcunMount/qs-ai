@@ -51,30 +51,18 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: FangcunMount/qs-server
-          ref: 1b52081ea42c94dc5653ce91e8c7a1db9f85fc44
+          ref: 1ce436d7ec7c97a2647f3591eeddd9f7cab6aae6
           path: .interop/qs-server
       - uses: actions/setup-go@v5
         with:
           go-version: '1.25.12'
           cache-dependency-path: .interop/qs-server/go.sum
-      - uses: actions/checkout@v4
-        with:
-          repository: FangcunMount/qs-server
-          ref: b13c21e02d0d2abf97062c221aeb69565047f419
-          path: .interop/qs-artifact
-      - uses: actions/checkout@v4
-        with:
-          repository: FangcunMount/qs-server
-          ref: dc3208ac84c0863eddacf55da2ab38e24cd4c9b6
-          path: .interop/qs-governance
-      - name: Verify migrated executable Prompt packages
+      - name: Verify shared result schema
         run: |
-          uv run python scripts/export_qs_prompts.py .interop/qs-server --check
           cmp integrations/qs_server/schemas/ai-explanation-output-v1.schema.json .interop/qs-server/api/schema/interpretation/ai-explanation-output-v1.schema.json
       - name: Build pinned QS bridge and initialize separate test database
         run: |
           (cd .interop/qs-server && go build -o ../qs-ai-bridge ./cmd/qs-ai-bridge)
-          (cd .interop/qs-artifact && go build -o ../qs-ai-artifact-bridge ./cmd/qs-ai-bridge)
           (cd .interop/qs-server && go build -o ../qs-ai-access-probe ./internal/apiserver/transport/grpc/service/testdata/accessprobe)
           uv run python - <<'PYTHON'
           import asyncio
@@ -103,10 +91,9 @@ jobs:
           --manifest ci-results/shard-${{ matrix.mysql-version }}-${{ matrix.shard }}.json
         env:
           QS_AI_BRIDGE_BIN: ${{ github.workspace }}/.interop/qs-ai-bridge
-          QS_AI_ARTIFACT_BRIDGE_BIN: ${{ github.workspace }}/.interop/qs-ai-artifact-bridge
+          QS_AI_ARTIFACT_BRIDGE_BIN: ${{ github.workspace }}/.interop/qs-ai-bridge
           QS_AI_ACCESS_PROBE_BIN: ${{ github.workspace }}/.interop/qs-ai-access-probe
-          QS_AI_PROMPT_SOURCE: ${{ github.workspace }}/.interop/qs-server
-          QS_AI_GOVERNANCE_SOURCE: ${{ github.workspace }}/.interop/qs-governance
+          QS_AI_GOVERNANCE_SOURCE: ${{ github.workspace }}/.interop/qs-server
           QS_AI_TEST_QS_MYSQL_DSN: mysql+asyncmy://qs_ai:qs_ai_local@127.0.0.1:3306/qs_gateway
           QS_AI_TEST_QS_GO_DSN: qs_ai:qs_ai_local@tcp(127.0.0.1:3306)/qs_gateway?parseTime=true
       - name: Preserve test coverage and slow-test timings
@@ -192,3 +179,39 @@ jobs:
           done
           curl --fail --silent http://127.0.0.1:18080/healthz
           test "$(curl --silent -o /dev/null -w '%{http_code}' http://127.0.0.1:18080/readyz)" = 503
+  retirement-tools:
+    name: Retirement backup and restore (${{ matrix.mysql-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        mysql-version: ['8.0.36', '8.4']
+    services:
+      mysql:
+        image: mysql:${{ matrix.mysql-version }}
+        env:
+          MYSQL_ROOT_PASSWORD: retirement_test_only
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -pretirement_test_only --silent"
+          --health-interval=5s --health-timeout=3s --health-retries=30
+      mongo:
+        image: mongo:7.0
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd="mongosh --quiet --eval 'db.adminCommand({ping:1})'"
+          --health-interval=5s --health-timeout=3s --health-retries=30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.12.13"
+          python-version: "3.11"
+      - run: uv sync --locked --group maintenance
+      - name: Verify fixed whitelist, actual restore, drift stop and protected data
+        run: uv run --group maintenance pytest -q tests/test_retirement.py scripts/retirement/test_live.py
+        env:
+          M5_TEST_MONGO_URI: mongodb://127.0.0.1:27017
+          M5_TEST_MYSQL_URL: mysql://root:retirement_test_only@127.0.0.1:3306

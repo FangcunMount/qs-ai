@@ -11,7 +11,6 @@ from qs_ai.application.execution.capacity import ParticipantCapacityPolicy
 from qs_ai.application.interpretation.commands import CancelCommand
 from qs_ai.application.interpretation.ports import WorkflowResult
 from qs_ai.application.interpretation.service import InterpretationService
-from qs_ai.domain.interpretation.model import EvidenceItem, Fact
 from qs_ai.infrastructure.persistence.mysql.execution import MySQLExecutionStore
 from qs_ai.infrastructure.persistence.mysql.interpretation import MySQLUnitOfWorkFactory
 from qs_ai.infrastructure.persistence.mysql.schema import jobs, result_outbox, sessions
@@ -20,8 +19,9 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
 )
 from tests.integration.test_interpretation import expire
 from tests.integration.test_interpretation import kit as kit
+from tests.test_input_binding import bound_case
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.usefixtures("published_configuration")]
 
 
 def services(kit, policy):
@@ -32,7 +32,7 @@ def services(kit, policy):
 
 
 async def start(kit, service, request_id=None):
-    item = EvidenceItem("42", "7", "99", "v1", (Fact("standard_report", "{}"),))
+    item = bound_case()[1].items[0]
     return await service.start_external(
         kit.actor, "7", ("42",), "容量验证", request_id or str(uuid4()), (item,)
     )

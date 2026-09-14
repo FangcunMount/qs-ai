@@ -152,30 +152,20 @@ class ParticipantAIExplanationServiceStub:
         Args:
             channel: A grpc.Channel.
         """
+        self.GetAIWorkflowSource = channel.unary_unary(
+                '/interpretation.ParticipantAIExplanationService/GetAIWorkflowSource',
+                request_serializer=interpretation_dot_interpretation__pb2.GetAIWorkflowSourceRequest.SerializeToString,
+                response_deserializer=interpretation_dot_interpretation__pb2.AIWorkflowSource.FromString,
+                _registered_method=True)
         self.RequestAIWorkflow = channel.unary_unary(
                 '/interpretation.ParticipantAIExplanationService/RequestAIWorkflow',
                 request_serializer=interpretation_dot_interpretation__pb2.RequestAIWorkflowRequest.SerializeToString,
                 response_deserializer=interpretation_dot_interpretation__pb2.AIWorkflowAccepted.FromString,
                 _registered_method=True)
-        self.GetAIExplanationCapability = channel.unary_unary(
-                '/interpretation.ParticipantAIExplanationService/GetAIExplanationCapability',
-                request_serializer=interpretation_dot_interpretation__pb2.GetAIExplanationCapabilityRequest.SerializeToString,
-                response_deserializer=interpretation_dot_interpretation__pb2.AIExplanationResponse.FromString,
-                _registered_method=True)
-        self.RequestAIExplanation = channel.unary_unary(
-                '/interpretation.ParticipantAIExplanationService/RequestAIExplanation',
-                request_serializer=interpretation_dot_interpretation__pb2.RequestAIExplanationRequest.SerializeToString,
-                response_deserializer=interpretation_dot_interpretation__pb2.AIExplanationResponse.FromString,
-                _registered_method=True)
-        self.GetAIExplanation = channel.unary_unary(
-                '/interpretation.ParticipantAIExplanationService/GetAIExplanation',
-                request_serializer=interpretation_dot_interpretation__pb2.GetAIExplanationRequest.SerializeToString,
-                response_deserializer=interpretation_dot_interpretation__pb2.AIExplanationResponse.FromString,
-                _registered_method=True)
-        self.ExportAIExplanations = channel.unary_unary(
-                '/interpretation.ParticipantAIExplanationService/ExportAIExplanations',
-                request_serializer=interpretation_dot_interpretation__pb2.ExportAIExplanationsRequest.SerializeToString,
-                response_deserializer=interpretation_dot_interpretation__pb2.AIExplanationSubjectExportResponse.FromString,
+        self.GetAIWorkflow = channel.unary_unary(
+                '/interpretation.ParticipantAIExplanationService/GetAIWorkflow',
+                request_serializer=interpretation_dot_interpretation__pb2.GetAIWorkflowRequest.SerializeToString,
+                response_deserializer=interpretation_dot_interpretation__pb2.AIWorkflowResult.FromString,
                 _registered_method=True)
 
 
@@ -185,31 +175,19 @@ class ParticipantAIExplanationServiceServicer:
     this service being configured or available.
     """
 
+    def GetAIWorkflowSource(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def RequestAIWorkflow(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def GetAIExplanationCapability(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def RequestAIExplanation(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def GetAIExplanation(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def ExportAIExplanations(self, request, context):
+    def GetAIWorkflow(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -218,30 +196,20 @@ class ParticipantAIExplanationServiceServicer:
 
 def add_ParticipantAIExplanationServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
+            'GetAIWorkflowSource': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetAIWorkflowSource,
+                    request_deserializer=interpretation_dot_interpretation__pb2.GetAIWorkflowSourceRequest.FromString,
+                    response_serializer=interpretation_dot_interpretation__pb2.AIWorkflowSource.SerializeToString,
+            ),
             'RequestAIWorkflow': grpc.unary_unary_rpc_method_handler(
                     servicer.RequestAIWorkflow,
                     request_deserializer=interpretation_dot_interpretation__pb2.RequestAIWorkflowRequest.FromString,
                     response_serializer=interpretation_dot_interpretation__pb2.AIWorkflowAccepted.SerializeToString,
             ),
-            'GetAIExplanationCapability': grpc.unary_unary_rpc_method_handler(
-                    servicer.GetAIExplanationCapability,
-                    request_deserializer=interpretation_dot_interpretation__pb2.GetAIExplanationCapabilityRequest.FromString,
-                    response_serializer=interpretation_dot_interpretation__pb2.AIExplanationResponse.SerializeToString,
-            ),
-            'RequestAIExplanation': grpc.unary_unary_rpc_method_handler(
-                    servicer.RequestAIExplanation,
-                    request_deserializer=interpretation_dot_interpretation__pb2.RequestAIExplanationRequest.FromString,
-                    response_serializer=interpretation_dot_interpretation__pb2.AIExplanationResponse.SerializeToString,
-            ),
-            'GetAIExplanation': grpc.unary_unary_rpc_method_handler(
-                    servicer.GetAIExplanation,
-                    request_deserializer=interpretation_dot_interpretation__pb2.GetAIExplanationRequest.FromString,
-                    response_serializer=interpretation_dot_interpretation__pb2.AIExplanationResponse.SerializeToString,
-            ),
-            'ExportAIExplanations': grpc.unary_unary_rpc_method_handler(
-                    servicer.ExportAIExplanations,
-                    request_deserializer=interpretation_dot_interpretation__pb2.ExportAIExplanationsRequest.FromString,
-                    response_serializer=interpretation_dot_interpretation__pb2.AIExplanationSubjectExportResponse.SerializeToString,
+            'GetAIWorkflow': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetAIWorkflow,
+                    request_deserializer=interpretation_dot_interpretation__pb2.GetAIWorkflowRequest.FromString,
+                    response_serializer=interpretation_dot_interpretation__pb2.AIWorkflowResult.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -256,6 +224,33 @@ class ParticipantAIExplanationService:
     Standard report reads stay on ParticipantReportService and do not depend on
     this service being configured or available.
     """
+
+    @staticmethod
+    def GetAIWorkflowSource(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/interpretation.ParticipantAIExplanationService/GetAIWorkflowSource',
+            interpretation_dot_interpretation__pb2.GetAIWorkflowSourceRequest.SerializeToString,
+            interpretation_dot_interpretation__pb2.AIWorkflowSource.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
 
     @staticmethod
     def RequestAIWorkflow(request,
@@ -285,7 +280,7 @@ class ParticipantAIExplanationService:
             _registered_method=True)
 
     @staticmethod
-    def GetAIExplanationCapability(request,
+    def GetAIWorkflow(request,
             target,
             options=(),
             channel_credentials=None,
@@ -298,90 +293,9 @@ class ParticipantAIExplanationService:
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/interpretation.ParticipantAIExplanationService/GetAIExplanationCapability',
-            interpretation_dot_interpretation__pb2.GetAIExplanationCapabilityRequest.SerializeToString,
-            interpretation_dot_interpretation__pb2.AIExplanationResponse.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def RequestAIExplanation(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/interpretation.ParticipantAIExplanationService/RequestAIExplanation',
-            interpretation_dot_interpretation__pb2.RequestAIExplanationRequest.SerializeToString,
-            interpretation_dot_interpretation__pb2.AIExplanationResponse.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def GetAIExplanation(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/interpretation.ParticipantAIExplanationService/GetAIExplanation',
-            interpretation_dot_interpretation__pb2.GetAIExplanationRequest.SerializeToString,
-            interpretation_dot_interpretation__pb2.AIExplanationResponse.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def ExportAIExplanations(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/interpretation.ParticipantAIExplanationService/ExportAIExplanations',
-            interpretation_dot_interpretation__pb2.ExportAIExplanationsRequest.SerializeToString,
-            interpretation_dot_interpretation__pb2.AIExplanationSubjectExportResponse.FromString,
+            '/interpretation.ParticipantAIExplanationService/GetAIWorkflow',
+            interpretation_dot_interpretation__pb2.GetAIWorkflowRequest.SerializeToString,
+            interpretation_dot_interpretation__pb2.AIWorkflowResult.FromString,
             options,
             channel_credentials,
             insecure,
@@ -497,127 +411,6 @@ class InterpretationAutomationService:
             '/interpretation.InterpretationAutomationService/GenerateReportFromAssessment',
             interpretation_dot_interpretation__pb2.GenerateReportFromAssessmentRequest.SerializeToString,
             interpretation_dot_interpretation__pb2.GenerateReportFromAssessmentResponse.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-
-class AIExplanationAutomationServiceStub:
-    """AIExplanationAutomationService is an internal one-shot execution boundary.
-    It is called by Worker after the durable requested event is delivered.
-    """
-
-    def __init__(self, channel):
-        """Constructor.
-
-        Args:
-            channel: A grpc.Channel.
-        """
-        self.ExecuteAIExplanation = channel.unary_unary(
-                '/interpretation.AIExplanationAutomationService/ExecuteAIExplanation',
-                request_serializer=interpretation_dot_interpretation__pb2.ExecuteAIExplanationRequest.SerializeToString,
-                response_deserializer=interpretation_dot_interpretation__pb2.ExecuteAIExplanationResponse.FromString,
-                _registered_method=True)
-        self.ExecutePromptEvaluationStep = channel.unary_unary(
-                '/interpretation.AIExplanationAutomationService/ExecutePromptEvaluationStep',
-                request_serializer=interpretation_dot_interpretation__pb2.ExecutePromptEvaluationStepRequest.SerializeToString,
-                response_deserializer=interpretation_dot_interpretation__pb2.ExecutePromptEvaluationStepResponse.FromString,
-                _registered_method=True)
-
-
-class AIExplanationAutomationServiceServicer:
-    """AIExplanationAutomationService is an internal one-shot execution boundary.
-    It is called by Worker after the durable requested event is delivered.
-    """
-
-    def ExecuteAIExplanation(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def ExecutePromptEvaluationStep(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-
-def add_AIExplanationAutomationServiceServicer_to_server(servicer, server):
-    rpc_method_handlers = {
-            'ExecuteAIExplanation': grpc.unary_unary_rpc_method_handler(
-                    servicer.ExecuteAIExplanation,
-                    request_deserializer=interpretation_dot_interpretation__pb2.ExecuteAIExplanationRequest.FromString,
-                    response_serializer=interpretation_dot_interpretation__pb2.ExecuteAIExplanationResponse.SerializeToString,
-            ),
-            'ExecutePromptEvaluationStep': grpc.unary_unary_rpc_method_handler(
-                    servicer.ExecutePromptEvaluationStep,
-                    request_deserializer=interpretation_dot_interpretation__pb2.ExecutePromptEvaluationStepRequest.FromString,
-                    response_serializer=interpretation_dot_interpretation__pb2.ExecutePromptEvaluationStepResponse.SerializeToString,
-            ),
-    }
-    generic_handler = grpc.method_handlers_generic_handler(
-            'interpretation.AIExplanationAutomationService', rpc_method_handlers)
-    server.add_generic_rpc_handlers((generic_handler,))
-    server.add_registered_method_handlers('interpretation.AIExplanationAutomationService', rpc_method_handlers)
-
-
- # This class is part of an EXPERIMENTAL API.
-class AIExplanationAutomationService:
-    """AIExplanationAutomationService is an internal one-shot execution boundary.
-    It is called by Worker after the durable requested event is delivered.
-    """
-
-    @staticmethod
-    def ExecuteAIExplanation(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/interpretation.AIExplanationAutomationService/ExecuteAIExplanation',
-            interpretation_dot_interpretation__pb2.ExecuteAIExplanationRequest.SerializeToString,
-            interpretation_dot_interpretation__pb2.ExecuteAIExplanationResponse.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def ExecutePromptEvaluationStep(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/interpretation.AIExplanationAutomationService/ExecutePromptEvaluationStep',
-            interpretation_dot_interpretation__pb2.ExecutePromptEvaluationStepRequest.SerializeToString,
-            interpretation_dot_interpretation__pb2.ExecutePromptEvaluationStepResponse.FromString,
             options,
             channel_credentials,
             insecure,

@@ -16,7 +16,11 @@ from tests.integration.test_evaluation_management_interop import go_management a
 from tests.integration.test_interpretation import kit as kit
 from tests.integration.test_participant_capacity import reservations, start
 
-pytestmark = [pytest.mark.integration, pytest.mark.interop]
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.interop,
+    pytest.mark.usefixtures("published_configuration"),
+]
 
 
 async def test_go_participant_capacity_preserves_filters_and_current_admin_boundary(

@@ -62,7 +62,6 @@ def prepare_report_input(
         policy,
         locale=locale,
         focus_areas=focus_areas,
-        empty_reference_arrays=session.workflow_version == "qs-published-snapshot-v1",
     )
     source = json.loads(assembled.canonical_json)["source"]
     if (

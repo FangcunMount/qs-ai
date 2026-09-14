@@ -32,3 +32,11 @@ def test_database_failure_is_redacted() -> None:
         assert response.status_code == 503
         assert "secret" not in response.text
         assert response.json()["database"] == "unavailable"
+
+
+def test_retired_session_http_routes_are_not_registered() -> None:
+    app = create_app(Settings(_env_file=None, database_url=None))
+    with TestClient(app) as client:
+        assert client.post("/v1/interpretation-sessions", json={}).status_code == 404
+        assert client.get("/v1/interpretation-sessions/example").status_code == 404
+        assert not any("interpretation-sessions" in route for route in app.openapi()["paths"])

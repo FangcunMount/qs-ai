@@ -14,19 +14,20 @@ from qs_ai.infrastructure.qs_server.profiles import load_migrated_release
 def test_prepared_input_satisfies_frozen_schema_with_empty_reference_arrays():
     release = load_migrated_release("participant-scale-score-range-default", "v6")
     raw = (Path(__file__).parent / "fixtures/report_snapshot.json").read_text()
-    result = assemble_input(raw, release.input_policy, empty_reference_arrays=True)
+    result = assemble_input(raw, release.input_policy)
     validator = Draft202012Validator(load_input_schema())
     document = json.loads(result.canonical_json)
     assert document["facts"]["dimensions"][0]["standard_suggestion_refs"] == []
     assert document["facts"]["dimensions"][1]["standard_suggestion_refs"] == []
     validator.validate(document)
-    legacy = assemble_input(raw, release.input_policy)
-    errors = list(validator.iter_errors(json.loads(legacy.canonical_json)))
+    for dimension in document["facts"]["dimensions"]:
+        if dimension["standard_suggestion_refs"] == []:
+            dimension["standard_suggestion_refs"] = None
+    errors = list(validator.iter_errors(document))
     assert [(list(e.absolute_path), e.validator) for e in errors] == [
         (["facts", "dimensions", 0, "standard_suggestion_refs"], "type"),
         (["facts", "dimensions", 1, "standard_suggestion_refs"], "type"),
     ]
-    assert legacy.fingerprint != result.fingerprint
     # The provider projection intentionally lacks server-only source and Profile metadata.
     assert not validator.is_valid(json.loads(result.provider_payload))
 

@@ -43,19 +43,13 @@ def test_frozen_report_bound_to_session_and_source() -> None:
     assert prepare_report_input(session, evidence, policy).provider_payload
 
 
-def test_input_encoding_is_selected_by_accepted_workflow_version() -> None:
+def test_input_uses_arrays_for_absent_suggestion_references() -> None:
     session, evidence, policy = bound_case()
-    old = prepare_report_input(session, evidence, policy)
-    new = prepare_report_input(
-        replace(session, workflow_version="qs-published-snapshot-v1"), evidence, policy
+    result = prepare_report_input(session, evidence, policy)
+    assert all(
+        isinstance(d["standard_suggestion_refs"], list)
+        for d in json.loads(result.canonical_json)["facts"]["dimensions"]
     )
-    legacy = json.loads(old.canonical_json)
-    assert legacy["facts"]["dimensions"][0]["standard_suggestion_refs"] is None
-    for dimension in legacy["facts"]["dimensions"]:
-        if dimension["standard_suggestion_refs"] is None:
-            dimension["standard_suggestion_refs"] = []
-    assert json.loads(new.canonical_json) == legacy
-    assert old.fingerprint != new.fingerprint
 
 
 def test_complete_preparation_from_published_release_and_bound_report() -> None:

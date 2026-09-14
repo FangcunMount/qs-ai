@@ -11,21 +11,20 @@ from qs_ai.application.interpretation.ports import (
     WorkflowResult,
 )
 from qs_ai.application.interpretation.service import InterpretationService
-from qs_ai.domain.interpretation.model import Actor, EvidenceItem, Fact, RuleViolation
+from qs_ai.domain.interpretation.model import Actor, RuleViolation
 from qs_ai.infrastructure.interpretation.unconfigured import UnconfiguredEvidenceSource
 from qs_ai.infrastructure.persistence.mysql.interpretation import MySQLUnitOfWorkFactory
 from qs_ai.infrastructure.persistence.mysql.schema import evidence_sets
 from tests.integration.test_interpretation import kit  # noqa: F401
+from tests.test_input_binding import bound_case
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.usefixtures("published_configuration")]
 
 
 async def test_snapshot_rechecks_access_without_rereading_facts_and_rejects_changed_replay(kit):  # noqa: F811
     source = kit.source
     service = InterpretationService(MySQLUnitOfWorkFactory(kit.transactions), source)
-    item = EvidenceItem(
-        "42", "7", "99", "standard-v1:100", (Fact("standard_report", '{"score":12}'),)
-    )
+    item = bound_case()[1].items[0]
     request_id = str(uuid4())
     receipt = await service.start_external(kit.actor, "7", ("42",), "goal", request_id, (item,))
     assert (
@@ -56,7 +55,7 @@ async def test_snapshot_subject_mismatch_and_transaction_failure_do_not_persist(
     service = InterpretationService(
         MySQLUnitOfWorkFactory(kit.transactions), UnconfiguredEvidenceSource()
     )
-    item = EvidenceItem("42", "7", "99", "v1", (Fact("standard_report", "{}"),))
+    item = bound_case()[1].items[0]
     with pytest.raises(RuleViolation, match="evidence_subject_mismatch"):
         await service.start_external(kit.actor, "8", ("42",), "goal", str(uuid4()), (item,))
     async with kit.transactions.open() as db:
@@ -98,7 +97,7 @@ async def test_snapshot_current_access_required_before_execution_and_result_acce
             return WorkflowResult("checkpoint", question="must not be published")
 
     service = InterpretationService(MySQLUnitOfWorkFactory(kit.transactions), Source())
-    item = EvidenceItem("42", "7", "99", "v1", (Fact("standard_report", "{}"),))
+    item = bound_case()[1].items[0]
     receipt = await service.start_external(kit.actor, "7", ("42",), "goal", str(uuid4()), (item,))
     assert await ExecuteNext(kit.store, Source(), Workflow()).once()
     view = await service.get(kit.actor, receipt.session_id)

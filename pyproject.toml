@@ -9,9 +9,6 @@ dependencies = [
   "uvicorn[standard]>=0.30,<1",
   "pydantic-settings>=2.6,<3",
   "pyyaml>=6,<7",
-  "langchain>=1,<2",
-  "langgraph>=1,<2",
-  "langgraph-checkpoint-mysql[asyncmy]>=2,<3",
   "sqlalchemy[asyncio]>=2.0,<2.1",
   "alembic>=1.14,<2",
   "asyncmy>=0.2.9,<0.3",
@@ -34,6 +31,10 @@ dev = [
   "types-pyyaml>=6,<7",
   "types-grpcio>=1.83.0.20260730",
   "types-jsonschema>=4.26.0.20260518",
+]
+maintenance = [
+    "pymongo>=4.10,<5",
+    "pymysql>=1.1,<2",
 ]
 
 [build-system]

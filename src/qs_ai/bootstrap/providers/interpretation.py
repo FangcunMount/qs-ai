@@ -11,14 +11,12 @@ from qs_ai.application.execution.worker import ExecuteNext
 from qs_ai.application.interpretation.ports import (
     EvidenceSource,
     ExecutionStore,
-    IdentityVerifier,
     UnitOfWorkFactory,
 )
 from qs_ai.application.interpretation.service import InterpretationService
 from qs_ai.config import Settings
 from qs_ai.infrastructure.interpretation.unconfigured import (
     UnconfiguredEvidenceSource,
-    UnconfiguredIdentity,
 )
 from qs_ai.infrastructure.persistence.mysql.execution import MySQLExecutionStore
 from qs_ai.infrastructure.persistence.mysql.interpretation import MySQLUnitOfWorkFactory
@@ -40,7 +38,6 @@ class InterpretationProvider(Provider):
     )
     retries = provide(MySQLParticipantRetries, provides=ParticipantRetryStore, scope=Scope.REQUEST)
     retry_participant = provide(RetryParticipant, scope=Scope.REQUEST)
-    identity = provide(UnconfiguredIdentity, provides=IdentityVerifier, scope=Scope.APP)
 
     @provide(scope=Scope.APP)
     async def source(self, settings: Settings) -> AsyncIterator[EvidenceSource]:
@@ -67,8 +64,6 @@ class InterpretationProvider(Provider):
     def service(
         self, settings: Settings, uows: UnitOfWorkFactory, source: EvidenceSource
     ) -> InterpretationService:
-        return InterpretationService(
-            uows, source, use_publications=settings.generation.use_publications
-        )
+        return InterpretationService(uows, source)
 
     worker = provide(ExecuteNext, scope=Scope.REQUEST)

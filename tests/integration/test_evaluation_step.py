@@ -17,7 +17,8 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_semantic_completions,
 )
 from qs_ai.infrastructure.qs_server.semantic_assets import load_semantic_assets
-from tests.integration.test_evaluation_runs import create, rows
+from tests.integration.test_evaluation_creation_interop import persisted_assets as persisted_assets
+from tests.integration.test_evaluation_runs import rows
 from tests.integration.test_evaluation_runs import setup_run as setup_run
 from tests.test_evaluation_case import release as case_release
 from tests.test_generation_completion_assets import assets
@@ -27,7 +28,7 @@ AT = datetime(2026, 9, 12, tzinfo=UTC)
 
 
 @pytest.fixture
-async def ready(setup_run):
+async def ready(setup_run, persisted_assets):
     tx, run_id, release = setup_run
     refs, output, routes, schemas = assets()
     semantic = load_semantic_assets()
@@ -222,3 +223,22 @@ async def test_semantic_decision_mismatch_is_saved_without_regenerating_candidat
     with pytest.raises(CheckpointConflict):
         await step(ready, gateway, state.version)
     assert gateway.calls == 2
+
+
+async def create(db, run_id, release):
+    from qs_ai.bootstrap.import_schemas import baseline_assets
+    from qs_ai.domain.evaluation.identity import FrozenContractRef
+    from qs_ai.infrastructure.persistence.mysql.asset_snapshot import generation_snapshot
+    from qs_ai.infrastructure.persistence.mysql.evaluation_runs import create_run
+
+    schema = baseline_assets()[1][0]
+    release = replace(
+        release,
+        input_schema=FrozenContractRef(
+            schema.schema_id, schema.schema_id + "/" + schema.version, schema.fingerprint
+        ),
+    )
+    _, manifest = await generation_snapshot(db, release)
+    return await create_run(
+        db, run_id, release, 1, "actor:1", "冻结执行资产", AT, generation_manifest=manifest
+    )

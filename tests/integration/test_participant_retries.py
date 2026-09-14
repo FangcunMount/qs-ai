@@ -8,6 +8,7 @@ import pytest
 from sqlalchemy import select
 
 from qs_ai.application.execution.capacity import ParticipantCapacityPolicy
+from qs_ai.application.execution.errors import LeaseLost
 from qs_ai.application.execution.generation import DurableGeneration
 from qs_ai.application.execution.retry import ParticipantRetry, RetryParticipant
 from qs_ai.application.governance.prompt_drafts import DraftScope
@@ -15,7 +16,6 @@ from qs_ai.application.interpretation.ports import AccessDenied, NotFound, Workf
 from qs_ai.application.interpretation.provider import ProviderFailure
 from qs_ai.domain.interpretation.model import RuleViolation
 from qs_ai.infrastructure.persistence.model_call_codec import JSONModelCallCodec
-from qs_ai.infrastructure.persistence.mysql.leases import LeaseLost
 from qs_ai.infrastructure.persistence.mysql.participant_retries import MySQLParticipantRetries
 from qs_ai.infrastructure.persistence.mysql.schema import (
     model_calls,
@@ -23,16 +23,34 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
     result_outbox,
     runs,
 )
-from tests.integration.test_generation import Gateway, request
+from tests.integration.test_generation import Gateway
 from tests.integration.test_interpretation import kit as kit
 from tests.integration.test_participant_capacity import reservations, start
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.usefixtures("published_configuration")]
 
 
 def service(kit, policy=None):
     return RetryParticipant(
         MySQLParticipantRetries(kit.transactions, policy or ParticipantCapacityPolicy()), kit.source
+    )
+
+
+async def request(kit, claim):
+    from qs_ai.application.execution.generation import FrozenGeneration
+    from qs_ai.application.interpretation.preparation import prepare_explanation
+    from qs_ai.infrastructure.persistence.mysql.execution_configurations import (
+        MySQLExecutionConfigurations,
+    )
+
+    evidence = await kit.store.evidence(claim)
+    config = await MySQLExecutionConfigurations(kit.transactions).get(claim, evidence)
+    return FrozenGeneration(
+        prepare_explanation(claim.session, evidence, config.release, config.package),
+        config.route,
+        config.schema,
+        publication_id=config.publication_id,
+        manifest_fingerprint=config.manifest_fingerprint,
     )
 
 
@@ -43,7 +61,7 @@ async def blocked(kit, *, unknown=False, dispatch=True):
         gateway = Gateway(ProviderFailure("provider_timeout", result_unknown=unknown))
         with pytest.raises(ProviderFailure):
             await DurableGeneration(kit.store, gateway, JSONModelCallCodec()).execute(
-                claim, request()
+                claim, await request(kit, claim)
             )
     await kit.store.finish(
         claim,
@@ -120,11 +138,14 @@ async def test_retry_is_idempotent_and_keeps_original_model_request_and_result_c
     assert new_claim.run_id == first.run_id
     gateway = Gateway()
     generation = DurableGeneration(kit.store, gateway, JSONModelCallCodec())
-    changed = replace(request(), route=replace(request().route, model="changed-after-admission"))
-    result = await generation.execute(new_claim, changed)
-    assert result.request == request()
+    original = JSONModelCallCodec().decode_request(previous_calls[0]["request_json"])
+    changed = replace(original, route=replace(original.route, model="changed-after-admission"))
+    result = await generation.execute(new_claim, original)
+    with pytest.raises(ProviderFailure, match="model_call_configuration_mismatch"):
+        await generation.execute(new_claim, changed)
+    assert result.request == original
     assert result.response.invocation_id != previous_calls[0]["invocation_id"]
-    assert await generation.execute(new_claim, changed) == result
+    assert await generation.execute(new_claim, original) == result
     assert gateway.calls == 1
     assert previous_calls[0] in await calls(kit, command.session_id)
 
@@ -213,9 +234,11 @@ async def test_retry_that_fails_before_dispatch_keeps_the_earliest_frozen_reques
     new_claim = await kit.store.claim(60)
     assert new_claim.run_id == second.run_id
     gateway = Gateway()
-    changed = replace(request(), route=replace(request().route, model="changed-twice"))
-    result = await DurableGeneration(kit.store, gateway, JSONModelCallCodec()).execute(
-        new_claim, changed
+    original = JSONModelCallCodec().decode_request(
+        (await calls(kit, command.session_id))[0]["request_json"]
     )
-    assert result.request == request() and gateway.calls == 1
+    result = await DurableGeneration(kit.store, gateway, JSONModelCallCodec()).execute(
+        new_claim, original
+    )
+    assert result.request == original and gateway.calls == 1
     assert len(await reservations(kit)) == 3

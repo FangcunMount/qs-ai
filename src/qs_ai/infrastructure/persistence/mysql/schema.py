@@ -122,8 +122,8 @@ idempotency = sa.Table(
     mysql_engine="InnoDB",
     mysql_charset="utf8mb4",
 )
-leases = sa.Table(
-    "checkpoint_leases",
+execution_leases = sa.Table(
+    "execution_leases",
     metadata,
     sa.Column("thread_id", sa.String(191, collation="utf8mb4_bin"), primary_key=True),
     sa.Column("fence", mysql.BIGINT(unsigned=True), nullable=False),

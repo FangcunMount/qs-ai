@@ -1,6 +1,6 @@
 # qs-ai 设计与实施入口
 
-当前阶段：M0 基础服务与 mTLS 已发布。以 [M1–M5 替代计划](migration-milestones.md) 为当前执行与验收依据；原 P0–P5 编号保留技术设计参考，不与迁移里程碑混用。
+当前执行以 [M1–M5 替代计划](migration-milestones.md) 和 [M5 退役清单](m5-retirement.md) 为准；退役准备不等于生产验收完成。原 P0–P5 文档保留技术设计和历史验证参考。
 
 | 阅读顺序 | 文档 | 回答的问题 |
 | --- | --- | --- |
@@ -25,8 +25,6 @@
 
 ## 已实现与待实现
 
-已实现：分层与 DI、五个会话 API、MySQL UoW/幂等/任务/心跳、证据冻结、恢复与旧写隔离；83 项 Python 测试通过，另有 3 项 Go 数据库测试；包含真实跨语言双向 TLS 与回传重放。
+已实现范围见 [项目 README](../README.md)。M5 移除初期独立 HTTP 会话和 LangGraph 样板，保留 mTLS gRPC、健康检查、正式业务执行与恢复。历史验证文件中的框架、API 和测试数量只描述当时版本。
 
-设计决定：Python/FastAPI/LangGraph/MySQL，DDD + 六边形，Dishka 统一装配，gRPC 访问 qs-server，API/Worker 共库分进程。
-
-待实现：真实身份和证据接入、正式业务 Graph/模型/成果、常驻 Worker 运行策略、后续产品能力。serverA 基础 API 首发与云 MySQL 迁移已验证，见发布证据；真实 AI 业务验收另行完成。
+真实管理、授权生成展示、撤权与恢复验收仍需独立证据；未来产品能力不作为本轮退役门槛。

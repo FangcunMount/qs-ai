@@ -6,7 +6,7 @@
 
 `policies.json` 的 definition_json 保留 Go 序列化字节和原 fingerprint；当前执行策略 release-evaluation-bounded-recovery/v2、门槛策略 release-gates/v2。策略 Schema 的 v1 与策略实例的 v2 是不同版本维度，不能混淆。两份实例通过原策略 Schema 验证。
 
-可在相同源提交的干净 QS checkout 重放 `uv run python scripts/export_qs_evaluation.py <checkout> --check`。导出脚本临时 Go 程序只调用策略构造及校验/指纹函数，不发起模型调用、不修改源业务代码，结束后移除临时目录。
+旧源码导出工具已退役，保留原始资产及其来源与摘要。身份、失败门槛和候选断言通过已捕获的原 Go 固定基准验证，不再依赖旧引擎工作区。生产评测执行必须使用完整冻结资产清单，缺失时拒绝执行。
 
 边界：六版用例集仍为 planned，不是已运行通过；语义模板 Markdown 尚未证明与运行时 system/task 消息完全一致；语义模型路由实际生产配置尚未盘点。未提供 Python 评测执行器、评分/门槛实现、人工复核或发布审批，不将资源导入视为 M3 验收。资源随 wheel/镜像分发，尚未进入数据库资产表或自动触发评测。
 

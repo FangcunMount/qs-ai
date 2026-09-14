@@ -1,14 +1,14 @@
 # qs-ai
 
-独立的 AI 解读与交互服务。技术基线：Python、FastAPI、LangGraph、MySQL；目标是通过 gRPC 读取 qs-server 的授权业务事实；当前跨服务业务接入尚未完成。
+独立 AI 后台服务，使用 Python、FastAPI、MySQL、gRPC 和 Dishka，按 DDD 与六边形架构组织。qs-server 负责身份、业务授权和报告事实，qs-ai 负责配置、评测发布、执行与结果投递。
 
-目标架构采用 **DDD + 六边形 + Dishka 依赖注入**。完整设计及 P0–P5 计划见 [设计入口](docs/README.md)；P0 已落地，P1 已完成第一批业务骨架。最新已完成第 1 批跨服务持久投递联调，见 [验证记录](docs/batch1-verification.md) 和 [运行契约](integrations/workflow/README.md)。
+当前实施以 [M1–M5 计划](docs/migration-milestones.md) 和 [M5 退役清单](docs/m5-retirement.md) 为准。代码检查、部署状态、真实业务验收分别记录；本分支的退役准备不代表生产已完成切换或清库。
 
 ## 当前范围
 
-已实现分层与 DI、会话创建/查询/开始/回答/取消、不可变证据快照、MySQL 任务领取与心跳、幂等回执和旧执行隔离。测试中的离线图验证问答中断、进程终止后恢复，不调用模型。
+已实现报告事实快照、发布配置绑定、模型调用回执、MySQL 任务领取与续租、幂等、恢复、成果投递，以及配置/评测/审核/发布的内部管理接口。生产业务通过 mTLS gRPC 接入。HTTP 只保留健康接口，初期独立会话路由已经移除；LangChain / LangGraph 样板和运行依赖已移除，生产恢复直接使用业务状态和执行租约。
 
-真实身份、证据源和业务工作流默认绑定为不可用，接口不会信任传入的用户/组织标识：无身份返回 401，未配置的身份集成返回 503。尚无真实模型、正式成果、多报告解读、长期记忆或生产部署。`/readyz` 仅检查数据库，不证明这些业务能力就绪。
+多报告、主动追问、长期记忆和新 Prompt 编排仍属后续产品建设。`/readyz` 只检查数据库，不代表真实管理和测评闭环已经验收。
 
 ## 本地运行
 
@@ -39,27 +39,27 @@ QS_AI_TEST_MYSQL_DSN=mysql://qs_ai:qs_ai_local@127.0.0.1:13316/qs_ai uv run pyte
 docker compose stop
 ```
 
-集成测试会创建检查点表并写入临时线程，只能指向可用于测试的数据库；先执行 Alembic 迁移。业务表/技术租约表由 Alembic 管理，检查点表由适配包管理。租约校验和检查点写入共享事务，但业务步骤和检查点之间仍需恢复协议。
+集成测试会写入合成业务数据，只能指向独立测试数据库；先执行 Alembic 迁移。迁移 `0028_execution_leases` 原样迁名正式使用的租约表，不删除 fence 数据；升级前停止旧 worker，迁移后使用新版本，详见退役清单。
 
-Worker 默认探测数据库：`uv run python -m qs_ai.bootstrap.worker`；加 `--once` 领取至多一个持久任务后退出。一次运行包含心跳和失效取消。当前无常驻轮询模式；缺失业务集成时已领取任务会进入 blocked，不会生成假成果。完整离线闭环由集成测试注入合成事实和测试工作流执行。
+Worker 默认只探测数据库：`uv run python -m qs_ai.bootstrap.worker`；`--once` 领取至多一个任务，`--serve` 常驻执行并续租。独立 gRPC、评测和投递进程的生产配置见 [配置说明](configs/README.md) 与 [部署验证](docs/deployment-verification.md)。
 
 ## 模块边界
 
 - `src/qs_ai/main.py`：保留 HTTP 工厂入口，转发到 bootstrap。
 - `src/qs_ai/domain/`：会话聚合、问题、证据与状态不变量。
 - `src/qs_ai/application/`：会话命令/查询、工作执行和外部端口。
-- `src/qs_ai/transport/`：健康与会话 HTTP 路由、内部 gRPC 命令入口。
+- `src/qs_ai/transport/`：HTTP 健康路由与内部 gRPC 业务入口。
 - `src/qs_ai/bootstrap/`：Dishka Provider、容器和进程生命周期。
 - `configs/`：默认、本地、生产配置；详见 [配置说明](configs/README.md)。
 - `src/qs_ai/config.py`：统一加载、覆盖与类型校验；生产密钥经 Actions Secrets 注入。
-- `src/qs_ai/infrastructure/`：MySQL UoW/任务、检查点适配、已固定版本的 gRPC 传输探针。
+- `src/qs_ai/infrastructure/`：MySQL UoW/任务/执行租约、模型适配与 gRPC 客户端。
 - `integrations/qs_server/`：gRPC 契约接入说明。
-- `migrations/`：当前 head 为 `0004_delivery`，包含外部请求关联与结果 outbox。
-- `tests/`：分层、DI 生命周期、事务及检查点恢复验证；离线图位于 `tests/probes/`。
+- `migrations/`：Alembic 业务迁移账本；当前分支新增 `0028_execution_leases`。
+- `tests/`：分层、DI、事务、授权边界、执行恢复、管理与跨语言契约验证。
 - `docs/README.md`：完整设计、领域数据、运行接口及实施计划入口。
 
 ## 持久化依赖
 
-MySQL 检查点使用社区维护的 `langgraph-checkpoint-mysql`，具体依赖版本以 `uv.lock` 为准。适配器覆写了社区包内部事务钩子。升级 LangGraph 或适配包时必须重新运行恢复、租约竞争、旧写拒绝和取消回滚测试，不能仅以安装成功认定兼容。
+MySQL 通过 SQLAlchemy/asyncmy 访问，所有业务结构由 Alembic 管理。业务检查点、执行租约、模型派发标记和结果 outbox 保留；未知模型调用不得直接重发。依赖版本以 `uv.lock` 为准。
 
 本机 Compose 的数据保留在 Docker volume 中；`docker compose down` 删除容器但保留数据，只有确认不要数据时才使用 `down -v`。
