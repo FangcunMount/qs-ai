@@ -162,3 +162,104 @@ def test_incoming_cross_database_reference_prevents_deletion(stores):
     finally:
         with ai.connection.cursor() as cursor:
             cursor.execute("DROP TABLE retirement_reference")
+
+
+def seed_prompts(store):
+    from scripts.retirement.prompt_policy import TEMPLATE_ID
+
+    with store.connection.cursor() as cursor:
+        cursor.execute(
+            "CREATE TABLE prompt_assets (template_id VARCHAR(255), version VARCHAR(128), "
+            "fingerprint VARCHAR(71), package_sha256 VARCHAR(64), package_json LONGTEXT, "
+            "PRIMARY KEY(template_id, version))"
+        )
+        cursor.execute("CREATE TABLE profile_assets (id INT PRIMARY KEY, definition_json LONGTEXT)")
+        for version in ("v1", "v2", "v6"):
+            cursor.execute(
+                "INSERT INTO prompt_assets VALUES (%s,%s,%s,%s,%s)",
+                (
+                    TEMPLATE_ID,
+                    version,
+                    version + "-fingerprint",
+                    version + "-digest",
+                    json.dumps({"Ref": {"TemplateID": TEMPLATE_ID, "Version": version}}),
+                ),
+            )
+        cursor.execute(
+            "INSERT INTO profile_assets VALUES (1,%s)",
+            (json.dumps({"prompt": {"id": TEMPLATE_ID, "version": "v2"}}),),
+        )
+
+
+def test_prompt_backup_restore_deletes_only_unreferenced_exact_versions(tmp_path, stores):
+    from scripts.retirement.prompt_policy import TEMPLATE_ID
+
+    ai = stores[2]
+    seed_prompts(ai)
+    before = ai.snapshot()
+    selected = before["prompt_assets"]
+    assert [row["id"] for row in selected["rows"]] == [[TEMPLATE_ID, "v1"]]
+    assert selected["protected_count"] == 2
+    assert selected["retained_candidates"] == [
+        {
+            "id": [TEMPLATE_ID, "v2"],
+            "reason": "foreign_key_reference_or_incomplete_identity",
+            "reference_tables": ["profile_assets"],
+        }
+    ]
+    directory = tmp_path / "prompt-backup"
+    sha = core.plan(directory, [ai])
+    assert core.read(directory / "plan.json")["objects"]["ai_mysql"]["prompt_assets"][
+        "selected_ids"
+    ] == [[TEMPLATE_ID, "v1"]]
+    core.backup(directory, [ai], sha)
+    ai.apply(before)
+    ai.verify_deleted(before)
+    ai.verify_restore(before)
+    with ai.connection.cursor() as cursor:
+        cursor.execute("SELECT version FROM prompt_assets ORDER BY version")
+        assert [row["version"] for row in cursor.fetchall()] == ["v2", "v6"]
+
+
+def test_new_prompt_reference_blocks_apply_without_deleting_any_asset(stores):
+    from scripts.retirement.prompt_policy import TEMPLATE_ID
+
+    ai = stores[2]
+    seed_prompts(ai)
+    before = ai.snapshot()
+    with ai.connection.cursor() as cursor:
+        cursor.execute(
+            "INSERT INTO profile_assets VALUES (2,%s)",
+            (json.dumps({"prompt": {"id": TEMPLATE_ID, "version": "v1"}}),),
+        )
+    with pytest.raises(core.Stop, match="changed"):
+        ai.apply(before)
+    with ai.connection.cursor() as cursor:
+        cursor.execute("SELECT COUNT(*) AS n FROM prompt_assets")
+        assert cursor.fetchone()["n"] == 3
+
+
+def test_prompt_cross_database_foreign_key_preserves_all_candidates(stores):
+    from scripts.retirement.prompt_policy import TEMPLATE_ID
+
+    qs, ai = stores[1:]
+    seed_prompts(ai)
+    with qs.connection.cursor() as cursor:
+        cursor.execute(
+            "CREATE TABLE prompt_reference (template_id VARCHAR(255), version VARCHAR(128), "
+            f"FOREIGN KEY (template_id, version) REFERENCES `{ai.database}`.prompt_assets "
+            "(template_id, version) ON DELETE CASCADE)"
+        )
+        cursor.execute("INSERT INTO prompt_reference VALUES (%s,'v1')", (TEMPLATE_ID,))
+    try:
+        snapshot = ai.snapshot()
+        assert snapshot["prompt_assets"]["action"] == "preserve"
+        assert snapshot["prompt_assets"]["count"] == 0
+        assert snapshot["prompt_assets"]["protected_count"] == 3
+        ai.apply(snapshot)
+        with qs.connection.cursor() as cursor:
+            cursor.execute("SELECT COUNT(*) AS n FROM prompt_reference")
+            assert cursor.fetchone()["n"] == 1
+    finally:
+        with qs.connection.cursor() as cursor:
+            cursor.execute("DROP TABLE prompt_reference")

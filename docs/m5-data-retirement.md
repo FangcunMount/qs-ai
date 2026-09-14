@@ -59,3 +59,11 @@ uv run --group maintenance python -m scripts.retirement restore \
 ## 自动验证
 
 应用分片运行清单、权限、漂移、过期和恢复失败的单元测试；独立 CI job 在 MySQL 8.0.36/8.4 + Mongo 7.0 中运行 [真实恢复和删除测试](../scripts/retirement/test_live.py)。测试仅使用随机 `m5_test_` 数据库和合成数据，生产连接不进入 CI。
+
+## 当前 v6 之外的 Prompt 清理
+
+维护工具仅把 `cross-dimension-participant-scale` 的 `v1`–`v5` 列为候选，不按时间、状态或模糊版本删除。盘点所有 qs-ai 表中的版本引用、指纹、原包摘要和嵌套 JSON；未限定版本的引用也会保守保留。缺失完整资产身份或存在 SQL 外键（包括跨库外键）时保留。清单的 `selected_ids` 列出具体模板及版本，`retained_candidates` 列出保留原因和引用表，不输出 Prompt 正文。
+
+与其他对象使用同一套 `plan → backup → 隔离恢复验证 → apply → verify`。删除前锁定 qs-ai 引用表并再次比较完整盘点；维护窗口仍必须暂停所有业务及后台写入。只删除同清单中的复合主键，v6、被引用旧版本及所有其他表数据保持不变。恢复验证重建原表结构并逐行核对选中记录，备份正文仍留在 Git 之外。
+
+这些工具的本地测试使用隔离数据库；工具就绪不代表已完成生产清库。NSQ 原 Channel 定向排空和 Redis 精确键清单仍须完成后才能进入生产删除。

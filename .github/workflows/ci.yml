@@ -211,7 +211,7 @@ jobs:
           python-version: "3.11"
       - run: uv sync --locked --group maintenance
       - name: Verify fixed whitelist, actual restore, drift stop and protected data
-        run: uv run --group maintenance pytest -q tests/test_retirement.py scripts/retirement/test_live.py
+        run: uv run --group maintenance pytest -q tests/test_retirement.py tests/test_retirement_prompt_policy.py scripts/retirement/test_live.py
         env:
           M5_TEST_MONGO_URI: mongodb://127.0.0.1:27017
           M5_TEST_MYSQL_URL: mysql://root:retirement_test_only@127.0.0.1:3306
