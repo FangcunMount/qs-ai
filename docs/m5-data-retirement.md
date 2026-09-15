@@ -66,7 +66,7 @@ uv run --group maintenance python -m scripts.retirement restore \
 
 与其他对象使用同一套 `plan → backup → 隔离恢复验证 → apply → verify`。删除前锁定 qs-ai 引用表并再次比较完整盘点；维护窗口仍必须暂停所有业务及后台写入。只删除同清单中的复合主键，v6、被引用旧版本及所有其他表数据保持不变。恢复验证重建原表结构并逐行核对选中记录，备份正文仍留在 Git 之外。
 
-这些工具的本地测试使用隔离数据库；工具就绪不代表已完成生产清库。NSQ 原 Channel 定向排空和 Redis 精确键清单仍须完成后才能进入生产删除。
+这些工具的本地测试使用隔离数据库；工具就绪不代表已完成生产清库。NSQ 原 Channel 定向排空和 Redis 精确键盘点已完成，见下文；数据库删除仍须使用正式维护窗口清单。
 
 ## 2026-09-15 生产只读盘点
 
@@ -74,6 +74,23 @@ uv run --group maintenance python -m scripts.retirement restore \
 
 新链路已有 2 个请求、2 个会话、2 行执行租约，必须全部保留，不能只保留最早验收请求。`checkpoint_leases` 及四个样板检查点表已不存在，不能再次删除 `execution_leases`。
 
-共享逻辑 Topic `assessment-lifecycle` 对应实际 NSQ Topic `qs.evaluation.lifecycle`。主 Channel `qs-worker` 及失败交接 Topic `cb.failed.b6abe5a59ae6cb4454f2a271` 的 `cb-failed-handler` 均需盘点。失败交接 Channel 尚有 16 条延迟消息；当前只读观察未获取消息内容、未确认任何消息。主 Channel 空不能证明这些消息已排空，不能将未知消息归为旧 AI 后删除。
+共享逻辑 Topic `assessment-lifecycle` 对应实际 NSQ Topic `qs.evaluation.lifecycle`。主 Channel `qs-worker` 及失败交接 Topic `cb.failed.b6abe5a59ae6cb4454f2a271` 的 `cb-failed-handler` 均需盘点。初次观察发现失败交接 Channel 有 16 条延迟消息；后续原 Channel 归档、恢复验证及定向排空已完成，详见本页执行记录。主 Channel 空不能代替失败交接 Channel 的独立盘点。
 
 生产 QS MySQL 盘点约 10 GB。清单版本 2 按主键顺序逐行读取 QS 表，流式计算所有受保护行的完整 SHA-256 和数量，Mongo 按 `_id` 顺序采用相同方式；不将受保护正文积存在内存。仅待删除记录留在备份中，qs-ai 小型资产引用检查仍完整遍历其业务数据。缺少稳定主键的 SQL 表停止盘点。旧版本 1 备份仍可恢复，但不再用于新的备份或删除，必须重新生成版本 2 清单。
+
+## Mongo 性能日志保护
+
+2026-09-15 盘点确认源库还存在 `system.profile` capped 集合，profiling level 为 1。它不是旧 AI 数据，必须保留。工具先检查系统集合清单，未知系统集合在读取大表前停止；已核对的 `system.profile` 按自然顺序完整计算受保护摘要，绝不删除或写入其正文。profiling 非 0 时拒绝稳定盘点；维护时记录原采样配置，仅暂停采样级别，完成后恢复原级别，阈值和过滤条件不改动。未暂停的性能日志写入不能被视为数据库停写。
+
+NSQ 的 16 条延迟消息已在原失败交接 Channel 核对为旧 AI 评测步骤事件，归档 23,576 字节并完成隔离 Topic 的逐字节恢复验证后定向确认。清理后待处理数为 0，三个 Worker 已恢复；备份位于 serverD 的 `/data/backups/qs-ai-m5/nsq-inspection-20260915`，执行收据位于同级 `nsq-retirement-20260915`，至少保留到 2026-09-22 00:44:25 UTC。共享业务死信未删除。生产数据库集合尚未删除。
+
+
+## 删除版上线与恢复预演
+
+2026-09-15，QS 删除版 `d44ab9f68e87ffccbf59d9461416603b86442be7` 已在 API、两个 collection、三个 Worker 运行；Operating 为 `68b9a3cf7f4684ed02ac73c763284984fb4a1b15`。qs-ai 的维护工具变更不涉及应用镜像，因此部署门禁跳过应用构建，实际业务进程仍是健康的 `a670d89a6768e7e625e5dc4bcc98c618664c614a`，不能用门禁成功声称应用镜像已替换。
+
+原成功请求重复 Start 返回原接单回执，持久状态仍为 completed/version 4、一次模型调用；重复与乱序结果回传后仍有三条事件、终态不变。真实 IAM 账号 10002 对目标受试者的 QS 服务授权仍拒绝。此前真实 SELF 授权关系撤销、拒绝、恢复及允许已经完成，隔离恢复测试 39 项通过；以上服务边界证据不替代微信正式发布与设备验收。
+
+Redis lock_cache 的 DB 6 中，`cache:lock:qs:ai-explanation-prompt-evaluation-lease-recovery:leader` 和 `cache:lock:qs:ai-explanation-participant-lease-recovery:leader` 均不存在，未执行 Redis 删除。
+
+Mongo 在数据库所在主机盘点耗时 107.72 秒，峰值内存约 211 MiB；保留性能日志 401 条，预演后已恢复原 profiling level 1。9 个集合和 1,145 条 outbox 旧事件已经在隔离 MongoDB 7.0.31 中按 BSON、索引及选项恢复并核对一致；该预演不构成最终停写窗口的备份回执，生产数据库未删除。最终清单、备份、恢复和应用必须重新在同一稳定窗口执行。
