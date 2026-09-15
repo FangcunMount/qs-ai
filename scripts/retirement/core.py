@@ -63,7 +63,7 @@ def plan(directory: Path, adapters):
         raise Stop("backups must be outside a Git worktree")
     directory.mkdir(mode=0o700, parents=True)
     document = {
-        "version": 1,
+        "version": 2,
         "scope": {
             "mongo_collections": COLLECTIONS,
             "events": EVENTS,
@@ -83,7 +83,7 @@ def load_plan(directory: Path, adapters, expected: str):
     if directory.is_symlink() or directory.stat().st_mode & 0o077:
         raise Stop("backup directory must be private")
     document = read(directory / "plan.json")
-    if digest(document) != expected or document.get("version") != 1:
+    if digest(document) != expected or document.get("version") not in (1, 2):
         raise Stop("plan digest or version mismatch")
     if document["targets"] != {a.name: a.identity for a in adapters}:
         raise Stop("database targets changed")
@@ -92,6 +92,8 @@ def load_plan(directory: Path, adapters, expected: str):
 
 def backup(directory: Path, adapters, expected: str):
     document = load_plan(directory, adapters, expected)
+    if document["version"] != 2:
+        raise Stop("new inventory required for streaming protected fingerprints")
     if (directory / "backup.json").exists():
         raise Stop("backup already exists; do not overwrite it")
     snapshots = {a.name: a.snapshot() for a in adapters}
@@ -103,13 +105,16 @@ def backup(directory: Path, adapters, expected: str):
     saved = read(directory / "backup.json")
     if digest(saved) != digest(archive):
         raise Stop("backup readback mismatch")
-    for adapter in adapters:
-        adapter.verify_restore(saved["snapshots"][adapter.name])
+    restored = {
+        adapter.name: adapter.verify_restore(saved["snapshots"][adapter.name])
+        for adapter in adapters
+    }
     if inventory(adapters) != document["objects"]:
         raise Stop("database changed during backup and restoration verification")
     receipt = {
         "plan_sha256": expected,
         "backup_sha256": digest(saved),
+        "restore_targets": restored,
         "verified_at": datetime.now(UTC).isoformat(),
         "expires_at": (datetime.now(UTC) + timedelta(days=7)).isoformat(),
     }
@@ -136,6 +141,8 @@ def checked_backup(directory, adapters, expected, *, require_current=True):
 
 def apply(directory: Path, adapters, expected: str, evidence: dict):
     document, archive = checked_backup(directory, adapters, expected)
+    if document["version"] != 2:
+        raise Stop("new inventory required for streaming protected fingerprints")
     for key in ("acceptance_verified", "writers_stopped", "old_events_drained"):
         if evidence.get(key) is not True:
             raise Stop("production acceptance, writer stop and directed drain evidence required")

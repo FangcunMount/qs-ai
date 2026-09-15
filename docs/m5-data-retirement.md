@@ -4,7 +4,7 @@
 
 ## 固定范围
 
-策略位于 [policy.py](../scripts/retirement/policy.py)。只允许删除九个明确的旧 AI Mongo 集合，以及 Mongo `domain_event_outbox`、MySQL `domain_event_outbox` / `event_delivery_dead_letter` / `retry_event_hold` 内六种完整旧事件名称对应的记录。后两表按 QS 消息信封顶层 `type` 匹配，无法识别或不合法的正文保留。SQL 删除使用清单中的原始主键；共享表保留结构及其他消息。
+策略位于 [policy.py](../scripts/retirement/policy.py)。只允许删除九个明确的旧 AI Mongo 集合，以及 Mongo `domain_event_outbox`、MySQL `domain_event_outbox` / `event_delivery_dead_letter` / `retry_event_hold` 内六种完整旧事件名称对应的记录。后两表按已核对的领域事件顶层 `eventType` 或传输信封顶层 `type` 匹配；二者同时存在但不一致时保留。无法识别、不合法或仅在嵌套字段出现的事件名不作为删除依据。SQL 删除使用清单中的原始主键；共享表保留结构及其他消息。
 
 所有其他集合和表均盘点其数量、内容摘要及结构；SQL 同时记录本库和跨库外键关系，选中记录存在外键时停止。技术表全部只盘点，不自动删除：`checkpoint_leases` 曾承载生产 fence，应先经过 0028 原样迁成 `execution_leases`；不能因为暂时零行而删除。其余 LangGraph 技术表若在其他环境发现，另行确认来源；当前没有可批准删除的实际对象。没有明确调试记录 ID 清单时，不删除 qs-ai 业务数据。
 
@@ -17,7 +17,7 @@
 - `M5_QS_MONGO_URI` 与 `M5_QS_MONGO_DATABASE`。
 - `M5_QS_MYSQL_URL` 与 `M5_AI_MYSQL_URL`，格式为 SQLAlchemy MySQL URL。
 
-MySQL URL 不支持查询选项，远程连接应通过受保护隧道；Mongo 可使用其标准 TLS URI。账号需能读取目标及相关跨库外键元数据、创建并删除随机恢复验证数据库，并具备指定对象的删除权限。正式执行前先用只读账号盘点；写账号切换不会改变目标身份摘要。
+MySQL URL 不支持查询选项，远程连接应通过受保护隧道；Mongo 可使用其标准 TLS URI。源账号需能读取目标及相关跨库外键元数据；删除阶段另需具备指定对象的删除权限。默认在源服务器创建随机恢复验证库；业务账号无跨库建库权限时，通过 `M5_RESTORE_MONGO_URI` 和 `M5_RESTORE_MYSQL_URL` 指定隔离恢复服务器。MySQL 恢复 URL 指向已存在的管理数据库（例如 `information_schema`），恢复账号只在该隔离服务器创建并删除随机库。源服务器不会承担恢复写入；不扩大生产业务账号权限。恢复回执记录隔离目标摘要和随机库名，保留原来的数量、内容及结构完整校验。恢复环境应匹配生产数据库版本与结构能力，不匹配则停止。正式执行前先用只读账号盘点；写账号切换不会改变目标身份摘要。
 
 ```sh
 # 目录必须尚不存在，且在所有 Git 工作区之外。
@@ -67,3 +67,13 @@ uv run --group maintenance python -m scripts.retirement restore \
 与其他对象使用同一套 `plan → backup → 隔离恢复验证 → apply → verify`。删除前锁定 qs-ai 引用表并再次比较完整盘点；维护窗口仍必须暂停所有业务及后台写入。只删除同清单中的复合主键，v6、被引用旧版本及所有其他表数据保持不变。恢复验证重建原表结构并逐行核对选中记录，备份正文仍留在 Git 之外。
 
 这些工具的本地测试使用隔离数据库；工具就绪不代表已完成生产清库。NSQ 原 Channel 定向排空和 Redis 精确键清单仍须完成后才能进入生产删除。
+
+## 2026-09-15 生产只读盘点
+
+9 个旧 AI 集合合计 59 条记录，Mongo `domain_event_outbox` 中六类旧 AI 事件共 1,145 条。QS MySQL 的 214,005 条死信使用 component-base 领域事件格式 `eventType`，其中标准报告事件 213,646 条、测评请求 354 条、答卷提交 5 条；本次全部保留。工具已补充实际字段格式识别和冲突保留测试。数字为盘点时快照，删除前仍须在停写窗口重新生成完整清单。
+
+新链路已有 2 个请求、2 个会话、2 行执行租约，必须全部保留，不能只保留最早验收请求。`checkpoint_leases` 及四个样板检查点表已不存在，不能再次删除 `execution_leases`。
+
+共享逻辑 Topic `assessment-lifecycle` 对应实际 NSQ Topic `qs.evaluation.lifecycle`。主 Channel `qs-worker` 及失败交接 Topic `cb.failed.b6abe5a59ae6cb4454f2a271` 的 `cb-failed-handler` 均需盘点。失败交接 Channel 尚有 16 条延迟消息；当前只读观察未获取消息内容、未确认任何消息。主 Channel 空不能证明这些消息已排空，不能将未知消息归为旧 AI 后删除。
+
+生产 QS MySQL 盘点约 10 GB。清单版本 2 按主键顺序逐行读取 QS 表，流式计算所有受保护行的完整 SHA-256 和数量，Mongo 按 `_id` 顺序采用相同方式；不将受保护正文积存在内存。仅待删除记录留在备份中，qs-ai 小型资产引用检查仍完整遍历其业务数据。缺少稳定主键的 SQL 表停止盘点。旧版本 1 备份仍可恢复，但不再用于新的备份或删除，必须重新生成版本 2 清单。

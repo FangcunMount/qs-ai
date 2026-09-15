@@ -1,12 +1,32 @@
 """Fixed-scope synchronous maintenance adapters. Credentials never enter artifacts."""
 
 import base64
+import hashlib
 import re
 from uuid import uuid4
 
-from scripts.retirement.core import Stop, digest
+from scripts.retirement.core import Stop, canonical, digest
 from scripts.retirement.policy import COLLECTIONS, SHARED_TABLES, TECHNICAL_TABLES, old_event
 from scripts.retirement.prompt_policy import candidate, reference_tables, unreferenced
+
+
+class ProtectedRows:
+    """Hash a deterministically ordered JSON array without retaining its rows."""
+
+    def __init__(self):
+        self.count = 0
+        self.hash = hashlib.sha256(b"[")
+
+    def append(self, row):
+        if self.count:
+            self.hash.update(b",")
+        self.hash.update(canonical(row))
+        self.count += 1
+
+    def hexdigest(self):
+        result = self.hash.copy()
+        result.update(b"]")
+        return result.hexdigest()
 
 
 def record(action, rows, protected, metadata):
@@ -15,8 +35,8 @@ def record(action, rows, protected, metadata):
         "rows": rows,
         "count": len(rows),
         "sha256": digest(rows),
-        "protected_count": len(protected),
-        "protected_sha256": digest(protected),
+        "protected_count": protected.count,
+        "protected_sha256": protected.hexdigest(),
         "metadata": metadata,
     }
 
@@ -39,12 +59,13 @@ def compare_remaining(before, after):
 class MongoStore:
     name = "qs_mongo"
 
-    def __init__(self, uri, database):
+    def __init__(self, uri, database, *, restore_uri=None):
         from pymongo import MongoClient
         from pymongo.uri_parser import parse_uri
 
         self.client = MongoClient(uri, serverSelectionTimeoutMS=10000)
         self.db = self.client[database]
+        self.restore_uri = restore_uri
         parsed = parse_uri(uri)
         self.identity = digest({"nodes": parsed["nodelist"], "database": database})
 
@@ -60,7 +81,7 @@ class MongoStore:
             action = "drop" if name in COLLECTIONS else "preserve"
             if name == "domain_event_outbox":
                 action = "delete_rows"
-            selected, protected = [], []
+            selected, protected = [], ProtectedRows()
             for row in collection.find().sort("_id", 1):
                 encoded = base64.b64encode(BSON.encode(row)).decode()
                 target = action == "drop" or (action == "delete_rows" and old_event(row))
@@ -105,6 +126,12 @@ class MongoStore:
         return db
 
     def verify_restore(self, snapshot, *, keep=False):
+        if self.restore_uri:
+            target = MongoStore(self.restore_uri, self.db.name)
+            try:
+                return target.verify_restore(snapshot, keep=keep)
+            finally:
+                target.close()
         name = "m5_restore_" + uuid4().hex
         restored = self.restore(snapshot, name)
         original = self.db
@@ -123,7 +150,7 @@ class MongoStore:
             self.db = original
             if not keep or not verified:
                 self.client.drop_database(name)
-        return name
+        return {"database": name, "target": self.identity, "kept": keep}
 
     def apply(self, snapshot):
         from bson import BSON
@@ -164,7 +191,7 @@ def quoted(name):
 
 
 class MySQLStore:
-    def __init__(self, name, url):
+    def __init__(self, name, url, *, restore_url=None):
         import pymysql
         from sqlalchemy.engine import make_url
 
@@ -174,6 +201,7 @@ class MySQLStore:
         if parsed.get_backend_name() != "mysql" or not parsed.database:
             raise Stop("explicit MySQL database required")
         self.name, self.database = name, parsed.database
+        self.restore_url = restore_url
         self.connection = pymysql.connect(
             host=parsed.host,
             port=parsed.port or 3306,
@@ -201,9 +229,12 @@ class MySQLStore:
             )
             names = [row["TABLE_NAME"] for row in cursor.fetchall()]
             tables = {}
-            for name in names:
-                cursor.execute("SELECT * FROM " + quoted(name))
-                tables[name] = list(cursor.fetchall())
+            if self.name == "ai_mysql":
+                # Native asset reference auditing is confined to the small AI store.
+                # Never load the multi-GB QS store into memory.
+                for name in names:
+                    cursor.execute("SELECT * FROM " + quoted(name))
+                    tables[name] = list(cursor.fetchall())
             prompt_keys = (
                 unreferenced(tables.get("prompt_assets", []), tables)
                 if self.name == "ai_mysql"
@@ -225,15 +256,24 @@ class MySQLStore:
                     (self.database, name, self.database, name),
                 )
                 references = list(cursor.fetchall())
+                cursor.execute(
+                    "SELECT COLUMN_NAME FROM information_schema.KEY_COLUMN_USAGE "
+                    "WHERE TABLE_SCHEMA=%s AND TABLE_NAME=%s AND CONSTRAINT_NAME='PRIMARY' "
+                    "ORDER BY ORDINAL_POSITION",
+                    (self.database, name),
+                )
+                keys = [row["COLUMN_NAME"] for row in cursor.fetchall()]
+                if not keys:
+                    raise Stop("SQL inventory requires a stable primary key")
                 action = (
                     "delete_rows"
                     if (self.name == "qs_mysql" and name in SHARED_TABLES)
                     or (self.name == "ai_mysql" and name == "prompt_assets" and not references)
                     else "preserve"
                 )
-                selected, protected = [], []
+                selected, protected = [], ProtectedRows()
                 retained = []
-                for row in tables[name]:
+                for row in self.rows(name, keys):
                     columns = list(row)
                     statement = (
                         "INSERT INTO "
@@ -271,7 +311,6 @@ class MySQLStore:
                     else:
                         protected.append(encoded)
                 selected.sort(key=lambda row: row["id"])
-                protected.sort()
                 result[name] = record(
                     action,
                     selected,
@@ -284,6 +323,15 @@ class MySQLStore:
                 )
                 result[name]["retained_candidates"] = retained
         return result
+
+    def rows(self, table, keys):
+        from pymysql.cursors import SSDictCursor
+
+        with self.connection.cursor(SSDictCursor) as stream:
+            stream.execute(
+                "SELECT * FROM " + quoted(table) + " ORDER BY " + ",".join(map(quoted, keys))
+            )
+            yield from stream
 
     def restore(self, snapshot, database):
         if not re.fullmatch(r"m5_restore_[a-f0-9]{32}", database):
@@ -305,6 +353,12 @@ class MySQLStore:
                 cursor.execute("USE " + quoted(self.database))
 
     def verify_restore(self, snapshot, *, keep=False):
+        if self.restore_url:
+            target = MySQLStore(self.name, self.restore_url)
+            try:
+                return target.verify_restore(snapshot, keep=keep)
+            finally:
+                target.close()
         name = "m5_restore_" + uuid4().hex
         self.restore(snapshot, name)
         original = self.database
@@ -327,7 +381,7 @@ class MySQLStore:
                 cursor.execute("USE " + quoted(original))
                 if not keep or not verified:
                     cursor.execute("DROP DATABASE " + quoted(name))
-        return name
+        return {"database": name, "target": self.identity, "kept": keep}
 
     def apply(self, snapshot):
         self.connection.begin()

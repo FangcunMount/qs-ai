@@ -1,3 +1,4 @@
+import json
 from copy import deepcopy
 from datetime import UTC, datetime, timedelta
 
@@ -58,6 +59,31 @@ def test_fixed_whitelist_and_payload_ownership():
     for payload in ("bad", "[]", '{"type":"other"}', '{"data":{"type":"' + EVENTS[0] + '"}}'):
         assert not old_event({"payload_json": payload}, payload=True)
     assert not old_event({"event_type": EVENTS[0] + ".future"})
+
+
+@pytest.mark.parametrize("event", EVENTS)
+def test_persisted_domain_event_envelope_is_selected(event):
+    assert old_event({"payload_json": json.dumps({"eventType": event})}, payload=True)
+    assert old_event(
+        {"payload_json": json.dumps({"eventType": event, "type": event})}, payload=True
+    )
+
+
+@pytest.mark.parametrize(
+    "envelope",
+    [
+        {"eventType": "interpretation.report.generated"},
+        {"eventType": "evaluation.requested"},
+        {"eventType": "answersheet.submitted"},
+        {"eventType": EVENTS[0], "type": "interpretation.report.generated"},
+        {"eventType": "interpretation.report.generated", "type": EVENTS[0]},
+        {"eventType": EVENTS[0], "type": EVENTS[1]},
+        {"eventType": [EVENTS[0]]},
+        {"data": {"eventType": EVENTS[0]}},
+    ],
+)
+def test_shared_or_ambiguous_domain_events_are_preserved(envelope):
+    assert not old_event({"payload_json": json.dumps(envelope)}, payload=True)
 
 
 def test_private_backup_must_be_restored_before_apply(prepared):
