@@ -282,17 +282,19 @@ class MySQLStore:
                 )
                 selected, protected = [], ProtectedRows()
                 retained = []
+                statement = None
                 for row in self.rows(name, keys):
                     columns = list(row)
-                    statement = (
-                        "INSERT INTO "
-                        + quoted(name)
-                        + " ("
-                        + ",".join(quoted(col) for col in columns)
-                        + ") VALUES ("
-                        + ",".join(["%s"] * len(columns))
-                        + ")"
-                    )
+                    if statement is None:
+                        statement = (
+                            "INSERT INTO "
+                            + quoted(name)
+                            + " ("
+                            + ",".join(quoted(col) for col in columns)
+                            + ") VALUES ("
+                            + ",".join(["%s"] * len(columns))
+                            + ")"
+                        )
                     encoded = cursor.mogrify(statement, tuple(row.values()))
                     prompt = self.name == "ai_mysql" and name == "prompt_assets"
                     identity = (
@@ -400,8 +402,12 @@ class MySQLStore:
                 lock_names = snapshot if self.name == "ai_mysql" else SHARED_TABLES
                 for name in sorted(lock_names):
                     if name in snapshot:
-                        cursor.execute("SELECT * FROM " + quoted(name) + " FOR UPDATE")
-                        cursor.fetchall()
+                        from pymysql.cursors import SSCursor
+
+                        with self.connection.cursor(SSCursor) as locked:
+                            locked.execute("SELECT * FROM " + quoted(name) + " FOR UPDATE")
+                            for _ in locked:
+                                pass
                 if self.snapshot() != snapshot:
                     raise Stop("SQL snapshot changed before locking")
                 for name, item in snapshot.items():
