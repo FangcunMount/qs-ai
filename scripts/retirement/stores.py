@@ -181,7 +181,7 @@ class MongoStore:
                     row = BSON(base64.b64decode(raw)).decode()
                     # Full document equality avoids deleting a concurrently changed message.
                     result = self.db[name].delete_one(
-                        {"$expr": {"$eq": ["$$ROOT", {"$literal": row}]}}
+                        {"_id": row["_id"], "$expr": {"$eq": ["$$ROOT", {"$literal": row}]}}
                     )
                     if result.deleted_count != 1:
                         raise Stop("shared Mongo message changed; inspect partial application")
