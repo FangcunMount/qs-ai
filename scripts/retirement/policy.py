@@ -40,5 +40,12 @@ def old_event(row: dict, *, payload: bool = False) -> bool:
         envelope = json.loads(row["payload_json"])
     except (ValueError, TypeError, KeyError):
         return False
-    # QS transport uses the component-base messaging envelope's top-level type.
-    return isinstance(envelope, dict) and envelope.get("type") in EVENTS
+    if not isinstance(envelope, dict):
+        return False
+    # Persisted component-base domain events use eventType. Transport envelopes
+    # can use type. Conflicting identities are not safe deletion candidates.
+    identities = [envelope[key] for key in ("eventType", "type") if key in envelope]
+    return bool(identities) and all(
+        isinstance(value, str) and value == identities[0] and value in EVENTS
+        for value in identities
+    )

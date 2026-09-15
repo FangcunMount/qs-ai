@@ -39,7 +39,16 @@ def stores():
             for key, event in enumerate((*EVENTS, "assessment.scored", "unrelated"), 1):
                 cursor.execute(
                     f"INSERT INTO `{table}` VALUES (%s,%s,%s,NOW(3))",
-                    (key, event, json.dumps({"type": event, "data": "private synthetic data"})),
+                    (
+                        key,
+                        event,
+                        json.dumps(
+                            {
+                                "eventType" if key % 2 else "type": event,
+                                "data": "private synthetic data",
+                            }
+                        ),
+                    ),
                 )
         cursor.execute("CREATE TABLE ai_bridge_requests (id BIGINT PRIMARY KEY, payload TEXT)")
         cursor.execute("INSERT INTO ai_bridge_requests VALUES (1,'preserve UUID and result')")
@@ -71,7 +80,26 @@ def stores():
         admin.close()
 
 
-def test_backup_restore_and_targeted_deletion_preserve_shared_data(tmp_path, stores):
+@pytest.mark.parametrize("external_restore", [False, True])
+def test_backup_restore_and_targeted_deletion_preserve_shared_data(
+    tmp_path, stores, monkeypatch, external_restore
+):
+    if external_restore:
+        # Reuse the disposable test servers as the independent restore endpoint.
+        # Source adapters must never attempt CREATE/DROP in this mode.
+        stores[0].restore_uri = os.environ["M5_TEST_MONGO_URI"]
+        for store in stores[1:]:
+            store.restore_url = (
+                make_url(os.environ["M5_TEST_MYSQL_URL"])
+                .set(database="information_schema")
+                .render_as_string(hide_password=False)
+            )
+        for store in stores:
+
+            def refuse_source_restore(*args, **kwargs):
+                raise AssertionError("restore must not write through the source connection")
+
+            monkeypatch.setattr(store, "restore", refuse_source_restore)
     directory = tmp_path / "backup"
     sha = core.plan(directory, stores)
     receipt = core.backup(directory, stores, sha)

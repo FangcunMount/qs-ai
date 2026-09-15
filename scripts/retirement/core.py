@@ -103,13 +103,16 @@ def backup(directory: Path, adapters, expected: str):
     saved = read(directory / "backup.json")
     if digest(saved) != digest(archive):
         raise Stop("backup readback mismatch")
-    for adapter in adapters:
-        adapter.verify_restore(saved["snapshots"][adapter.name])
+    restored = {
+        adapter.name: adapter.verify_restore(saved["snapshots"][adapter.name])
+        for adapter in adapters
+    }
     if inventory(adapters) != document["objects"]:
         raise Stop("database changed during backup and restoration verification")
     receipt = {
         "plan_sha256": expected,
         "backup_sha256": digest(saved),
+        "restore_targets": restored,
         "verified_at": datetime.now(UTC).isoformat(),
         "expires_at": (datetime.now(UTC) + timedelta(days=7)).isoformat(),
     }

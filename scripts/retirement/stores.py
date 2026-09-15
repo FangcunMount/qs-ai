@@ -39,12 +39,13 @@ def compare_remaining(before, after):
 class MongoStore:
     name = "qs_mongo"
 
-    def __init__(self, uri, database):
+    def __init__(self, uri, database, *, restore_uri=None):
         from pymongo import MongoClient
         from pymongo.uri_parser import parse_uri
 
         self.client = MongoClient(uri, serverSelectionTimeoutMS=10000)
         self.db = self.client[database]
+        self.restore_uri = restore_uri
         parsed = parse_uri(uri)
         self.identity = digest({"nodes": parsed["nodelist"], "database": database})
 
@@ -105,6 +106,12 @@ class MongoStore:
         return db
 
     def verify_restore(self, snapshot, *, keep=False):
+        if self.restore_uri:
+            target = MongoStore(self.restore_uri, self.db.name)
+            try:
+                return target.verify_restore(snapshot, keep=keep)
+            finally:
+                target.close()
         name = "m5_restore_" + uuid4().hex
         restored = self.restore(snapshot, name)
         original = self.db
@@ -123,7 +130,7 @@ class MongoStore:
             self.db = original
             if not keep or not verified:
                 self.client.drop_database(name)
-        return name
+        return {"database": name, "target": self.identity, "kept": keep}
 
     def apply(self, snapshot):
         from bson import BSON
@@ -164,7 +171,7 @@ def quoted(name):
 
 
 class MySQLStore:
-    def __init__(self, name, url):
+    def __init__(self, name, url, *, restore_url=None):
         import pymysql
         from sqlalchemy.engine import make_url
 
@@ -174,6 +181,7 @@ class MySQLStore:
         if parsed.get_backend_name() != "mysql" or not parsed.database:
             raise Stop("explicit MySQL database required")
         self.name, self.database = name, parsed.database
+        self.restore_url = restore_url
         self.connection = pymysql.connect(
             host=parsed.host,
             port=parsed.port or 3306,
@@ -305,6 +313,12 @@ class MySQLStore:
                 cursor.execute("USE " + quoted(self.database))
 
     def verify_restore(self, snapshot, *, keep=False):
+        if self.restore_url:
+            target = MySQLStore(self.name, self.restore_url)
+            try:
+                return target.verify_restore(snapshot, keep=keep)
+            finally:
+                target.close()
         name = "m5_restore_" + uuid4().hex
         self.restore(snapshot, name)
         original = self.database
@@ -327,7 +341,7 @@ class MySQLStore:
                 cursor.execute("USE " + quoted(original))
                 if not keep or not verified:
                     cursor.execute("DROP DATABASE " + quoted(name))
-        return name
+        return {"database": name, "target": self.identity, "kept": keep}
 
     def apply(self, snapshot):
         self.connection.begin()

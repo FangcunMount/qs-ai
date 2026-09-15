@@ -19,10 +19,20 @@ def main():
     adapters = []
     try:
         adapters.append(
-            MongoStore(os.environ["M5_QS_MONGO_URI"], os.environ["M5_QS_MONGO_DATABASE"])
+            MongoStore(
+                os.environ["M5_QS_MONGO_URI"],
+                os.environ["M5_QS_MONGO_DATABASE"],
+                restore_uri=os.environ.get("M5_RESTORE_MONGO_URI"),
+            )
         )
-        adapters.append(MySQLStore("qs_mysql", os.environ["M5_QS_MYSQL_URL"]))
-        adapters.append(MySQLStore("ai_mysql", os.environ["M5_AI_MYSQL_URL"]))
+        for name, variable in (("qs_mysql", "M5_QS_MYSQL_URL"), ("ai_mysql", "M5_AI_MYSQL_URL")):
+            adapters.append(
+                MySQLStore(
+                    name,
+                    os.environ[variable],
+                    restore_url=os.environ.get("M5_RESTORE_MYSQL_URL"),
+                )
+            )
         if args.command == "plan":
             result = {"plan_sha256": core.plan(args.directory, adapters)}
         elif args.command == "backup":
