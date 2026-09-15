@@ -6,7 +6,7 @@
 
 代码可以在独立 `codex/m5-retirement` 分支准备和验证。生产退役必须先具备真实管理、授权生成/展示、撤权、可靠回传及恢复证据。截至本清单建立时，这些证据仍有缺口；不得将准备工作标记为 M5 完成。
 
-当前生产核对基线（2026-09-15）：AI `a670d89a6768e7e625e5dc4bcc98c618664c614a`，QS `75284d84c96c3db02d02bf02c8d61af7422eba66`，IAM `24dbe924f8a6bca7479b62f5f744254d985adc4e`。QS #110、Operating #35 删除批次尚未发布；小程序主干已合并请求身份升级，但不能据此代替微信正式版本验收。当前 v6 指纹为 `sha256:cc747df0a6ae4b02b65b7447ce08845fa8c4e91b9d674f51ac25fbcbffd2a2a2`。
+当前生产核对基线（2026-09-15）：AI `a670d89a6768e7e625e5dc4bcc98c618664c614a`，QS `d44ab9f68e87ffccbf59d9461416603b86442be7`，IAM `24dbe924f8a6bca7479b62f5f744254d985adc4e`。QS #110 已合并发布，API、两个 collection 和三个 Worker 镜像均核对为该版本；Operating #35 已发布 `68b9a3cf7f4684ed02ac73c763284984fb4a1b15` 并健康。旧模型环境变量及旧 AI 配置块已退出 QS 生产，新 `ai_workflow` 生成与管理保持启用。小程序主干已合并请求身份升级，但不能据此代替微信正式版本验收。当前 v6 指纹为 `sha256:cc747df0a6ae4b02b65b7447ce08845fa8c4e91b9d674f51ac25fbcbffd2a2a2`。
 
 ## 代码批次
 
