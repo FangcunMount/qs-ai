@@ -141,6 +141,30 @@ def test_live_drift_blocks_every_database_before_first_drop(tmp_path, stores):
     assert set(COLLECTIONS) <= set(stores[0].db.list_collection_names())
 
 
+def test_qs_protected_inventory_streams_large_rows_and_detects_same_count_change(stores):
+    import tracemalloc
+
+    qs = stores[1]
+    with qs.connection.cursor() as cursor:
+        cursor.execute("CREATE TABLE protected_payloads (id INT PRIMARY KEY, payload LONGTEXT)")
+        for key in range(1000):
+            cursor.execute("INSERT INTO protected_payloads VALUES (%s,%s)", (key, "x" * 16384))
+    tracemalloc.start()
+    try:
+        before = qs.snapshot()["protected_payloads"]
+        _, peak = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+    assert before["protected_count"] == 1000
+    assert before["count"] == 0
+    assert peak < 12 * 1024 * 1024  # Less than the 16 MB protected payload alone.
+    with qs.connection.cursor() as cursor:
+        cursor.execute("UPDATE protected_payloads SET payload='changed' WHERE id=1")
+    after = qs.snapshot()["protected_payloads"]
+    assert after["protected_count"] == before["protected_count"]
+    assert after["protected_sha256"] != before["protected_sha256"]
+
+
 @pytest.mark.parametrize("store_index", [0, 1])
 def test_failed_partial_restore_removes_only_its_scratch_database(stores, store_index):
     import binascii

@@ -75,3 +75,5 @@ uv run --group maintenance python -m scripts.retirement restore \
 新链路已有 2 个请求、2 个会话、2 行执行租约，必须全部保留，不能只保留最早验收请求。`checkpoint_leases` 及四个样板检查点表已不存在，不能再次删除 `execution_leases`。
 
 共享逻辑 Topic `assessment-lifecycle` 对应实际 NSQ Topic `qs.evaluation.lifecycle`。主 Channel `qs-worker` 及失败交接 Topic `cb.failed.b6abe5a59ae6cb4454f2a271` 的 `cb-failed-handler` 均需盘点。失败交接 Channel 尚有 16 条延迟消息；当前只读观察未获取消息内容、未确认任何消息。主 Channel 空不能证明这些消息已排空，不能将未知消息归为旧 AI 后删除。
+
+生产 QS MySQL 盘点约 10 GB。清单版本 2 按主键顺序逐行读取 QS 表，流式计算所有受保护行的完整 SHA-256 和数量，Mongo 按 `_id` 顺序采用相同方式；不将受保护正文积存在内存。仅待删除记录留在备份中，qs-ai 小型资产引用检查仍完整遍历其业务数据。缺少稳定主键的 SQL 表停止盘点。旧版本 1 备份仍可恢复，但不再用于新的备份或删除，必须重新生成版本 2 清单。
