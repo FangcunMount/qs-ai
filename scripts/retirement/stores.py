@@ -70,9 +70,6 @@ class MongoStore:
         self.identity = digest({"nodes": parsed["nodelist"], "database": database})
 
     def snapshot(self):
-        from bson import BSON
-
-        result = {}
         collections = sorted(self.db.list_collections(), key=lambda item: item["name"])
         # Validate before reading large business collections. The reviewed profiler
         # collection is protected; it is never a drop/restore target.
@@ -82,26 +79,29 @@ class MongoStore:
         if any(info["name"] == "system.profile" for info in collections):
             if self.db.command("profile", -1)["was"] != 0:
                 raise Stop("Mongo profiling must be paused before stable inventory")
-        for info in collections:
-            name = info["name"]
-            collection = self.db[name]
-            action = "drop" if name in COLLECTIONS else "preserve"
-            if name == "domain_event_outbox":
-                action = "delete_rows"
-            selected, protected = [], ProtectedRows()
-            order = "$natural" if name == "system.profile" else "_id"
-            for row in collection.find().sort(order, 1):
-                encoded = base64.b64encode(BSON.encode(row)).decode()
-                target = action == "drop" or (action == "delete_rows" and old_event(row))
-                (selected if target else protected).append(encoded)
-            metadata = {
-                "options": info.get("options", {}),
-                "indexes": [dict(index) for index in collection.list_indexes()],
-            }
-            # Canonical BSON preserves options containing BSON-only values too.
-            metadata = base64.b64encode(BSON.encode(metadata)).decode()
-            result[name] = record(action, selected, protected, metadata)
-        return result
+        return {info["name"]: self._snapshot_collection(info) for info in collections}
+
+    def _snapshot_collection(self, info):
+        from bson import BSON
+
+        name = info["name"]
+        collection = self.db[name]
+        action = "drop" if name in COLLECTIONS else "preserve"
+        if name == "domain_event_outbox":
+            action = "delete_rows"
+        selected, protected = [], ProtectedRows()
+        order = "$natural" if name == "system.profile" else "_id"
+        for row in collection.find().sort(order, 1):
+            encoded = base64.b64encode(BSON.encode(row)).decode()
+            target = action == "drop" or (action == "delete_rows" and old_event(row))
+            (selected if target else protected).append(encoded)
+        metadata = {
+            "options": info.get("options", {}),
+            "indexes": [dict(index) for index in collection.list_indexes()],
+        }
+        # Canonical BSON preserves options containing BSON-only values too.
+        metadata = base64.b64encode(BSON.encode(metadata)).decode()
+        return record(action, selected, protected, metadata)
 
     def restore(self, snapshot, database):
         from bson import BSON
@@ -170,7 +170,8 @@ class MongoStore:
                 continue
             if name not in COLLECTIONS and name != "domain_event_outbox":
                 raise Stop("Mongo target outside fixed whitelist")
-            current = self.snapshot().get(name)
+            matches = list(self.db.list_collections(filter={"name": name}))
+            current = self._snapshot_collection(matches[0]) if matches else None
             if current != item:
                 raise Stop("Mongo object changed immediately before deletion")
             if item["action"] == "drop":

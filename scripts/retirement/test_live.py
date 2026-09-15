@@ -60,8 +60,10 @@ def stores():
         client[mongo][collection].insert_one({"_id": "old", "payload": "synthetic private data"})
         client[mongo][collection].create_index("payload", name="legacy_lookup")
     client[mongo]["reports"].insert_one({"_id": 1, "standard_report": "keep"})
-    client[mongo].create_collection("system.profile", capped=True, size=1048576)
-    client[mongo]["system.profile"].insert_one({"ns": "test.protected", "op": "synthetic"})
+    client[mongo].command("profile", 2)
+    client[mongo]["reports"].find_one({"_id": 1})
+    client[mongo].command("profile", 0)
+    assert client[mongo]["system.profile"].count_documents({}) > 0
     for key, event in enumerate((*EVENTS, "assessment.scored")):
         client[mongo]["domain_event_outbox"].insert_one({"_id": key, "event_type": event})
     adapters = [
