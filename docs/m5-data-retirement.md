@@ -77,3 +77,9 @@ uv run --group maintenance python -m scripts.retirement restore \
 共享逻辑 Topic `assessment-lifecycle` 对应实际 NSQ Topic `qs.evaluation.lifecycle`。主 Channel `qs-worker` 及失败交接 Topic `cb.failed.b6abe5a59ae6cb4454f2a271` 的 `cb-failed-handler` 均需盘点。失败交接 Channel 尚有 16 条延迟消息；当前只读观察未获取消息内容、未确认任何消息。主 Channel 空不能证明这些消息已排空，不能将未知消息归为旧 AI 后删除。
 
 生产 QS MySQL 盘点约 10 GB。清单版本 2 按主键顺序逐行读取 QS 表，流式计算所有受保护行的完整 SHA-256 和数量，Mongo 按 `_id` 顺序采用相同方式；不将受保护正文积存在内存。仅待删除记录留在备份中，qs-ai 小型资产引用检查仍完整遍历其业务数据。缺少稳定主键的 SQL 表停止盘点。旧版本 1 备份仍可恢复，但不再用于新的备份或删除，必须重新生成版本 2 清单。
+
+## Mongo 性能日志保护
+
+2026-09-15 盘点确认源库还存在 `system.profile` capped 集合，profiling level 为 1。它不是旧 AI 数据，必须保留。工具先检查系统集合清单，未知系统集合在读取大表前停止；已核对的 `system.profile` 按自然顺序完整计算受保护摘要，绝不删除或写入其正文。profiling 非 0 时拒绝稳定盘点；维护时记录原采样配置，仅暂停采样级别，完成后恢复原级别，阈值和过滤条件不改动。未暂停的性能日志写入不能被视为数据库停写。
+
+NSQ 的 16 条延迟消息已在原失败交接 Channel 核对为旧 AI 评测步骤事件，归档 23,576 字节并完成隔离 Topic 的逐字节恢复验证后定向确认。清理后待处理数为 0，三个 Worker 已恢复；备份位于 serverD 的 `/data/backups/qs-ai-m5/nsq-inspection-20260915`，执行收据位于同级 `nsq-retirement-20260915`，至少保留到 2026-09-22 00:44:25 UTC。共享业务死信未删除。生产数据库集合尚未删除。

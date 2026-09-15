@@ -73,16 +73,24 @@ class MongoStore:
         from bson import BSON
 
         result = {}
-        for info in sorted(self.db.list_collections(), key=lambda item: item["name"]):
-            name = info["name"]
-            if name.startswith("system."):
+        collections = sorted(self.db.list_collections(), key=lambda item: item["name"])
+        # Validate before reading large business collections. The reviewed profiler
+        # collection is protected; it is never a drop/restore target.
+        for info in collections:
+            if info["name"].startswith("system.") and info["name"] != "system.profile":
                 raise Stop("system collection requires a separate reviewed inventory")
+        if any(info["name"] == "system.profile" for info in collections):
+            if self.db.command("profile", -1)["was"] != 0:
+                raise Stop("Mongo profiling must be paused before stable inventory")
+        for info in collections:
+            name = info["name"]
             collection = self.db[name]
             action = "drop" if name in COLLECTIONS else "preserve"
             if name == "domain_event_outbox":
                 action = "delete_rows"
             selected, protected = [], ProtectedRows()
-            for row in collection.find().sort("_id", 1):
+            order = "$natural" if name == "system.profile" else "_id"
+            for row in collection.find().sort(order, 1):
                 encoded = base64.b64encode(BSON.encode(row)).decode()
                 target = action == "drop" or (action == "delete_rows" and old_event(row))
                 (selected if target else protected).append(encoded)

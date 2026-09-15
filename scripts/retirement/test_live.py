@@ -60,6 +60,8 @@ def stores():
         client[mongo][collection].insert_one({"_id": "old", "payload": "synthetic private data"})
         client[mongo][collection].create_index("payload", name="legacy_lookup")
     client[mongo]["reports"].insert_one({"_id": 1, "standard_report": "keep"})
+    client[mongo].create_collection("system.profile", capped=True, size=1048576)
+    client[mongo]["system.profile"].insert_one({"ns": "test.protected", "op": "synthetic"})
     for key, event in enumerate((*EVENTS, "assessment.scored")):
         client[mongo]["domain_event_outbox"].insert_one({"_id": key, "event_type": event})
     adapters = [
@@ -139,6 +141,18 @@ def test_live_drift_blocks_every_database_before_first_drop(tmp_path, stores):
     with pytest.raises(core.Stop, match="changed before deletion"):
         core.apply(directory, stores, sha, proof)
     assert set(COLLECTIONS) <= set(stores[0].db.list_collection_names())
+
+
+def test_active_mongo_profiler_blocks_inventory_before_business_scan(stores, monkeypatch):
+    store = stores[0]
+    store.db.command("profile", 2)
+    try:
+        with pytest.raises(core.Stop, match="profiling must be paused"):
+            store.snapshot()
+    finally:
+        store.db.command("profile", 0)
+    assert set(COLLECTIONS) <= set(store.db.list_collection_names())
+    assert store.snapshot()["system.profile"]["action"] == "preserve"
 
 
 def test_qs_protected_inventory_streams_large_rows_and_detects_same_count_change(stores):
