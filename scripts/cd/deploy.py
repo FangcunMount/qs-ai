@@ -123,14 +123,18 @@ def write_registry_auth(directory: Path, environment: dict) -> None:
         json.dump({"auths": {registry: {"auth": auth}}}, stream)
 
 
+class CommandFailure(RuntimeError):
+    def __init__(self, phase: str, exit_code: int, kind: str):
+        self.kind = kind
+        super().__init__(f"{phase} failed: exit={exit_code} kind={kind}; raw output suppressed")
+
+
 def run(phase: str, args: list[str], **kwargs) -> str:
     print(f"{phase}: started", flush=True)
     result = subprocess.run(args, capture_output=True, text=True, timeout=1800, **kwargs)
     if result.returncode:
-        kind = export_failure_kind(((result.stderr or "") + (result.stdout or "")).encode())
-        raise RuntimeError(
-            f"{phase} failed: exit={result.returncode} kind={kind}; raw output suppressed"
-        )
+        kind = export_failure_kind(((result.stderr or "") + "\n" + (result.stdout or "")).encode())
+        raise CommandFailure(phase, result.returncode, kind)
     return result.stdout
 
 
@@ -157,7 +161,28 @@ def export_failure_kind(raw: bytes) -> str:
             return category
     if b"content digest" in message and b"not found" in message:
         return "missing_content"
+    if (
+        b"failed to fetch oauth token" in message or b"failed to do request" in message
+    ) and re.search(rb"\b(?:unexpected )?eof\b|connection reset by peer", message):
+        return "network_unavailable"
     return "unclassified"
+
+
+def pull_image(image: str, environment: dict) -> None:
+    # Retrying a digest pull is safe; never retry remote deployment writes here.
+    for attempt in range(3):
+        try:
+            run(
+                "image pull",
+                ["docker", "pull", "--platform", "linux/amd64", image],
+                env=environment,
+            )
+            return
+        except CommandFailure as error:
+            if error.kind != "network_unavailable" or attempt == 2:
+                raise
+            print(f"image pull: transient network failure, retry {attempt + 1}/2", flush=True)
+            time.sleep((2, 5)[attempt])
 
 
 def export_image(image: str, archive: Path, environment: dict, timeout: float = 1800) -> None:
@@ -329,9 +354,7 @@ def main() -> None:
                 raise ValueError("Invalid image digest")
             write_registry_auth(docker_config, env)
             image = f"{registry}/{namespace}/qs-ai@{digest}"
-            run(
-                "image pull", ["docker", "pull", "--platform", "linux/amd64", image], env=docker_env
-            )
+            pull_image(image, docker_env)
             alias = f"qs-ai:{revision}"
             run("image tag", ["docker", "tag", image, alias], env=docker_env)
             inspected = json.loads(
