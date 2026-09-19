@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from qs_ai.bootstrap.container import create_container
 from qs_ai.config import Settings
 from qs_ai.transport.http.health import router
+from qs_ai.transport.http.metrics import router as metrics_router
 
 
 def create_app(
@@ -25,4 +26,5 @@ def create_app(
     app = FastAPI(title="QS AI", version="0.1.0", lifespan=lifespan)
     setup_dishka(container, app)
     app.include_router(router)
+    app.include_router(metrics_router)
     return app
