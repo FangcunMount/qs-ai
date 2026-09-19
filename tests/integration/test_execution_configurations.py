@@ -220,18 +220,31 @@ async def test_disabled_pointer_does_not_rebind_accepted_task_or_allow_new_accep
     )
     await MySQLPublications(tx).apply(scope, stop, at + timedelta(seconds=1))
     rejected_key = str(uuid4())
-    with pytest.raises(RuleViolation, match="configuration_unavailable"):
-        await service.start_external(kit.actor, "7", ("42",), "解读", rejected_key, evidence.items)
+    rejected = await service.start_external(
+        kit.actor, "7", ("42",), "解读", rejected_key, evidence.items
+    )
+    assert rejected.status == "blocked"
     async with tx.open() as db:
-        assert list(
-            await db.scalars(
-                select(sessions.c.id).where(sessions.c.owner_subject_id == kit.actor.subject_id)
-            )
-        ) == [receipt.session_id]
         assert (
             await db.scalar(select(idempotency.c.key).where(idempotency.c.key == rejected_key))
+            == rejected_key
+        )
+        assert (
+            await db.scalar(
+                select(execution_configurations.c.session_id).where(
+                    execution_configurations.c.session_id == rejected.session_id
+                )
+            )
             is None
         )
+        event = await db.scalar(
+            select(result_outbox.c.payload).where(result_outbox.c.session_id == rejected.session_id)
+        )
+        assert event["status"] == "blocked" and event["failure_code"] == "configuration_unavailable"
+    assert (
+        await service.start_external(kit.actor, "7", ("42",), "解读", rejected_key, evidence.items)
+        == rejected
+    )
     assert (
         await service.start_external(kit.actor, "7", ("42",), "解读", key, evidence.items)
         == receipt
@@ -240,6 +253,52 @@ async def test_disabled_pointer_does_not_rebind_accepted_task_or_allow_new_accep
     assert await ExecuteNext(kit.store, kit.source, workflow(kit, model)).once()
     assert (await service.get(kit.actor, receipt.session_id)).session.status == "completed"
     assert model.calls == 1
+
+
+async def test_admission_refusal_cannot_rebind_on_replay_or_management_retry(admitted):
+    from qs_ai.application.execution.capacity import ParticipantCapacityPolicy
+    from qs_ai.application.execution.retry import ParticipantRetry
+    from qs_ai.application.governance.prompt_drafts import DraftScope
+    from qs_ai.infrastructure.persistence.mysql.participant_retries import MySQLParticipantRetries
+
+    kit, service, _, _, evidence, first, (tx, scope, command, at) = admitted
+    old_id = first.change.current.active.publication_id
+    await MySQLPublications(tx).apply(
+        scope, MovePublication(uuid4(), command.selector, 1, old_id, "暂停", True, None), at
+    )
+    key = str(uuid4())
+    refused = await service.start_external(kit.actor, "7", ("42",), "解读", key, evidence.items)
+    await MySQLPublications(tx).apply(
+        scope,
+        MovePublication(uuid4(), command.selector, 2, None, "恢复", True, old_id),
+        at + timedelta(seconds=1),
+    )
+    assert (
+        await service.start_external(kit.actor, "7", ("42",), "解读", key, evidence.items)
+        == refused
+    )
+    assert refused.status == "blocked"
+    retries = MySQLParticipantRetries(tx, ParticipantCapacityPolicy())
+    operator = DraftScope(1, 42)
+    assert not (await retries.get(operator, refused.session_id)).can_retry
+    with pytest.raises(RuleViolation, match="participant_retry_requires_accepted_configuration"):
+        await retries.retry(
+            ParticipantRetry(
+                operator,
+                refused.session_id,
+                str(uuid4()),
+                refused.run_id,
+                refused.version,
+                "Cannot bind a different publication",
+                True,
+                1,
+                False,
+            )
+        )
+    new = await service.start_external(
+        kit.actor, "7", ("42",), "解读", str(uuid4()), evidence.items
+    )
+    assert new.status == "queued" and new.session_id != refused.session_id
 
 
 @pytest.mark.parametrize("damage", ["missing", "evidence", "pointer", "publication"])

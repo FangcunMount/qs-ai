@@ -90,19 +90,3 @@ async def test_legacy_workflow_cannot_reach_reader_or_model():
         SimpleNamespace(session=SimpleNamespace(workflow_version="qs-snapshot-v1")), None
     )
     assert result.failure_code == "configuration_invalid"
-
-
-async def test_external_admission_requires_report_snapshot_before_persistence():
-    from uuid import uuid4
-
-    from qs_ai.application.interpretation.service import InterpretationService
-    from qs_ai.domain.interpretation.model import Actor, RuleViolation
-
-    class Forbidden:
-        def __call__(self, *args):
-            pytest.fail("missing snapshot must fail before entering the transaction")
-
-    with pytest.raises(RuleViolation, match="published_configuration_requires_snapshot"):
-        await InterpretationService(Forbidden(), Forbidden()).start_external(
-            Actor("1", "2"), "7", ("42",), "goal", str(uuid4())
-        )
