@@ -26,6 +26,7 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
 from tests.integration.test_generation import Gateway
 from tests.integration.test_interpretation import kit as kit
 from tests.integration.test_participant_capacity import reservations, start
+from tests.probes.session_inspection import read_session
 
 pytestmark = [pytest.mark.integration, pytest.mark.usefixtures("published_configuration")]
 
@@ -69,7 +70,7 @@ async def blocked(kit, *, unknown=False, dispatch=True):
             "", failure_code="provider_result_unknown" if unknown else "provider_timeout"
         ),
     )
-    state = await kit.service.get(kit.actor, accepted.session_id)
+    state = await read_session(kit.service.uows, accepted.session_id)
     command = ParticipantRetry(
         DraftScope(1, 42),
         accepted.session_id,
@@ -167,7 +168,7 @@ async def test_quota_denial_rolls_back_retry_and_does_not_change_the_failed_atte
     with pytest.raises(RuleViolation, match="participant_daily_capacity_exceeded"):
         await service(kit, ParticipantCapacityPolicy(daily_user=1)).execute(command)
     assert len(await reservations(kit)) == 1
-    state = await kit.service.get(kit.actor, command.session_id)
+    state = await read_session(kit.service.uows, command.session_id)
     assert state.session.status == "blocked" and state.session.version == command.expected_version
     with pytest.raises(NotFound):
         await service(kit).receipt(command.scope, command.command_id)
@@ -222,7 +223,7 @@ async def test_retry_that_fails_before_dispatch_keeps_the_earliest_frozen_reques
     first = await service(kit).execute(command)
     claim = await kit.store.claim(60)
     await kit.store.finish(claim, WorkflowResult("", failure_code="access_revoked"))
-    current = await kit.service.get(kit.actor, command.session_id)
+    current = await read_session(kit.service.uows, command.session_id)
     second = await service(kit).execute(
         replace(
             command,

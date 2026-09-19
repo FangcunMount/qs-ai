@@ -11,6 +11,7 @@ from qs_ai.domain.interpretation.model import RuleViolation
 from qs_ai.infrastructure.persistence.mysql.result_outbox import MySQLResultOutbox, stage_state
 from qs_ai.infrastructure.persistence.mysql.schema import external_requests, jobs, result_outbox
 from tests.integration.test_interpretation import kit  # noqa: F401
+from tests.probes.session_inspection import read_session
 from tests.test_input_binding import bound_case
 
 pytestmark = [pytest.mark.integration, pytest.mark.usefixtures("published_configuration")]
@@ -70,7 +71,7 @@ async def test_cancel_publishes_new_snapshot_and_failed_delivery_keeps_payload(k
         kit.actor, "7", ("42",), "goal", str(uuid4()), bound_case()[1].items
     )
     await kit.worker().once()
-    view = await kit.service.get(kit.actor, receipt.session_id)
+    view = await read_session(kit.service.uows, receipt.session_id)
     await kit.service.cancel(
         kit.actor,
         receipt.session_id,
@@ -129,7 +130,7 @@ async def test_delivery_timing_survives_restage_retry_and_duplicate_ack(kit):  #
             .where(result_outbox.c.event_id == event.event_id)
             .values(created_at=created)
         )
-        await stage_state(db, (await kit.service.get(kit.actor, receipt.session_id)).session)
+        await stage_state(db, (await read_session(kit.service.uows, receipt.session_id)).session)
         await db.commit()
     await store.retry(event.event_id)
     async with kit.transactions.open() as db:
@@ -204,7 +205,7 @@ async def test_first_result_is_due_with_non_utc_database_sessions(kit):  # noqa:
     receipt = await kit.service.start_external(
         kit.actor, "7", ("42",), "goal", str(uuid4()), bound_case()[1].items
     )
-    session = (await kit.service.get(kit.actor, receipt.session_id)).session
+    session = (await read_session(kit.service.uows, receipt.session_id)).session
     for zone in ("+00:00", "+08:00", "-05:00"):
         # Roll back each staged version and timezone-independent assertion.
         async with kit.transactions.open() as db:
