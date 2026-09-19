@@ -18,6 +18,7 @@ from qs_ai.infrastructure.persistence.mysql.schema import artifacts, sessions
 from qs_ai.infrastructure.qs_server.output import QSOutputParser
 from tests.integration.test_generation import Gateway
 from tests.integration.test_interpretation import kit as kit
+from tests.probes.session_inspection import read_session
 from tests.test_input_binding import bound_case
 from tests.test_output_validation import candidate
 
@@ -75,7 +76,7 @@ async def test_artifact_and_completed_event_commit_together(kit):
     assert json.loads(completed[0].artifact_json) == payload
     with pytest.raises(LeaseLost):
         await kit.store.finish(claim, WorkflowResult("", artifact=artifact))
-    view = await kit.service.get(kit.actor, claim.session.id)
+    view = await read_session(kit.service.uows, claim.session.id)
     with pytest.raises(RuleViolation, match="invalid_state"):
         await kit.service.cancel(
             kit.actor,

@@ -13,6 +13,7 @@ from qs_ai.infrastructure.persistence.mysql.result_outbox import MySQLResultOutb
 from qs_ai.infrastructure.persistence.mysql.schema import artifacts
 from tests.integration.test_generation import Gateway
 from tests.integration.test_interpretation import kit as kit
+from tests.probes.session_inspection import read_session
 from tests.test_input_binding import bound_case
 from tests.test_output_validation import candidate
 
@@ -64,7 +65,7 @@ async def test_worker_to_validated_artifact_or_visible_failure(kit, scenario, ex
         DurableGeneration(kit.store, model, JSONModelCallCodec()),
     )
     assert await ExecuteNext(kit.store, kit.source, workflow).once()
-    view = await kit.service.get(kit.actor, receipt.session_id)
+    view = await read_session(kit.service.uows, receipt.session_id)
     assert view.session.failure_code == expected
     assert view.session.status == ("completed" if expected is None else "blocked")
     assert model.calls == (0 if scenario == "before" else 1)

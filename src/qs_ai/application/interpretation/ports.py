@@ -40,12 +40,6 @@ class Receipt:
     version: int
 
 
-@dataclass(frozen=True)
-class SessionView:
-    session: Session
-    question: Question | None
-
-
 class UnitOfWork(Protocol):
     async def reserve(self, scope: str, key: str, request_hash: str) -> Receipt | None: ...
     async def receipt(self, scope: str, key: str, receipt: Receipt) -> None: ...

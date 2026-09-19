@@ -5,12 +5,6 @@ from typing import ClassVar
 
 
 @dataclass(frozen=True)
-class StartCommand:
-    action: ClassVar[str] = "start"
-    expected_version: int
-
-
-@dataclass(frozen=True)
 class AnswerCommand:
     action: ClassVar[str] = "answer"
     expected_version: int
