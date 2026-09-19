@@ -77,7 +77,14 @@ async def stop(process):
     await process.communicate()
 
 
-async def test_go_python_durable_round_trip(kit, tmp_path):  # noqa: F811
+@pytest.mark.parametrize("admission", ["accepted", "paused", "invalid_snapshot"])
+async def test_go_python_durable_round_trip(
+    kit,  # noqa: F811
+    tmp_path,
+    ready,
+    published_configuration,
+    admission,
+):
     binary = os.getenv("QS_AI_BRIDGE_BIN")
     qs_dsn = os.getenv("QS_AI_TEST_QS_MYSQL_DSN")
     if not binary or not qs_dsn or not os.getenv("QS_AI_TEST_QS_GO_DSN"):
@@ -100,6 +107,26 @@ async def test_go_python_durable_round_trip(kit, tmp_path):  # noqa: F811
     from tests.test_input_binding import bound_case
 
     start["evidence"] = [asdict(item) for item in bound_case()[1].items]
+    if admission == "invalid_snapshot":
+        start["evidence"][0]["facts"] = [{"ref": "standard_report", "value": "{}"}]
+    if admission == "paused":
+        from qs_ai.application.governance.publication import MovePublication
+        from qs_ai.infrastructure.persistence.mysql.publications import MySQLPublications
+
+        tx, scope, command, at = ready
+        await MySQLPublications(tx).apply(
+            scope,
+            MovePublication(
+                uuid4(),
+                command.selector,
+                1,
+                published_configuration.change.current.active.publication_id,
+                "Admission refusal interop",
+                True,
+                None,
+            ),
+            at + timedelta(seconds=1),
+        )
     input_path = tmp_path / "command.json"
     input_path.write_text(json.dumps(start))
     env = {**os.environ, "QS_AI_BRIDGE_DSN": os.environ["QS_AI_TEST_QS_GO_DSN"]}
@@ -219,6 +246,44 @@ async def test_go_python_durable_round_trip(kit, tmp_path):  # noqa: F811
                 )
                 await db.commit()
             assert await go(*relay_args) == "1"
+            if admission != "accepted":
+                from sqlalchemy import func
+
+                from qs_ai.infrastructure.persistence.mysql.schema import jobs, model_calls, runs
+
+                expected = (
+                    "configuration_unavailable"
+                    if admission == "paused"
+                    else "admission_input_invalid"
+                )
+                assert first["status"] == "blocked" and first["failure_code"] == expected
+                assert first["version"] == 4
+                assert (
+                    json.loads(await go("-mode", "projection", "-request-id", request_id)) == first
+                )
+                assert await go(*relay_args) == "0"  # settled, no endless replay
+                async with kit.transactions.open() as db:
+                    assert (
+                        await db.scalar(
+                            select(func.count())
+                            .select_from(jobs)
+                            .where(jobs.c.session_id == session_id)
+                        )
+                        == 0
+                    )
+                    assert (
+                        await db.scalar(
+                            select(func.count())
+                            .select_from(model_calls)
+                            .where(
+                                model_calls.c.run_id.in_(
+                                    select(runs.c.id).where(runs.c.session_id == session_id)
+                                )
+                            )
+                        )
+                        == 0
+                    )
+                return
             assert await kit.worker().once()
             events = [e for e in await outbox.pending(20) if e.session_id == session_id]
             events.sort(key=lambda e: e.version, reverse=True)

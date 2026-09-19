@@ -14,6 +14,14 @@ class DependencyUnavailable(Exception):
     pass
 
 
+class AdmissionRejected(Exception):
+    """Known pre-dispatch refusal; persist it with the original request ID."""
+
+    def __init__(self, code: str) -> None:
+        self.code = code
+        super().__init__(code)
+
+
 class NotFound(Exception):
     pass
 

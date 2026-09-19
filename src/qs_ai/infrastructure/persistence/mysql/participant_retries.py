@@ -19,6 +19,7 @@ from qs_ai.infrastructure.persistence.model_call_codec import JSONModelCallCodec
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
 from qs_ai.infrastructure.persistence.mysql.interpretation import MySQLUnitOfWork, session_from
 from qs_ai.infrastructure.persistence.mysql.schema import (
+    execution_configurations,
     external_requests,
     jobs,
     model_calls,
@@ -85,6 +86,14 @@ class MySQLParticipantRetries:
                     participant_retries.c.session_id == session.id,
                 )
             )
+            has_configuration = (
+                await db.scalar(
+                    select(execution_configurations.c.session_id).where(
+                        execution_configurations.c.session_id == session.id
+                    )
+                )
+                is not None
+            )
             return ParticipantExecution(
                 scope.organization_id,
                 session.id,
@@ -101,7 +110,8 @@ class MySQLParticipantRetries:
                 source_run_id or "",
                 session.status == "blocked"
                 and run_status == "blocked"
-                and job_status in {None, "done", "dead"},
+                and job_status in {None, "done", "dead"}
+                and has_configuration,
                 bool(call and call["status"] in {"dispatched", "unknown"}),
             )
 
@@ -217,6 +227,17 @@ class MySQLParticipantRetries:
                     JSONModelCallCodec().decode_request(frozen_request)
                 except ValueError:
                     raise RuleViolation("participant_retry_original_request_invalid") from None
+            # Admission refusals have no accepted publication to reuse. Never
+            # silently bind a later publication or start an unconfigured retry.
+            if (
+                await db.scalar(
+                    select(execution_configurations.c.session_id).where(
+                        execution_configurations.c.session_id == session.id
+                    )
+                )
+                is None
+            ):
+                raise RuleViolation("participant_retry_requires_accepted_configuration")
             failure = session.failure_code
             session.retry(command.expected_run_id, str(uuid4()))
             await uow.enqueue(session, None, False, None)
