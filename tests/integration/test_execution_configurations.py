@@ -270,7 +270,7 @@ async def test_admission_refusal_cannot_rebind_on_replay_or_management_retry(adm
     refused = await service.start_external(kit.actor, "7", ("42",), "解读", key, evidence.items)
     await MySQLPublications(tx).apply(
         scope,
-        MovePublication(uuid4(), command.selector, 2, None, "恢复", False, old_id),
+        MovePublication(uuid4(), command.selector, 2, None, "恢复", True, old_id),
         at + timedelta(seconds=1),
     )
     assert (

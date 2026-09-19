@@ -14,7 +14,12 @@ from qs_ai.application.interpretation.service import InterpretationService
 from qs_ai.domain.interpretation.model import Actor, RuleViolation
 from qs_ai.infrastructure.interpretation.unconfigured import UnconfiguredEvidenceSource
 from qs_ai.infrastructure.persistence.mysql.interpretation import MySQLUnitOfWorkFactory
-from qs_ai.infrastructure.persistence.mysql.schema import evidence_sets
+from qs_ai.infrastructure.persistence.mysql.schema import (
+    evidence_sets,
+    jobs,
+    result_outbox,
+    sessions,
+)
 from tests.integration.test_interpretation import kit  # noqa: F401
 from tests.test_input_binding import bound_case
 
@@ -49,17 +54,37 @@ async def test_snapshot_rechecks_access_without_rereading_facts_and_rejects_chan
         await service.get(Actor("1", "someone-else"), receipt.session_id)
 
 
-async def test_snapshot_subject_mismatch_and_transaction_failure_do_not_persist(kit, monkeypatch):  # noqa: F811
+async def test_snapshot_mismatch_refuses_without_facts_and_transaction_failure_rolls_back(
+    kit,  # noqa: F811
+    monkeypatch,
+):
     import qs_ai.infrastructure.persistence.mysql.interpretation as persistence
 
     service = InterpretationService(
         MySQLUnitOfWorkFactory(kit.transactions), UnconfiguredEvidenceSource()
     )
     item = bound_case()[1].items[0]
-    with pytest.raises(RuleViolation, match="evidence_subject_mismatch"):
-        await service.start_external(kit.actor, "8", ("42",), "goal", str(uuid4()), (item,))
+    key = str(uuid4())
+    refused = await service.start_external(kit.actor, "8", ("42",), "goal", key, (item,))
+    assert refused.status == "blocked"
+    assert await service.start_external(kit.actor, "8", ("42",), "goal", key, (item,)) == refused
     async with kit.transactions.open() as db:
         before = await db.scalar(select(func.count()).select_from(evidence_sets))
+        assert (
+            await db.scalar(
+                select(evidence_sets.c.id).where(evidence_sets.c.session_id == refused.session_id)
+            )
+            is None
+        )
+        assert (
+            await db.scalar(select(jobs.c.id).where(jobs.c.session_id == refused.session_id))
+            is None
+        )
+        event = await db.scalar(
+            select(result_outbox.c.payload).where(result_outbox.c.session_id == refused.session_id)
+        )
+        assert event["failure_code"] == "admission_input_invalid"
+        sessions_before = await db.scalar(select(func.count()).select_from(sessions))
 
     async def fail(*args):
         raise RuntimeError("injected after evidence persistence")
@@ -69,6 +94,7 @@ async def test_snapshot_subject_mismatch_and_transaction_failure_do_not_persist(
         await service.start_external(kit.actor, "7", ("42",), "goal", str(uuid4()), (item,))
     async with kit.transactions.open() as db:
         assert await db.scalar(select(func.count()).select_from(evidence_sets)) == before
+        assert await db.scalar(select(func.count()).select_from(sessions)) == sessions_before
 
 
 @pytest.mark.parametrize("stage", ["before", "after"])
