@@ -5,7 +5,7 @@ from grpc import aio
 
 from qs_ai.application.interpretation.ports import AccessDenied, DependencyUnavailable
 from qs_ai.application.interpretation.service import external_id
-from qs_ai.domain.interpretation.model import Actor, EvidenceItem
+from qs_ai.domain.interpretation.model import Actor
 from qs_ai.infrastructure.qs_server.generated.interpretation import interpretation_pb2 as pb
 from qs_ai.infrastructure.qs_server.generated.interpretation import interpretation_pb2_grpc as rpc
 
@@ -49,8 +49,3 @@ class QSAccessSource:
             }:
                 raise AccessDenied from None
             raise DependencyUnavailable("QS current authorization unavailable") from None
-
-    async def read(
-        self, actor: Actor, testee_id: str, assessment_ids: tuple[str, ...]
-    ) -> tuple[EvidenceItem, ...]:
-        raise DependencyUnavailable("QS must provide a frozen snapshot at submission")

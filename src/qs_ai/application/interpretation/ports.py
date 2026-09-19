@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from qs_ai.domain.interpretation.artifact import ArtifactCandidate
-from qs_ai.domain.interpretation.model import Actor, EvidenceItem, EvidenceSet, Question, Session
+from qs_ai.domain.interpretation.model import Actor, EvidenceSet, Question, Session
 
 
 class AccessDenied(Exception):
@@ -30,10 +30,6 @@ class EvidenceSource(Protocol):
     async def authorize(
         self, actor: Actor, testee_id: str, assessment_ids: tuple[str, ...]
     ) -> None: ...
-
-    async def read(
-        self, actor: Actor, testee_id: str, assessment_ids: tuple[str, ...]
-    ) -> tuple[EvidenceItem, ...]: ...
 
 
 @dataclass(frozen=True)
@@ -103,5 +99,4 @@ class ExecutionStore(Protocol):
     async def claim(self, ttl_seconds: int) -> Claim | None: ...
     async def renew(self, claim: Claim, ttl_seconds: int) -> None: ...
     async def evidence(self, claim: Claim) -> EvidenceSet | None: ...
-    async def freeze(self, claim: Claim, evidence: EvidenceSet) -> EvidenceSet: ...
     async def finish(self, claim: Claim, result: WorkflowResult) -> None: ...

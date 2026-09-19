@@ -1,0 +1,98 @@
+{
+  "recorded_on": "2026-09-19",
+  "ai_runtime_sha": "56168713f262e96924a6b0acda9b11d804a396df",
+  "qs_apiserver_runtime_sha": "d68ba1dccc7fe07be772c162098bc9d0d3ea1e8d",
+  "prompt_retirement": {
+    "status": "completed",
+    "selected_ids": [
+      [
+        "cross-dimension-participant-scale",
+        "v1"
+      ],
+      [
+        "cross-dimension-participant-scale",
+        "v2"
+      ],
+      [
+        "cross-dimension-participant-scale",
+        "v3"
+      ],
+      [
+        "cross-dimension-participant-scale",
+        "v4"
+      ],
+      [
+        "cross-dimension-participant-scale",
+        "v5"
+      ]
+    ],
+    "plan_sha256": "1005c33a993da7f633af0fe273a507e243b07d46a241700573cc90be4545e694",
+    "backup_sha256": "6ffc9afaa72a298469244f9b50289edc9c18e43bdf12b45d7828cdd3c67a067c",
+    "completed_at": "2026-09-19T14:28:49.343640+00:00",
+    "protected_data_unchanged": true
+  },
+  "backup_retain_until": "2026-09-27T00:00:00+00:00",
+  "restore_verified": true,
+  "services_and_original_ingress_restored": true,
+  "monitoring": {
+    "target": "http://qs-ai-api:8000/metrics",
+    "health": "up",
+    "rules": [
+      {
+        "name": "QSAIEndpointUnavailable",
+        "state": "inactive",
+        "health": "ok"
+      },
+      {
+        "name": "QSAIDatabaseMetricsUnavailable",
+        "state": "inactive",
+        "health": "ok"
+      },
+      {
+        "name": "QSAIReadyQueueDelayed",
+        "state": "inactive",
+        "health": "ok"
+      },
+      {
+        "name": "QSAIRecoveryDelayed",
+        "state": "inactive",
+        "health": "ok"
+      },
+      {
+        "name": "QSAIResultDeliveryDelayed",
+        "state": "inactive",
+        "health": "ok"
+      },
+      {
+        "name": "QSAIResultTimestampMissing",
+        "state": "inactive",
+        "health": "ok"
+      },
+      {
+        "name": "QSAIModelResultUnknown",
+        "state": "inactive",
+        "health": "ok"
+      },
+      {
+        "name": "QSAIProviderResponseSlow",
+        "state": "inactive",
+        "health": "ok"
+      },
+      {
+        "name": "QSAIParticipantCapacityRejected",
+        "state": "inactive",
+        "health": "ok"
+      }
+    ],
+    "template_sha256": "538a4b59fc7f5862435138298417a9b6391b9cd69f3854ea2f2e2cbd47420f66",
+    "rule_sha256": "0de415cb1f7bd739e6f60831117aa076cb065a212092df5f8b522c0e50756492",
+    "external_notification_verified": false
+  },
+  "not_proven": [
+    "native_management_full_lifecycle",
+    "publication_pause_and_rollback",
+    "remaining_revocation_and_recovery_matrix",
+    "mini_program_production_device_acceptance",
+    "grpc_shutdown_fix_deployed"
+  ]
+}
