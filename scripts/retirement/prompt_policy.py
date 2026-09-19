@@ -13,15 +13,28 @@ def candidate(row):
 def references(value, asset):
     """Unknown/unversioned uses retain the asset; no timestamp or status inference."""
     if isinstance(value, dict):
-        identity_keys = {"id", "identity", "template_id", "TemplateID"}
-        version_keys = {"version", "Version"}
-        identities = [value[key] for key in identity_keys & value.keys()]
-        versions = [value[key] for key in version_keys & value.keys()]
-        if TEMPLATE_ID in identities:
-            if not versions or asset["version"] in versions:
+        # Pair fields by their actual schema. A Profile's own `version` must
+        # never qualify an otherwise unversioned prompt_template_id.
+        field_groups = (
+            ({"prompt_template_id"}, {"prompt_version"}),
+            ({"id", "identity", "template_id", "TemplateID"}, {"version", "Version"}),
+        )
+        value = dict(value)
+        for identity_keys, version_keys in field_groups:
+            matching = {key for key in identity_keys & value.keys() if value[key] == TEMPLATE_ID}
+            if not matching:
+                continue
+            versions = [value[key] for key in version_keys & value.keys()]
+            if (
+                not versions
+                or any(not isinstance(version, str) or not version for version in versions)
+                or len(set(versions)) != 1
+                or asset["version"] in versions
+            ):
                 return True
-            # A fully qualified different version does not refer to this asset.
-            value = {k: v for k, v in value.items() if k not in identity_keys | version_keys}
+            # Remove only this qualified identity. Other fields, nested proof,
+            # raw digests and unknown mentions still retain their own references.
+            value = {k: v for k, v in value.items() if k not in matching | version_keys}
         return any(references(item, asset) for item in value.values())
     if isinstance(value, (tuple, list)):
         return any(references(item, asset) for item in value)

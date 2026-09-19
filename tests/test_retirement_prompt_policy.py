@@ -62,3 +62,51 @@ def test_current_version_does_not_keep_unreferenced_history():
 def test_incomplete_asset_identity_is_retained():
     row = {**asset(), "fingerprint": ""}
     assert not unreferenced([row], {"prompt_assets": [row]})
+
+
+def test_real_v6_profile_does_not_retain_v1_to_v5():
+    from pathlib import Path
+
+    baseline = json.loads(
+        Path("integrations/qs_server/prompts/published-profile-baseline.json").read_text()
+    )
+    rows = [asset("v" + str(i)) for i in range(1, 7)]
+    data = {"prompt_assets": rows, "profile_assets": [{"definition_json": json.dumps(baseline)}]}
+    assert unreferenced(rows, data) == {(TEMPLATE_ID, "v" + str(i)) for i in range(1, 6)}
+
+
+@pytest.mark.parametrize("version", [None, "", 6, ["v6"]])
+def test_unknown_version_cannot_prove_unreferenced(version):
+    row = asset()
+    data = {"profile_assets": [{"prompt_template_id": TEMPLATE_ID, "prompt_version": version}]}
+    assert not unreferenced([row], data)
+
+
+def test_unrelated_version_does_not_qualify_prompt_reference():
+    row = asset()
+    assert not unreferenced(
+        [row], {"profile_assets": [{"prompt_template_id": TEMPLATE_ID, "version": "v6"}]}
+    )
+
+
+def test_exact_v6_reference_does_not_hide_other_old_or_unknown_references():
+    row = asset()
+    for other in [
+        row["fingerprint"],
+        row["package_sha256"],
+        TEMPLATE_ID,
+        {"identity": TEMPLATE_ID, "version": "v1"},
+    ]:
+        data = {
+            "evidence": [
+                {"prompt_template_id": TEMPLATE_ID, "prompt_version": "v6", "other": other}
+            ]
+        }
+        assert not unreferenced([row], data)
+
+
+def test_explicit_old_profile_reference_is_retained():
+    row = asset()
+    assert not unreferenced(
+        [row], {"profile_assets": [{"prompt_template_id": TEMPLATE_ID, "prompt_version": "v1"}]}
+    )
