@@ -16,6 +16,7 @@ from qs_ai.application.governance.publication import MovePublication
 from qs_ai.application.interpretation.preparation import prepare_explanation
 from qs_ai.application.interpretation.provider import ProviderFailure
 from qs_ai.application.interpretation.service import InterpretationService
+from qs_ai.domain.interpretation.model import RuleViolation
 from qs_ai.infrastructure.persistence.model_call_codec import JSONModelCallCodec
 from qs_ai.infrastructure.persistence.mysql.execution_configurations import (
     MySQLExecutionConfigurations,
