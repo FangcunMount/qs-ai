@@ -6,7 +6,7 @@
 
 ## 当前范围
 
-已实现报告事实快照、发布配置绑定、模型调用回执、MySQL 任务领取与续租、幂等、恢复、成果投递，以及配置/评测/审核/发布的内部管理接口。生产业务通过 mTLS gRPC 接入。HTTP 只保留健康接口，初期独立会话路由已经移除；LangChain / LangGraph 样板和运行依赖已移除，生产恢复直接使用业务状态和执行租约。
+已实现报告事实快照、发布配置绑定、模型调用回执、MySQL 任务领取与续租、幂等、恢复、成果投递，以及配置/评测/审核/发布的内部管理接口。生产业务通过 mTLS gRPC 接入。HTTP 提供健康检查和内网汇总指标，初期独立会话路由已经移除；LangChain / LangGraph 样板和运行依赖已移除，生产恢复直接使用业务状态和执行租约。
 
 多报告、主动追问、长期记忆和新 Prompt 编排仍属后续产品建设。`/readyz` 只检查数据库，不代表真实管理和测评闭环已经验收。
 
@@ -41,14 +41,14 @@ docker compose stop
 
 集成测试会写入合成业务数据，只能指向独立测试数据库；先执行 Alembic 迁移。迁移 `0028_execution_leases` 原样迁名正式使用的租约表，不删除 fence 数据；升级前停止旧 worker，迁移后使用新版本，详见退役清单。
 
-Worker 默认只探测数据库：`uv run python -m qs_ai.bootstrap.worker`；`--once` 领取至多一个任务，`--serve` 常驻执行并续租。独立 gRPC、评测和投递进程的生产配置见 [配置说明](configs/README.md) 与 [部署验证](docs/deployment-verification.md)。
+Worker 默认只探测数据库：`uv run python -m qs_ai.bootstrap.worker`；`--once` 领取至多一个任务，`--serve` 常驻执行并续租。gRPC 收到 SIGTERM/SIGINT 后立即停止接收新调用，按 `grpc.shutdown_grace_seconds` 等待在途调用，超时后取消并关闭依赖；容器停止期限应大于该宽限时间。独立 gRPC、评测和投递进程的生产配置见 [配置说明](configs/README.md) 与 [部署验证](docs/deployment-verification.md)。
 
 ## 模块边界
 
 - `src/qs_ai/main.py`：保留 HTTP 工厂入口，转发到 bootstrap。
 - `src/qs_ai/domain/`：会话聚合、问题、证据与状态不变量。
 - `src/qs_ai/application/`：会话命令/查询、工作执行和外部端口。
-- `src/qs_ai/transport/`：HTTP 健康路由与内部 gRPC 业务入口。
+- `src/qs_ai/transport/`：HTTP 健康/指标路由与内部 gRPC 业务入口。
 - `src/qs_ai/bootstrap/`：Dishka Provider、容器和进程生命周期。
 - `configs/`：默认、本地、生产配置；详见 [配置说明](configs/README.md)。
 - `src/qs_ai/config.py`：统一加载、覆盖与类型校验；生产密钥经 Actions Secrets 注入。
