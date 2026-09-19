@@ -1,6 +1,5 @@
 """Versioned gate changes use real disposable MySQL evidence, never production approvals."""
 
-import asyncio
 import json
 from dataclasses import replace
 from datetime import timedelta
@@ -8,12 +7,10 @@ from datetime import timedelta
 import pytest
 from sqlalchemy import update
 
-from qs_ai.application.evaluation.checkpoints import CheckpointConflict
 from qs_ai.application.evaluation.management import ManagementScope
-from qs_ai.application.interpretation.ports import NotFound
-from qs_ai.domain.evaluation.acceptance import RULE_VERSION
+from qs_ai.domain.evaluation.acceptance import RULE_VERSION, rule_document
 from qs_ai.domain.evaluation.review import CandidateHumanReview
-from qs_ai.infrastructure.persistence.mysql.evaluation_acceptance import adopt_acceptance_rule
+from qs_ai.infrastructure.persistence.mysql.evaluation_finalization import save_progress
 from qs_ai.infrastructure.persistence.mysql.evaluation_management import MySQLEvaluationManagement
 from qs_ai.infrastructure.persistence.mysql.schema import evaluation_runs
 from tests.integration.test_evaluation_runs import rows
@@ -40,24 +37,31 @@ async def seed_legacy_creation(ready):
         await db.commit()
 
 
-async def adopt(ready, version, *, commit=True, org=1, fingerprint=None, confirm=True):
+async def seed_retained_adoption(ready, version):
+    """Isolated database fixture for the already-retained production audit format.
+
+    The retired write command is intentionally absent from the runtime package.
+    This fixture does not authorize a live policy change or sign a human review.
+    """
     tx, run_id, *_ = ready
     before, _, _ = await rows(tx, run_id)
-    release = json.loads(before["definition_json"])["release_fingerprint"]
+    adoption = {
+        "rule": rule_document(),
+        "actor": "operator:root",
+        "reason": "Historical fixture only",
+        "adopted_at": (AT + timedelta(seconds=4)).isoformat(),
+        "source_version": version,
+        "version": version + 1,
+        "release_fingerprint": json.loads(before["definition_json"])["release_fingerprint"],
+    }
     async with tx.open() as db:
-        value = await adopt_acceptance_rule(
+        await save_progress(
             db,
-            ManagementScope(run_id, org, 42),
+            ManagementScope(run_id, 1, 42),
             version,
-            fingerprint or release,
-            "operator:root",
-            "采用最终候选完成率，保留全部调用记录",
-            AT + timedelta(seconds=4),
-            confirm=confirm,
+            {**before["progress_json"], "acceptance_rule_adoption": adoption},
         )
-        if commit:
-            await db.commit()
-        return value
+        await db.commit()
 
 
 async def finish(ready, state):
@@ -66,7 +70,7 @@ async def finish(ready, state):
     return state
 
 
-async def test_recovered_legacy_run_changes_only_gate_basis_and_preserves_every_record(ready):
+async def test_retained_adoption_reconstructs_gates_and_preserves_every_record(ready):
     await seed_legacy_creation(ready)
     state, value = await blocked(ready)
     state = await accept(ready, state, value)
@@ -79,19 +83,7 @@ async def test_recovered_legacy_run_changes_only_gate_basis_and_preserves_every_
     evidence = await originals(ready)
     legacy = await store.preview_gates(scope, state.version, AT + timedelta(seconds=4))
     assert dict(legacy.gate_passes)["G3"] is False
-    preview = await adopt(ready, state.version, commit=False)
-    assert preview["before_gates"]["G3"] is False and preview["after_gates"]["G3"] is True
-    assert await rows(tx, run_id) == before and await originals(ready) == evidence
-    for options in ({"org": 2}, {"fingerprint": "sha256:" + "0" * 64}, {"confirm": False}):
-        with pytest.raises((ValueError, CheckpointConflict, NotFound)):
-            await adopt(ready, state.version, **options)
-        assert await rows(tx, run_id) == before
-    concurrent = await asyncio.gather(
-        adopt(ready, state.version), adopt(ready, state.version), return_exceptions=True
-    )
-    assert sum(isinstance(r, CheckpointConflict) for r in concurrent) == 1
-    result = next(r for r in concurrent if isinstance(r, dict))
-    assert result["adoption"]["rule"]["version"] == RULE_VERSION
+    await seed_retained_adoption(ready, state.version)
     after = await rows(tx, run_id)
     assert after[0]["definition_json"] == before[0]["definition_json"]
     assert {
@@ -108,10 +100,6 @@ async def test_recovered_legacy_run_changes_only_gate_basis_and_preserves_every_
     assert {m.name: m for m in current.quality.metrics}[
         "observed_semantic_execution_success_rate"
     ].value == 35 / 36
-    with pytest.raises(CheckpointConflict):
-        await adopt(ready, state.version)
-    with pytest.raises(ValueError):
-        await adopt(ready, state.version + 1)
     # Synthetic reviews exercise finalization readback; they are never production approvals.
     batch = tuple(
         CandidateHumanReview(
@@ -138,8 +126,6 @@ async def test_recovered_legacy_run_changes_only_gate_basis_and_preserves_every_
     assert final.status == "rejected"
     assert await MySQLEvaluationManagement(tx).get(scope) == final
     assert json.loads(final.finalization_json)["gate_result"]["gate_passes"]["G3"] is True
-    with pytest.raises(ValueError):
-        await adopt(ready, final.version)
 
 
 async def test_new_creation_freezes_rule_and_no_adoption_is_needed(ready):
@@ -154,23 +140,3 @@ async def test_new_creation_freezes_rule_and_no_adoption_is_needed(ready):
         ManagementScope(ready[1], 1, 42), state.version, AT + timedelta(seconds=4)
     )
     assert dict(preview.gate_passes)["G3"] is True
-    with pytest.raises(ValueError):
-        await adopt(ready, state.version)
-
-
-@pytest.mark.parametrize(
-    "case", ["wrong_org", "stale", "unconfirmed", "wrong_release", "collecting"]
-)
-async def test_rejects_invalid_changes_without_mutation(ready, case):
-    await seed_legacy_creation(ready)
-    before = await rows(ready[0], ready[1])
-    options = {}
-    if case == "wrong_org":
-        options["org"] = 2
-    if case == "wrong_release":
-        options["fingerprint"] = "sha256:" + "0" * 64
-    if case == "unconfirmed":
-        options["confirm"] = False
-    with pytest.raises((ValueError, CheckpointConflict, NotFound)):
-        await adopt(ready, 2 if case == "stale" else 3, **options)
-    assert await rows(ready[0], ready[1]) == before
