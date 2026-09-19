@@ -6,6 +6,7 @@ from uuid import UUID, uuid4
 from qs_ai.application.interpretation.commands import AnswerCommand, CancelCommand, StartCommand
 from qs_ai.application.interpretation.ports import (
     AccessDenied,
+    AdmissionRejected,
     EvidenceSource,
     Receipt,
     SessionView,
@@ -191,9 +192,6 @@ class InterpretationService:
         if not external_id(actor.org_id) or not actor.subject_id or len(actor.subject_id) > 128:
             raise RuleViolation("invalid_session_input")
         validate_session_input(testee_id, assessment_ids, goal)
-        if not evidence:
-            raise RuleViolation("published_configuration_requires_snapshot")
-        EvidenceSet("", "", "", evidence).validate(testee_id, assessment_ids)
         scope = fingerprint(["qs-server", "external-start-v1"])
         request_hash = fingerprint(
             [asdict(actor), testee_id, assessment_ids, goal] + [asdict(item) for item in evidence]
@@ -206,23 +204,30 @@ class InterpretationService:
             session.queue(str(uuid4()))
             await uow.add(session)
             session.workflow_version = "qs-published-snapshot-v1"
-            frozen = EvidenceSet(
-                str(uuid4()),
-                session.id,
-                fingerprint([asdict(item) for item in evidence]),
-                evidence,
-            )
-            await uow.add_evidence(frozen)
-            session.evidence_set_id = frozen.id
-            await uow.bind_configuration(session, frozen)
             await uow.bind_request(session.id, request_id)
             try:
-                await uow.enqueue(session, None, False, None)
-            except RuleViolation as error:
-                if error.code != "participant_daily_capacity_exceeded":
-                    raise
-                # QS has durably accepted an asynchronous request. Persist a known
-                # blocked result, so relaying the original ID cannot later start it.
+                try:
+                    EvidenceSet("", "", "", evidence).validate(testee_id, assessment_ids)
+                except RuleViolation:
+                    raise AdmissionRejected("admission_input_invalid") from None
+                frozen = EvidenceSet(
+                    str(uuid4()),
+                    session.id,
+                    fingerprint([asdict(item) for item in evidence]),
+                    evidence,
+                )
+                await uow.add_evidence(frozen)
+                session.evidence_set_id = frozen.id
+                await uow.bind_configuration(session, frozen)
+                try:
+                    await uow.enqueue(session, None, False, None)
+                except RuleViolation as error:
+                    if error.code != "participant_daily_capacity_exceeded":
+                        raise
+                    raise AdmissionRejected(error.code) from None
+            except AdmissionRejected as error:
+                # A durable refusal is replayable even after configuration changes.
+                # No job/model call is created; the normal outbox informs QS.
                 session.running()
                 session.block(error.code)
                 await uow.reject_run(session)

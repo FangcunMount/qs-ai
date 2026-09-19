@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
+from jsonschema.exceptions import SchemaError
 from sqlalchemy import func, insert, select, update
 from sqlalchemy.dialects.mysql import insert as mysql_insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,7 +14,8 @@ from qs_ai.application.execution.capacity import (
     DEFAULT_PARTICIPANT_CAPACITY,
     ParticipantCapacityPolicy,
 )
-from qs_ai.application.interpretation.ports import NotFound, Receipt, UnitOfWork
+from qs_ai.application.interpretation.input import InvalidInput
+from qs_ai.application.interpretation.ports import AdmissionRejected, NotFound, Receipt, UnitOfWork
 from qs_ai.domain.interpretation.model import (
     Actor,
     EvidenceSet,
@@ -113,7 +115,21 @@ class MySQLUnitOfWork:
         return session_from(row)
 
     async def bind_configuration(self, session: Session, evidence: EvidenceSet) -> None:
-        await bind_configuration(self.db, session, evidence)
+        # Only deterministic validation failures become durable refusals. Database,
+        # network and commit failures must still roll back and replay the same ID.
+        try:
+            await bind_configuration(self.db, session, evidence)
+        except RuleViolation as error:
+            code = (
+                "configuration_unavailable"
+                if error.code == "configuration_unavailable"
+                else "admission_input_invalid"
+            )
+            raise AdmissionRejected(code) from None
+        except InvalidInput:
+            raise AdmissionRejected("admission_input_invalid") from None
+        except (ValueError, NotFound, SchemaError, KeyError, TypeError):
+            raise AdmissionRejected("admission_configuration_invalid") from None
 
     async def bind_request(self, session_id: str, request_id: str) -> None:
         await self.db.execute(
@@ -194,11 +210,13 @@ class MySQLUnitOfWork:
         )
 
     async def reject_run(self, session: Session) -> None:
-        if (
-            session.status != Status.BLOCKED
-            or session.failure_code != "participant_daily_capacity_exceeded"
-        ):
-            raise ValueError("Admission rejection requires a blocked capacity result")
+        if session.status != Status.BLOCKED or session.failure_code not in {
+            "participant_daily_capacity_exceeded",
+            "configuration_unavailable",
+            "admission_input_invalid",
+            "admission_configuration_invalid",
+        }:
+            raise ValueError("Admission rejection requires a known blocked result")
         await self.db.execute(
             insert(runs).values(
                 id=session.active_run_id,
