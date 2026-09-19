@@ -49,7 +49,6 @@ async def test_snapshot_rechecks_access_without_rereading_facts_and_rejects_chan
     assert await ExecuteNext(kit.store, source, Workflow()).once()
     view = await service.get(kit.actor, receipt.session_id)
     assert view.session.failure_code == "model_not_connected"
-    assert source.reads == 0
     with pytest.raises(AccessDenied):
         await service.get(Actor("1", "someone-else"), receipt.session_id)
 

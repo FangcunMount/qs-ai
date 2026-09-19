@@ -378,30 +378,6 @@ class MySQLExecutionStore:
             await self._guard(db, claim)
             return await self._evidence(db, claim.session.id)
 
-    async def freeze(self, claim: Claim, evidence: EvidenceSet) -> EvidenceSet:
-        async with self.transactions.open() as db:
-            session = await self._guard(db, claim)
-            existing = await self._evidence(db, session.id)
-            if existing:
-                return existing
-            evidence.validate(session.testee_id, session.assessment_ids)
-            if evidence.session_id != session.id:
-                raise ValueError("Evidence session does not match")
-            await db.execute(
-                insert(evidence_sets).values(
-                    id=evidence.id,
-                    session_id=session.id,
-                    fingerprint=evidence.fingerprint,
-                    schema_version="evidence-v1",
-                    items=[asdict(item) for item in evidence.items],
-                )
-            )
-            session.evidence_set_id = evidence.id
-            await MySQLUnitOfWork(db).save(session)
-            await self._check_active(db, claim)
-            await db.commit()
-            return evidence
-
     async def finish(self, claim: Claim, result: WorkflowResult) -> None:
         if result.artifact is not None and (result.question is not None or result.failure_code):
             raise ValueError("Artifact cannot accompany a question or failure")

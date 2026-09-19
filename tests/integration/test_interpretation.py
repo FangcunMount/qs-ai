@@ -1,7 +1,7 @@
 import asyncio
 import os
 import sys
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from uuid import uuid4
 
 import pytest
@@ -14,8 +14,15 @@ from qs_ai.application.interpretation.ports import (
     AccessDenied,
     WorkflowResult,
 )
-from qs_ai.application.interpretation.service import InterpretationService
-from qs_ai.domain.interpretation.model import Actor, RuleViolation, Status
+from qs_ai.application.interpretation.service import InterpretationService, fingerprint
+from qs_ai.domain.interpretation.model import (
+    Actor,
+    EvidenceItem,
+    EvidenceSet,
+    Fact,
+    RuleViolation,
+    Status,
+)
 from qs_ai.infrastructure.persistence.mysql.database import Database, Transactions
 from qs_ai.infrastructure.persistence.mysql.execution import MySQLExecutionStore
 from qs_ai.infrastructure.persistence.mysql.interpretation import MySQLUnitOfWorkFactory
@@ -50,9 +57,30 @@ class Kit:
     actor: Actor
 
     async def create(self):
-        return await self.service.create(
+        receipt = await self.service.create(
             self.actor, "18446744073709551615", ("42",), "goal", str(uuid4())
         )
+        # Low-level persistence tests start with facts already frozen, just like QS admission.
+        async with self.service.uows.open() as uow:
+            session = await uow.get(receipt.session_id)
+            items = (
+                EvidenceItem(
+                    "42",
+                    session.testee_id,
+                    "report-42",
+                    "fixture-v1",
+                    (Fact("dimensions.attention", "synthetic fact"),),
+                ),
+            )
+            evidence = EvidenceSet(
+                str(uuid4()), session.id, fingerprint([asdict(item) for item in items]), items
+            )
+            evidence.validate(session.testee_id, session.assessment_ids)
+            await uow.add_evidence(evidence)
+            session.evidence_set_id = evidence.id
+            await uow.save(session)
+            await uow.commit()
+        return receipt
 
     async def queued(self):
         receipt = await self.create()
@@ -247,7 +275,6 @@ async def test_answer_resume_and_immutable_evidence(kit, skip):
     done = await kit.service.get(kit.actor, receipt.session_id)
     assert done.session.status == Status.BLOCKED
     assert done.session.failure_code == "model_not_connected"
-    assert kit.source.reads == 1
     async with kit.transactions.open() as db:
         row = (
             (await db.execute(select(questions).where(questions.c.id == question.id)))
@@ -333,7 +360,6 @@ async def test_owner_isolation_and_revocation_even_on_replay(kit):
             .one()
         )
         assert row["failure_code"] == "access_revoked"
-        assert kit.source.reads == 0
 
 
 async def test_takeover_cancel_and_stale_business_publication(kit):

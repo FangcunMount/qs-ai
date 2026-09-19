@@ -64,8 +64,6 @@ async def test_current_authorization_over_real_mtls_rechecks_and_fails_closed(tm
                     await source.authorize(Actor("1", "parent"), "7", ("42",))
                 assert "sensitive" not in str(raised.value)
             assert handler.calls == 8
-            with pytest.raises(DependencyUnavailable):
-                await source.read(Actor("1", "parent"), "7", ("42",))
     finally:
         await server.stop(0)
 
