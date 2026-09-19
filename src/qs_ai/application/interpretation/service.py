@@ -3,13 +3,12 @@ import json
 from dataclasses import asdict
 from uuid import UUID, uuid4
 
-from qs_ai.application.interpretation.commands import AnswerCommand, CancelCommand, StartCommand
+from qs_ai.application.interpretation.commands import AnswerCommand, CancelCommand
 from qs_ai.application.interpretation.ports import (
     AccessDenied,
     AdmissionRejected,
     EvidenceSource,
     Receipt,
-    SessionView,
     UnitOfWork,
     UnitOfWorkFactory,
 )
@@ -64,45 +63,11 @@ class InterpretationService:
             await self.source.authorize(actor, session.testee_id, session.assessment_ids)
         return session
 
-    async def get(self, actor: Actor, session_id: str) -> SessionView:
-        await self._owned(actor, session_id)
-        async with self.uows.open() as uow:
-            session = await uow.get(session_id)
-            question = (
-                await uow.question(session.current_question_id)
-                if session.current_question_id
-                else None
-            )
-            return SessionView(session, question)
-
     @staticmethod
     def _key(actor: Actor, action: str, resource: str, key: str) -> str:
         if not key or len(key) > 128 or not key.isascii():
             raise RuleViolation("invalid_idempotency_key")
         return fingerprint([asdict(actor), action, resource])
-
-    async def create(
-        self, actor: Actor, testee_id: str, assessment_ids: tuple[str, ...], goal: str, key: str
-    ) -> Receipt:
-        validate_session_input(testee_id, assessment_ids, goal)
-        scope = self._key(actor, "create", "", key)
-        request_hash = fingerprint([testee_id, assessment_ids, goal])
-        await self.source.authorize(actor, testee_id, assessment_ids)
-        async with self.uows.open() as uow:
-            previous = await uow.reserve(scope, key, request_hash)
-            if previous:
-                return previous
-            session = Session(str(uuid4()), actor, testee_id, assessment_ids, goal)
-            await uow.add(session)
-            receipt = Receipt(session.id, None, session.status, session.version)
-            await uow.receipt(scope, key, receipt)
-            await uow.commit()
-            return receipt
-
-    async def start(
-        self, actor: Actor, session_id: str, command: StartCommand, key: str
-    ) -> Receipt:
-        return await self._change(actor, session_id, command, key)
 
     async def answer(
         self, actor: Actor, session_id: str, command: AnswerCommand, key: str
@@ -118,7 +83,7 @@ class InterpretationService:
         self,
         actor: Actor,
         session_id: str,
-        command: StartCommand | AnswerCommand | CancelCommand,
+        command: AnswerCommand | CancelCommand,
         key: str,
     ) -> Receipt:
         scope = self._key(actor, command.action, session_id, key)
@@ -136,14 +101,9 @@ class InterpretationService:
                 session.cancel()
                 await uow.cancel_jobs(session)
             else:
-                question_id: str | None = None
-                answer: str | None = None
-                skip = False
-                if isinstance(command, AnswerCommand):
-                    await self._record_answer(uow, session, actor, command)
-                    question_id, answer, skip = command.question_id, command.answer, command.skip
-                session.queue(str(uuid4()), question_id=question_id)
-                await uow.enqueue(session, answer, skip, question_id)
+                await self._record_answer(uow, session, actor, command)
+                session.queue(str(uuid4()), question_id=command.question_id)
+                await uow.enqueue(session, command.answer, command.skip, command.question_id)
             await uow.save(session)
             receipt = Receipt(session.id, session.active_run_id, session.status, session.version)
             await uow.receipt(scope, key, receipt)

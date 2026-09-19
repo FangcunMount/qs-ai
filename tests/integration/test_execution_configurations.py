@@ -46,6 +46,7 @@ from tests.integration.test_publications import persisted_assets as persisted_as
 from tests.integration.test_publications import ready as ready
 from tests.integration.test_publications import reviewable as reviewable
 from tests.integration.test_publications import setup_run as setup_run
+from tests.probes.session_inspection import read_session
 from tests.test_input_binding import bound_case
 from tests.test_output_validation import candidate
 
@@ -99,7 +100,7 @@ async def test_acceptance_replay_and_execution_keep_original_publication_after_r
     )
     model = Model()
     assert await ExecuteNext(kit.store, kit.source, workflow(kit, model)).once()
-    view = await service.get(kit.actor, receipt.session_id)
+    view = await read_session(service.uows, receipt.session_id)
     assert view.session.status == "completed", view.session.failure_code
     async with tx.open() as db:
         binding = (
@@ -153,7 +154,7 @@ async def test_observation_uses_bound_profile_and_acknowledged_completion(admitt
     assert outside["backlog"]["queued_ready"] == 1
 
     assert await ExecuteNext(kit.store, kit.source, workflow(kit, Model())).once()
-    assert (await service.get(kit.actor, receipt.session_id)).session.status == "completed"
+    assert (await read_session(service.uows, receipt.session_id)).session.status == "completed"
     outbox = MySQLResultOutbox(tx)
     for event in await outbox.pending(20):
         await outbox.delivered(event.event_id)
@@ -251,7 +252,7 @@ async def test_disabled_pointer_does_not_rebind_accepted_task_or_allow_new_accep
     )
     model = Model()
     assert await ExecuteNext(kit.store, kit.source, workflow(kit, model)).once()
-    assert (await service.get(kit.actor, receipt.session_id)).session.status == "completed"
+    assert (await read_session(service.uows, receipt.session_id)).session.status == "completed"
     assert model.calls == 1
 
 
@@ -319,7 +320,7 @@ async def test_invalid_binding_never_sends_or_accepts_artifact(admitted, damage)
     model = Model()
     assert await ExecuteNext(kit.store, kit.source, workflow(kit, model)).once()
     assert (
-        await service.get(kit.actor, receipt.session_id)
+        await read_session(service.uows, receipt.session_id)
     ).session.failure_code == "configuration_invalid"
     assert model.calls == 0
 
@@ -343,7 +344,7 @@ async def test_recovery_reads_original_binding_and_durable_response(admitted):
     )
     await expire(kit, receipt.session_id)
     assert await ExecuteNext(kit.store, kit.source, workflow(kit, model)).once()
-    assert (await service.get(kit.actor, receipt.session_id)).session.status == "completed"
+    assert (await read_session(service.uows, receipt.session_id)).session.status == "completed"
     assert model.calls == 1
 
 
@@ -421,7 +422,7 @@ async def test_artifact_acceptance_rechecks_original_configuration(admitted, dam
             )
             is None
         )
-    assert (await service.get(kit.actor, receipt.session_id)).session.status == "running"
+    assert (await read_session(service.uows, receipt.session_id)).session.status == "running"
     assert model.calls == 1
 
 
@@ -482,7 +483,7 @@ async def test_manual_retry_preserves_accepted_publication_and_completes_origina
     kit, service, key, accepted, _, first, (tx, scope, command, at) = admitted
     failed = Model(ProviderFailure("provider_timeout", result_unknown=True))
     assert await ExecuteNext(kit.store, kit.source, workflow(kit, failed)).once()
-    before = (await service.get(kit.actor, accepted.session_id)).session
+    before = (await read_session(service.uows, accepted.session_id)).session
     assert before.status == "blocked"
     async with tx.open() as db:
         original = (
@@ -516,7 +517,7 @@ async def test_manual_retry_preserves_accepted_publication_and_completes_origina
     )
     model = Model()
     assert await ExecuteNext(kit.store, kit.source, workflow(kit, model)).once()
-    after = (await service.get(kit.actor, accepted.session_id)).session
+    after = (await read_session(service.uows, accepted.session_id)).session
     assert after.status == "completed" and after.active_run_id == receipt.run_id
     async with tx.open() as db:
         old = (

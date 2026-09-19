@@ -19,6 +19,7 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
 )
 from tests.integration.test_interpretation import expire
 from tests.integration.test_interpretation import kit as kit
+from tests.probes.session_inspection import read_session
 from tests.test_input_binding import bound_case
 
 pytestmark = [pytest.mark.integration, pytest.mark.usefixtures("published_configuration")]
@@ -114,7 +115,7 @@ async def test_active_limit_defers_work_and_lease_recovery_reuses_slot(kit, dime
     claim = await store.claim(60)
     assert claim.session.id == first.session_id
     assert await store.claim(60) is None
-    queued = await service.get(kit.actor, second.session_id)
+    queued = await read_session(service.uows, second.session_id)
     assert queued.session.status == "queued"
     before = await reservations(kit)
     assert sum(r["active"] for r in before) == 1

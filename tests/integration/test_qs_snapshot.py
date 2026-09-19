@@ -5,6 +5,7 @@ import pytest
 from sqlalchemy import func, select
 
 from qs_ai.application.execution.worker import ExecuteNext
+from qs_ai.application.interpretation.commands import CancelCommand
 from qs_ai.application.interpretation.ports import (
     AccessDenied,
     DependencyUnavailable,
@@ -21,6 +22,7 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
     sessions,
 )
 from tests.integration.test_interpretation import kit  # noqa: F401
+from tests.probes.session_inspection import read_session
 from tests.test_input_binding import bound_case
 
 pytestmark = [pytest.mark.integration, pytest.mark.usefixtures("published_configuration")]
@@ -47,10 +49,15 @@ async def test_snapshot_rechecks_access_without_rereading_facts_and_rejects_chan
             return WorkflowResult("", failure_code="model_not_connected")
 
     assert await ExecuteNext(kit.store, source, Workflow()).once()
-    view = await service.get(kit.actor, receipt.session_id)
+    view = await read_session(service.uows, receipt.session_id)
     assert view.session.failure_code == "model_not_connected"
     with pytest.raises(AccessDenied):
-        await service.get(Actor("1", "someone-else"), receipt.session_id)
+        await service.cancel(
+            Actor("1", "someone-else"),
+            receipt.session_id,
+            CancelCommand(view.session.version),
+            "denied",
+        )
 
 
 async def test_snapshot_mismatch_refuses_without_facts_and_transaction_failure_rolls_back(
@@ -125,7 +132,7 @@ async def test_snapshot_current_access_required_before_execution_and_result_acce
     item = bound_case()[1].items[0]
     receipt = await service.start_external(kit.actor, "7", ("42",), "goal", str(uuid4()), (item,))
     assert await ExecuteNext(kit.store, Source(), Workflow()).once()
-    view = await service.get(kit.actor, receipt.session_id)
+    view = await read_session(service.uows, receipt.session_id)
     assert view.session.failure_code == (
         "access_revoked" if failure == "denied" else "dependency_unavailable"
     )

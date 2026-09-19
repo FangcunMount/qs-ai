@@ -9,9 +9,10 @@ from sqlalchemy import delete, func, select, text, update
 
 from qs_ai.application.execution.errors import LeaseLost
 from qs_ai.application.execution.worker import ExecuteNext
-from qs_ai.application.interpretation.commands import AnswerCommand, CancelCommand, StartCommand
+from qs_ai.application.interpretation.commands import AnswerCommand, CancelCommand
 from qs_ai.application.interpretation.ports import (
     AccessDenied,
+    Receipt,
     WorkflowResult,
 )
 from qs_ai.application.interpretation.service import InterpretationService, fingerprint
@@ -21,6 +22,7 @@ from qs_ai.domain.interpretation.model import (
     EvidenceSet,
     Fact,
     RuleViolation,
+    Session,
     Status,
 )
 from qs_ai.infrastructure.persistence.mysql.database import Database, Transactions
@@ -43,6 +45,7 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
     sessions,
 )
 from tests.probes.p1_runtime import OfflineWorkflow, SyntheticEvidence
+from tests.probes.session_inspection import read_session
 
 pytestmark = pytest.mark.integration
 
@@ -57,12 +60,10 @@ class Kit:
     actor: Actor
 
     async def create(self):
-        receipt = await self.service.create(
-            self.actor, "18446744073709551615", ("42",), "goal", str(uuid4())
-        )
+        session = Session(str(uuid4()), self.actor, "18446744073709551615", ("42",), "goal")
         # Low-level persistence tests start with facts already frozen, just like QS admission.
         async with self.service.uows.open() as uow:
-            session = await uow.get(receipt.session_id)
+            await uow.add(session)
             items = (
                 EvidenceItem(
                     "42",
@@ -80,16 +81,17 @@ class Kit:
             session.evidence_set_id = evidence.id
             await uow.save(session)
             await uow.commit()
-        return receipt
+        return Receipt(session.id, None, session.status, session.version)
 
     async def queued(self):
         receipt = await self.create()
-        return await self.service.start(
-            self.actor,
-            receipt.session_id,
-            StartCommand(expected_version=receipt.version),
-            "start",
-        )
+        async with self.service.uows.open() as uow:
+            session = await uow.get(receipt.session_id)
+            session.queue(str(uuid4()))
+            await uow.enqueue(session, None, False, None)
+            await uow.save(session)
+            await uow.commit()
+        return Receipt(session.id, session.active_run_id, session.status, session.version)
 
     def worker(self):
         return ExecuteNext(self.store, self.source, OfflineWorkflow(self.dsn))
@@ -235,18 +237,23 @@ async def test_model_failure_is_retained_and_receipt_is_immutable(kit, unknown):
         await kit.store.record_model_response(claim, call.invocation_id, response_json="{}")
 
 
-async def test_create_start_replay_and_key_conflicts(kit):
+async def test_external_start_replay_and_key_conflicts(kit, published_configuration):
+    from tests.test_input_binding import bound_case
+
+    request_id = str(uuid4())
+    evidence = bound_case()[1].items
     a, b = await asyncio.gather(
-        *[kit.service.create(kit.actor, "7", ("42",), "same", "create") for _ in range(2)]
+        *[
+            kit.service.start_external(kit.actor, "7", ("42",), "same", request_id, evidence)
+            for _ in range(2)
+        ]
     )
-    assert a == b
+    assert a == b and a.status == Status.QUEUED
     with pytest.raises(RuleViolation, match="idempotency_conflict"):
-        await kit.service.create(kit.actor, "7", ("42",), "different", "create")
-    started = await kit.service.start(
-        kit.actor, a.session_id, StartCommand(expected_version=1), "k"
+        await kit.service.start_external(kit.actor, "7", ("42",), "different", request_id, evidence)
+    assert (
+        await kit.service.start_external(kit.actor, "7", ("42",), "same", request_id, evidence) == a
     )
-    replay = await kit.service.start(kit.actor, a.session_id, StartCommand(expected_version=1), "k")
-    assert replay == started
     async with kit.transactions.open() as db:
         assert await db.scalar(select(func.count()).select_from(jobs)) == 1
 
@@ -255,7 +262,7 @@ async def test_create_start_replay_and_key_conflicts(kit):
 async def test_answer_resume_and_immutable_evidence(kit, skip):
     receipt = await kit.queued()
     assert await kit.worker().once()
-    view = await kit.service.get(kit.actor, receipt.session_id)
+    view = await read_session(kit.service.uows, receipt.session_id)
     assert view.session.status == Status.AWAITING_ANSWER
     question = view.question
     payload = {
@@ -272,7 +279,7 @@ async def test_answer_resume_and_immutable_evidence(kit, skip):
         == result
     )
     assert await kit.worker().once()
-    done = await kit.service.get(kit.actor, receipt.session_id)
+    done = await read_session(kit.service.uows, receipt.session_id)
     assert done.session.status == Status.BLOCKED
     assert done.session.failure_code == "model_not_connected"
     async with kit.transactions.open() as db:
@@ -294,7 +301,7 @@ async def test_answer_resume_and_immutable_evidence(kit, skip):
 async def test_concurrent_answers_accept_once(kit):
     receipt = await kit.queued()
     await kit.worker().once()
-    view = await kit.service.get(kit.actor, receipt.session_id)
+    view = await read_session(kit.service.uows, receipt.session_id)
     payload = {
         "expected_version": view.session.version,
         "question_id": view.question.id,
@@ -323,7 +330,7 @@ async def test_concurrent_answers_accept_once(kit):
 async def test_wrong_question_and_stale_version_leave_no_partial_work(kit):
     receipt = await kit.queued()
     await kit.worker().once()
-    view = await kit.service.get(kit.actor, receipt.session_id)
+    view = await read_session(kit.service.uows, receipt.session_id)
     for version, question_id, code in [
         (1, view.question.id, "version_conflict"),
         (view.session.version, str(uuid4()), "question_conflict"),
@@ -335,31 +342,30 @@ async def test_wrong_question_and_stale_version_leave_no_partial_work(kit):
                 AnswerCommand(expected_version=version, question_id=question_id, answer="Father"),
                 code,
             )
-    unchanged = await kit.service.get(kit.actor, receipt.session_id)
+    unchanged = await read_session(kit.service.uows, receipt.session_id)
     assert unchanged == view
 
 
 async def test_owner_isolation_and_revocation_even_on_replay(kit):
-    created = await kit.create()
-    with pytest.raises(AccessDenied):
-        await kit.service.get(Actor("1", "another-parent"), created.session_id)
-    with pytest.raises(AccessDenied):
-        await kit.service.get(Actor("2", kit.actor.subject_id), created.session_id)
-    payload = {"expected_version": created.version}
-    await kit.service.start(kit.actor, created.session_id, StartCommand(**payload), "start")
+    created = await kit.queued()
+    command = CancelCommand(created.version)
+    for actor in (Actor("1", "another-parent"), Actor("2", kit.actor.subject_id)):
+        with pytest.raises(AccessDenied):
+            await kit.service.cancel(actor, created.session_id, command, "cancel")
+    receipt = await kit.service.cancel(kit.actor, created.session_id, command, "cancel")
+    assert await kit.service.cancel(kit.actor, created.session_id, command, "cancel") == receipt
+    pending = await kit.queued()
     kit.source.revoked = True
     with pytest.raises(AccessDenied):
-        await kit.service.get(kit.actor, created.session_id)
-    with pytest.raises(AccessDenied):
-        await kit.service.start(kit.actor, created.session_id, StartCommand(**payload), "start")
+        await kit.service.cancel(kit.actor, created.session_id, command, "cancel")
     assert await kit.worker().once()
     async with kit.transactions.open() as db:
-        row = (
-            (await db.execute(select(sessions).where(sessions.c.id == created.session_id)))
-            .mappings()
-            .one()
+        assert (
+            await db.scalar(
+                select(sessions.c.failure_code).where(sessions.c.id == pending.session_id)
+            )
+            == "access_revoked"
         )
-        assert row["failure_code"] == "access_revoked"
 
 
 async def test_takeover_cancel_and_stale_business_publication(kit):
@@ -384,7 +390,9 @@ async def test_takeover_cancel_and_stale_business_publication(kit):
     )
     with pytest.raises(LeaseLost):
         await kit.store.finish(second, WorkflowResult("cp", question="late"))
-    assert (await kit.service.get(kit.actor, receipt.session_id)).session.status == Status.CANCELLED
+    assert (
+        await read_session(kit.service.uows, receipt.session_id)
+    ).session.status == Status.CANCELLED
 
 
 async def test_restart_between_workflow_return_and_business_commit(kit):
@@ -399,7 +407,7 @@ async def test_restart_between_workflow_return_and_business_commit(kit):
         if first.returncode is None:
             first.kill()
         await first.communicate()
-    view = await kit.service.get(kit.actor, receipt.session_id)
+    view = await read_session(kit.service.uows, receipt.session_id)
     assert view.session.status == Status.RUNNING
     assert view.question is None
     await expire(kit, receipt.session_id)
@@ -413,7 +421,7 @@ async def test_restart_between_workflow_return_and_business_commit(kit):
         if second.returncode is None:
             second.kill()
             await second.communicate()
-    view = await kit.service.get(kit.actor, receipt.session_id)
+    view = await read_session(kit.service.uows, receipt.session_id)
     assert view.session.status == Status.AWAITING_ANSWER
     assert view.question.text == "Who answered?"
 
@@ -441,7 +449,7 @@ async def test_heartbeat_keeps_live_attempt_owned(kit):
             work.cancel()
         await asyncio.gather(work, return_exceptions=True)
     assert (
-        await kit.service.get(kit.actor, receipt.session_id)
+        await read_session(kit.service.uows, receipt.session_id)
     ).session.status == Status.AWAITING_ANSWER
 
 
@@ -465,7 +473,7 @@ async def test_lost_lease_cancels_work_and_prevents_publication(kit):
         with pytest.raises(LeaseLost):
             await asyncio.wait_for(worker, 5)
         assert cancelled.is_set()
-        view = await kit.service.get(kit.actor, receipt.session_id)
+        view = await read_session(kit.service.uows, receipt.session_id)
         assert view.question is None
     finally:
         if not worker.done():
@@ -479,7 +487,7 @@ async def test_crash_attempt_budget_blocks_infinite_reclaim(kit):
         assert await kit.store.claim(3) is not None
         await expire(kit, receipt.session_id)
     assert await kit.store.claim(3) is None
-    view = await kit.service.get(kit.actor, receipt.session_id)
+    view = await read_session(kit.service.uows, receipt.session_id)
     assert view.session.failure_code == "attempts_exhausted"
 
 
@@ -515,7 +523,10 @@ async def test_failure_after_job_insert_rolls_back_command_and_receipt(kit):
 
     from qs_ai.infrastructure.persistence.mysql.interpretation import MySQLUnitOfWork
 
-    created = await kit.create()
+    created = await kit.queued()
+    assert await kit.worker().once()
+    before = await read_session(kit.service.uows, created.session_id)
+    command = AnswerCommand(before.session.version, before.question.id, "parent")
 
     class FailingUnitOfWork(MySQLUnitOfWork):
         async def enqueue(self, session, answer, skip, question_id):
@@ -529,27 +540,25 @@ async def test_failure_after_job_insert_rolls_back_command_and_receipt(kit):
                 yield FailingUnitOfWork(db)
 
     failing = InterpretationService(FailingFactory(), kit.source)
-    payload = {"expected_version": 1}
     with pytest.raises(RuntimeError, match="simulated failure"):
-        await failing.start(kit.actor, created.session_id, StartCommand(**payload), "same-key")
-    assert (await kit.service.get(kit.actor, created.session_id)).session.status == Status.CREATED
+        await failing.answer(kit.actor, created.session_id, command, "same-key")
+    assert await read_session(kit.service.uows, created.session_id) == before
     async with kit.transactions.open() as db:
         assert (
             await db.scalar(
                 select(func.count())
                 .select_from(jobs)
-                .where(jobs.c.session_id == created.session_id)
+                .where(jobs.c.session_id == created.session_id, jobs.c.status == "queued")
             )
             == 0
         )
-    result = await kit.service.start(
-        kit.actor, created.session_id, StartCommand(**payload), "same-key"
-    )
+    result = await kit.service.answer(kit.actor, created.session_id, command, "same-key")
     assert result.status == Status.QUEUED
+    assert await kit.service.answer(kit.actor, created.session_id, command, "same-key") == result
 
 
-@pytest.mark.parametrize("action", ["start", "answer", "cancel"])
-async def test_replay_receipt_written_with_legacy_transport_payload(kit, action):
+@pytest.mark.parametrize("action", ["answer", "cancel"])
+async def test_change_receipt_is_replayed_before_state_validation(kit, action):
     from dataclasses import asdict
 
     from qs_ai.application.interpretation.service import fingerprint
@@ -560,17 +569,15 @@ async def test_replay_receipt_written_with_legacy_transport_payload(kit, action)
         payload.update(question_id=str(uuid4()), answer=None, skip=True)
     scope = fingerprint([asdict(kit.actor), action, created.session_id])
     async with kit.service.uows.open() as uow:
-        await uow.reserve(scope, "legacy", fingerprint(payload))
-        await uow.receipt(scope, "legacy", created)
+        await uow.reserve(scope, "receipt-key", fingerprint(payload))
+        await uow.receipt(scope, "receipt-key", created)
         await uow.commit()
     # A stored receipt is returned before state/question checks and without new jobs.
     result = await getattr(kit.service, action)(
         kit.actor,
         created.session_id,
-        {"start": StartCommand, "answer": AnswerCommand, "cancel": CancelCommand}[action](
-            **payload
-        ),
-        "legacy",
+        {"answer": AnswerCommand, "cancel": CancelCommand}[action](**payload),
+        "receipt-key",
     )
     assert result == created
     async with kit.transactions.open() as db:
