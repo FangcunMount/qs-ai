@@ -10,6 +10,7 @@ from grpc import aio
 
 from qs_ai.application.integration.events import DeliverResults, ResultReceiver
 from qs_ai.bootstrap.daemon import serve_loop
+from qs_ai.bootstrap.grpc_lifecycle import serve_grpc
 from qs_ai.bootstrap.worker import worker_container
 from qs_ai.config import Settings
 from qs_ai.contracts.workflow import workflow_pb2_grpc as rpc
@@ -74,11 +75,7 @@ async def main() -> None:
             )
             if server.add_secure_port(args.address, credentials) == 0:
                 raise RuntimeError("Unable to bind internal service")
-            await server.start()
-            try:
-                await server.wait_for_termination()
-            finally:
-                await server.stop(settings.grpc.shutdown_grace_seconds)
+            await serve_grpc(server, settings.grpc.shutdown_grace_seconds)
     else:
         async with mtls_channel(args.address, ca, key, cert) as channel:
 
