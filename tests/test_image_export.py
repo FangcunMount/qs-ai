@@ -110,6 +110,10 @@ def test_export_failure_reports_only_allowlisted_category_and_exit_codes(exporte
         (b"Permission denied private-path", "permission_denied"),
         (b"Cannot connect to private daemon", "daemon_unavailable"),
         (b"unexpected sensitive message", "unclassified"),
+        (b'failed to fetch oauth token: Post "https://private/token": EOF', "network_unavailable"),
+        (b"failed to do request: unexpected EOF", "network_unavailable"),
+        (b"failed to fetch oauth token: connection reset by peer", "network_unavailable"),
+        (b"invalid archive: unexpected EOF", "unclassified"),
     ],
 )
 def test_diagnostic_categories_never_return_raw_stderr(exporter, raw, expected):
@@ -141,3 +145,55 @@ def test_failed_command_reports_category_without_credentials(exporter, monkeypat
     with pytest.raises(RuntimeError) as error:
         module.run("image pull", ["docker", "pull", "private-image"])
     assert str(error.value) == (f"image pull failed: exit=7 kind={category}; raw output suppressed")
+
+
+@pytest.mark.parametrize("recover", [True, False])
+def test_pull_retries_only_bounded_network_failures(exporter, monkeypatch, capsys, recover):
+    module, environment, _ = exporter
+    calls, delays = [], []
+
+    def invoke(args, **kwargs):
+        calls.append((args, kwargs["env"]))
+        code = 0 if recover and len(calls) == 3 else 1
+        return subprocess.CompletedProcess(
+            args,
+            code,
+            "private-progress",
+            'failed to fetch oauth token: Post "https://private/token": EOF',
+        )
+
+    monkeypatch.setattr(module.subprocess, "run", invoke)
+    monkeypatch.setattr(module.time, "sleep", delays.append)
+    if recover:
+        module.pull_image("private-image@sha256:fixed", environment)
+    else:
+        with pytest.raises(module.CommandFailure, match="network_unavailable"):
+            module.pull_image("private-image@sha256:fixed", environment)
+    assert len(calls) == 3 and delays == [2, 5]
+    assert all(args == calls[0][0] and env == environment for args, env in calls)
+    assert "private" not in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "unauthorized: private",
+        "manifest unknown",
+        "no space left",
+        "unexpected EOF",
+        "x509: invalid certificate",
+    ],
+)
+def test_pull_does_not_retry_non_network_failures(exporter, monkeypatch, raw):
+    module, environment, _ = exporter
+    calls = []
+
+    def invoke(args, **kwargs):
+        calls.append(args)
+        return subprocess.CompletedProcess(args, 1, "", raw)
+
+    monkeypatch.setattr(module.subprocess, "run", invoke)
+    monkeypatch.setattr(module.time, "sleep", lambda _: pytest.fail("must not retry"))
+    with pytest.raises(module.CommandFailure):
+        module.pull_image("private-image", environment)
+    assert len(calls) == 1
