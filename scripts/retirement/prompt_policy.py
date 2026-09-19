@@ -19,7 +19,14 @@ def references(value, asset):
             ({"prompt_template_id"}, {"prompt_version"}),
             ({"id", "identity", "template_id", "TemplateID"}, {"version", "Version"}),
         )
-        value = dict(value)
+        # The published v6 suite has a different identity from the Prompt. Its
+        # known identifier contains the template name, but is not an unversioned
+        # Prompt use. Continue scanning its manifest/proof and every other field.
+        value = {
+            key: item
+            for key, item in value.items()
+            if not (key in {"suite_id", "id", "identity"} and item == TEMPLATE_ID + "-v6-published")
+        }
         for identity_keys, version_keys in field_groups:
             matching = {key for key in identity_keys & value.keys() if value[key] == TEMPLATE_ID}
             if not matching:

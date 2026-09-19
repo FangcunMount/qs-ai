@@ -110,3 +110,18 @@ def test_explicit_old_profile_reference_is_retained():
     assert not unreferenced(
         [row], {"profile_assets": [{"prompt_template_id": TEMPLATE_ID, "prompt_version": "v1"}]}
     )
+
+
+@pytest.mark.parametrize("field", ["suite_id", "id", "identity"])
+def test_known_published_suite_identifier_is_not_a_prompt_reference(field):
+    row = asset()
+    value = {field: TEMPLATE_ID + "-v6-published", "version": "1"}
+    assert unreferenced([row], {"evaluation_suites": [value]}) == {(TEMPLATE_ID, "v1")}
+    value["proof"] = {"template_id": TEMPLATE_ID, "version": "v1"}
+    assert not unreferenced([row], {"evaluation_suites": [value]})
+
+
+def test_unknown_suite_names_or_unstructured_mentions_still_retain():
+    row = asset()
+    for value in [{"suite_id": TEMPLATE_ID + "-unknown"}, {"notes": TEMPLATE_ID + "-v6-published"}]:
+        assert not unreferenced([row], {"evaluation_suites": [value]})
