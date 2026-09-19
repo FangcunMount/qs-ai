@@ -1,6 +1,6 @@
 # M5 服务端收尾记录
 
-2026-09-19 核对：旧实现代码已退出生产，定向清库已经完成。数据库结构退役迁移 QS #111 已合并，等待部署后核对 Mongo 35 与进程版本。微信正式版本由用户在清库后发布，不再作为服务端清库的前置条件；正式发布和真机复验仍单独保留为未完成项。
+2026-09-19 核对：旧实现代码已退出生产，定向清库已经完成。数据库结构退役迁移 QS #111 已合并并部署，Mongo 35 为 clean，启动后九个旧集合仍不存在。服务端退役与清库已完成。微信正式版本由用户在清库后发布，不再作为服务端清库的前置条件；正式发布和真机复验仍单独保留为未完成项。
 
 本页是当前状态，其他迁移文档的带日期记录保留历史语境。不能用 CI 成功替代实际镜像、迁移账本或真实业务证据。
 
@@ -25,8 +25,8 @@
 
 ## 版本与恢复边界
 
-- QS 代码退役：[PR #110](https://github.com/FangcunMount/qs-server/pull/110)，生产基线 `d44ab9f68e87ffccbf59d9461416603b86442be7`。
-- QS 结构退役：[PR #111](https://github.com/FangcunMount/qs-server/pull/111)，合并提交 `71f95fbae283291e383c23cb49aaa4430fe07983`；迁移 35 仅允许空或不存在的九个旧集合，非空明确拒绝。
+- QS 代码退役：[PR #110](https://github.com/FangcunMount/qs-server/pull/110)，删除时生产基线 `d44ab9f68e87ffccbf59d9461416603b86442be7`，现已由下述结构迁移版本替换。
+- QS 结构退役：[PR #111](https://github.com/FangcunMount/qs-server/pull/111)，合并提交 `71f95fbae283291e383c23cb49aaa4430fe07983`；[生产部署成功](https://github.com/FangcunMount/qs-server/actions/runs/35432119141)。部署后账本为 35/clean，旧集合和旧 outbox 仍为 0，真实 mTLS 授权与跨主体拒绝、旧 RPC 不注册均复验通过。迁移 35 仅允许空或不存在的九个旧集合，非空明确拒绝。
 - Operating：[PR #35](https://github.com/FangcunMount/qs-operating-system/pull/35)，已部署 `68b9a3cf7f4684ed02ac73c763284984fb4a1b15`。
 - qs-ai 业务镜像仍为 `a670d89a6768e7e625e5dc4bcc98c618664c614a`，维护工具最终版本为 PR #94 合并 `06c612cf1716b0e74c7727b54801afdb39801ff5`。维护工具不触发应用部署，不虚构新运行镜像。
 
