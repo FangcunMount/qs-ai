@@ -237,9 +237,17 @@ async def test_model_failure_is_retained_and_receipt_is_immutable(kit, unknown):
         await kit.store.record_model_response(claim, call.invocation_id, response_json="{}")
 
 
-async def test_external_start_replay_and_key_conflicts(kit, published_configuration):
+@pytest.fixture
+async def published_kit(published_configuration):
+    # Execution snapshots reference publications: remove sessions before publication teardown.
+    async for value in kit.__wrapped__():
+        yield value
+
+
+async def test_external_start_replay_and_key_conflicts(published_kit):
     from tests.test_input_binding import bound_case
 
+    kit = published_kit
     request_id = str(uuid4())
     evidence = bound_case()[1].items
     a, b = await asyncio.gather(
