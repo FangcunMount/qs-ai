@@ -127,7 +127,10 @@ def run(phase: str, args: list[str], **kwargs) -> str:
     print(f"{phase}: started", flush=True)
     result = subprocess.run(args, capture_output=True, text=True, timeout=1800, **kwargs)
     if result.returncode:
-        raise RuntimeError(f"{phase} failed; raw output suppressed")
+        kind = export_failure_kind(((result.stderr or "") + (result.stdout or "")).encode())
+        raise RuntimeError(
+            f"{phase} failed: exit={result.returncode} kind={kind}; raw output suppressed"
+        )
     return result.stdout
 
 
@@ -136,7 +139,14 @@ def export_failure_kind(raw: bytes) -> str:
     message = raw.lower()
     for category, patterns in (
         ("no_space", (b"no space left", b"disk full", b"not enough space")),
-        ("missing_content", (b"blob not found", b"missing blob")),
+        (
+            "missing_content",
+            (b"blob not found", b"missing blob", b"manifest unknown", b"no such manifest"),
+        ),
+        ("registry_auth", (b"unauthorized", b"authentication required", b"pull access denied")),
+        ("registry_rate_limit", (b"toomanyrequests", b"too many requests")),
+        ("registry_tls", (b"x509:", b"certificate verify failed")),
+        ("network_unavailable", (b"i/o timeout", b"no such host", b"tls handshake timeout")),
         ("permission_denied", (b"permission denied", b"access denied")),
         (
             "daemon_unavailable",

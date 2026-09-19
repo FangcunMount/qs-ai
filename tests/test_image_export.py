@@ -115,3 +115,29 @@ def test_export_failure_reports_only_allowlisted_category_and_exit_codes(exporte
 def test_diagnostic_categories_never_return_raw_stderr(exporter, raw, expected):
     module, *_ = exporter
     assert module.export_failure_kind(raw) == expected
+
+
+@pytest.mark.parametrize(
+    "raw, category",
+    [
+        ("unauthorized: private-registry/private-token", "registry_auth"),
+        ("manifest unknown: private-image", "missing_content"),
+        ("toomanyrequests: private-account", "registry_rate_limit"),
+        ("x509: private-host", "registry_tls"),
+        ("dial tcp private-ip: i/o timeout", "network_unavailable"),
+        ("Cannot connect to private daemon", "daemon_unavailable"),
+        ("unknown private-secret", "unclassified"),
+    ],
+)
+def test_failed_command_reports_category_without_credentials(exporter, monkeypatch, raw, category):
+    module, *_ = exporter
+    monkeypatch.setattr(
+        module.subprocess,
+        "run",
+        lambda *a, **kw: subprocess.CompletedProcess(
+            ["docker", "pull", "private-image"], 7, "private-progress", raw
+        ),
+    )
+    with pytest.raises(RuntimeError) as error:
+        module.run("image pull", ["docker", "pull", "private-image"])
+    assert str(error.value) == (f"image pull failed: exit=7 kind={category}; raw output suppressed")
