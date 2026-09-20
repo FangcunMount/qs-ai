@@ -65,3 +65,32 @@ async def test_graph_cancellation_does_not_continue_to_artifact(monkeypatch):
     task.cancel()
     with pytest.raises(asyncio.CancelledError):
         await task
+
+
+async def test_concurrent_invocations_do_not_share_graph_state(monkeypatch):
+    source = prepared()
+    entered = 0
+    both_entered = asyncio.Event()
+    monkeypatch.setattr(report, "prepare_explanation", lambda *args: source)
+
+    class Generation:
+        async def execute(self, claim, frozen):
+            nonlocal entered
+            entered += 1
+            if entered == 2:
+                both_entered.set()
+            await asyncio.wait_for(both_entered.wait(), 1)
+            return GeneratedExplanation(frozen, SimpleNamespace(invocation_id=claim.id))
+
+    def artifact(claim, evidence, generated, parser):
+        assert generated.response.invocation_id == claim.id
+        assert evidence == claim.id
+        return claim.id
+
+    monkeypatch.setattr(report, "build_artifact", artifact)
+    workflow = report.ReportWorkflow(Generation(), source.release, None, route(), schema(), None)
+    results = await asyncio.gather(
+        workflow.execute(SimpleNamespace(session=None, id="first"), "first"),
+        workflow.execute(SimpleNamespace(session=None, id="second"), "second"),
+    )
+    assert [result.artifact for result in results] == ["first", "second"]
