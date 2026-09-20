@@ -1,0 +1,137 @@
+"""One controlled, atomic initialization of original suite bytes and provable bindings."""
+
+import argparse
+import asyncio
+import json
+
+from sqlalchemy import insert, select, update
+
+from qs_ai.bootstrap.import_evaluation_assets import baseline_assets
+from qs_ai.config import Settings
+from qs_ai.domain.evaluation.identity import FrozenContractRef
+from qs_ai.domain.evaluation.suite_contracts import SuiteContracts
+from qs_ai.infrastructure.persistence.mysql.database import Database, Transactions
+from qs_ai.infrastructure.persistence.mysql.evaluation_suites import decode_record
+from qs_ai.infrastructure.persistence.mysql.schema import evaluation_runs, evaluation_suites
+from qs_ai.infrastructure.persistence.mysql.suite_contracts import encode
+from qs_ai.infrastructure.qs_server.evaluation_suite import V6_PUBLISHED, load_suite
+
+
+def baseline():
+    source, policies, semantic, schema = baseline_assets()
+    suite = load_suite(V6_PUBLISHED)
+    refs = {p.kind.value: p.reference for p in policies}
+    contracts = SuiteContracts(
+        refs["execution"],
+        refs["gate"],
+        semantic.reference,
+        FrozenContractRef(
+            schema.schema_id, schema.schema_id + "/" + schema.version, schema.fingerprint
+        ),
+    )
+    return source, suite, contracts
+
+
+async def run(imported_by: str) -> dict[str, int]:
+    if not imported_by.strip() or len(imported_by) > 128:
+        raise ValueError("Initializer identity required")
+    source, baseline_suite, contracts = await asyncio.to_thread(baseline)
+    raw_contracts, checksum = encode(contracts)
+    settings = Settings()
+    if settings.database_url is None:
+        raise ValueError("Database required")
+    database = Database(settings.database_url.get_secret_value())
+    try:
+        async with Transactions(database).open() as db:
+            await db.connection(execution_options={"isolation_level": "SERIALIZABLE"})
+            rows = (await db.execute(select(evaluation_suites).with_for_update())).mappings().all()
+            runs = (await db.execute(select(evaluation_runs.c.definition_json))).scalars().all()
+            wanted = json.loads(raw_contracts)
+            # Existing evidence must agree before the original static source can be bound.
+            for raw in runs:
+                creation = json.loads(raw)
+                suite_ref = FrozenContractRef(**creation["release"]["suite"])
+                known = suite_ref == baseline_suite.reference or any(
+                    (r["suite_id"], r["suite_version"], r["fingerprint"])
+                    == (suite_ref.id, suite_ref.version, suite_ref.fingerprint)
+                    for r in rows
+                )
+                if not known:
+                    raise ValueError("Run references an unaccounted suite")
+                for field in (
+                    "execution_policy",
+                    "gate_policy",
+                    "semantic_prompt",
+                    "semantic_output_schema",
+                ):
+                    if creation["release"][field] != wanted[field]:
+                        raise ValueError("Historical Run requires a different contract binding")
+            inserted = bound = 0
+            for row in rows:
+                reference = FrozenContractRef(
+                    row["suite_id"], row["suite_version"], row["fingerprint"]
+                )
+                if reference == baseline_suite.reference:
+                    if (
+                        row["definition_json"] != baseline_suite.definition_json
+                        or row["organization_id"] != 0
+                    ):
+                        raise ValueError("Original suite source collides with another asset")
+                else:
+                    # The original validator verifies every inherited byte against its fixed source.
+                    await asyncio.to_thread(decode_record, row)
+                if row["contracts_json"] is not None:
+                    if (row["contracts_json"], row["contracts_sha256"]) != (
+                        raw_contracts,
+                        checksum,
+                    ):
+                        raise ValueError("Existing suite binding differs")
+                    continue
+                await db.execute(
+                    update(evaluation_suites)
+                    .where(
+                        evaluation_suites.c.suite_id == row["suite_id"],
+                        evaluation_suites.c.suite_version == row["suite_version"],
+                    )
+                    .values(contracts_json=raw_contracts, contracts_sha256=checksum)
+                )
+                bound += 1
+            if not any(
+                (r["suite_id"], r["suite_version"])
+                == (baseline_suite.reference.id, baseline_suite.reference.version)
+                for r in rows
+            ):
+                await db.execute(
+                    insert(evaluation_suites).values(
+                        suite_id=baseline_suite.reference.id,
+                        suite_version=baseline_suite.reference.version,
+                        fingerprint=baseline_suite.reference.fingerprint,
+                        definition_json=baseline_suite.definition_json,
+                        organization_id=0,
+                        source_ref=source,
+                        imported_by=imported_by,
+                        contracts_json=raw_contracts,
+                        contracts_sha256=checksum,
+                    )
+                )
+                inserted = 1
+            await db.commit()
+            return {"inserted": inserted, "bindings_added": bound, "runs_checked": len(runs)}
+    finally:
+        await database.close()
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--imported-by", required=True)
+    args = parser.parse_args()
+    try:
+        result = asyncio.run(run(args.imported_by))
+    except Exception as error:
+        print(json.dumps({"import": "failed", "error_type": type(error).__name__}))
+        raise SystemExit(1) from None
+    print(json.dumps({"import": "complete", "activated": False, **result}))
+
+
+if __name__ == "__main__":
+    main()

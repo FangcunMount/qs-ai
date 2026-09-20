@@ -153,8 +153,12 @@ class MySQLAssetCatalog:
                 and (after is None or key(value.item) > after)
             ]
         items.sort(key=key)
-        if len({key(item) for item in items}) != len(items):
-            raise ValueError("Catalog has conflicting suite sources")
+        unique = {}
+        for item in items:
+            if key(item) in unique and unique[key(item)] != item:
+                raise ValueError("Catalog has conflicting suite sources")
+            unique[key(item)] = item
+        items = list(unique.values())
         page = tuple(items[: query.limit])
         cursor = query.next_cursor(page[-1].reference) if len(items) > query.limit else ""
         return CatalogPage(page, cursor)
@@ -198,7 +202,7 @@ class MySQLAssetCatalog:
             else None
         )
         if built_in:
-            if row is not None:
+            if row is not None and await asyncio.to_thread(decode, kind, row) != built_in:
                 raise ValueError("Catalog has conflicting suite sources")
             return built_in
         if row is None:
