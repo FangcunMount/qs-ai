@@ -23,6 +23,7 @@ from qs_ai.domain.evaluation.identity import EvidenceReleaseIdentity, FrozenCont
 from qs_ai.domain.evaluation.preflight import AssertionReceipt
 from qs_ai.domain.evaluation.review import ReviewCandidate
 from qs_ai.domain.evaluation.semantic_completion import SemanticCompletion
+from qs_ai.infrastructure.persistence.mysql.evaluation_assets import prepare_run_case
 from qs_ai.infrastructure.persistence.mysql.evaluation_cancellation import read_cancellation
 from qs_ai.infrastructure.persistence.mysql.evaluation_finalization import read_finalization
 from qs_ai.infrastructure.persistence.mysql.evaluation_projection import (
@@ -197,8 +198,22 @@ async def get_candidate(
             "receipt": asdict(value.receipt) if value.receipt is not None else None,
         }
 
+    frozen_input: dict[str, Any] = {"available": False, "reason": "frozen_input_unavailable"}
+    try:
+        prepared = await prepare_run_case(db, creation, selected["case_id"])
+        frozen_input = {
+            "available": True,
+            "case_id": selected["case_id"],
+            "fingerprint": prepared.assembled_input.fingerprint,
+            "content": json.loads(prepared.assembled_input.canonical_json),
+        }
+    except (ValueError, KeyError, NotFound):
+        # A historical candidate can remain inspectable while its input is unavailable.
+        # No missing evidence is interpreted as a passed rule or replaced with new facts.
+        pass
     evidence = json.dumps(
         {
+            "frozen_input": frozen_input,
             "release": asdict(release),
             "release_fingerprint": release.fingerprint(),
             "candidate": candidate,

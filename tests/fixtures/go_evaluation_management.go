@@ -14,6 +14,9 @@ import (
 
 func main() {
 	var input struct {
+		SolutionBody                    json.RawMessage
+		SolutionID, SolutionOperation   string
+		SolutionWrite                   bool
 		ProfileLifecycle                app.ProfileLifecycleQuery
 		ProfileVersion                  string
 		SessionID, CommandID            string
@@ -59,7 +62,15 @@ func main() {
 	}
 	scope := app.EvaluationScope{RunID: input.RunID, OrganizationID: input.OrgID, OperatorUserID: input.UserID}
 	var result any
-	if input.Action == "profile-list" {
+	if input.Action == "solution" {
+		solutions := &app.SolutionAdministration{Gateway: clients.Solutions}
+		scope := app.DraftScope{OrganizationID: input.OrgID, OperatorUserID: input.UserID}
+		if input.SolutionWrite {
+			result, err = solutions.Write(ctx, scope, input.SolutionOperation, input.SolutionID, input.SolutionBody)
+		} else {
+			result, err = solutions.Read(ctx, scope, input.SolutionOperation, input.SolutionID, "")
+		}
+	} else if input.Action == "profile-list" {
 		result, err = (&app.ProfileAdministration{Gateway: clients.Profiles}).ListLifecycle(ctx, app.DraftScope{OrganizationID: input.OrgID, OperatorUserID: input.UserID}, input.ProfileLifecycle)
 	} else if input.Action == "profile-lifecycle" {
 		result, err = (&app.ProfileAdministration{Gateway: clients.Profiles}).GetLifecycle(ctx, app.DraftScope{OrganizationID: input.OrgID, OperatorUserID: input.UserID}, input.ProfileLifecycle.Identity, input.ProfileVersion)

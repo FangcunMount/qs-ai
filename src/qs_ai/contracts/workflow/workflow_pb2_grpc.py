@@ -2313,3 +2313,336 @@ class ParticipantManagement:
             timeout,
             metadata,
             _registered_method=True)
+
+
+class SolutionManagementStub:
+    """Product workspace: additive management API. Existing Run/review/publication services stay authoritative.
+    """
+
+    def __init__(self, channel):
+        """Constructor.
+
+        Args:
+            channel: A grpc.Channel.
+        """
+        self.List = channel.unary_unary(
+                '/qsai.workflow.v1.SolutionManagement/List',
+                request_serializer=workflow__pb2.SolutionQuery.SerializeToString,
+                response_deserializer=workflow__pb2.SolutionResponse.FromString,
+                _registered_method=True)
+        self.Get = channel.unary_unary(
+                '/qsai.workflow.v1.SolutionManagement/Get',
+                request_serializer=workflow__pb2.SolutionQuery.SerializeToString,
+                response_deserializer=workflow__pb2.SolutionResponse.FromString,
+                _registered_method=True)
+        self.GetReceipt = channel.unary_unary(
+                '/qsai.workflow.v1.SolutionManagement/GetReceipt',
+                request_serializer=workflow__pb2.SolutionQuery.SerializeToString,
+                response_deserializer=workflow__pb2.SolutionResponse.FromString,
+                _registered_method=True)
+        self.GetModels = channel.unary_unary(
+                '/qsai.workflow.v1.SolutionManagement/GetModels',
+                request_serializer=workflow__pb2.SolutionQuery.SerializeToString,
+                response_deserializer=workflow__pb2.SolutionResponse.FromString,
+                _registered_method=True)
+        self.Create = channel.unary_unary(
+                '/qsai.workflow.v1.SolutionManagement/Create',
+                request_serializer=workflow__pb2.SolutionWrite.SerializeToString,
+                response_deserializer=workflow__pb2.SolutionResponse.FromString,
+                _registered_method=True)
+        self.Save = channel.unary_unary(
+                '/qsai.workflow.v1.SolutionManagement/Save',
+                request_serializer=workflow__pb2.SolutionWrite.SerializeToString,
+                response_deserializer=workflow__pb2.SolutionResponse.FromString,
+                _registered_method=True)
+        self.Prepare = channel.unary_unary(
+                '/qsai.workflow.v1.SolutionManagement/Prepare',
+                request_serializer=workflow__pb2.SolutionWrite.SerializeToString,
+                response_deserializer=workflow__pb2.SolutionResponse.FromString,
+                _registered_method=True)
+
+
+class SolutionManagementServicer:
+    """Product workspace: additive management API. Existing Run/review/publication services stay authoritative.
+    """
+
+    def List(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def Get(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetReceipt(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetModels(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def Create(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def Save(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def Prepare(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+
+def add_SolutionManagementServicer_to_server(servicer, server):
+    rpc_method_handlers = {
+            'List': grpc.unary_unary_rpc_method_handler(
+                    servicer.List,
+                    request_deserializer=workflow__pb2.SolutionQuery.FromString,
+                    response_serializer=workflow__pb2.SolutionResponse.SerializeToString,
+            ),
+            'Get': grpc.unary_unary_rpc_method_handler(
+                    servicer.Get,
+                    request_deserializer=workflow__pb2.SolutionQuery.FromString,
+                    response_serializer=workflow__pb2.SolutionResponse.SerializeToString,
+            ),
+            'GetReceipt': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetReceipt,
+                    request_deserializer=workflow__pb2.SolutionQuery.FromString,
+                    response_serializer=workflow__pb2.SolutionResponse.SerializeToString,
+            ),
+            'GetModels': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetModels,
+                    request_deserializer=workflow__pb2.SolutionQuery.FromString,
+                    response_serializer=workflow__pb2.SolutionResponse.SerializeToString,
+            ),
+            'Create': grpc.unary_unary_rpc_method_handler(
+                    servicer.Create,
+                    request_deserializer=workflow__pb2.SolutionWrite.FromString,
+                    response_serializer=workflow__pb2.SolutionResponse.SerializeToString,
+            ),
+            'Save': grpc.unary_unary_rpc_method_handler(
+                    servicer.Save,
+                    request_deserializer=workflow__pb2.SolutionWrite.FromString,
+                    response_serializer=workflow__pb2.SolutionResponse.SerializeToString,
+            ),
+            'Prepare': grpc.unary_unary_rpc_method_handler(
+                    servicer.Prepare,
+                    request_deserializer=workflow__pb2.SolutionWrite.FromString,
+                    response_serializer=workflow__pb2.SolutionResponse.SerializeToString,
+            ),
+    }
+    generic_handler = grpc.method_handlers_generic_handler(
+            'qsai.workflow.v1.SolutionManagement', rpc_method_handlers)
+    server.add_generic_rpc_handlers((generic_handler,))
+    server.add_registered_method_handlers('qsai.workflow.v1.SolutionManagement', rpc_method_handlers)
+
+
+ # This class is part of an EXPERIMENTAL API.
+class SolutionManagement:
+    """Product workspace: additive management API. Existing Run/review/publication services stay authoritative.
+    """
+
+    @staticmethod
+    def List(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.SolutionManagement/List',
+            workflow__pb2.SolutionQuery.SerializeToString,
+            workflow__pb2.SolutionResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def Get(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.SolutionManagement/Get',
+            workflow__pb2.SolutionQuery.SerializeToString,
+            workflow__pb2.SolutionResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetReceipt(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.SolutionManagement/GetReceipt',
+            workflow__pb2.SolutionQuery.SerializeToString,
+            workflow__pb2.SolutionResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetModels(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.SolutionManagement/GetModels',
+            workflow__pb2.SolutionQuery.SerializeToString,
+            workflow__pb2.SolutionResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def Create(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.SolutionManagement/Create',
+            workflow__pb2.SolutionWrite.SerializeToString,
+            workflow__pb2.SolutionResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def Save(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.SolutionManagement/Save',
+            workflow__pb2.SolutionWrite.SerializeToString,
+            workflow__pb2.SolutionResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def Prepare(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.SolutionManagement/Prepare',
+            workflow__pb2.SolutionWrite.SerializeToString,
+            workflow__pb2.SolutionResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)

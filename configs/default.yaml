@@ -22,7 +22,8 @@ grpc:
   bind_address: 127.0.0.1:50061
   result_address: null
   access_address: null
-  max_receive_bytes: 65536
+  # Transport envelope; individual management commands remain bounded to 256 KiB.
+  max_receive_bytes: 524288
   shutdown_grace_seconds: 5
   request_timeout_seconds: 5
   ca_file: null
@@ -50,3 +51,7 @@ participant_capacity:
   active_org: 10
   active_user: 2
   active_assessment: 1
+
+# Verified models available in the solution editor; adding one requires adapter validation.
+governance_models:
+  - deepseek-v4-pro

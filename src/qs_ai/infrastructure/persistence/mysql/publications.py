@@ -27,6 +27,10 @@ from qs_ai.application.governance.publication import (
     valid_uuid,
 )
 from qs_ai.application.governance.publication_codec import canonical, publication_json, request_json
+from qs_ai.application.governance.solution_models import (
+    DEFAULT_EDITABLE_MODELS,
+    EditableModelPolicy,
+)
 from qs_ai.application.interpretation.ports import NotFound
 from qs_ai.domain.governance.publication import (
     PublicationAudit,
@@ -38,6 +42,7 @@ from qs_ai.domain.governance.publication import (
 )
 from qs_ai.infrastructure.persistence.mysql import publication_history
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
+from qs_ai.infrastructure.persistence.mysql.editable_model_policy import check_editable_models
 from qs_ai.infrastructure.persistence.mysql.evaluation_finalization import lock_run_in_transaction
 from qs_ai.infrastructure.persistence.mysql.publication_evidence import publication_evidence
 from qs_ai.infrastructure.persistence.mysql.publication_records import (
@@ -62,6 +67,7 @@ async def apply_publication(
     scope: PublicationScope,
     command: PublishConfiguration | MovePublication,
     at: datetime,
+    models: EditableModelPolicy = DEFAULT_EDITABLE_MODELS,
 ) -> PublicationReceipt:
     """Caller passes QS-authorized scope and server time, and owns the commit."""
     audit = PublicationAudit(scope.actor, command.reason, at)
@@ -122,6 +128,8 @@ async def apply_publication(
     else:
         # Stopping a bad configuration must not require that its quality still passes.
         action = "disable"
+    if target is not None:
+        await check_editable_models(db, target.evidence.release, models)
     change = change_publication(
         current,
         target,
@@ -169,8 +177,11 @@ async def apply_publication(
 
 
 class MySQLPublications:
-    def __init__(self, transactions: Transactions) -> None:
+    def __init__(
+        self, transactions: Transactions, models: EditableModelPolicy = DEFAULT_EDITABLE_MODELS
+    ) -> None:
         self.transactions = transactions
+        self.models = models
 
     async def apply(
         self,
@@ -180,7 +191,7 @@ class MySQLPublications:
     ) -> PublicationReceipt:
         try:
             async with self.transactions.open() as db:
-                result = await apply_publication(db, scope, command, at)
+                result = await apply_publication(db, scope, command, at, self.models)
                 await db.commit()
                 return result
         except IntegrityError as error:

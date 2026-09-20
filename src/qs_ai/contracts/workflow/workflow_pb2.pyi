@@ -1209,3 +1209,33 @@ class ProfileLifecycleQuery(_message.Message):
     limit: int
     cursor: str
     def __init__(self, scope: _Optional[_Union[PublicationScope, _Mapping]] = ..., identity: _Optional[str] = ..., version: _Optional[str] = ..., status: _Optional[str] = ..., limit: _Optional[int] = ..., cursor: _Optional[str] = ...) -> None: ...
+
+class SolutionQuery(_message.Message):
+    __slots__ = ("scope", "solution_id", "command_id", "cursor")
+    SCOPE_FIELD_NUMBER: _ClassVar[int]
+    SOLUTION_ID_FIELD_NUMBER: _ClassVar[int]
+    COMMAND_ID_FIELD_NUMBER: _ClassVar[int]
+    CURSOR_FIELD_NUMBER: _ClassVar[int]
+    scope: PublicationScope
+    solution_id: str
+    command_id: str
+    cursor: str
+    def __init__(self, scope: _Optional[_Union[PublicationScope, _Mapping]] = ..., solution_id: _Optional[str] = ..., command_id: _Optional[str] = ..., cursor: _Optional[str] = ...) -> None: ...
+
+class SolutionWrite(_message.Message):
+    __slots__ = ("scope", "solution_id", "command_json")
+    SCOPE_FIELD_NUMBER: _ClassVar[int]
+    SOLUTION_ID_FIELD_NUMBER: _ClassVar[int]
+    COMMAND_JSON_FIELD_NUMBER: _ClassVar[int]
+    scope: PublicationScope
+    solution_id: str
+    command_json: str
+    def __init__(self, scope: _Optional[_Union[PublicationScope, _Mapping]] = ..., solution_id: _Optional[str] = ..., command_json: _Optional[str] = ...) -> None: ...
+
+class SolutionResponse(_message.Message):
+    __slots__ = ("schema_version", "data_json")
+    SCHEMA_VERSION_FIELD_NUMBER: _ClassVar[int]
+    DATA_JSON_FIELD_NUMBER: _ClassVar[int]
+    schema_version: str
+    data_json: str
+    def __init__(self, schema_version: _Optional[str] = ..., data_json: _Optional[str] = ...) -> None: ...

@@ -9,9 +9,12 @@ from qs_ai.application.interpretation.ports import NotFound
 from qs_ai.infrastructure.persistence.mysql.schema import evaluation_checkpoints, evaluation_runs
 
 
-async def header(db: AsyncSession, scope: ManagementScope) -> RowMapping:
+async def header(
+    db: AsyncSession, scope: ManagementScope, *, establish_snapshot: bool = True
+) -> RowMapping:
     # Do not depend on the production server's configurable default isolation level.
-    await db.connection(execution_options={"isolation_level": "REPEATABLE READ"})
+    if establish_snapshot:
+        await db.connection(execution_options={"isolation_level": "REPEATABLE READ"})
     row = (
         (
             await db.execute(

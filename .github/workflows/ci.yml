@@ -51,7 +51,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: FangcunMount/qs-server
-          ref: 1ce436d7ec7c97a2647f3591eeddd9f7cab6aae6
+          ref: 5743fa79b94875c33937b974ceea2e96541bd45c
           path: .interop/qs-server
       - uses: actions/setup-go@v5
         with:

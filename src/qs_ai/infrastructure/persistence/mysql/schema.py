@@ -527,3 +527,38 @@ participant_retries = sa.Table(
     mysql_engine="InnoDB",
     mysql_charset="utf8mb4",
 )
+
+# Editing state references existing immutable assets; it never duplicates Run approval state.
+solution_revisions = sa.Table(
+    "solution_revisions",
+    metadata,
+    sa.Column("solution_id", ID, primary_key=True),
+    sa.Column("organization_id", EXTERNAL_ID, nullable=False),
+    sa.Column("revision", sa.BigInteger, nullable=False),
+    sa.Column(
+        "draft_id",
+        sa.CHAR(36),
+        sa.ForeignKey("prompt_drafts.draft_id"),
+        nullable=False,
+        unique=True,
+    ),
+    sa.Column("state_json", mysql.LONGTEXT, nullable=False),
+    sa.Column("state_sha256", sa.String(64), nullable=False),
+    sa.Index("ix_solution_org", "organization_id", "solution_id"),
+    mysql_engine="InnoDB",
+    mysql_charset="utf8mb4",
+)
+solution_commands = sa.Table(
+    "solution_commands",
+    metadata,
+    sa.Column("command_id", ID, primary_key=True),
+    sa.Column("solution_id", ID, sa.ForeignKey("solution_revisions.solution_id"), nullable=False),
+    sa.Column("organization_id", EXTERNAL_ID, nullable=False),
+    sa.Column("operator_user_id", EXTERNAL_ID, nullable=False),
+    sa.Column("request_json", mysql.LONGTEXT, nullable=False),
+    sa.Column("receipt_json", mysql.LONGTEXT, nullable=False),
+    sa.Column("receipt_sha256", sa.String(64), nullable=False),
+    sa.Index("ix_solution_commands", "solution_id"),
+    mysql_engine="InnoDB",
+    mysql_charset="utf8mb4",
+)

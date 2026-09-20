@@ -13,6 +13,8 @@ from qs_ai.application.governance.prompt_drafts import PromptDraftStore
 from qs_ai.application.governance.prompt_freeze import PromptFreezer
 from qs_ai.application.governance.prompt_lifecycle import PromptLifecycleReader
 from qs_ai.application.governance.publication import PublicationStore
+from qs_ai.application.governance.solution_models import EditableModelPolicy
+from qs_ai.application.governance.solutions import SolutionStore
 from qs_ai.application.governance.suite_registration import SuiteRegistrar
 from qs_ai.application.integration.events import (
     DeliverResults,
@@ -37,10 +39,17 @@ from qs_ai.infrastructure.persistence.mysql.prompt_freezes import MySQLPromptFre
 from qs_ai.infrastructure.persistence.mysql.prompt_lifecycle import MySQLPromptLifecycleReader
 from qs_ai.infrastructure.persistence.mysql.publications import MySQLPublications
 from qs_ai.infrastructure.persistence.mysql.result_outbox import MySQLResultOutbox
+from qs_ai.infrastructure.persistence.mysql.solutions import MySQLSolutions
 from qs_ai.infrastructure.workflow_transport.results import UnconfiguredReceiver
 
 
 class IntegrationProvider(Provider):
+    solutions = provide(MySQLSolutions, provides=SolutionStore, scope=Scope.REQUEST)
+
+    @provide(scope=Scope.APP)
+    def editable_models(self, settings: Settings) -> EditableModelPolicy:
+        return EditableModelPolicy(settings.governance_models)
+
     @provide(scope=Scope.APP)
     def evaluation_capacity_policy(self, settings: Settings) -> EvaluationCapacityPolicy:
         return EvaluationCapacityPolicy(
