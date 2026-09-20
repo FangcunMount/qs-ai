@@ -2,17 +2,29 @@
 
 import argparse
 import asyncio
+import hashlib
 import json
 
 from sqlalchemy import insert, select, update
 
 from qs_ai.bootstrap.import_evaluation_assets import baseline_assets
 from qs_ai.config import Settings
+from qs_ai.domain.evaluation.assets import PolicyKind
 from qs_ai.domain.evaluation.identity import FrozenContractRef
 from qs_ai.domain.evaluation.suite_contracts import SuiteContracts
+from qs_ai.domain.governance.schema import SchemaAsset
+from qs_ai.infrastructure.persistence.mysql.asset_snapshot import AssetSnapshotReader
 from qs_ai.infrastructure.persistence.mysql.database import Database, Transactions
+from qs_ai.infrastructure.persistence.mysql.evaluation_asset_registry import (
+    read_policy,
+)
 from qs_ai.infrastructure.persistence.mysql.evaluation_suites import decode_record
-from qs_ai.infrastructure.persistence.mysql.schema import evaluation_runs, evaluation_suites
+from qs_ai.infrastructure.persistence.mysql.schema import (
+    evaluation_runs,
+    evaluation_suites,
+    schema_assets,
+    semantic_prompt_assets,
+)
 from qs_ai.infrastructure.persistence.mysql.suite_contracts import encode
 from qs_ai.infrastructure.qs_server.evaluation_suite import V6_PUBLISHED, FrozenSuite, load_suite
 
@@ -44,6 +56,31 @@ async def run(imported_by: str) -> dict[str, int]:
     try:
         async with Transactions(database).open() as db:
             await db.connection(execution_options={"isolation_level": "SERIALIZABLE"})
+            await read_policy(db, PolicyKind.EXECUTION, contracts.execution_policy)
+            await read_policy(db, PolicyKind.GATE, contracts.gate_policy)
+            prompt = (
+                await db.execute(
+                    select(semantic_prompt_assets.c.markdown).where(
+                        semantic_prompt_assets.c.organization_id == 0,
+                        semantic_prompt_assets.c.asset_id == contracts.semantic_prompt.id,
+                        semantic_prompt_assets.c.version == contracts.semantic_prompt.version,
+                        semantic_prompt_assets.c.fingerprint
+                        == contracts.semantic_prompt.fingerprint,
+                    )
+                )
+            ).scalar_one_or_none()
+            if (
+                prompt is None
+                or "sha256:" + hashlib.sha256(prompt.encode()).hexdigest()
+                != contracts.semantic_prompt.fingerprint
+            ):
+                raise ValueError("Initialize original semantic prompt before suites")
+            schema_id, schema_version = contracts.semantic_output_schema.version.rsplit("/", 1)
+            schema = await AssetSnapshotReader(db, schema_assets, SchemaAsset).get(
+                schema_id, schema_version
+            )
+            if schema is None or schema.fingerprint != contracts.semantic_output_schema.fingerprint:
+                raise ValueError("Initialize original semantic schema before suites")
             rows = (await db.execute(select(evaluation_suites).with_for_update())).mappings().all()
             runs = (await db.execute(select(evaluation_runs.c.definition_json))).scalars().all()
             wanted = json.loads(raw_contracts)
