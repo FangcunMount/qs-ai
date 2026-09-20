@@ -26,6 +26,7 @@ from qs_ai.domain.evaluation.semantic_completion import SemanticCompletion
 from qs_ai.infrastructure.persistence.mysql.evaluation_assets import prepare_run_case
 from qs_ai.infrastructure.persistence.mysql.evaluation_cancellation import read_cancellation
 from qs_ai.infrastructure.persistence.mysql.evaluation_finalization import read_finalization
+from qs_ai.infrastructure.persistence.mysql.evaluation_frozen_policies import frozen_policies
 from qs_ai.infrastructure.persistence.mysql.evaluation_projection import (
     decode_completion,
     decode_semantic_completion,
@@ -151,7 +152,14 @@ async def get_candidate(
     ]
     projected = (
         await asyncio.to_thread(
-            project_slots, [slot], records, dispatches, semantic_records, resolutions, recoveries
+            project_slots,
+            [slot],
+            records,
+            dispatches,
+            semantic_records,
+            resolutions,
+            recoveries,
+            policy=frozen_policies(creation)[0],
         )
     )[0]
     if projected.candidate is None or not projected.candidate.review_ready:

@@ -11,6 +11,11 @@ from qs_ai.domain.governance.profile import AssetConflict
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
 from qs_ai.infrastructure.persistence.mysql.schema import evaluation_policy_assets as policies
 from qs_ai.infrastructure.persistence.mysql.schema import semantic_prompt_assets as prompts
+from qs_ai.infrastructure.qs_server.evaluation_policies import (
+    FrozenPolicyDocument,
+    execution_policy,
+    quality_thresholds,
+)
 
 
 async def read_policy(
@@ -94,6 +99,11 @@ class MySQLEvaluationAssets:
 
     async def put_policy(self, asset: PolicyAsset, source_ref: str, imported_by: str) -> bool:
         provenance(source_ref, imported_by)
+        document = FrozenPolicyDocument(asset.reference, asset.definition_json)
+        if asset.kind == PolicyKind.EXECUTION:
+            execution_policy(document)
+        else:
+            quality_thresholds(document)
         try:
             async with self.transactions.open() as db:
                 await db.execute(

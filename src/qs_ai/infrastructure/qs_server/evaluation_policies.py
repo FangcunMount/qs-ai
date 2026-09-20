@@ -115,6 +115,26 @@ def execution_policy(document: FrozenPolicyDocument) -> ExecutionPolicy:
         definition["semantic_budget"],
         definition["recovery_policy"],
     )
+    if (
+        (
+            slot["required_generation_cases"],
+            slot["required_candidates_per_case"],
+            slot["required_preflight_cases"],
+        )
+        != (7, 5, 1)
+        or recovery["result_unknown_requires_manual_acknowledgement"] is not True
+        or recovery["quality_failure_replacement_allowed"] is not False
+        or recovery["semantic_failure_regenerates_candidate"] is not False
+    ):
+        raise ValueError("Evaluation policy violates mandatory safety obligations")
+    limits = (
+        generation["max_executions_per_slot"],
+        generation["max_executions_per_run"],
+        semantic["max_executions_per_candidate"],
+        semantic["max_executions_per_run"],
+    )
+    if any(type(value) is not int or value <= 0 for value in limits):
+        raise ValueError("Invalid execution policy limits")
     return ExecutionPolicy(
         definition["policy_id"],
         definition["version"],

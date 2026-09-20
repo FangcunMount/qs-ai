@@ -17,6 +17,7 @@ from qs_ai.domain.evaluation.completion import GenerationCompletion
 from qs_ai.domain.evaluation.identity import EvidenceReleaseIdentity, FrozenContractRef
 from qs_ai.domain.evaluation.preflight import AssertionReceipt
 from qs_ai.infrastructure.persistence.mysql.evaluation_checkpoints import decode, save_checkpoint
+from qs_ai.infrastructure.persistence.mysql.evaluation_frozen_policies import frozen_policies
 from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_checkpoints,
     evaluation_dispatches,
@@ -25,7 +26,6 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
 from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_generation_completions as table,
 )
-from qs_ai.infrastructure.qs_server.evaluation_policies import load_execution_policy
 
 
 async def complete_generation(
@@ -101,7 +101,7 @@ async def complete_generation(
     ):
         raise CheckpointConflict("Collecting Run in organization required")
     creation = json.loads(run["definition_json"])
-    policy = await asyncio.to_thread(load_execution_policy)
+    policy, _ = await asyncio.to_thread(frozen_policies, creation)
     if creation["execution_policy_json"] != policy.definition_json:
         raise CheckpointConflict("Unsupported frozen execution policy")
     if not any(

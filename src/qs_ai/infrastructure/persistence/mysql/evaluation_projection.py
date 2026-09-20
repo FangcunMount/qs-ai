@@ -9,6 +9,7 @@ from qs_ai.domain.evaluation.actions import CandidateProgress, ExecutionResult, 
 from qs_ai.domain.evaluation.completion import GenerationCompletion, ProviderReceipt
 from qs_ai.domain.evaluation.contract_recovery import decode_recoveries, validate_recoveries
 from qs_ai.domain.evaluation.failure import ClassifiedFailure, ProviderDiagnostics
+from qs_ai.domain.evaluation.policy import ExecutionPolicy
 from qs_ai.domain.evaluation.resolution import (
     ResultUnknownResolution,
     UnknownExecution,
@@ -16,7 +17,6 @@ from qs_ai.domain.evaluation.resolution import (
 )
 from qs_ai.domain.evaluation.semantic_completion import SemanticCompletion
 from qs_ai.infrastructure.persistence.mysql.evaluation_checkpoints import decode
-from qs_ai.infrastructure.qs_server.evaluation_policies import load_execution_policy
 
 
 def decode_completion(row: Any) -> GenerationCompletion:
@@ -47,13 +47,15 @@ def project_slots(
     semantic_records: list[Any] | None = None,
     resolutions: list[dict] | None = None,
     contract_recoveries: list[dict] | None = None,
+    *,
+    policy: ExecutionPolicy,
 ) -> tuple[SlotProgress, ...]:
     """Every dispatch must have terminal evidence before new preparation."""
     semantic_records = semantic_records or []
     recovered = validate_recoveries(
         decode_recoveries(contract_recoveries or []),
         tuple(decode_semantic_completion(r) for r in semantic_records),
-        load_execution_policy(),
+        policy,
     )
     authorized: set[str] = set()
     if resolutions:
@@ -73,9 +75,7 @@ def project_slots(
             resolution = ResultUnknownResolution(
                 **{**raw, "resolved_at": datetime.fromisoformat(raw["resolved_at"])}
             )
-            result = resolve_unknown(
-                "blocked", unknowns, prior, resolution, load_execution_policy()
-            )
+            result = resolve_unknown("blocked", unknowns, prior, resolution, policy)
             prior = result.resolutions
             if resolution.decision == "authorize_replacement":
                 authorized.add(resolution.execution_id)
