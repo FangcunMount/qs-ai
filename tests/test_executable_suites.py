@@ -15,7 +15,7 @@ from tests.test_evaluation_case import release
 async def test_old_suite_cannot_be_resolved_for_execution():
     db = AsyncMock()
     with pytest.raises(ValueError, match="baseline"):
-        await load_registered_suite(db, V6)
+        await load_registered_suite(db, V6, organization_id=1)
     db.execute.assert_not_awaited()
 
 

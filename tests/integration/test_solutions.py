@@ -261,17 +261,17 @@ async def test_external_prompt_edit_cannot_be_silently_prepared(workspace):
         )
 
 
-async def test_solution_asset_file_reads_do_not_block_event_loop(workspace, monkeypatch):
+async def test_solution_fixed_contract_parsing_does_not_block_event_loop(workspace, monkeypatch):
     import threading
 
-    from qs_ai.infrastructure.persistence.mysql import solution_assets, solutions
+    from qs_ai.infrastructure.persistence.mysql import evaluation_contracts
 
     _, store, scope, sid, command, at = workspace
     owner = threading.get_ident()
     calls = []
     for module, name in (
-        (solutions, "load_semantic_assets"),
-        (solution_assets, "load_execution_policy"),
+        (evaluation_contracts, "semantic_assets"),
+        (evaluation_contracts, "execution_policy"),
     ):
         original = getattr(module, name)
 
@@ -290,5 +290,5 @@ async def test_solution_asset_file_reads_do_not_block_event_loop(workspace, monk
         ),
         at,
     )
-    assert "load_semantic_assets" in calls
-    assert "load_execution_policy" in calls
+    assert "semantic_assets" in calls
+    assert "execution_policy" in calls

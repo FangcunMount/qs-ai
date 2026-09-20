@@ -41,3 +41,14 @@ async def test_frozen_judge_uses_exact_bytes_without_database_or_file_access(mon
         await semantic_contract(
             db, release, 1, frozen={"semantic_prompt_markdown": asset.prompt_markdown}
         )
+
+    with pytest.raises(ValueError, match="owner"):
+        await semantic_contract(
+            db, release, 1, frozen={**frozen, "semantic_owner_organization_id": 2}
+        )
+    assert (
+        await semantic_contract(
+            db, release, 1, frozen={**frozen, "semantic_owner_organization_id": 1}
+        )
+        == asset
+    )

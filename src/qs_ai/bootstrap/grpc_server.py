@@ -18,6 +18,7 @@ from qs_ai.transport.grpc.prompt_drafts import PromptDraftManagement
 from qs_ai.transport.grpc.publication import PublicationManagement
 from qs_ai.transport.grpc.quotas import QuotaManagement
 from qs_ai.transport.grpc.runtime import RuntimeManagement
+from qs_ai.transport.grpc.semantic_drafts import SemanticPromptDrafts
 from qs_ai.transport.grpc.solutions import SolutionManagement
 from qs_ai.transport.grpc.suite_registration import SuiteManagement
 
@@ -36,6 +37,7 @@ def create_grpc_server(
     rpc.add_CommandsServicer_to_server(Commands(container), server)
     if settings.grpc.governance_enabled:
         rpc.add_FlowManagementServicer_to_server(FlowManagement(container), server)
+        rpc.add_SemanticPromptDraftsServicer_to_server(SemanticPromptDrafts(container), server)
         rpc.add_RuntimeManagementServicer_to_server(
             RuntimeManagement(container, components), server
         )

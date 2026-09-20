@@ -1,11 +1,11 @@
 """Bounded projections only: never select report, Prompt or model response bodies."""
 
 import asyncio
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import select, text
-from sqlalchemy.engine import RowMapping
+from sqlalchemy import case, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from qs_ai.application.execution.retry import retry_available
@@ -27,7 +27,9 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
 )
 
 
-def value(row: RowMapping) -> dict[str, Any]:
+def value(row: Mapping[Any, Any]) -> dict[str, Any]:
+    # Only explicitly UTC fields reach this serializer. Legacy wall clocks are
+    # exposed separately as zone-less strings, never interpreted using today's DB zone.
     return {
         key: item.replace(tzinfo=UTC).isoformat() if isinstance(item, datetime) else item
         for key, item in row.items()
@@ -55,8 +57,13 @@ class MySQLRuntimeReader:
                 sessions.c.version,
                 sessions.c.workflow_version,
                 sessions.c.failure_code,
-                sessions.c.created_at,
-                sessions.c.updated_at,
+                sessions.c.created_at_utc.label("created_at"),
+                # An older writer after a code rollback only updates updated_at.
+                # Do not present the previous UTC marker as its new update time.
+                case(
+                    (sessions.c.updated_at == sessions.c.updated_at_utc, sessions.c.updated_at_utc),
+                    else_=None,
+                ).label("updated_at"),
                 model_calls.c.status.label("model_call_status"),
                 model_calls.c.invocation_id,
                 configurations.c.publication_id,
@@ -104,7 +111,8 @@ class MySQLRuntimeReader:
                     jobs.c.attempt.label("job_attempt"),
                     model_calls.c.invocation_id,
                     model_calls.c.status.label("model_call_status"),
-                    model_calls.c.created_at.label("model_call_created_at"),
+                    model_calls.c.created_at_utc.label("model_call_created_at"),
+                    model_calls.c.created_at.label("legacy_model_call_created_at"),
                 )
                 .select_from(
                     runs.outerjoin(jobs, jobs.c.run_id == runs.c.id).outerjoin(
@@ -115,7 +123,24 @@ class MySQLRuntimeReader:
                 .order_by(runs.c.session_version.desc(), runs.c.id)
                 .limit(101)
             )
-            attempts = [value(row) for row in (await db.execute(attempts_query)).mappings()]
+            attempts = []
+            for row in (await db.execute(attempts_query)).mappings():
+                fields = dict(row)
+                legacy = fields.pop("legacy_model_call_created_at")
+                item = value(fields)
+                item["model_call_time_basis"] = (
+                    "utc"
+                    if item["model_call_created_at"] is not None
+                    else "legacy_timezone_unrecorded"
+                    if legacy is not None
+                    else "not_recorded"
+                )
+                item["model_call_created_at_recorded"] = (
+                    legacy.isoformat()
+                    if legacy is not None and item["model_call_created_at"] is None
+                    else None
+                )
+                attempts.append(item)
             deliveries_query = (
                 select(
                     result_outbox.c.event_id,

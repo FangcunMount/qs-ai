@@ -863,7 +863,7 @@ class ProfileRegistrationReceipt(_message.Message):
     def __init__(self, schema_version: _Optional[str] = ..., command_id: _Optional[str] = ..., receipt_json: _Optional[str] = ...) -> None: ...
 
 class SuiteRegisterCommand(_message.Message):
-    __slots__ = ("scope", "command_id", "source", "suite_id", "suite_version", "profile", "prompt", "generation_route", "reason")
+    __slots__ = ("scope", "command_id", "source", "suite_id", "suite_version", "profile", "prompt", "generation_route", "reason", "case_edits_json", "semantic_prompt", "semantic_owner_organization_id")
     SCOPE_FIELD_NUMBER: _ClassVar[int]
     COMMAND_ID_FIELD_NUMBER: _ClassVar[int]
     SOURCE_FIELD_NUMBER: _ClassVar[int]
@@ -873,6 +873,9 @@ class SuiteRegisterCommand(_message.Message):
     PROMPT_FIELD_NUMBER: _ClassVar[int]
     GENERATION_ROUTE_FIELD_NUMBER: _ClassVar[int]
     REASON_FIELD_NUMBER: _ClassVar[int]
+    CASE_EDITS_JSON_FIELD_NUMBER: _ClassVar[int]
+    SEMANTIC_PROMPT_FIELD_NUMBER: _ClassVar[int]
+    SEMANTIC_OWNER_ORGANIZATION_ID_FIELD_NUMBER: _ClassVar[int]
     scope: PublicationScope
     command_id: str
     source: FrozenEvaluationRef
@@ -882,7 +885,10 @@ class SuiteRegisterCommand(_message.Message):
     prompt: PromptDraftSource
     generation_route: PromptDraftSource
     reason: str
-    def __init__(self, scope: _Optional[_Union[PublicationScope, _Mapping]] = ..., command_id: _Optional[str] = ..., source: _Optional[_Union[FrozenEvaluationRef, _Mapping]] = ..., suite_id: _Optional[str] = ..., suite_version: _Optional[str] = ..., profile: _Optional[_Union[PromptDraftSource, _Mapping]] = ..., prompt: _Optional[_Union[PromptDraftSource, _Mapping]] = ..., generation_route: _Optional[_Union[PromptDraftSource, _Mapping]] = ..., reason: _Optional[str] = ...) -> None: ...
+    case_edits_json: str
+    semantic_prompt: FrozenEvaluationRef
+    semantic_owner_organization_id: int
+    def __init__(self, scope: _Optional[_Union[PublicationScope, _Mapping]] = ..., command_id: _Optional[str] = ..., source: _Optional[_Union[FrozenEvaluationRef, _Mapping]] = ..., suite_id: _Optional[str] = ..., suite_version: _Optional[str] = ..., profile: _Optional[_Union[PromptDraftSource, _Mapping]] = ..., prompt: _Optional[_Union[PromptDraftSource, _Mapping]] = ..., generation_route: _Optional[_Union[PromptDraftSource, _Mapping]] = ..., reason: _Optional[str] = ..., case_edits_json: _Optional[str] = ..., semantic_prompt: _Optional[_Union[FrozenEvaluationRef, _Mapping]] = ..., semantic_owner_organization_id: _Optional[int] = ...) -> None: ...
 
 class SuiteRegistrationQuery(_message.Message):
     __slots__ = ("scope", "command_id")
@@ -1291,3 +1297,31 @@ class FlowQuery(_message.Message):
     solution_id: str
     publication_id: str
     def __init__(self, scope: _Optional[_Union[PublicationScope, _Mapping]] = ..., solution_id: _Optional[str] = ..., publication_id: _Optional[str] = ...) -> None: ...
+
+class SemanticDraftWrite(_message.Message):
+    __slots__ = ("scope", "command_json")
+    SCOPE_FIELD_NUMBER: _ClassVar[int]
+    COMMAND_JSON_FIELD_NUMBER: _ClassVar[int]
+    scope: PublicationScope
+    command_json: str
+    def __init__(self, scope: _Optional[_Union[PublicationScope, _Mapping]] = ..., command_json: _Optional[str] = ...) -> None: ...
+
+class SemanticDraftQuery(_message.Message):
+    __slots__ = ("scope", "draft_id", "revision", "command_id")
+    SCOPE_FIELD_NUMBER: _ClassVar[int]
+    DRAFT_ID_FIELD_NUMBER: _ClassVar[int]
+    REVISION_FIELD_NUMBER: _ClassVar[int]
+    COMMAND_ID_FIELD_NUMBER: _ClassVar[int]
+    scope: PublicationScope
+    draft_id: str
+    revision: int
+    command_id: str
+    def __init__(self, scope: _Optional[_Union[PublicationScope, _Mapping]] = ..., draft_id: _Optional[str] = ..., revision: _Optional[int] = ..., command_id: _Optional[str] = ...) -> None: ...
+
+class SemanticDraftResponse(_message.Message):
+    __slots__ = ("schema_version", "data_json")
+    SCHEMA_VERSION_FIELD_NUMBER: _ClassVar[int]
+    DATA_JSON_FIELD_NUMBER: _ClassVar[int]
+    schema_version: str
+    data_json: str
+    def __init__(self, schema_version: _Optional[str] = ..., data_json: _Optional[str] = ...) -> None: ...

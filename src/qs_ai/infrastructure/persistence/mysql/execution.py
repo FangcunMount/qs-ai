@@ -111,6 +111,8 @@ class MySQLExecutionStore:
                     fence_token=claim.fence,
                     status=call.status,
                     request_json=request_json,
+                    created_at=func.utc_timestamp(6),
+                    created_at_utc=func.utc_timestamp(6),
                 )
             )
             await record(

@@ -1,6 +1,5 @@
 """Parse the frozen judge contract and resolve exactly its requested obligations."""
 
-import asyncio
 import hashlib
 import json
 from dataclasses import dataclass
@@ -12,7 +11,7 @@ from qs_ai.application.interpretation.route_assets import RouteAssets
 from qs_ai.domain.evaluation.completion import ProviderReceipt
 from qs_ai.domain.evaluation.identity import EvidenceReleaseIdentity
 from qs_ai.domain.evaluation.preflight import AssertionReceipt
-from qs_ai.infrastructure.qs_server.semantic_assets import load_semantic_assets
+from qs_ai.infrastructure.qs_server.semantic_assets import SemanticAssets
 
 
 class SemanticDecisionInvalid(ValueError):
@@ -40,9 +39,10 @@ async def parse_semantic_output(
     receipt: ProviderReceipt,
     invocation_id: str,
     obligations: tuple[AssertionReceipt, ...],
+    *,
+    assets: SemanticAssets,
 ) -> SemanticResult:
     """Input is normalized output bytes; caller retains raw response and candidate binding."""
-    assets = await asyncio.to_thread(load_semantic_assets)
     if (
         release.semantic_prompt != assets.prompt
         or release.semantic_output_schema != assets.output_schema

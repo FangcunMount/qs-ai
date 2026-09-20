@@ -88,3 +88,69 @@ python -m qs_ai.bootstrap.import_evaluation_assets --imported-by <operator-refer
 策略 JSON；不提供写入或发布门槛调整接口。读取沿用审计权限，策略类型之间
 不能通过同名身份混读。初始化前目录可以为空，按指定版本读取不存在记录则
 返回 NOT_FOUND，不回退文件。
+
+## 裁判 Prompt 草稿契约（第二批，尚未发布）
+
+新增 `SemanticPromptDrafts`：Create、Get、Revise、Validate、Freeze、GetReceipt。
+读复用审计权限，Create/Revise/Freeze 使用组织管理员权限；组织、操作者由 QS
+可信上下文提供。草稿 Get 可指定 revision，0 表示当前草稿版本。资产运行读取
+仍必须指定精确版本及摘要，不使用该草稿读取语义。
+
+Create：draft_id、command_id、source_prompt、source_schema（完整 id/version/fingerprint）、
+source_owner_organization_id（0=共享基准，或当前组织）、target_version、reason。
+Revise：draft_id、command_id、expected_revision、markdown、reason。
+Freeze：draft_id、command_id、expected_revision、reason。
+Validate：读取指定草稿版本并校验三个文本块、唯一 payload 变量和原输出契约，
+不调用模型、不创建评测、不写入审核。
+
+所有写操作原命令重试返回原回执；同命令不同正文冲突。冻结生成组织私有不可变
+Prompt，既不审批也不发布，冻结后编辑需从该版本另建草稿。正文／命令上限分别
+128 KiB／256 KiB。跨组织和非原操作者的命令回执返回 NOT_FOUND。并发编辑返回
+ABORTED；格式错误 INVALID_ARGUMENT；依赖不可用返回 UNAVAILABLE，不回退文件。
+
+## 套件初始化与切换前置条件
+
+新增 `0034_evaluation_suite_sources`：扩展现有套件表，保存精确裁判／策略绑定及
+初始化来源。共享原始套件的组织为 0，不伪造管理员、命令或审核回执；既有套件
+的原始正文、摘要和登记回执保持不变。裁判草稿迁移已顺延到 `0033`，接在主干
+诊断迁移 `0032_runtime_milestones` 之后。
+
+受控执行 `python -m qs_ai.bootstrap.import_evaluation_suites --imported-by <运维标识>`。
+在单次事务中核对所有既有 Run 与原始静态契约的对应关系，再导入共享套件并为
+已核对的原生套件补齐绑定。出现不一致立即回滚，不以当前版本覆盖历史引用。
+初始化前必须已完成四项策略／裁判资产导入；此命令不发起评测、不批准、不发布。
+
+这仍是切换准备阶段。初始化后目录暂时可同时读到字节相同的文件／数据库来源，
+只合并完全一致的记录，冲突报错。后续切换必须去掉文件读取；不得据此认为运行时
+文件依赖已全部清除。受约束案例编辑、方案可选引用和源套件继承尚待完成。
+
+新评测创建已经按精确引用读取 MySQL 策略与裁判并冻结裁判正文；执行和语义结果
+校验读取这些正文。历史缺少裁判正文时只允许按原摘要从资产库补齐，拒绝部分正文
+和损坏摘要。当前生产三条 Run 的原策略及裁判引用核对通过，发布记录摘要保持一致。
+
+### 套件固定来源与受约束案例（后续批次，尚未完成生产切换）
+
+套件注册命令新增可选 `case_edits_json`、`semantic_prompt` 和
+`semantic_owner_organization_id`。省略时继承来源套件的不可变绑定，不选择最新版本。
+案例修改只能针对现有生成案例，完整提交 case_id、title、purpose、provider_payload
+和 assertions；不能删除案例、改变断言类型或核心安全断言，预检不可编辑。
+方案 Save 可选 `evaluation_suite`、`semantic_prompt` 和 `semantic_owner_organization_id`。
+新引用必须属于共享资产或当前组织；执行策略、门槛及语义输出契约继承原方案。
+
+运行时套件从 MySQL 按身份、版本、摘要与组织读取。正式切换前必须先运行已发布的
+初始化命令并核对现有评测、发布及原始资产；初始化不批准、不发布、不改变指针。
+
+当前专项回归覆盖案例约束、套件隔离、无文件查找、原始回执保留和初始化重入；
+完整双版本 MySQL、互操作、剩余容量展示读取与生产切换仍待完成，不计为后端结项。
+
+### 2026-09-20 后端推进核证
+
+裁判草稿及套件初始化基础已由 #111 合入 main，生产镜像
+`ce05333f457fda56eb36c9a6f4c45fd92bfffab4` 已核对为 healthy。
+生产套件初始化结果为 inserted=1、bindings_added=3、runs_checked=3；
+重复执行 inserted=0、bindings_added=0、runs_checked=3，activated 均为 false。
+QS 裁判草稿代理 #121 已合并，尚需核对生产接口。
+
+下一批 #112 已移除容量展示的策略文件读取：该兼容响应使用明确固定的原执行策略
+版本作完整 Run 估算，实际准入始终读取各 Run 冻结策略。案例、裁判选型和数据库套件
+读取仍需该批完整 CI、代理接线和生产切换验证，不因初始化成功提前宣告完成。

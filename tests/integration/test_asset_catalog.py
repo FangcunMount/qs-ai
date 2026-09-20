@@ -53,7 +53,13 @@ async def test_discover_all_kinds_detail_matches_summary_and_shared_scope(catalo
     assert items
     keys = [(item.reference.identity, item.reference.version) for item in items]
     assert keys == sorted(set(keys))
-    assert items == await all_items(store, DraftScope(2, 43), kind, limit=50)
+    shared = await all_items(store, DraftScope(2, 43), kind, limit=50)
+    if kind == "suite":
+        assert shared == [item for item in items if item.reference.identity != receipt.suite.id]
+        with pytest.raises(NotFound):
+            await store.get(DraftScope(2, 43), kind, receipt.suite.id, receipt.suite.version)
+    else:
+        assert items == shared
     for item in items:
         value = await store.get(scope, kind, item.reference.identity, item.reference.version)
         assert value.item == item

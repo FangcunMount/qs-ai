@@ -17,6 +17,7 @@ from qs_ai.domain.evaluation.preflight import AssertionReceipt
 from qs_ai.domain.evaluation.semantic_completion import SemanticCompletion
 from qs_ai.infrastructure.persistence.mysql.evaluation_assets import stored_run_suite
 from qs_ai.infrastructure.persistence.mysql.evaluation_checkpoints import decode, save_checkpoint
+from qs_ai.infrastructure.persistence.mysql.evaluation_contracts import semantic_contract
 from qs_ai.infrastructure.persistence.mysql.evaluation_frozen_policies import frozen_policies
 from qs_ai.infrastructure.persistence.mysql.evaluation_projection import (
     decode_completion,
@@ -179,6 +180,7 @@ async def complete_semantic(
             completion.receipt,
             completion.invocation_id,
             obligations,
+            assets=await semantic_contract(db, release, organization_id, frozen=creation),
         )
         resolved = {(a.type, a.scope, a.ordinal): asdict(a) for a in result.decisions}
         candidate["assertions"] = [

@@ -26,6 +26,8 @@ sessions = sa.Table(
     sa.Column("created_at", mysql.DATETIME(fsp=6), server_default=sa.text("CURRENT_TIMESTAMP(6)")),
     sa.Column("updated_at", mysql.DATETIME(fsp=6), server_default=sa.text("CURRENT_TIMESTAMP(6)")),
     sa.Index("ix_session_owner", "org_id", "owner_subject_id", "updated_at", "id"),
+    sa.Column("created_at_utc", mysql.DATETIME(fsp=6)),
+    sa.Column("updated_at_utc", mysql.DATETIME(fsp=6)),
     mysql_engine="InnoDB",
     mysql_charset="utf8mb4",
 )
@@ -97,6 +99,7 @@ model_calls = sa.Table(
     sa.Column("response_json", mysql.LONGTEXT),
     sa.Column("failure_code", sa.String(64)),
     sa.Column("created_at", mysql.DATETIME(fsp=6), server_default=sa.text("CURRENT_TIMESTAMP(6)")),
+    sa.Column("created_at_utc", mysql.DATETIME(fsp=6)),
     mysql_engine="InnoDB",
     mysql_charset="utf8mb4",
 )
@@ -448,11 +451,15 @@ evaluation_suites = sa.Table(
     sa.Column("suite_version", sa.String(128, collation="utf8mb4_bin"), primary_key=True),
     sa.Column("fingerprint", sa.String(71), nullable=False),
     sa.Column("definition_json", mysql.LONGTEXT, nullable=False),
-    sa.Column("command_id", sa.CHAR(36), nullable=False, unique=True),
+    sa.Column("command_id", sa.CHAR(36), nullable=True, unique=True),
     sa.Column("organization_id", sa.BigInteger, nullable=False),
-    sa.Column("operator_user_id", sa.BigInteger, nullable=False),
-    sa.Column("receipt_json", mysql.LONGTEXT, nullable=False),
-    sa.Column("receipt_sha256", sa.CHAR(64), nullable=False),
+    sa.Column("operator_user_id", sa.BigInteger, nullable=True),
+    sa.Column("receipt_json", mysql.LONGTEXT, nullable=True),
+    sa.Column("receipt_sha256", sa.CHAR(64), nullable=True),
+    sa.Column("source_ref", sa.String(255)),
+    sa.Column("imported_by", sa.String(128)),
+    sa.Column("contracts_json", mysql.LONGTEXT),
+    sa.Column("contracts_sha256", sa.CHAR(64)),
     mysql_engine="InnoDB",
     mysql_charset="utf8mb4",
 )
@@ -656,6 +663,48 @@ runtime_milestones = sa.Table(
     sa.Column("occurred_at", mysql.DATETIME(fsp=6), nullable=False),
     sa.Column("expires_at", mysql.DATETIME(fsp=6), nullable=False),
     sa.Index("ix_runtime_milestones_expiry", "expires_at"),
+    mysql_engine="InnoDB",
+    mysql_charset="utf8mb4",
+)
+
+semantic_draft_heads = sa.Table(
+    "semantic_draft_heads",
+    metadata,
+    sa.Column("organization_id", EXTERNAL_ID, primary_key=True),
+    sa.Column("draft_id", sa.CHAR(36, collation="utf8mb4_bin"), primary_key=True),
+    sa.Column("revision", sa.BigInteger, nullable=False),
+    mysql_engine="InnoDB",
+    mysql_charset="utf8mb4",
+)
+semantic_draft_versions = sa.Table(
+    "semantic_draft_versions",
+    metadata,
+    sa.Column("organization_id", EXTERNAL_ID, primary_key=True),
+    sa.Column("draft_id", sa.CHAR(36, collation="utf8mb4_bin"), primary_key=True),
+    sa.Column("revision", sa.BigInteger, primary_key=True),
+    sa.Column("snapshot_json", mysql.LONGTEXT, nullable=False),
+    sa.Column("snapshot_sha256", sa.CHAR(64), nullable=False),
+    sa.ForeignKeyConstraint(
+        ["organization_id", "draft_id"],
+        ["semantic_draft_heads.organization_id", "semantic_draft_heads.draft_id"],
+    ),
+    mysql_engine="InnoDB",
+    mysql_charset="utf8mb4",
+)
+semantic_draft_commands = sa.Table(
+    "semantic_draft_commands",
+    metadata,
+    sa.Column("organization_id", EXTERNAL_ID, primary_key=True),
+    sa.Column("command_id", sa.CHAR(36, collation="utf8mb4_bin"), primary_key=True),
+    sa.Column("operator_user_id", EXTERNAL_ID, nullable=False),
+    sa.Column("draft_id", sa.CHAR(36, collation="utf8mb4_bin"), nullable=False),
+    sa.Column("request_json", mysql.LONGTEXT, nullable=False),
+    sa.Column("receipt_json", mysql.LONGTEXT, nullable=False),
+    sa.Column("receipt_sha256", sa.CHAR(64), nullable=False),
+    sa.ForeignKeyConstraint(
+        ["organization_id", "draft_id"],
+        ["semantic_draft_heads.organization_id", "semantic_draft_heads.draft_id"],
+    ),
     mysql_engine="InnoDB",
     mysql_charset="utf8mb4",
 )

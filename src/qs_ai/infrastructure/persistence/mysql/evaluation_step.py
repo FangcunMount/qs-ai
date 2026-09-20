@@ -33,6 +33,7 @@ from qs_ai.infrastructure.persistence.mysql.evaluation_assets import (
 from qs_ai.infrastructure.persistence.mysql.evaluation_completions import (
     complete_evaluated_generation,
 )
+from qs_ai.infrastructure.persistence.mysql.evaluation_contracts import semantic_contract
 from qs_ai.infrastructure.persistence.mysql.evaluation_dispatches import reserve_dispatch
 from qs_ai.infrastructure.persistence.mysql.evaluation_preparation import prepare_execution
 from qs_ai.infrastructure.persistence.mysql.evaluation_projection import decode_completion
@@ -45,7 +46,6 @@ from qs_ai.infrastructure.qs_server.evaluation_assertions import (
     assertion_inventory,
     semantic_obligations,
 )
-from qs_ai.infrastructure.qs_server.semantic_assets import load_semantic_assets
 from qs_ai.infrastructure.qs_server.semantic_input import prepare_semantic_messages
 from qs_ai.infrastructure.qs_server.semantic_output import (
     SemanticDecisionInvalid,
@@ -122,6 +122,7 @@ async def execute_step(
                 raise ValueError("Frozen output schema unavailable")
             schema = json.loads(asset.definition_json)
         else:
+            semantic = await semantic_contract(db, release, organization_id, frozen=creation)
             row = (
                 (
                     await db.execute(
@@ -144,6 +145,7 @@ async def execute_step(
                 assertions,
                 prepared=prepared,
                 frozen_suite=suite,
+                assets=semantic,
             )
             progress = (
                 await db.execute(
@@ -161,7 +163,7 @@ async def execute_step(
                 messages = replace(
                     messages, task_message=messages.task_message + "\n" + RECOVERY_INSTRUCTION
                 )
-            schema = json.loads((await asyncio.to_thread(load_semantic_assets)).output_schema_json)
+            schema = json.loads(semantic.output_schema_json)
         state = await reserve_dispatch(db, run_id, state.version, owner, at)
         # This commit must finish before control reaches the external gateway.
         await db.commit()
@@ -194,7 +196,7 @@ async def execute_step(
         )
         try:
             await parse_semantic_output(
-                normalized, release, routes, receipt, invocation_id, obligations
+                normalized, release, routes, receipt, invocation_id, obligations, assets=semantic
             )
         except SemanticDecisionInvalid:
             failure = ClassifiedFailure(
