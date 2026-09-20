@@ -12,6 +12,7 @@ from qs_ai.application.execution.retry import (
     ParticipantTarget,
 )
 from qs_ai.application.governance.prompt_drafts import DraftScope
+from qs_ai.application.governance.quotas import QuotaBaseline
 from qs_ai.application.interpretation.ports import NotFound, Receipt
 from qs_ai.application.interpretation.service import fingerprint
 from qs_ai.domain.interpretation.model import RuleViolation
@@ -30,8 +31,14 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
 
 
 class MySQLParticipantRetries:
-    def __init__(self, transactions: Transactions, capacity: ParticipantCapacityPolicy) -> None:
+    def __init__(
+        self,
+        transactions: Transactions,
+        capacity: ParticipantCapacityPolicy,
+        quota_baseline: QuotaBaseline | None = None,
+    ) -> None:
         self.transactions, self.capacity = transactions, capacity
+        self.quota_baseline = quota_baseline
 
     async def get(self, scope: DraftScope, session_id: str) -> ParticipantExecution:
         async with self.transactions.open() as db:
@@ -150,7 +157,7 @@ class MySQLParticipantRetries:
 
     async def retry(self, command: ParticipantRetry) -> Receipt:
         async with self.transactions.open() as db:
-            uow = MySQLUnitOfWork(db, self.capacity)
+            uow = MySQLUnitOfWork(db, self.capacity, self.quota_baseline)
             previous = await uow.reserve(
                 fingerprint(["participant-retry-v1", command.scope.organization_id]),
                 command.command_id,

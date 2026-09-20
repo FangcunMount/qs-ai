@@ -1,5 +1,6 @@
 """Resolve exact sources and atomically prepare existing governance assets."""
 
+import asyncio
 import hashlib
 import json
 from dataclasses import asdict, replace
@@ -237,7 +238,7 @@ async def prepare_assets(
         at,
         generation_manifest=suite.manifest,
     )
-    policy = load_execution_policy()
+    policy = await asyncio.to_thread(load_execution_policy)
     return {
         "plan": {
             "generation_case_count": policy.generation_cases,

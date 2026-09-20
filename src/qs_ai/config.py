@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 from sqlalchemy.engine import make_url
 
@@ -50,6 +50,16 @@ class ParticipantCapacityOptions(Options):
     active_org: int = Field(ge=1)
     active_user: int = Field(ge=1)
     active_assessment: int = Field(ge=1)
+
+
+class EvaluationQuotaOptions(Options):
+    daily_provider_calls: int = Field(ge=1)
+    max_active_runs: int = Field(ge=1)
+
+
+class QuotaCeilings(Options):
+    participant: ParticipantCapacityOptions
+    evaluation: EvaluationQuotaOptions
 
 
 class GenerationOptions(Options):
@@ -122,6 +132,7 @@ class Settings(BaseSettings):
     # Only models verified for the deployed adapter may be offered for editing.
     governance_models: tuple[str, ...] = ("deepseek-v4-pro",)
     participant_capacity: ParticipantCapacityOptions
+    quota_ceilings: QuotaCeilings | None = None
     generation: GenerationOptions
     http: HTTPOptions
     database: DatabaseOptions
@@ -129,6 +140,25 @@ class Settings(BaseSettings):
     evaluation: EvaluationOptions
     grpc: GRPCOptions
     delivery: DeliveryOptions
+
+    @model_validator(mode="after")
+    def validate_quota_baseline(self) -> "Settings":
+        if self.quota_ceilings is not None:
+            defaults = {
+                "participant": self.participant_capacity.model_dump(),
+                "evaluation": {
+                    "daily_provider_calls": self.evaluation.daily_provider_calls,
+                    "max_active_runs": self.evaluation.max_active_runs,
+                },
+            }
+            ceilings = self.quota_ceilings.model_dump()
+            if any(
+                value > ceilings[section][key]
+                for section, fields in defaults.items()
+                for key, value in fields.items()
+            ):
+                raise ValueError("Deployment quota defaults exceed ceilings")
+        return self
 
     @classmethod
     def settings_customise_sources(

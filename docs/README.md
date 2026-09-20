@@ -34,3 +34,5 @@
 - [候选最终结果验收](candidate-completion-acceptance.md)：版本化规则、旧 Run 采用、发布门槛与调用观测。
 
 - [AI 解读管理第二版](ai-governance-v2.md)：持久方案、模型参数、原子准备与验证边界。
+
+- [配置中心后端契约与台账](config-center.md)

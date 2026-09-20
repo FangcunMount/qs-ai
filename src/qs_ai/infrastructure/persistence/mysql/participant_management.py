@@ -13,13 +13,21 @@ from qs_ai.application.execution.management import (
     ParticipantCapacityUsage,
     ParticipantReservation,
 )
+from qs_ai.application.governance.quotas import QuotaBaseline
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
+from qs_ai.infrastructure.persistence.mysql.quotas import participant_policy
 from qs_ai.infrastructure.persistence.mysql.schema import participant_capacity_reservations as rows
 
 
 class MySQLParticipantCapacityReader:
-    def __init__(self, transactions: Transactions, capacity: ParticipantCapacityPolicy) -> None:
+    def __init__(
+        self,
+        transactions: Transactions,
+        capacity: ParticipantCapacityPolicy,
+        quota_baseline: QuotaBaseline | None = None,
+    ) -> None:
         self.transactions, self.policy = transactions, capacity
+        self.quota_baseline = quota_baseline
 
     async def get(
         self, query: ParticipantCapacityQuery, at: datetime
@@ -32,6 +40,10 @@ class MySQLParticipantCapacityReader:
         active = rows.c.active.is_(True)
         async with self.transactions.open() as db:
             await db.connection(execution_options={"isolation_level": "REPEATABLE READ"})
+
+            policy, _ = await participant_policy(
+                db, query.scope.organization_id, self.policy, self.quota_baseline
+            )
 
             async def usage(
                 identity: str, predicate: ColumnElement[Any], daily_limit: int, active_limit: int
@@ -54,14 +66,14 @@ class MySQLParticipantCapacityReader:
                 )
 
             organization = await usage(
-                str(query.scope.organization_id), org, self.policy.daily_org, self.policy.active_org
+                str(query.scope.organization_id), org, policy.daily_org, policy.active_org
             )
             subject = (
                 await usage(
                     query.subject_id,
                     rows.c.subject_id == query.subject_id,
-                    self.policy.daily_user,
-                    self.policy.active_user,
+                    policy.daily_user,
+                    policy.active_user,
                 )
                 if query.subject_id
                 else None
@@ -70,8 +82,8 @@ class MySQLParticipantCapacityReader:
                 await usage(
                     query.assessment_id,
                     func.json_contains(rows.c.assessment_ids, json.dumps(query.assessment_id)) == 1,
-                    self.policy.daily_assessment,
-                    self.policy.active_assessment,
+                    policy.daily_assessment,
+                    policy.active_assessment,
                 )
                 if query.assessment_id
                 else None
@@ -104,7 +116,7 @@ class MySQLParticipantCapacityReader:
         return ParticipantCapacitySnapshot(
             query.scope.organization_id,
             day.isoformat(),
-            self.policy,
+            policy,
             organization,
             subject,
             assessment,
