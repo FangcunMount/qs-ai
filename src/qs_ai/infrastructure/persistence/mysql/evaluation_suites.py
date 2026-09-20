@@ -119,7 +119,10 @@ async def load_registered_suite(
         raise ValueError("Exact scoped evaluation suite unavailable")
     source = None
     if row["organization_id"] != 0:
-        parent = FrozenContractRef(**json.loads(row["definition_json"])["derived_from"])
+        try:
+            parent = FrozenContractRef(**json.loads(row["definition_json"])["derived_from"])
+        except (KeyError, TypeError) as error:
+            raise ValueError("Suite source reference unavailable") from error
         source = await load_registered_suite(
             db, parent, organization_id=organization_id, _seen=_seen | {key}
         )
