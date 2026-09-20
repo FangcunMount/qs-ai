@@ -17,11 +17,11 @@ from qs_ai.infrastructure.persistence.mysql.evaluation_contract_recovery import 
 )
 from qs_ai.infrastructure.persistence.mysql.evaluation_management import MySQLEvaluationManagement
 from qs_ai.infrastructure.persistence.mysql.evaluation_projection import decode_semantic_completion
-from qs_ai.infrastructure.persistence.mysql.evaluation_step import execute_step
 from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_generation_completions,
     evaluation_semantic_completions,
 )
+from qs_ai.infrastructure.workflows.evaluation import execute_step
 from tests.integration.test_evaluation_runs import rows
 from tests.integration.test_evaluation_runs import setup_run as setup_run
 from tests.integration.test_evaluation_step import AT, Gateway, step

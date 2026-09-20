@@ -237,7 +237,7 @@ def test_missing_usage_is_unknown_not_zero() -> None:
 
 @pytest.mark.parametrize(
     "payload",
-    [b'{"status":"completed","status":"failed"}', b'{"usage":NaN}', b'not-json', b'\xff'],
+    [b'{"status":"completed","status":"failed"}', b'{"usage":NaN}', b"not-json", b"\xff"],
 )
 def test_raw_response_must_not_be_normalized_before_strict_parsing(payload: bytes) -> None:
     with pytest.raises(ProviderFailure, match="provider_response_invalid"):

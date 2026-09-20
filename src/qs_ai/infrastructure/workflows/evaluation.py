@@ -1,7 +1,7 @@
 """A graph per durable evaluation attempt; existing CAS owns recovery."""
 
 from collections.abc import Callable
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import TypedDict
 from uuid import UUID
 
@@ -10,13 +10,17 @@ from langsmith import tracing_context
 
 from qs_ai.application.evaluation.checkpoints import CheckpointState
 from qs_ai.application.evaluation.provider_failure import classify_provider_failure
-from qs_ai.application.interpretation.provider import ModelResponse, ProviderFailure
+from qs_ai.application.interpretation.provider import (
+    MessagesGateway,
+    ModelResponse,
+    ProviderFailure,
+)
 from qs_ai.application.interpretation.route_assets import RouteAssets
 from qs_ai.application.interpretation.schema_assets import SchemaAssets
+from qs_ai.application.operations.diagnostics import operation
 from qs_ai.domain.evaluation.failure import ClassifiedFailure
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
 from qs_ai.infrastructure.persistence.mysql.evaluation_step import (
-    MessagesGateway,
     PreparedStep,
     finish_step,
     prepare_step,
@@ -30,7 +34,7 @@ class EvaluationState(TypedDict, total=False):
     result: CheckpointState
 
 
-async def run_evaluation_step(
+async def execute_step(
     transactions: Transactions,
     run_id: UUID,
     expected_version: int,
@@ -40,55 +44,58 @@ async def run_evaluation_step(
     routes: RouteAssets,
     schemas: SchemaAssets,
     *,
-    clock: Callable[[], datetime],
+    clock: Callable[[], datetime] = lambda: datetime.now(UTC),
 ) -> CheckpointState:
     async def prepare(state: EvaluationState) -> EvaluationState:
-        value = await prepare_step(
-            transactions,
-            run_id,
-            expected_version,
-            organization_id,
-            owner,
-            routes,
-            schemas,
-            clock=clock,
-        )
-        return {"prepared": value}
+        with operation("graph.evaluation.prepare", "evaluation"):
+            value = await prepare_step(
+                transactions,
+                run_id,
+                expected_version,
+                organization_id,
+                owner,
+                routes,
+                schemas,
+                clock=clock,
+            )
+            return {"prepared": value}
 
     async def invoke(state: EvaluationState) -> EvaluationState:
-        prepared = state["prepared"]
-        try:
-            response = await gateway.generate_messages(
-                prepared.messages,
-                prepared.route,
-                prepared.schema,
-                prepared.invocation_id,
-            )
-        except ProviderFailure as error:
-            return {
-                "response": None,
-                "failure": classify_provider_failure(
-                    prepared.cp.kind,
-                    prepared.execution_id,
-                    error,
-                ),
-            }
-        return {"response": response, "failure": None}
+        with operation("graph.evaluation.invoke", "evaluation"):
+            prepared = state["prepared"]
+            try:
+                response = await gateway.generate_messages(
+                    prepared.messages,
+                    prepared.route,
+                    prepared.schema,
+                    prepared.invocation_id,
+                )
+            except ProviderFailure as error:
+                return {
+                    "response": None,
+                    "failure": classify_provider_failure(
+                        prepared.cp.kind,
+                        prepared.execution_id,
+                        error,
+                    ),
+                }
+            return {"response": response, "failure": None}
 
     async def complete(state: EvaluationState) -> EvaluationState:
-        result = await finish_step(
-            transactions,
-            run_id,
-            organization_id,
-            owner,
-            routes,
-            schemas,
-            state["prepared"],
-            state["response"],
-            state["failure"],
-            clock=clock,
-        )
-        return {"result": result}
+        with operation("graph.evaluation.complete", "evaluation"):
+            result = await finish_step(
+                transactions,
+                run_id,
+                organization_id,
+                owner,
+                routes,
+                schemas,
+                state["prepared"],
+                state["response"],
+                state["failure"],
+                clock=clock,
+            )
+            return {"result": result}
 
     graph = StateGraph(EvaluationState)
     graph.add_node("prepare_dispatch", prepare)

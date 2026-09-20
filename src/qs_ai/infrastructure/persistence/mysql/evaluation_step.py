@@ -6,7 +6,7 @@ import json
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
-from typing import Any, Protocol
+from typing import Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import select
@@ -54,16 +54,6 @@ from qs_ai.infrastructure.qs_server.semantic_output import (
     SemanticDecisionInvalid,
     parse_semantic_output,
 )
-
-
-class MessagesGateway(Protocol):
-    async def generate_messages(
-        self,
-        messages: PromptMessages,
-        route: ModelRoute,
-        schema: dict[str, Any],
-        invocation_id: str,
-    ) -> ModelResponse: ...
 
 
 @dataclass(frozen=True)
@@ -335,31 +325,3 @@ async def finish_step(
         stage=cp.kind,
     )
     return state
-
-
-async def execute_step(
-    transactions: Transactions,
-    run_id: UUID,
-    expected_version: int,
-    organization_id: int,
-    owner: str,
-    gateway: MessagesGateway,
-    routes: RouteAssets,
-    schemas: SchemaAssets,
-    *,
-    clock: Callable[[], datetime] = lambda: datetime.now(UTC),
-) -> CheckpointState:
-    """Run must already be collecting with passed preflight; caller supplies authorized scope."""
-    from qs_ai.infrastructure.workflows.evaluation import run_evaluation_step
-
-    return await run_evaluation_step(
-        transactions,
-        run_id,
-        expected_version,
-        organization_id,
-        owner,
-        gateway,
-        routes,
-        schemas,
-        clock=clock,
-    )

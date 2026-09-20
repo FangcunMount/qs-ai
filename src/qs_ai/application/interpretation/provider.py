@@ -1,6 +1,9 @@
 import hashlib
 import json
 from dataclasses import dataclass
+from typing import Any, Protocol
+
+from qs_ai.application.interpretation.prompts import PromptMessages
 
 
 class ProviderFailure(Exception):
@@ -80,3 +83,13 @@ class ModelRoute:
 
     def fingerprint(self) -> str:
         return "sha256:" + hashlib.sha256(self.definition_json().encode()).hexdigest()
+
+
+class MessagesGateway(Protocol):
+    async def generate_messages(
+        self,
+        messages: PromptMessages,
+        route: ModelRoute,
+        schema: dict[str, Any],
+        invocation_id: str,
+    ) -> ModelResponse: ...

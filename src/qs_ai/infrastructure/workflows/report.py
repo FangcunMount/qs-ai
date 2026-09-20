@@ -20,6 +20,7 @@ from qs_ai.application.interpretation.preparation import PreparedExplanation, pr
 from qs_ai.application.interpretation.prompts import InvalidPrompt, PromptPackage
 from qs_ai.application.interpretation.provider import ModelRoute, ProviderFailure
 from qs_ai.application.interpretation.release import ExplanationRelease
+from qs_ai.application.operations.diagnostics import operation
 from qs_ai.domain.interpretation.model import EvidenceSet
 
 
@@ -66,31 +67,34 @@ class ReportWorkflow:
         self.graph = graph.compile()
 
     async def _prepare(self, state: ReportState) -> ReportState:
-        prepared = prepare_explanation(
-            state["claim"].session, state["evidence"], self.release, self.package
-        )
-        if self.validate_input is not None:
-            self.validate_input(prepared.assembled_input.canonical_json)
-        return {"prepared": prepared}
+        with operation("graph.generation.prepare", "generation"):
+            prepared = prepare_explanation(
+                state["claim"].session, state["evidence"], self.release, self.package
+            )
+            if self.validate_input is not None:
+                self.validate_input(prepared.assembled_input.canonical_json)
+            return {"prepared": prepared}
 
     async def _generate(self, state: ReportState) -> ReportState:
-        generated = await self.generation.execute(
-            state["claim"],
-            FrozenGeneration(
-                state["prepared"],
-                self.route,
-                self.schema,
-                publication_id=self.publication_id,
-                manifest_fingerprint=self.manifest_fingerprint,
-            ),
-        )
-        return {"generated": generated}
+        with operation("graph.generation.generate", "generation"):
+            generated = await self.generation.execute(
+                state["claim"],
+                FrozenGeneration(
+                    state["prepared"],
+                    self.route,
+                    self.schema,
+                    publication_id=self.publication_id,
+                    manifest_fingerprint=self.manifest_fingerprint,
+                ),
+            )
+            return {"generated": generated}
 
     async def _validate(self, state: ReportState) -> ReportState:
-        artifact = build_artifact(
-            state["claim"], state["evidence"], state["generated"], self.parser
-        )
-        return {"result": WorkflowResult("", artifact=artifact)}
+        with operation("graph.generation.validate", "generation"):
+            artifact = build_artifact(
+                state["claim"], state["evidence"], state["generated"], self.parser
+            )
+            return {"result": WorkflowResult("", artifact=artifact)}
 
     async def execute(self, claim: Claim, evidence: EvidenceSet) -> WorkflowResult:
         # ExecuteNext owns authorization before execution and before acceptance.

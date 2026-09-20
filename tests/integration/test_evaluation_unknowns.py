@@ -13,13 +13,13 @@ from qs_ai.application.evaluation.management import ManagementScope
 from qs_ai.application.interpretation.ports import NotFound
 from qs_ai.infrastructure.persistence.mysql import evaluation_unknowns
 from qs_ai.infrastructure.persistence.mysql.evaluation_management import MySQLEvaluationManagement
-from qs_ai.infrastructure.persistence.mysql.evaluation_step import execute_step
 from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_dispatches,
     evaluation_generation_completions,
     evaluation_runs,
     evaluation_semantic_completions,
 )
+from qs_ai.infrastructure.workflows.evaluation import execute_step
 from tests.integration.test_evaluation_recovery import EXPIRY, pending, recover
 from tests.integration.test_evaluation_resolution import decision
 from tests.integration.test_evaluation_runs import rows

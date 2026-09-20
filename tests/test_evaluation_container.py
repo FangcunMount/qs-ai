@@ -57,7 +57,7 @@ async def test_request_scope_builds_worker_without_network_and_closes_client():
             assert worker.enabled
             assert worker.owner.startswith("evaluation:")
             assert await request.get(EvaluationWorker) is worker
-        assert worker.gateway._client.is_closed
+        assert worker.gateway._model._client.is_closed
         async with container() as request:
             other = await request.get(EvaluationWorker)
             assert other.owner != worker.owner
