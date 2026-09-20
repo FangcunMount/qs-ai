@@ -41,6 +41,9 @@ async def semantic_contract(
     frozen: dict[str, Any] | None = None,
 ) -> SemanticAssets:
     frozen = frozen or {}
+    owner_organization_id = frozen.get("semantic_owner_organization_id", owner_organization_id)
+    if type(owner_organization_id) is not int or owner_organization_id not in (0, organization_id):
+        raise ValueError("Frozen semantic owner differs from requesting organization")
     keys = ("semantic_prompt_markdown", "semantic_output_schema_json")
     if any(key in frozen for key in keys):
         if not all(isinstance(frozen.get(key), str) and frozen[key] for key in keys):

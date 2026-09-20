@@ -142,3 +142,15 @@ ABORTED；格式错误 INVALID_ARGUMENT；依赖不可用返回 UNAVAILABLE，�
 
 当前专项回归覆盖案例约束、套件隔离、无文件查找、原始回执保留和初始化重入；
 完整双版本 MySQL、互操作、剩余容量展示读取与生产切换仍待完成，不计为后端结项。
+
+### 2026-09-20 后端推进核证
+
+裁判草稿及套件初始化基础已由 #111 合入 main，生产镜像
+`ce05333f457fda56eb36c9a6f4c45fd92bfffab4` 已核对为 healthy。
+生产套件初始化结果为 inserted=1、bindings_added=3、runs_checked=3；
+重复执行 inserted=0、bindings_added=0、runs_checked=3，activated 均为 false。
+QS 裁判草稿代理 #121 已合并，尚需核对生产接口。
+
+下一批 #112 已移除容量展示的策略文件读取：该兼容响应使用明确固定的原执行策略
+版本作完整 Run 估算，实际准入始终读取各 Run 冻结策略。案例、裁判选型和数据库套件
+读取仍需该批完整 CI、代理接线和生产切换验证，不因初始化成功提前宣告完成。
