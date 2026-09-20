@@ -2,8 +2,8 @@
 
 from alembic import op
 
-revision = "0032_semantic_prompt_drafts"
-down_revision = "0031_evaluation_policy_assets"
+revision = "0033_semantic_prompt_drafts"
+down_revision = "0032_runtime_milestones"
 branch_labels = None
 depends_on = None
 

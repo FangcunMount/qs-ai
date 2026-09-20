@@ -10,7 +10,7 @@
 | qs-server | a3ef3fb0 | serverA API/collection 同版本，healthy |
 | Operating | 0245578 | 上轮发布已核对，本轮待复核 |
 
-AI 生产只读盘点：迁移 0029_solution_revisions；sessions 7、runs 7、model_calls 6、result_outbox 19、execution_configurations 6。仅记录数量，不保存身份或正文。QS 生产检索字段与历史时间覆盖仍待盘点。
+AI 生产只读盘点：迁移 0029_solution_revisions；sessions 7、runs 7、model_calls 6、result_outbox 19、execution_configurations 6。仅记录数量，不保存身份或正文。QS 生产迁移 82（clean）；请求 7、命令记录 7、结果事件 19；无会话请求 0。原请求表没有创建/更新时间字段，历史时间保持为空。命令记录总数不等于待投递积压。
 
 基线测试：AI 25 项通过；QS application/aibridge 与 infra/aibridge 通过；Operating 方案编辑和命令恢复 10 项通过。
 
@@ -20,12 +20,12 @@ AI 生产只读盘点：迁移 0029_solution_revisions；sessions 7、runs 7、m
 
 | 工作包 | 状态 | PR / 检查 | 部署 / 实际验收 | 阻塞 / 下一步 |
 | --- | --- | --- | --- | --- |
-| A0 基线 | 开发中 | 独立分支已建立；基线测试通过 | AI 只读盘点完成 | 补 QS 盘点 |
+| A0 基线 | 待验证 | 独立分支已建立；基线测试通过 | AI 只读盘点完成 | QS 只读盘点完成；合并前再次核对主干 |
 | A1 契约原型 | 开发中 | 查询契约准备中 | 未发布 | 冻结样例与原型 |
-| B1 AI 查询 | 开发中 | 只读 RPC 与受限查询 | 未发布 | 范围、无副作用测试 |
-| B2 QS 检索 | 未开始 | — | 未发布 | 依赖 B1 |
-| B3 运行中心 | 未开始 | — | 未发布 | 依赖 B2 |
-| C1 诊断 | 未开始 | — | 未发布 | 复用记录后补缺口 |
+| B1 AI 查询 | 待验证 | PR #108；非集成 1167 项、MySQL/mTLS 14 项通过 | 未发布 | CI 矩阵中 |
+| B2 QS 检索 | 开发中 | 新索引、回填、聚合、路由及组织/UTC/分页测试 | 未发布 | PR 与 CI |
+| B3 运行中心 | 开发中 | 列表、详情、服务状态、轨迹；治理 274 项通过 | 未发布 | UI 验证与 CI |
+| C1 诊断 | 开发中 | 同事务里程碑、日志隔离、30 天定向过期清理 | 未发布 | 完整 MySQL 矩阵 |
 | C2 恢复 | 未开始 | — | 未验收 | 隔离场景验证 |
 | R1 V3.1 | 未开始 | — | 未发布 | AI → QS → Operating |
 | D1 流程描述 | 未开始 | — | 未发布 | 固定版本映射 |
@@ -41,3 +41,5 @@ AI 生产只读盘点：迁移 0029_solution_revisions；sessions 7、runs 7、m
 ## 入口迁移
 
 方案与高级工作台的重复测试/发布入口最终合为一个方案详情；用户任务从手输 session 转为 QS 请求列表；参与者重试表单保留原命令保护；容量记录归入服务状态；候选分栏和批量抽屉保留；低频资产操作迁入节点技术详情后才删除旧容器。
+
+主干并行变更：已纳入组织配额管理（AI #106 / QS #118），保留其服务与协议。开发测试不是生产验收。详细读取与失败约定见 [V3 契约](governance-v3-contracts.md)。

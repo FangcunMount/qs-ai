@@ -8,6 +8,7 @@ from sqlalchemy import select, text
 from sqlalchemy.engine import RowMapping
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from qs_ai.application.execution.retry import retry_available
 from qs_ai.application.execution.runtime import session_ids
 from qs_ai.application.governance.prompt_drafts import DraftScope
 from qs_ai.application.interpretation.ports import NotFound
@@ -21,6 +22,7 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
     model_calls,
     result_outbox,
     runs,
+    runtime_milestones,
     sessions,
 )
 
@@ -129,12 +131,89 @@ class MySQLRuntimeReader:
                 .limit(101)
             )
             deliveries = [value(row) for row in (await db.execute(deliveries_query)).mappings()]
+            milestone_query = (
+                select(
+                    runtime_milestones.c.dedupe_key,
+                    runtime_milestones.c.kind,
+                    runtime_milestones.c.run_id,
+                    runtime_milestones.c.invocation_id,
+                    runtime_milestones.c.attempt,
+                    runtime_milestones.c.occurred_at,
+                )
+                .where(runtime_milestones.c.session_id == session_id)
+                .order_by(runtime_milestones.c.occurred_at.desc(), runtime_milestones.c.dedupe_key)
+                .limit(301)
+            )
+            milestones = [value(row) for row in (await db.execute(milestone_query)).mappings()]
+
+        current = summaries[0]
+        attempt = next((item for item in attempts if item["run_id"] == current["run_id"]), {})
+        can_retry = retry_available(
+            current["status"],
+            attempt.get("status"),
+            attempt.get("job_status"),
+            current["publication_id"] is not None,
+        )
         return {
             "observed_at": observed_at,
-            "execution": summaries[0],
+            "actions": [
+                {
+                    "kind": "retry",
+                    "available": can_retry,
+                    "reason": "confirmation_and_authorization_required"
+                    if can_retry
+                    else "current_state_not_retryable",
+                    "expected_version": current["version"],
+                    "expected_run_id": current["run_id"],
+                    "new_model_calls": 1,
+                    "unknown_result_risk": current["model_call_status"]
+                    in {"unknown", "dispatched"},
+                }
+            ],
+            "execution": current,
             "attempts": attempts[:100],
             "attempts_truncated": len(attempts) > 100,
             "deliveries": deliveries[:100],
             "deliveries_truncated": len(deliveries) > 100,
+            "milestones": milestones[:300],
+            "milestones_truncated": len(milestones) > 300,
             "history_complete": False,
+            "history_note": "Older milestones may be absent; only retained evidence is shown.",
+        }
+
+    async def health(self, scope: DraftScope) -> dict[str, Any]:
+        async with asyncio.timeout(2), self.transactions.open() as db:
+            observed_at = await self._snapshot(db)
+            queries = {
+                "queued_jobs": (
+                    "FROM execution_jobs j JOIN interpretation_sessions s ON s.id=j.session_id "
+                    "WHERE s.org_id=:org AND j.status='queued' "
+                ),
+                "expired_leases": (
+                    "FROM execution_jobs j JOIN interpretation_sessions s ON s.id=j.session_id "
+                    "WHERE s.org_id=:org AND j.status='leased' AND "
+                    "j.lease_until<=UTC_TIMESTAMP(6) "
+                ),
+                "pending_deliveries": (
+                    "FROM result_outbox o JOIN interpretation_sessions s ON s.id=o.session_id "
+                    "WHERE s.org_id=:org AND o.delivered=0 "
+                ),
+                "unknown_model_results": (
+                    "FROM model_calls m JOIN interpretation_sessions s ON "
+                    "s.active_run_id=m.run_id WHERE s.org_id=:org AND m.status IN "
+                    "('unknown','dispatched') AND s.status='blocked' "
+                ),
+            }
+            counts = {
+                key: await db.scalar(
+                    text("SELECT /*+ MAX_EXECUTION_TIME(1000) */ COUNT(*) " + query),
+                    {"org": scope.organization_id},
+                )
+                for key, query in queries.items()
+            }
+        return {
+            "observed_at": observed_at,
+            "availability": "available",
+            "partial": False,
+            "backlog": counts,
         }

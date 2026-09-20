@@ -24,8 +24,9 @@ from qs_ai.bootstrap.grpc_server import create_grpc_server
 from qs_ai.bootstrap.lifecycle import Component, RuntimeState, event, supervise
 from qs_ai.bootstrap.providers.evaluation import EvaluationProvider
 from qs_ai.config import Settings
-from qs_ai.infrastructure.persistence.mysql.database import Database
+from qs_ai.infrastructure.persistence.mysql.database import Database, Transactions
 from qs_ai.infrastructure.persistence.mysql.evaluation_worker import EvaluationWorker
+from qs_ai.infrastructure.persistence.mysql.runtime_milestones import prune
 from qs_ai.infrastructure.qs_server.report_probe import mtls_channel
 from qs_ai.infrastructure.workflow_transport.results import GRPCResultReceiver
 
@@ -127,7 +128,20 @@ async def serve(settings: Settings, stop: asyncio.Event) -> None:
     grpc_server = None
     try:
         await preflight(container, settings)
-        grpc_server = create_grpc_server(container, settings, ca, cert, key)
+
+        def component_status() -> dict[str, str]:
+            result = {
+                name: "running" if not task.done() else "stopped"
+                for name, task in state.tasks.items()
+            }
+            if not settings.generation.enabled:
+                result["generation"] = "disabled"
+            if not settings.evaluation.enabled:
+                result["evaluation"] = "disabled"
+            result["readiness"] = "ready" if state.ready and state.healthy else "not_ready"
+            return result
+
+        grpc_server = create_grpc_server(container, settings, ca, cert, key, component_status)
         grpc_started = False
 
         async def run_grpc() -> None:
@@ -182,6 +196,28 @@ async def serve(settings: Settings, stop: asyncio.Event) -> None:
             if enabled:
                 values = options.model_dump(exclude=excluded)
                 components.append(background(name, attempt, stop, values))
+
+        async def expire_diagnostics() -> int:
+            try:
+                async with container() as operation:
+                    return await prune(await operation.get(Transactions))
+            except Exception:
+                # Diagnostic retention never restarts business loops or retries a model call.
+                return 0
+
+        components.append(
+            background(
+                "diagnostic_retention",
+                expire_diagnostics,
+                stop,
+                {
+                    "concurrency": 1,
+                    "idle_seconds": 3600,
+                    "max_backoff_seconds": 3600,
+                    "shutdown_seconds": 5,
+                },
+            )
+        )
         app = create_app(settings, container=container, runtime=state)
         http = HTTPServer(
             uvicorn.Config(app, **settings.http.model_dump(), timeout_graceful_shutdown=5)

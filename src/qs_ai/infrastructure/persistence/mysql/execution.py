@@ -22,12 +22,14 @@ from qs_ai.application.governance.quotas import QuotaBaseline
 from qs_ai.application.interpretation.ports import Claim, WorkflowResult
 from qs_ai.application.interpretation.provider import ModelCall, ProviderFailure
 from qs_ai.domain.interpretation.model import EvidenceItem, EvidenceSet, Fact, Session, Status
+from qs_ai.infrastructure.observability.events import emit
 from qs_ai.infrastructure.persistence.model_call_codec import JSONModelCallCodec
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
 from qs_ai.infrastructure.persistence.mysql.execution_configurations import validate_generation
 from qs_ai.infrastructure.persistence.mysql.interpretation import MySQLUnitOfWork, session_from
 from qs_ai.infrastructure.persistence.mysql.participant_capacity import acquire as acquire_capacity
 from qs_ai.infrastructure.persistence.mysql.participant_capacity import release as release_capacity
+from qs_ai.infrastructure.persistence.mysql.runtime_milestones import record
 from qs_ai.infrastructure.persistence.mysql.schema import (
     artifacts,
     evidence_sets,
@@ -53,9 +55,11 @@ class MySQLExecutionStore:
         transactions: Transactions,
         capacity: ParticipantCapacityPolicy = DEFAULT_PARTICIPANT_CAPACITY,
         quota_baseline: QuotaBaseline | None = None,
+        diagnostic_retention_days: int = 30,
     ) -> None:
         self.transactions, self.capacity = transactions, capacity
         self.quota_baseline = quota_baseline
+        self.diagnostic_retention_days = diagnostic_retention_days
 
     async def begin_model_call(self, claim: Claim, request_json: str) -> tuple[ModelCall, bool]:
         """Commit a dispatch marker before HTTP. Only its creator may send once.
@@ -109,8 +113,23 @@ class MySQLExecutionStore:
                     request_json=request_json,
                 )
             )
+            await record(
+                db,
+                session.id,
+                claim.run_id,
+                "model_dispatched",
+                "dispatch:" + call.invocation_id,
+                invocation_id=call.invocation_id,
+                retention_days=self.diagnostic_retention_days,
+            )
             await self._check_active(db, claim)
             await db.commit()
+            emit(
+                "model_dispatched",
+                session_id=session.id,
+                run_id=claim.run_id,
+                invocation_id=call.invocation_id,
+            )
             return call, True
 
     async def record_model_response(
@@ -153,8 +172,23 @@ class MySQLExecutionStore:
                 .where(model_calls.c.run_id == claim.run_id)
                 .values(status=status, response_json=response_json, failure_code=failure_code)
             )
+            await record(
+                db,
+                claim.session.id,
+                claim.run_id,
+                "model_" + status,
+                "response:" + invocation_id,
+                invocation_id=invocation_id,
+                retention_days=self.diagnostic_retention_days,
+            )
             await self._check_active(db, claim)
             await db.commit()
+            emit(
+                "model_" + status,
+                session_id=claim.session.id,
+                run_id=claim.run_id,
+                invocation_id=invocation_id,
+            )
 
     async def claim(self, ttl_seconds: int) -> Claim | None:
         if ttl_seconds < 3:
@@ -262,6 +296,15 @@ class MySQLExecutionStore:
                     await db.commit()
                     continue
                 fence = guard["fence"] + 1
+                await record(
+                    db,
+                    session.id,
+                    job["run_id"],
+                    "execution_claimed",
+                    f"claim:{job['id']}:{fence}",
+                    attempt=job["attempt"] + 1,
+                    retention_days=self.diagnostic_retention_days,
+                )
                 session.running()
                 await MySQLUnitOfWork(db).save(session)
                 await db.execute(
