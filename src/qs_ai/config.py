@@ -117,6 +117,10 @@ def merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
+class DiagnosticsOptions(Options):
+    retention_days: int = Field(default=30, ge=1, le=365)
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="QS_AI_",
@@ -136,6 +140,7 @@ class Settings(BaseSettings):
     generation: GenerationOptions
     http: HTTPOptions
     database: DatabaseOptions
+    diagnostics: DiagnosticsOptions = Field(default_factory=DiagnosticsOptions)
     worker: WorkerOptions
     evaluation: EvaluationOptions
     grpc: GRPCOptions

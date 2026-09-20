@@ -2905,6 +2905,11 @@ class RuntimeManagementStub:
         Args:
             channel: A grpc.Channel.
         """
+        self.Health = channel.unary_unary(
+                '/qsai.workflow.v1.RuntimeManagement/Health',
+                request_serializer=workflow__pb2.RuntimeQuery.SerializeToString,
+                response_deserializer=workflow__pb2.RuntimeResponse.FromString,
+                _registered_method=True)
         self.BatchGet = channel.unary_unary(
                 '/qsai.workflow.v1.RuntimeManagement/BatchGet',
                 request_serializer=workflow__pb2.RuntimeQuery.SerializeToString,
@@ -2921,6 +2926,12 @@ class RuntimeManagementServicer:
     """Read-only runtime evidence. Does not renew leases or dispatch models.
     """
 
+    def Health(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def BatchGet(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
@@ -2936,6 +2947,11 @@ class RuntimeManagementServicer:
 
 def add_RuntimeManagementServicer_to_server(servicer, server):
     rpc_method_handlers = {
+            'Health': grpc.unary_unary_rpc_method_handler(
+                    servicer.Health,
+                    request_deserializer=workflow__pb2.RuntimeQuery.FromString,
+                    response_serializer=workflow__pb2.RuntimeResponse.SerializeToString,
+            ),
             'BatchGet': grpc.unary_unary_rpc_method_handler(
                     servicer.BatchGet,
                     request_deserializer=workflow__pb2.RuntimeQuery.FromString,
@@ -2957,6 +2973,33 @@ def add_RuntimeManagementServicer_to_server(servicer, server):
 class RuntimeManagement:
     """Read-only runtime evidence. Does not renew leases or dispatch models.
     """
+
+    @staticmethod
+    def Health(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.RuntimeManagement/Health',
+            workflow__pb2.RuntimeQuery.SerializeToString,
+            workflow__pb2.RuntimeResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
 
     @staticmethod
     def BatchGet(request,
