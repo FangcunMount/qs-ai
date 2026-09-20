@@ -27,19 +27,18 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
 )
 from qs_ai.infrastructure.persistence.mysql.suite_contracts import encode
 from qs_ai.infrastructure.qs_server.evaluation_suite import V6_PUBLISHED, FrozenSuite, load_suite
+from qs_ai.infrastructure.qs_server.semantic_assets import load_semantic_assets
 
 
 def baseline() -> tuple[str, FrozenSuite, SuiteContracts]:
-    source, policies, semantic, schema = baseline_assets()
+    source, policies, semantic, _ = baseline_assets()
     suite = load_suite(V6_PUBLISHED)
     refs = {p.kind.value: p.reference for p in policies}
     contracts = SuiteContracts(
         refs["execution"],
         refs["gate"],
         semantic.reference,
-        FrozenContractRef(
-            schema.schema_id, schema.schema_id + "/" + schema.version, schema.fingerprint
-        ),
+        load_semantic_assets().output_schema,
     )
     return source, suite, contracts
 
