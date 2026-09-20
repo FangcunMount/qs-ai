@@ -163,6 +163,7 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: .
+          build-args: RELEASE_SHA=${{ github.sha }}
           load: true
           tags: qs-ai:ci
           cache-from: type=gha,scope=qs-ai-ci

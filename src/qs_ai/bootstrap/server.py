@@ -269,6 +269,7 @@ async def run() -> None:
         capacity=settings.logging.capacity,
         reserved=settings.logging.reserved,
         max_bytes=settings.logging.max_bytes,
+        repeat_seconds=settings.logging.repeat_seconds,
     )
     register_log_metrics(handler.snapshot)
     logging.basicConfig(level=settings.logging.level.upper(), handlers=[handler], force=True)

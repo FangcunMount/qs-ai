@@ -156,3 +156,23 @@ async def test_delivery_retry_and_commit_are_observed_after_persistence(sink):
     assert all(row["request_id"] == "request-1" for row in rows)
     assert rows[0]["correlation_id"] != rows[2]["correlation_id"]
     assert "SECRET" not in output.getvalue()
+
+
+def test_only_repeated_infrastructure_errors_are_limited(sink, monkeypatch):
+    from qs_ai.infrastructure.observability import structured
+
+    handler, output = sink
+    now = [100.0]
+    monkeypatch.setattr(structured, "monotonic", lambda: now[0])
+    for _ in range(5):
+        emit("attempt_failed", "generation", level=logging.WARNING)
+    # Business outcomes must not be sampled even while a dependency is failing.
+    for _ in range(3):
+        emit("generation.result_committed", "generation")
+    now[0] += 31
+    emit("attempt_failed", "generation", level=logging.WARNING)
+    assert handler.shutdown()
+    rows = [json.loads(line) for line in output.getvalue().splitlines()]
+    assert len(rows) == 5
+    assert rows[-1]["suppressed_count"] == 4
+    assert handler.snapshot()["suppressed"] == 4

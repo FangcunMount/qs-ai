@@ -5,6 +5,7 @@ logging:
   reserved: 128
   max_bytes: 16384
   flush_seconds: 2
+  repeat_seconds: 30
 http:
   host: 0.0.0.0
   port: 8000

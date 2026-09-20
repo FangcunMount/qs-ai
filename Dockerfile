@@ -1,4 +1,6 @@
 FROM python:3.11-slim
+ARG RELEASE_SHA=unknown
+ENV QS_AI_RELEASE_SHA=$RELEASE_SHA
 WORKDIR /app
 COPY pyproject.toml uv.lock README.md ./
 COPY src ./src

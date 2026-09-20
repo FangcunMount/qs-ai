@@ -77,3 +77,15 @@ passed the focused nine-test contract suite. Production, load and MySQL matrix
 acceptance still pending. Fine-grained fact/authorization stage coverage, safe stack
 frames, log rate limiting and full model/evaluation evidence remain open; do not
 mark all L2 requirements complete from RPC completion events alone.
+
+## First release gate completion
+
+Image builds now embed QS_AI_RELEASE_SHA from the exact workflow revision. Only
+repeated `attempt_failed` idle-loop diagnostics are collapsed (30-second default,
+64 bounded component keys). Business state/receipt events are never sampled.
+`qs_ai_logging_suppressed_total` and the next emitted record's suppressed_count
+expose suppressed repetitions. Logging settings remain deployment-only.
+
+The initial first-release gate consists of CI matrix/interop, safe log failures,
+matching metadata, release identity and rate limiting. Centralized production
+collection, Grafana access, load and outage acceptance remain the second batch.

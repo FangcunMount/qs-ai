@@ -165,7 +165,7 @@ def register_log_metrics(snapshot: Callable[[], dict[str, int]]) -> None:
 def render_process_metrics() -> str:
     lines: list[str] = []
     for name, value in _snapshot().items():
-        if name not in {"queued", "dropped", "failed"}:
+        if name not in {"queued", "dropped", "failed", "suppressed"}:
             continue
         suffix = name if name == "queued" else name + "_total"
         kind = "gauge" if name == "queued" else "counter"

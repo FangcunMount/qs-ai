@@ -5,6 +5,7 @@ import logging
 import threading
 from collections import deque
 from datetime import UTC, datetime
+from time import monotonic
 from typing import TextIO
 from uuid import uuid4
 
@@ -23,6 +24,7 @@ class StructuredHandler(logging.Handler):
         capacity: int = 1024,
         reserved: int = 128,
         max_bytes: int = 16384,
+        repeat_seconds: float = 30,
     ) -> None:
         super().__init__()
         if not 0 <= reserved < capacity or max_bytes < 1024:
@@ -35,6 +37,9 @@ class StructuredHandler(logging.Handler):
         self._condition = threading.Condition()
         self._queue: deque[str] = deque()
         self._stopping = False
+        self.repeat_seconds = repeat_seconds
+        self._repeats: dict[str, tuple[float, int]] = {}
+        self.suppressed = 0
         self.dropped = 0
         self.failed = 0
         self._writer = threading.Thread(target=self._write, name="qs-ai-log", daemon=True)
@@ -51,6 +56,20 @@ class StructuredHandler(logging.Handler):
                 return
             if not _TOKEN.fullmatch(event) or not _TOKEN.fullmatch(component):
                 return
+            suppressed = 0
+            # Only idle-loop infrastructure errors are collapsed; business transitions never are.
+            if event == "attempt_failed" and self.repeat_seconds > 0:
+                key = component
+                now = monotonic()
+                previous, count = self._repeats.get(key, (now - self.repeat_seconds, 0))
+                if now - previous < self.repeat_seconds:
+                    self._repeats[key] = (previous, count + 1)
+                    self.suppressed += 1
+                    return
+                if len(self._repeats) >= 64 and key not in self._repeats:
+                    self._repeats.pop(next(iter(self._repeats)))
+                self._repeats[key] = (now, 0)
+                suppressed = count
             payload = {
                 "schema_version": 1,
                 "timestamp": datetime.now(UTC).isoformat(),
@@ -64,6 +83,8 @@ class StructuredHandler(logging.Handler):
                 "component": component,
                 **safe_fields(diagnostic),
             }
+            if suppressed:
+                payload["suppressed_count"] = suppressed
             line = json.dumps(payload, ensure_ascii=True, allow_nan=False)
             if len(line.encode()) > self.max_bytes:
                 payload = {key: value for key, value in payload.items() if key not in _FIELDS}
@@ -105,4 +126,9 @@ class StructuredHandler(logging.Handler):
 
     def snapshot(self) -> dict[str, int]:
         with self._condition:
-            return {"queued": len(self._queue), "dropped": self.dropped, "failed": self.failed}
+            return {
+                "queued": len(self._queue),
+                "dropped": self.dropped,
+                "failed": self.failed,
+                "suppressed": self.suppressed,
+            }

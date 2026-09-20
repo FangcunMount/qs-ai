@@ -24,6 +24,7 @@ class LoggingOptions(Options):
     reserved: int = Field(default=128, ge=0)
     max_bytes: int = Field(default=16384, ge=1024, le=16384)
     flush_seconds: float = Field(default=2, ge=0, le=2)
+    repeat_seconds: float = Field(default=30, ge=0, le=300)
 
     @model_validator(mode="after")
     def validate_reserve(self) -> "LoggingOptions":
