@@ -746,6 +746,7 @@ message QuotaResponse {
 
 // Read-only runtime evidence. Does not renew leases or dispatch models.
 service RuntimeManagement {
+  rpc Health(RuntimeQuery) returns (RuntimeResponse);
   rpc BatchGet(RuntimeQuery) returns (RuntimeResponse);
   rpc Get(RuntimeQuery) returns (RuntimeResponse);
 }

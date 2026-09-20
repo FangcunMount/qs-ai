@@ -88,3 +88,14 @@ class RetryParticipant:
         target = await self.store.target(scope, receipt.session_id)
         await self.source.authorize(target.actor, target.testee_id, target.assessment_ids)
         return receipt
+
+
+def retry_available(
+    status: str, run_status: str | None, job_status: str | None, has_configuration: bool
+) -> bool:
+    return (
+        status == "blocked"
+        and run_status == "blocked"
+        and job_status in {None, "done", "dead"}
+        and has_configuration
+    )

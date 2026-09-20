@@ -55,3 +55,6 @@ participant_capacity:
 # Verified models available in the solution editor; adding one requires adapter validation.
 governance_models:
   - deepseek-v4-pro
+
+diagnostics:
+  retention_days: 30

@@ -1,5 +1,7 @@
 """Explicit internal mTLS entry; no development identity or workflow fallback."""
 
+from collections.abc import Callable
+
 import grpc
 from dishka import AsyncContainer
 from grpc import aio
@@ -21,7 +23,12 @@ from qs_ai.transport.grpc.suite_registration import SuiteManagement
 
 
 def create_grpc_server(
-    container: AsyncContainer, settings: Settings, ca: bytes, cert: bytes, key: bytes
+    container: AsyncContainer,
+    settings: Settings,
+    ca: bytes,
+    cert: bytes,
+    key: bytes,
+    components: Callable[[], dict[str, str]] | None = None,
 ) -> aio.Server:
     server = aio.server(
         options=(("grpc.max_receive_message_length", settings.grpc.max_receive_bytes),)
@@ -29,7 +36,9 @@ def create_grpc_server(
     rpc.add_CommandsServicer_to_server(Commands(container), server)
     if settings.grpc.governance_enabled:
         rpc.add_FlowManagementServicer_to_server(FlowManagement(container), server)
-        rpc.add_RuntimeManagementServicer_to_server(RuntimeManagement(container), server)
+        rpc.add_RuntimeManagementServicer_to_server(
+            RuntimeManagement(container, components), server
+        )
         rpc.add_QuotaManagementServicer_to_server(QuotaManagement(container), server)
         rpc.add_SolutionManagementServicer_to_server(SolutionManagement(container), server)
         rpc.add_AssetCatalogServicer_to_server(AssetCatalogService(container), server)

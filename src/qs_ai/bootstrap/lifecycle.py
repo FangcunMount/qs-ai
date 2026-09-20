@@ -11,7 +11,10 @@ logger = logging.getLogger(__name__)
 
 
 def event(name: str, component: str, **fields: str | int | float) -> None:
-    logger.info(json.dumps({"event": name, "component": component, **fields}))
+    try:
+        logger.info(json.dumps({"event": name, "component": component, **fields}))
+    except Exception:
+        pass  # Observability failures cannot alter process or business state.
 
 
 @dataclass

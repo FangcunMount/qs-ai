@@ -42,16 +42,19 @@ async def run_loop(
             except Exception as error:
                 failures = min(failures + 1, 16)
                 # Database/provider exceptions may embed sensitive data.
-                logger.warning(
-                    json.dumps(
-                        {
-                            "event": "attempt_failed",
-                            "component": component_name,
-                            "error_type": type(error).__name__,
-                            "failures": failures,
-                        }
+                try:
+                    logger.warning(
+                        json.dumps(
+                            {
+                                "event": "attempt_failed",
+                                "component": component_name,
+                                "error_type": type(error).__name__,
+                                "failures": failures,
+                            }
+                        )
                     )
-                )
+                except Exception:
+                    pass  # Logging must not change retry or shutdown behavior.
                 await wait(min(max_backoff_seconds, idle_seconds * 2**failures))
             else:
                 failures = 0

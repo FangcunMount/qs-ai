@@ -163,6 +163,7 @@ async def test_occupied_port_stops_other_components_and_closes_container(
         container.return_value.__aenter__.return_value.get = AsyncMock(return_value=receiver)
         monkeypatch.setattr(server, "create_container", lambda *args: container)
         monkeypatch.setattr(server, "preflight", AsyncMock())
+        monkeypatch.setattr(server, "prune", AsyncMock(return_value=0))
         # No application DI work is needed: this test reaches an actual socket bind failure.
         from fastapi import FastAPI
 

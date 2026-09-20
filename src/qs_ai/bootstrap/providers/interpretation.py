@@ -9,6 +9,7 @@ from qs_ai.application.execution.management import ParticipantCapacityReader
 from qs_ai.application.execution.retry import ParticipantRetryStore, RetryParticipant
 from qs_ai.application.execution.runtime import RuntimeReader
 from qs_ai.application.execution.worker import ExecuteNext
+from qs_ai.application.governance.quotas import QuotaBaseline
 from qs_ai.application.interpretation.ports import (
     EvidenceSource,
     ExecutionStore,
@@ -19,6 +20,7 @@ from qs_ai.config import Settings
 from qs_ai.infrastructure.interpretation.unconfigured import (
     UnconfiguredEvidenceSource,
 )
+from qs_ai.infrastructure.persistence.mysql.database import Transactions
 from qs_ai.infrastructure.persistence.mysql.execution import MySQLExecutionStore
 from qs_ai.infrastructure.persistence.mysql.interpretation import MySQLUnitOfWorkFactory
 from qs_ai.infrastructure.persistence.mysql.participant_management import (
@@ -61,7 +63,18 @@ class InterpretationProvider(Provider):
             yield QSAccessSource(channel, options.request_timeout_seconds)
 
     uows = provide(MySQLUnitOfWorkFactory, provides=UnitOfWorkFactory, scope=Scope.REQUEST)
-    store = provide(MySQLExecutionStore, provides=ExecutionStore, scope=Scope.REQUEST)
+
+    @provide(scope=Scope.REQUEST)
+    def store(
+        self,
+        transactions: Transactions,
+        capacity: ParticipantCapacityPolicy,
+        quota_baseline: QuotaBaseline,
+        settings: Settings,
+    ) -> ExecutionStore:
+        return MySQLExecutionStore(
+            transactions, capacity, quota_baseline, settings.diagnostics.retention_days
+        )
 
     @provide(scope=Scope.REQUEST)
     def service(

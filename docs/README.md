@@ -36,3 +36,7 @@
 - [AI 解读管理第二版](ai-governance-v2.md)：持久方案、模型参数、原子准备与验证边界。
 
 - [配置中心后端契约与台账](config-center.md)
+
+- [AI 解读管理第三版交付台账](governance-v3-delivery.md)：运行中心与流程工作区分批实施。
+
+- [V3 运行中心契约与样例](governance-v3-contracts.md)
