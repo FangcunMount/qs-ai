@@ -8,6 +8,7 @@ from qs_ai.application.governance.quotas import QuotaBaseline, QuotaStore, Quota
 from qs_ai.application.operations.health import CheckReadiness, DatabaseProbe
 from qs_ai.application.operations.metrics import OperationalMetrics
 from qs_ai.config import Settings
+from qs_ai.infrastructure.persistence.mysql.configuration_status import MySQLConfigurationStatus
 from qs_ai.infrastructure.persistence.mysql.database import Database, MySQLProbe, Transactions
 from qs_ai.infrastructure.persistence.mysql.metrics import MySQLOperationalMetrics
 from qs_ai.infrastructure.persistence.mysql.quotas import MySQLQuotas
@@ -27,6 +28,7 @@ class RuntimeProvider(Provider):
 
 
 class PersistenceProvider(Provider):
+    configuration_status = provide(MySQLConfigurationStatus, scope=Scope.REQUEST)
     quotas = provide(MySQLQuotas, provides=QuotaStore, scope=Scope.REQUEST)
 
     @provide(scope=Scope.APP)

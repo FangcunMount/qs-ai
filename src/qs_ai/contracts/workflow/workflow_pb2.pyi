@@ -908,6 +908,22 @@ class SuiteRegistrationReceipt(_message.Message):
     receipt_json: str
     def __init__(self, schema_version: _Optional[str] = ..., command_id: _Optional[str] = ..., receipt_json: _Optional[str] = ...) -> None: ...
 
+class PolicyReferencesQuery(_message.Message):
+    __slots__ = ("scope", "kind", "reference", "usage_kind", "limit", "cursor")
+    SCOPE_FIELD_NUMBER: _ClassVar[int]
+    KIND_FIELD_NUMBER: _ClassVar[int]
+    REFERENCE_FIELD_NUMBER: _ClassVar[int]
+    USAGE_KIND_FIELD_NUMBER: _ClassVar[int]
+    LIMIT_FIELD_NUMBER: _ClassVar[int]
+    CURSOR_FIELD_NUMBER: _ClassVar[int]
+    scope: PublicationScope
+    kind: str
+    reference: FrozenEvaluationRef
+    usage_kind: str
+    limit: int
+    cursor: str
+    def __init__(self, scope: _Optional[_Union[PublicationScope, _Mapping]] = ..., kind: _Optional[str] = ..., reference: _Optional[_Union[FrozenEvaluationRef, _Mapping]] = ..., usage_kind: _Optional[str] = ..., limit: _Optional[int] = ..., cursor: _Optional[str] = ...) -> None: ...
+
 class AssetCatalogQuery(_message.Message):
     __slots__ = ("scope", "kind", "identity", "limit", "cursor")
     SCOPE_FIELD_NUMBER: _ClassVar[int]

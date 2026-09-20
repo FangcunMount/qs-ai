@@ -2003,6 +2003,11 @@ class AssetCatalogStub:
         Args:
             channel: A grpc.Channel.
         """
+        self.References = channel.unary_unary(
+                '/qsai.workflow.v1.AssetCatalog/References',
+                request_serializer=workflow__pb2.PolicyReferencesQuery.SerializeToString,
+                response_deserializer=workflow__pb2.AssetCatalogResponse.FromString,
+                _registered_method=True)
         self.List = channel.unary_unary(
                 '/qsai.workflow.v1.AssetCatalog/List',
                 request_serializer=workflow__pb2.AssetCatalogQuery.SerializeToString,
@@ -2019,6 +2024,12 @@ class AssetCatalogServicer:
     """Immutable shared definitions only; QS authorizes readers. No audit receipts or activation state.
     """
 
+    def References(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def List(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
@@ -2034,6 +2045,11 @@ class AssetCatalogServicer:
 
 def add_AssetCatalogServicer_to_server(servicer, server):
     rpc_method_handlers = {
+            'References': grpc.unary_unary_rpc_method_handler(
+                    servicer.References,
+                    request_deserializer=workflow__pb2.PolicyReferencesQuery.FromString,
+                    response_serializer=workflow__pb2.AssetCatalogResponse.SerializeToString,
+            ),
             'List': grpc.unary_unary_rpc_method_handler(
                     servicer.List,
                     request_deserializer=workflow__pb2.AssetCatalogQuery.FromString,
@@ -2055,6 +2071,33 @@ def add_AssetCatalogServicer_to_server(servicer, server):
 class AssetCatalog:
     """Immutable shared definitions only; QS authorizes readers. No audit receipts or activation state.
     """
+
+    @staticmethod
+    def References(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.AssetCatalog/References',
+            workflow__pb2.PolicyReferencesQuery.SerializeToString,
+            workflow__pb2.AssetCatalogResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
 
     @staticmethod
     def List(request,
@@ -2658,6 +2701,11 @@ class QuotaManagementStub:
         Args:
             channel: A grpc.Channel.
         """
+        self.Status = channel.unary_unary(
+                '/qsai.workflow.v1.QuotaManagement/Status',
+                request_serializer=workflow__pb2.QuotaQuery.SerializeToString,
+                response_deserializer=workflow__pb2.QuotaResponse.FromString,
+                _registered_method=True)
         self.Get = channel.unary_unary(
                 '/qsai.workflow.v1.QuotaManagement/Get',
                 request_serializer=workflow__pb2.QuotaQuery.SerializeToString,
@@ -2688,6 +2736,12 @@ class QuotaManagementStub:
 class QuotaManagementServicer:
     """Organization quota policy. Scope is asserted by the authorized QS workload.
     """
+
+    def Status(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
 
     def Get(self, request, context):
         """Missing associated documentation comment in .proto file."""
@@ -2722,6 +2776,11 @@ class QuotaManagementServicer:
 
 def add_QuotaManagementServicer_to_server(servicer, server):
     rpc_method_handlers = {
+            'Status': grpc.unary_unary_rpc_method_handler(
+                    servicer.Status,
+                    request_deserializer=workflow__pb2.QuotaQuery.FromString,
+                    response_serializer=workflow__pb2.QuotaResponse.SerializeToString,
+            ),
             'Get': grpc.unary_unary_rpc_method_handler(
                     servicer.Get,
                     request_deserializer=workflow__pb2.QuotaQuery.FromString,
@@ -2758,6 +2817,33 @@ def add_QuotaManagementServicer_to_server(servicer, server):
 class QuotaManagement:
     """Organization quota policy. Scope is asserted by the authorized QS workload.
     """
+
+    @staticmethod
+    def Status(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.QuotaManagement/Status',
+            workflow__pb2.QuotaQuery.SerializeToString,
+            workflow__pb2.QuotaResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
 
     @staticmethod
     def Get(request,
