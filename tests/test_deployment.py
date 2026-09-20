@@ -24,6 +24,7 @@ def test_mysql_components_round_trip():
     module = load("scripts/cd/deploy.py")
     password = "space @:/?#%$'\"\\中文"
     env = {
+        "QS_AI_QS_ADDRESS": "qs-apiserver:9090",
         "MYSQL_HOST": "mysql.internal",
         "MYSQL_DATABASE": "qs_ai",
         "MYSQL_USERNAME": "ai@user",
@@ -33,10 +34,10 @@ def test_mysql_components_round_trip():
     assert url.password == password
     assert url.username == "ai@user"
     assert url.database == "qs_ai"
-    encoded = module.runtime_config(env)["services"]["api"]["environment"]["QS_AI_DATABASE_URL"]
+    encoded = module.runtime_config(env)["services"]["qs-ai"]["environment"]["QS_AI_DATABASE_URL"]
     assert make_url(encoded.replace("$$", "$")) == url
     assert (
-        module.runtime_config(env)["services"]["grpc"]["environment"]["QS_AI_DATABASE_URL"]
+        module.runtime_config(env)["services"]["qs-ai"]["environment"]["QS_AI_DATABASE_URL"]
         == encoded
     )
     env["MYSQL_DBNAME"] = "other"
@@ -118,7 +119,13 @@ def test_migration_failure_never_replaces_service(remote, tmp_path, monkeypatch)
     monkeypatch.setattr(remote, "verify", lambda *args: pytest.fail("must keep old service"))
     with pytest.raises(remote.DeploymentError, match="migration"):
         remote.apply(release, {"current": "b" * 40 + "-1-1"})
-    assert calls == ["image load", "image identity", "compose services", "migration"]
+    assert calls == [
+        "image load",
+        "image identity",
+        "compose services",
+        "compose services",
+        "migration",
+    ]
     assert not (tmp_path / "state.json").exists()
 
 
@@ -284,21 +291,25 @@ def execution_environment():
     }
 
 
-def test_execution_runtime_is_opt_in_and_key_is_worker_only():
+def test_single_runtime_flags_preserve_delivery_when_generation_disabled():
     module = load("scripts/cd/deploy.py")
     env = execution_environment()
     runtime = module.runtime_config(env)["services"]
-    assert set(runtime) == {"api", "grpc", "worker", "delivery"}
-    assert runtime["worker"]["environment"]["QS_AI_MODEL_API_KEY"] == "synthetic-$$key-only"
-    for name in ("api", "grpc", "delivery"):
-        assert "QS_AI_MODEL_API_KEY" not in runtime[name]["environment"]
+    assert set(runtime) == {"qs-ai"}
+    values = runtime["qs-ai"]["environment"]
+    assert values["QS_AI_MODEL_API_KEY"] == "synthetic-$$key-only"
+    assert values["QS_AI_GENERATION__ENABLED"] == "true"
     env["QS_AI_EXECUTION_ENABLED"] = "false"
-    assert set(module.runtime_config(env)["services"]) == {"api", "grpc"}
+    del env["QS_AI_MODEL_API_KEY"], env["QS_AI_MODEL_ENDPOINT"]
+    values = module.runtime_config(env)["services"]["qs-ai"]["environment"]
+    assert values["QS_AI_GENERATION__ENABLED"] == "false"
+    assert values["QS_AI_GRPC__RESULT_ADDRESS"] == "qs-apiserver:9090"
+    assert "QS_AI_MODEL_API_KEY" not in values
     for key in ("QS_AI_MODEL_ENDPOINT", "QS_AI_MODEL_API_KEY", "QS_AI_QS_ADDRESS"):
-        env = execution_environment()
-        del env[key]
+        incomplete = execution_environment()
+        del incomplete[key]
         with pytest.raises(ValueError):
-            module.runtime_config(env)
+            module.runtime_config(incomplete)
 
 
 @pytest.mark.parametrize("flag", ["EXECUTION", "GOVERNANCE", "EVALUATION"])
@@ -316,8 +327,8 @@ def test_management_and_publication_binding_need_access_but_not_model_credential
     env[f"QS_AI_{flag}_ENABLED"] = "true"
     del env["QS_AI_MODEL_ENDPOINT"], env["QS_AI_MODEL_API_KEY"]
     services = module.runtime_config(env)["services"]
-    assert set(services) == {"api", "grpc"}
-    assert services["grpc"]["environment"]["QS_AI_GRPC__ACCESS_ADDRESS"] == "qs-apiserver:9090"
+    assert set(services) == {"qs-ai"}
+    assert services["qs-ai"]["environment"]["QS_AI_GRPC__ACCESS_ADDRESS"] == "qs-apiserver:9090"
     for address in ("", "https://qs-apiserver:9090", "qs-apiserver:0", "qs-apiserver:65536"):
         env["QS_AI_QS_ADDRESS"] = address
         with pytest.raises(ValueError):
@@ -329,9 +340,8 @@ def test_evaluation_is_independent_and_requires_credentials_before_deployment():
     env = execution_environment()
     env["QS_AI_EXECUTION_ENABLED"] = "false"
     env["QS_AI_EVALUATION_ENABLED"] = "true"
-    del env["QS_AI_QS_ADDRESS"]
     services = module.runtime_config(env)["services"]
-    assert set(services) == {"api", "grpc", "evaluation"}
+    assert set(services) == {"qs-ai"}
     for key in ("QS_AI_MODEL_API_KEY", "QS_AI_MODEL_ENDPOINT"):
         incomplete = {name: value for name, value in env.items() if name != key}
         with pytest.raises(ValueError):
@@ -370,43 +380,22 @@ def test_execution_compose_resolves_isolation_tls_and_health(tmp_path, mode):
         check=True,
     )
     services = json.loads(result.stdout)["services"]
-    background = set()
-    if mode in {"execution", "all"}:
-        background.update(("worker", "delivery"))
-    if mode in {"evaluation", "all"}:
-        background.add("evaluation")
-    assert set(services) == {"api", "grpc"} | background
-    grpc_env = services["grpc"]["environment"]
-    assert grpc_env["QS_AI_GRPC__GOVERNANCE_ENABLED"] == str(mode in {"governance", "all"}).lower()
-    assert "QS_AI_GENERATION__USE_PUBLICATIONS" not in grpc_env
-    if mode in {"governance", "execution", "all"}:
-        assert grpc_env["QS_AI_GRPC__ACCESS_ADDRESS"] == "qs-apiserver:9090"
-    for name in background:
-        service = services[name]
-        assert not service.get("ports")
-        assert service["read_only"]
-        assert len(service["volumes"]) == 3
-        assert all(volume["read_only"] for volume in service["volumes"])
-        assert service["environment"]["QS_AI_ENVIRONMENT"] == "production"
-        assert "qs_ai.bootstrap.daemon_health" in service["healthcheck"]["test"]
-    for name, service in services.items():
-        if name in {"worker", "evaluation"}:
-            # Canonical config preserves escaping for subsequent re-parsing.
-            assert service["environment"]["QS_AI_MODEL_API_KEY"] == "synthetic-$$key-only"
-        else:
-            assert "QS_AI_MODEL_API_KEY" not in service["environment"]
-    if "evaluation" in services:
-        from qs_ai.config import Settings
-
-        service = services["evaluation"]
-        assert service["command"][-2:] == ["qs_ai.bootstrap.evaluation", "--serve"]
-        assert service["environment"]["QS_AI_EVALUATION__ENABLED"] == "true"
-        assert "QS_AI_GENERATION__ENABLED" not in service["environment"]
-        drain = float(service["environment"]["QS_AI_EVALUATION__SHUTDOWN_SECONDS"])
-        assert drain >= 180
-        assert service["stop_grace_period"] in {"200s", "3m20s"}
-        assert drain < 200
-        assert Settings().evaluation.max_active_runs == 1
+    assert set(services) == {"qs-ai"}
+    service = services["qs-ai"]
+    values = service["environment"]
+    for field, flag in (("GENERATION", "execution"), ("EVALUATION", "evaluation")):
+        assert values[f"QS_AI_{field}__ENABLED"] == str(mode in {flag, "all"}).lower()
+    assert service["read_only"]
+    assert len(service["volumes"]) == 3
+    assert all(v["read_only"] for v in service["volumes"])
+    assert {"qs-ai-grpc", "qs-ai-api"} <= set(service["networks"]["backend"]["aliases"])
+    assert service["stop_grace_period"] in {"210s", "3m30s"}
+    assert "readyz" in " ".join(service["healthcheck"]["test"])
+    assert values["QS_AI_GRPC__RESULT_ADDRESS"] == "qs-apiserver:9090"
+    if mode in {"execution", "evaluation", "all"}:
+        assert values["QS_AI_MODEL_API_KEY"] == "synthetic-$$key-only"
+    else:
+        assert "QS_AI_MODEL_API_KEY" not in values
 
 
 def test_deployment_receipt_uses_actual_remote_revision(tmp_path, monkeypatch):
@@ -439,3 +428,53 @@ def test_retention_failure_does_not_fail_successful_deployment(
     remote.retain_successful_image(release)
     assert "::warning::" in capsys.readouterr().out
     assert not (release / "failure.json").exists()
+
+
+def test_cutover_stops_admission_then_all_consumers_before_start(remote, tmp_path, monkeypatch):
+    release, manifest = setup_release(remote, tmp_path, monkeypatch)
+    old = "b" * 40 + "-1-1"
+    calls = simulate_apply(remote, monkeypatch, manifest)
+    original = remote.run
+
+    def run(phase, args):
+        if phase == "compose services":
+            calls.append(phase)
+            return "api\ngrpc\nworker\ndelivery\nevaluation\n"
+        return original(phase, args)
+
+    monkeypatch.setattr(remote, "run", run)
+    monkeypatch.setattr(remote, "probe", lambda *args: {"current": ["head"]})
+
+    def verify(path):
+        assert calls[-3:] == ["stop old admission", "drain release", "verify stopped"]
+
+    monkeypatch.setattr(remote, "verify", verify)
+    remote.apply(release, {"current": old})
+
+
+def test_failed_new_release_is_stopped_before_old_restart(remote, tmp_path, monkeypatch):
+    release, manifest = setup_release(remote, tmp_path, monkeypatch)
+    simulate_apply(remote, monkeypatch, manifest)
+    old = "b" * 40 + "-1-1"
+    monkeypatch.setattr(remote, "probe", lambda *args: {"current": ["head"]})
+    order = []
+    monkeypatch.setattr(remote, "stop_release", lambda path: order.append(("stop", path.name)))
+
+    def verify(path):
+        order.append(("start", path.name))
+        if path == release:
+            raise remote.DeploymentError("readiness failed")
+
+    monkeypatch.setattr(remote, "verify", verify)
+    with pytest.raises(remote.DeploymentError):
+        remote.apply(release, {"current": old})
+    assert order == [("stop", old), ("start", release.name), ("stop", release.name), ("start", old)]
+
+
+def test_old_release_still_running_blocks_new_start(remote, tmp_path, monkeypatch):
+    def run(phase, args):
+        return "old-container" if phase == "verify stopped" else "api\ngrpc\n"
+
+    monkeypatch.setattr(remote, "run", run)
+    with pytest.raises(remote.DeploymentError, match="still running"):
+        remote.stop_release(tmp_path)

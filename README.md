@@ -20,7 +20,7 @@ uv sync --locked
 export QS_AI_DATABASE_URL=mysql+asyncmy://qs_ai:qs_ai_local@127.0.0.1:13316/qs_ai
 docker compose up -d --wait mysql
 uv run alembic upgrade head
-uv run python -m qs_ai.bootstrap.http
+uv run python -m qs_ai.bootstrap.server
 ```
 
 打开 http://127.0.0.1:8000/docs。`/healthz` 检查进程存活，`/readyz` 检查数据库连接。没有配置数据库时，进程可以启动，但 readiness 返回 503。
@@ -41,7 +41,7 @@ docker compose stop
 
 集成测试会写入合成业务数据，只能指向独立测试数据库；先执行 Alembic 迁移。迁移 `0028_execution_leases` 原样迁名正式使用的租约表，不删除 fence 数据；升级前停止旧 worker，迁移后使用新版本，详见退役清单。
 
-Worker 默认只探测数据库：`uv run python -m qs_ai.bootstrap.worker`；`--once` 领取至多一个任务，`--serve` 常驻执行并续租。gRPC 收到 SIGTERM/SIGINT 后立即停止接收新调用，按 `grpc.shutdown_grace_seconds` 等待在途调用，超时后取消并关闭依赖；容器停止期限应大于该宽限时间。独立 gRPC、评测和投递进程的生产配置见 [配置说明](configs/README.md) 与 [部署验证](docs/deployment-verification.md)。
+统一入口 `python -m qs_ai.bootstrap.server` 在一个进程内运行 HTTP、gRPC、生成、评测和结果投递。Worker 与 evaluation 命令默认只读探测，`--once` 用于单次维护执行；不再支持独立常驻模式。生命周期、配置与切换见 [单进程运行说明](docs/single-process.md)。
 
 ## 模块边界
 

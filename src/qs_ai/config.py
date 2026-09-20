@@ -27,7 +27,6 @@ class DatabaseOptions(Options):
 
 
 class LoopOptions(Options):
-    health_file: str = Field(min_length=1)
     concurrency: int = Field(ge=1, le=32)
     idle_seconds: float = Field(gt=0)
     max_backoff_seconds: float = Field(gt=0)

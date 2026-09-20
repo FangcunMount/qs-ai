@@ -9,7 +9,6 @@ database:
   pool_timeout: 3
   connect_timeout: 3
 worker:
-  health_file: /tmp/qs-ai-worker-health.json
   lease_seconds: 30
   concurrency: 1
   idle_seconds: 1
@@ -30,7 +29,6 @@ grpc:
   cert_file: null
   key_file: null
 delivery:
-  health_file: /tmp/qs-ai-delivery-health.json
   batch_size: 20
   max_retry_seconds: 60
   concurrency: 1
@@ -41,7 +39,6 @@ evaluation:
   enabled: false
   daily_provider_calls: 1024
   max_active_runs: 1
-  health_file: /tmp/qs-ai-evaluation-health.json
   concurrency: 1
   idle_seconds: 1
   max_backoff_seconds: 30
