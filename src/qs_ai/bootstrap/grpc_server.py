@@ -9,6 +9,7 @@ from qs_ai.contracts.workflow import workflow_pb2_grpc as rpc
 from qs_ai.transport.grpc.asset_catalog import AssetCatalogService
 from qs_ai.transport.grpc.commands import Commands
 from qs_ai.transport.grpc.evaluation import EvaluationManagement
+from qs_ai.transport.grpc.flow import FlowManagement
 from qs_ai.transport.grpc.participant import ParticipantManagement
 from qs_ai.transport.grpc.profile_registration import ProfileManagement
 from qs_ai.transport.grpc.prompt_drafts import PromptDraftManagement
@@ -27,6 +28,7 @@ def create_grpc_server(
     )
     rpc.add_CommandsServicer_to_server(Commands(container), server)
     if settings.grpc.governance_enabled:
+        rpc.add_FlowManagementServicer_to_server(FlowManagement(container), server)
         rpc.add_RuntimeManagementServicer_to_server(RuntimeManagement(container), server)
         rpc.add_QuotaManagementServicer_to_server(QuotaManagement(container), server)
         rpc.add_SolutionManagementServicer_to_server(SolutionManagement(container), server)
