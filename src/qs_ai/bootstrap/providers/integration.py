@@ -13,6 +13,7 @@ from qs_ai.application.governance.prompt_drafts import PromptDraftStore
 from qs_ai.application.governance.prompt_freeze import PromptFreezer
 from qs_ai.application.governance.prompt_lifecycle import PromptLifecycleReader
 from qs_ai.application.governance.publication import PublicationStore
+from qs_ai.application.governance.semantic_drafts import SemanticDrafts
 from qs_ai.application.governance.solution_models import EditableModelPolicy
 from qs_ai.application.governance.solutions import SolutionStore
 from qs_ai.application.governance.suite_registration import SuiteRegistrar
@@ -39,6 +40,7 @@ from qs_ai.infrastructure.persistence.mysql.prompt_freezes import MySQLPromptFre
 from qs_ai.infrastructure.persistence.mysql.prompt_lifecycle import MySQLPromptLifecycleReader
 from qs_ai.infrastructure.persistence.mysql.publications import MySQLPublications
 from qs_ai.infrastructure.persistence.mysql.result_outbox import MySQLResultOutbox
+from qs_ai.infrastructure.persistence.mysql.semantic_drafts import MySQLSemanticDrafts
 from qs_ai.infrastructure.persistence.mysql.solutions import MySQLSolutions
 from qs_ai.infrastructure.workflow_transport.results import UnconfiguredReceiver
 
@@ -71,6 +73,7 @@ class IntegrationProvider(Provider):
         MySQLProfileRegistrar, provides=ProfileRegistrar, scope=Scope.REQUEST
     )
     prompt_freezer = provide(MySQLPromptFreezer, provides=PromptFreezer, scope=Scope.REQUEST)
+    semantic_drafts = provide(MySQLSemanticDrafts, provides=SemanticDrafts, scope=Scope.REQUEST)
     prompt_drafts = provide(MySQLPromptDrafts, provides=PromptDraftStore, scope=Scope.REQUEST)
     publications = provide(MySQLPublications, provides=PublicationStore, scope=Scope.REQUEST)
     run_creator = provide(MySQLRunCreator, scope=Scope.REQUEST)

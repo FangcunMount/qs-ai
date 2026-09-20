@@ -14,31 +14,34 @@ import (
 
 func main() {
 	var input struct {
-		QuotaBody                       json.RawMessage
-		QuotaOperation, QuotaCommandID  string
-		QuotaWrite                      bool
-		SolutionBody                    json.RawMessage
-		SolutionID, SolutionOperation   string
-		SolutionWrite                   bool
-		ProfileLifecycle                app.ProfileLifecycleQuery
-		ProfileVersion                  string
-		SessionID, CommandID            string
-		ParticipantRetry                app.ParticipantRetry
-		RunID, Action, Decision, Reason string
-		Release                         app.EvaluationRelease
-		Plan                            app.EvaluationPlanQuery
-		Catalog                         app.EvaluationCatalogQuery
-		Executions                      app.ExecutionQuery
-		ParticipantCapacity             app.ParticipantCapacityQuery
-		Review                          app.EvaluationReview
-		UserID                          int64
-		OrgID, Version                  int64
-		Allowed, Confirm                bool
-		AuditOnly                       bool
-		CandidateID                     string
-		ExecutionID                     string
-		ExpectedPassed                  *bool
-		Discard                         *bool
+		SemanticBody                                    json.RawMessage
+		SemanticID, SemanticOperation, SemanticRevision string
+		SemanticWrite                                   bool
+		QuotaBody                                       json.RawMessage
+		QuotaOperation, QuotaCommandID                  string
+		QuotaWrite                                      bool
+		SolutionBody                                    json.RawMessage
+		SolutionID, SolutionOperation                   string
+		SolutionWrite                                   bool
+		ProfileLifecycle                                app.ProfileLifecycleQuery
+		ProfileVersion                                  string
+		SessionID, CommandID                            string
+		ParticipantRetry                                app.ParticipantRetry
+		RunID, Action, Decision, Reason                 string
+		Release                                         app.EvaluationRelease
+		Plan                                            app.EvaluationPlanQuery
+		Catalog                                         app.EvaluationCatalogQuery
+		Executions                                      app.ExecutionQuery
+		ParticipantCapacity                             app.ParticipantCapacityQuery
+		Review                                          app.EvaluationReview
+		UserID                                          int64
+		OrgID, Version                                  int64
+		Allowed, Confirm                                bool
+		AuditOnly                                       bool
+		CandidateID                                     string
+		ExecutionID                                     string
+		ExpectedPassed                                  *bool
+		Discard                                         *bool
 	}
 	if json.NewDecoder(os.Stdin).Decode(&input) != nil {
 		os.Exit(2)
@@ -65,7 +68,15 @@ func main() {
 	}
 	scope := app.EvaluationScope{RunID: input.RunID, OrganizationID: input.OrgID, OperatorUserID: input.UserID}
 	var result any
-	if input.Action == "quota" {
+	if input.Action == "semantic-draft" {
+		drafts := &app.SemanticDraftAdministration{Gateway: clients.SemanticDrafts}
+		scope := app.DraftScope{OrganizationID: input.OrgID, OperatorUserID: input.UserID}
+		if input.SemanticWrite {
+			result, err = drafts.Write(ctx, scope, input.SemanticOperation, input.SemanticID, input.SemanticBody)
+		} else {
+			result, err = drafts.Read(ctx, scope, input.SemanticOperation, input.SemanticID, input.SemanticRevision)
+		}
+	} else if input.Action == "quota" {
 		quotas := &app.QuotaAdministration{Gateway: clients.Quotas}
 		scope := app.DraftScope{OrganizationID: input.OrgID, OperatorUserID: input.UserID}
 		if input.QuotaWrite {

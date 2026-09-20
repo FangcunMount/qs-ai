@@ -10,6 +10,7 @@ from sqlalchemy import insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict, CheckpointState
+from qs_ai.domain.evaluation.identity import FrozenContractRef
 from qs_ai.domain.evaluation.policy import ExecutionPolicy
 from qs_ai.infrastructure.persistence.mysql.evaluation_checkpoints import (
     decode,
@@ -26,7 +27,10 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_run_policies as policies,
 )
 from qs_ai.infrastructure.persistence.mysql.schema import evaluation_runs
-from qs_ai.infrastructure.qs_server.evaluation_policies import load_execution_policy
+from qs_ai.infrastructure.qs_server.evaluation_policies import (
+    FrozenPolicyDocument,
+    execution_policy,
+)
 
 
 async def freeze_policy(db: AsyncSession, run_id: UUID, policy: ExecutionPolicy) -> None:
@@ -36,8 +40,12 @@ async def freeze_policy(db: AsyncSession, run_id: UUID, policy: ExecutionPolicy)
         != policy.fingerprint
     ):
         raise ValueError("Policy fingerprint mismatch")
-    if policy != (await asyncio.to_thread(load_execution_policy)):
-        raise ValueError("Unregistered evaluation policy")
+    document = FrozenPolicyDocument(
+        FrozenContractRef(policy.policy_id, policy.version, policy.fingerprint),
+        policy.definition_json,
+    )
+    if policy != await asyncio.to_thread(execution_policy, document):
+        raise ValueError("Invalid frozen evaluation policy projection")
     await db.execute(
         insert(policies).values(
             run_id=str(run_id),

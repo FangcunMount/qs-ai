@@ -57,6 +57,7 @@ async def parse(context, raw=None):
         value.receipt,
         value.invocation_id,
         obligations,
+        assets=load_semantic_assets(),
     )
 
 
@@ -117,6 +118,7 @@ async def test_receipt_and_release_cannot_be_substituted():
                 other.receipt,
                 value.invocation_id,
                 obligations,
+                assets=load_semantic_assets(),
             )
     with pytest.raises(ValueError):
         await parse(

@@ -13,7 +13,7 @@ from qs_ai.infrastructure.qs_server.evaluation_assertions import (
 )
 from qs_ai.infrastructure.qs_server.evaluation_suite import FrozenSuite
 from qs_ai.infrastructure.qs_server.output import QSOutputParser
-from qs_ai.infrastructure.qs_server.semantic_assets import load_semantic_assets
+from qs_ai.infrastructure.qs_server.semantic_assets import SemanticAssets
 
 
 def prepare_semantic_messages(
@@ -22,11 +22,11 @@ def prepare_semantic_messages(
     assertions: tuple[AssertionReceipt, ...],
     *,
     prepared: PreparedExplanation,
+    assets: SemanticAssets,
     frozen_suite: FrozenSuite | None = None,
 ) -> PromptMessages:
     if generation.status != "succeeded":
         raise ValueError("Semantic evaluation requires accepted generation evidence")
-    assets = load_semantic_assets()
     if (
         release.semantic_prompt != assets.prompt
         or release.semantic_output_schema != assets.output_schema

@@ -41,11 +41,23 @@ from qs_ai.infrastructure.qs_server.evaluation_suite import (
 RECEIPT = TypeAdapter(SuiteRegistrationReceipt)
 
 
-def decode_record(row: RowMapping) -> tuple[FrozenSuite, SuiteRegistrationReceipt]:
+def decode_record(row: RowMapping) -> tuple[FrozenSuite, SuiteRegistrationReceipt | None]:
     suite = load_suite(
         FrozenContractRef(row["suite_id"], row["suite_version"], row["fingerprint"]),
         definition_json=row["definition_json"],
     )
+    if row["organization_id"] == 0:
+        if (
+            suite.reference not in SUITE_FILES
+            or not row["source_ref"]
+            or not row["imported_by"]
+            or any(
+                row[key] is not None
+                for key in ("command_id", "operator_user_id", "receipt_json", "receipt_sha256")
+            )
+        ):
+            raise ValueError("Invalid initialized suite provenance")
+        return suite, None
     raw = row["receipt_json"]
     if (
         len(raw.encode()) > 32768

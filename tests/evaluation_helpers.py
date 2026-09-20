@@ -3,6 +3,7 @@
 from qs_ai.infrastructure.qs_server.evaluation_case import prepare_asset_evaluation_case
 from qs_ai.infrastructure.qs_server.profiles import load_migrated_release
 from qs_ai.infrastructure.qs_server.prompts import load_prompt
+from qs_ai.infrastructure.qs_server.semantic_assets import load_semantic_assets
 from qs_ai.infrastructure.qs_server.semantic_input import prepare_semantic_messages as messages
 
 
@@ -20,5 +21,6 @@ def prepare_semantic_messages(release, generation, assertions):
         release,
         generation,
         assertions,
+        assets=load_semantic_assets(),
         prepared=prepare_evaluation_case(release, generation.case_id),
     )
