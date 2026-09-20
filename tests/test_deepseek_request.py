@@ -160,6 +160,9 @@ async def test_single_http_call_and_response_receipt() -> None:
     [
         (429, "provider_rate_limited", False),
         (401, "provider_authentication_failed", False),
+        (403, "provider_authentication_failed", False),
+        (408, "provider_server_error", True),
+        (500, "provider_server_error", True),
         (503, "provider_server_error", True),
         (302, "provider_request_rejected", False),
     ],
@@ -230,3 +233,62 @@ def test_missing_usage_is_unknown_not_zero() -> None:
     del value["usage"]
     result = parse_response(json.dumps(value).encode(), route(), "invocation", 1)
     assert result.input_tokens is None and result.output_tokens is None
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [b'{"status":"completed","status":"failed"}', b'{"usage":NaN}', b'not-json', b'\xff'],
+)
+def test_raw_response_must_not_be_normalized_before_strict_parsing(payload: bytes) -> None:
+    with pytest.raises(ProviderFailure, match="provider_response_invalid"):
+        parse_response(payload, route(), "invocation", 1)
+
+
+@pytest.mark.parametrize(
+    "error_type,code,unknown",
+    [
+        (httpx.ConnectError, "provider_connect_failed", False),
+        (httpx.ConnectTimeout, "provider_connect_failed", False),
+        (httpx.ReadTimeout, "provider_timeout", True),
+        (httpx.WriteTimeout, "provider_timeout", True),
+        (httpx.ReadError, "provider_transport_error", True),
+    ],
+)
+async def test_transport_errors_preserve_dispatch_uncertainty(error_type, code, unknown):
+    calls = 0
+
+    def handle(request):
+        nonlocal calls
+        calls += 1
+        raise error_type("private provider detail", request=request)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
+        gateway = DeepSeekResponses(client, "https://provider.invalid/responses", "test-key")
+        with pytest.raises(ProviderFailure) as caught:
+            await gateway.generate(prepared(), route(), schema(), "invocation")
+    assert calls == 1
+    assert caught.value.code == code
+    assert caught.value.result_unknown is unknown
+    assert str(caught.value) == code
+
+
+async def test_cancelled_dispatch_is_propagated_without_retry():
+    import asyncio
+
+    started = asyncio.Event()
+    calls = 0
+
+    async def handle(request):
+        nonlocal calls
+        calls += 1
+        started.set()
+        await asyncio.Event().wait()
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
+        gateway = DeepSeekResponses(client, "https://provider.invalid/responses", "test-key")
+        task = asyncio.create_task(gateway.generate(prepared(), route(), schema(), "invocation"))
+        await asyncio.wait_for(started.wait(), 1)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+    assert calls == 1

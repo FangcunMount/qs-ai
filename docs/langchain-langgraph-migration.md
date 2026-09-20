@@ -86,6 +86,14 @@
 M0：设计完成；现有模型协议基线 57 项通过，安装框架后同组 57 项再次通过。锁文件固定 langchain 1.4.2、langchain-core 1.6.3、langgraph 1.2.11。真实框架适配对照实验尚未完成，不能将现有测试通过视为新适配器已验收。
 M1–M4：待实施。
 
+### M0 协议保护补充
+
+新增 403/408/500、重复 JSON 键、非 JSON 数值、非法编码、连接/读写超时、传输错误、在途取消保护；相关测试现为 70 项，通过，ruff 与 diff 检查通过。仅使用 MockTransport，不调用真实供应商。
+
+官方集成资料核对：ChatDeepSeek 面向 chat completions；ChatOpenAI 面向官方 OpenAI 协议，不能据此假定保存第三方全部响应信息。当前严格重复键检查及响应大小限制需要保留原始 HTTP 字节，因此优先验证自定义 BaseChatModel，将现有协议发送与解析作为模型实现本身，而非额外包装旧网关。LangChain 消息/输出转换、异步调用及 tracing 隔离仍须单独验证。
+
+资料：https://docs.langchain.com/oss/python/integrations/chat/deepseek ，https://docs.langchain.com/oss/python/integrations/chat/openai 。
+
 完成定义：LangChain 与 LangGraph 均在生成和评测实际路径中发挥上述职责；安全与恢复契约不退化；代码合并、生产发布、现场核证完成；旧替代实现清理。没有固定观察等待期。页面新增能力和图持久化不属于本轮完成定义。
 
 每批记录：代码 SHA、适用测试、CI、镜像 SHA、部署、业务证据、遗留项与风险，分别标记，不相互替代。
