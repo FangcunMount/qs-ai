@@ -23,6 +23,7 @@ from qs_ai.infrastructure.qs_server.evaluation_policies import (
     load_gate_policy,
 )
 from qs_ai.infrastructure.qs_server.evaluation_suite import V6_PUBLISHED
+from qs_ai.infrastructure.qs_server.semantic_assets import load_semantic_assets
 
 pytestmark = pytest.mark.integration
 
@@ -34,6 +35,19 @@ async def setup_run():
         pytest.skip("Requires migrated disposable MySQL")
     database = Database(dsn.replace("mysql://", "mysql+asyncmy://", 1))
     tx = Transactions(database)
+    # Production deploy performs this controlled initialization before file-free reads.
+    from qs_ai.bootstrap.import_evaluation_assets import baseline_assets
+    from qs_ai.infrastructure.persistence.mysql.evaluation_asset_registry import (
+        MySQLEvaluationAssets,
+    )
+    from qs_ai.infrastructure.persistence.mysql.schema_assets import MySQLSchemaAssets
+
+    source, policies, prompt, schema = baseline_assets()
+    registry = MySQLEvaluationAssets(tx)
+    for policy in policies:
+        await registry.put_policy(policy, source, "integration-baseline")
+    await registry.put_semantic_prompt(prompt, source, "integration-baseline")
+    await MySQLSchemaAssets(tx).put(schema, source, "integration-baseline")
     run_id = uuid4()
     execution = load_execution_policy()
     # Placeholder asset refs isolate storage atomicity; this is not an eligible release.
@@ -43,6 +57,8 @@ async def setup_run():
     }
     refs.update(
         suite=V6_PUBLISHED,
+        semantic_prompt=prompt.reference,
+        semantic_output_schema=load_semantic_assets().output_schema,
         execution_policy=FrozenContractRef(
             execution.policy_id, execution.version, execution.fingerprint
         ),
