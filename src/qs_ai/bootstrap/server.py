@@ -2,8 +2,10 @@
 
 import asyncio
 import logging
+import os
 import signal
 import ssl
+import sys
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
@@ -24,6 +26,7 @@ from qs_ai.bootstrap.grpc_server import create_grpc_server
 from qs_ai.bootstrap.lifecycle import Component, RuntimeState, event, supervise
 from qs_ai.bootstrap.providers.evaluation import EvaluationProvider
 from qs_ai.config import Settings
+from qs_ai.infrastructure.observability.structured import StructuredHandler
 from qs_ai.infrastructure.persistence.mysql.database import Database, Transactions
 from qs_ai.infrastructure.persistence.mysql.evaluation_worker import EvaluationWorker
 from qs_ai.infrastructure.persistence.mysql.runtime_milestones import prune
@@ -220,7 +223,13 @@ async def serve(settings: Settings, stop: asyncio.Event) -> None:
         )
         app = create_app(settings, container=container, runtime=state)
         http = HTTPServer(
-            uvicorn.Config(app, **settings.http.model_dump(), timeout_graceful_shutdown=5)
+            uvicorn.Config(
+                app,
+                **settings.http.model_dump(),
+                timeout_graceful_shutdown=5,
+                log_config=None,
+                access_log=False,
+            )
         )
 
         async def run_http() -> None:
@@ -252,10 +261,15 @@ async def serve(settings: Settings, stop: asyncio.Event) -> None:
 
 async def run() -> None:
     settings = Settings()
-    logging.basicConfig(
-        level="DEBUG" if settings.http.log_level == "trace" else settings.http.log_level.upper(),
-        format="%(message)s",
+    handler = StructuredHandler(
+        sys.stdout,
+        environment=settings.environment,
+        release=os.environ.get("QS_AI_RELEASE_SHA", "unknown"),
+        capacity=settings.logging.capacity,
+        reserved=settings.logging.reserved,
+        max_bytes=settings.logging.max_bytes,
     )
+    logging.basicConfig(level=settings.logging.level.upper(), handlers=[handler], force=True)
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
     loop.set_default_executor(ThreadPoolExecutor(max_workers=4, thread_name_prefix="qs-ai-io"))
@@ -263,7 +277,11 @@ async def run() -> None:
         loop.add_signal_handler(sig, stop.set)
     try:
         await serve(settings, stop)
+    except Exception as error:
+        event("startup_or_runtime_failure", "qs-ai", error_type=type(error).__name__)
+        raise
     finally:
+        await asyncio.to_thread(handler.shutdown, settings.logging.flush_seconds)
         for sig in (signal.SIGTERM, signal.SIGINT):
             loop.remove_signal_handler(sig)
 
@@ -271,8 +289,7 @@ async def run() -> None:
 def main() -> None:
     try:
         asyncio.run(run())
-    except Exception as error:
-        event("startup_or_runtime_failure", "qs-ai", error_type=type(error).__name__)
+    except Exception:
         raise SystemExit(1) from None
 
 

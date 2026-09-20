@@ -20,11 +20,11 @@ def isolated_environment(monkeypatch):
 def test_precedence_and_partial_nested_overrides(monkeypatch):
     monkeypatch.setenv("QS_AI_ENVIRONMENT", "production")
     monkeypatch.setenv("QS_AI_HTTP__PORT", "9000")
-    settings = Settings(http={"log_level": "debug"})
+    settings = Settings(logging={"level": "debug"})
     assert settings.environment == "production"
     assert settings.http.host == "0.0.0.0"
     assert settings.http.port == 9000
-    assert settings.http.log_level == "debug"
+    assert settings.logging.level == "debug"
     assert Settings(environment="local").http.host == "127.0.0.1"
     assert Settings(http={"port": 7000}).http.port == 7000
     assert settings.database.pool_size == 5
@@ -99,3 +99,11 @@ def test_deployment_secret_encoding_and_rejection():
     )
     with pytest.raises(ValueError):
         encode(value + "\nOTHER=value")
+
+
+def test_logging_limits_and_old_http_option_rejected():
+    with pytest.raises(ValidationError):
+        Settings(logging={"capacity": 10, "reserved": 10})
+    with pytest.raises(ValidationError):
+        Settings(http={"log_level": "info"})
+    assert Settings().logging.flush_seconds == 2

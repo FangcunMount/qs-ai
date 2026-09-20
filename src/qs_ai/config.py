@@ -16,7 +16,20 @@ class Options(BaseModel):
 class HTTPOptions(Options):
     host: str = Field(min_length=1)
     port: int = Field(ge=1, le=65535)
-    log_level: Literal["critical", "error", "warning", "info", "debug", "trace"]
+
+
+class LoggingOptions(Options):
+    level: Literal["critical", "error", "warning", "info", "debug"] = "info"
+    capacity: int = Field(default=1024, ge=2, le=65536)
+    reserved: int = Field(default=128, ge=0)
+    max_bytes: int = Field(default=16384, ge=1024, le=16384)
+    flush_seconds: float = Field(default=2, ge=0, le=2)
+
+    @model_validator(mode="after")
+    def validate_reserve(self) -> "LoggingOptions":
+        if self.reserved >= self.capacity:
+            raise ValueError("Logging reserve must be smaller than capacity")
+        return self
 
 
 class DatabaseOptions(Options):
@@ -138,6 +151,7 @@ class Settings(BaseSettings):
     participant_capacity: ParticipantCapacityOptions
     quota_ceilings: QuotaCeilings | None = None
     generation: GenerationOptions
+    logging: LoggingOptions = Field(default_factory=LoggingOptions)
     http: HTTPOptions
     database: DatabaseOptions
     diagnostics: DiagnosticsOptions = Field(default_factory=DiagnosticsOptions)

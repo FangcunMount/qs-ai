@@ -1,8 +1,13 @@
 # Shared non-secret defaults. Environment variables use QS_AI_ and __ for nesting.
+logging:
+  level: info
+  capacity: 1024
+  reserved: 128
+  max_bytes: 16384
+  flush_seconds: 2
 http:
   host: 0.0.0.0
   port: 8000
-  log_level: info
 database:
   pool_size: 5
   max_overflow: 5
