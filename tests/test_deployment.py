@@ -478,3 +478,31 @@ def test_old_release_still_running_blocks_new_start(remote, tmp_path, monkeypatc
     monkeypatch.setattr(remote, "run", run)
     with pytest.raises(remote.DeploymentError, match="still running"):
         remote.stop_release(tmp_path)
+
+
+def test_failed_manual_rollback_restores_current_without_changing_state(
+    remote, tmp_path, monkeypatch
+):
+    monkeypatch.setattr(remote, "ROOT", tmp_path)
+    state = {"current": "a" * 40 + "-1-1", "previous": "b" * 40 + "-1-1"}
+    calls = []
+    monkeypatch.setattr(remote, "probe", lambda p, *args: calls.append(("probe", p.name)))
+    monkeypatch.setattr(remote, "stop_release", lambda p: calls.append(("stop", p.name)))
+
+    def verify(path):
+        calls.append(("verify", path.name))
+        if path.name == state["previous"]:
+            raise remote.DeploymentError("target failed")
+
+    monkeypatch.setattr(remote, "verify", verify)
+    with pytest.raises(remote.DeploymentError, match="target failed"):
+        remote.restore(state)
+    assert calls == [
+        ("probe", state["previous"]),
+        ("stop", state["current"]),
+        ("verify", state["previous"]),
+        ("stop", state["previous"]),
+        ("probe", state["current"]),
+        ("verify", state["current"]),
+    ]
+    assert not (tmp_path / "state.json").exists()

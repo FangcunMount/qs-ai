@@ -172,8 +172,15 @@ def restore(state: dict) -> None:
     target = release_path(previous)
     # Old image must recognize the current schema and require its own exact head.
     probe(target, True)
-    stop_release(release_path(state["current"]))
-    verify(target)
+    current = release_path(state["current"])
+    try:
+        stop_release(current)
+        verify(target)
+    except Exception:
+        stop_release(target)
+        probe(current, True)
+        verify(current)
+        raise
     write_json(ROOT / "state.json", {"current": previous, "previous": state["current"]})
     print(json.dumps({"rollback": "passed", "release": previous}))
 

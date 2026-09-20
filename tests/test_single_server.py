@@ -3,7 +3,7 @@
 import asyncio
 import socket
 from collections.abc import AsyncIterator
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import httpx
 import pytest
@@ -135,3 +135,51 @@ async def test_shared_container_real_listeners_and_independent_loops(
         stop.set()
         await asyncio.wait_for(task, 5)
     assert pool_events == ["open", "close"]
+
+
+@pytest.mark.parametrize("listener", ["http", "grpc"])
+async def test_occupied_port_stops_other_components_and_closes_container(
+    tmp_path, monkeypatch, listener
+):
+    certificates(tmp_path)
+    with socket.socket() as occupied:
+        occupied.bind(("127.0.0.1", 0))
+        occupied.listen()
+        used = occupied.getsockname()[1]
+        settings = Settings(
+            http={"port": used if listener == "http" else port()},
+            grpc={
+                "bind_address": f"127.0.0.1:{used if listener == 'grpc' else port()}",
+                "ca_file": str(tmp_path / "ca.pem"),
+                "cert_file": str(tmp_path / "ai.pem"),
+                "key_file": str(tmp_path / "ai.key"),
+            },
+            delivery={"shutdown_seconds": 0.1},
+        )
+        container = MagicMock()
+        container.close = AsyncMock()
+        receiver = AsyncMock()
+        receiver.once.return_value = 0
+        container.return_value.__aenter__.return_value.get = AsyncMock(return_value=receiver)
+        monkeypatch.setattr(server, "create_container", lambda *args: container)
+        monkeypatch.setattr(server, "preflight", AsyncMock())
+        # No application DI work is needed: this test reaches an actual socket bind failure.
+        from fastapi import FastAPI
+
+        monkeypatch.setattr(server, "create_app", lambda *args, **kwargs: FastAPI())
+        with pytest.raises(RuntimeError):
+            await asyncio.wait_for(server.serve(settings, asyncio.Event()), 5)
+        container.close.assert_awaited_once()
+
+
+async def test_invalid_certificate_fails_before_creating_dependencies(tmp_path, monkeypatch):
+    bad = tmp_path / "bad.pem"
+    bad.write_text("not a certificate")
+    monkeypatch.setattr(
+        server, "create_container", lambda *args: pytest.fail("must not create resources")
+    )
+    settings = Settings(grpc={"ca_file": str(bad), "cert_file": str(bad), "key_file": str(bad)})
+    import ssl
+
+    with pytest.raises(ssl.SSLError):
+        await server.serve(settings, asyncio.Event())
