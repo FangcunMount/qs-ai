@@ -7,6 +7,7 @@ import re
 from collections.abc import Callable, Iterator
 from contextlib import AbstractContextManager, contextmanager
 from contextvars import ContextVar
+from pathlib import PurePath
 from time import monotonic
 from uuid import uuid4
 
@@ -27,6 +28,7 @@ _FIELDS = frozenset(
         "stage",
         "status",
         "error_type",
+        "error_location",
         "error_code",
         "publication_id",
         "policy_version",
@@ -116,12 +118,22 @@ def operation(name: str, component: str, **fields: object) -> Iterator[None]:
             yield
         except BaseException as error:
             code = classify(error)
+            location = "unknown"
+            tb = error.__traceback__
+            while tb is not None:
+                filename = tb.tb_frame.f_code.co_filename
+                if "/qs_ai/" in filename:
+                    location = (
+                        f"{PurePath(filename).name}:{tb.tb_lineno}:{tb.tb_frame.f_code.co_name}"
+                    )
+                tb = tb.tb_next
             emit(
                 name + ".failed",
                 component,
                 level=logging.ERROR if code == "unexpected_error" else logging.WARNING,
                 error_code=code,
                 error_type=type(error).__name__,
+                error_location=location,
                 duration_ms=(monotonic() - started) * 1000,
             )
             raise
