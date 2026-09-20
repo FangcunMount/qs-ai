@@ -67,7 +67,13 @@ def load_gate_policy(*, directory: Path | None = None) -> FrozenPolicyDocument:
 
 def load_quality_thresholds(*, directory: Path | None = None) -> QualityThresholds:
     """Use the checksum-verified frozen policy, not deployment configuration defaults."""
-    value = json.loads(load_gate_policy(directory=directory).definition_json)
+    return quality_thresholds(load_gate_policy(directory=directory))
+
+
+def quality_thresholds(document: FrozenPolicyDocument) -> QualityThresholds:
+    if not document.reference.matches_document(document.definition_json):
+        raise ValueError("Gate policy fingerprint mismatch")
+    value = json.loads(document.definition_json)
     sample, reliability, quality, human = (
         value["sample_completeness"],
         value["execution_reliability"],
@@ -95,6 +101,12 @@ def load_execution_policy(*, directory: Path | None = None) -> ExecutionPolicy:
         "release-evaluation-bounded-recovery",
         directory,
     )
+    return execution_policy(document)
+
+
+def execution_policy(document: FrozenPolicyDocument) -> ExecutionPolicy:
+    if not document.reference.matches_document(document.definition_json):
+        raise ValueError("Execution policy fingerprint mismatch")
     raw = document.definition_json
     definition = json.loads(raw)
     slot, generation, semantic, recovery = (
