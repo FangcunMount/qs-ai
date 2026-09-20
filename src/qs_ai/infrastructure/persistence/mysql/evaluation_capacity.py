@@ -15,7 +15,9 @@ from qs_ai.application.evaluation.capacity import (
 )
 from qs_ai.application.evaluation.management import ManagementScope
 from qs_ai.application.governance.prompt_drafts import DraftScope
+from qs_ai.application.governance.quotas import QuotaBaseline
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
+from qs_ai.infrastructure.persistence.mysql.quotas import evaluation_policy
 from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_admission_locks as locks,
 )
@@ -36,11 +38,18 @@ async def lock_admission(db: AsyncSession, organization_id: int) -> None:
 
 
 async def admit(
-    db: AsyncSession, scope: ManagementScope, policy: EvaluationCapacityPolicy, at: datetime
+    db: AsyncSession,
+    scope: ManagementScope,
+    policy: EvaluationCapacityPolicy,
+    at: datetime,
+    quota_baseline: QuotaBaseline | None = None,
 ) -> None:
     """Caller holds organization admission lock; failures roll back the Run transition."""
     if at.tzinfo is None or at.utcoffset() is None:
         raise ValueError("Admission time must have a time zone")
+    policy, quota_snapshot = await evaluation_policy(
+        db, scope.organization_id, policy, quota_baseline
+    )
     active = (
         await db.execute(
             select(func.count())
@@ -100,6 +109,7 @@ async def admit(
             budget_day=day,
             provider_calls=calls,
             daily_limit=policy.daily_provider_calls,
+            quota_snapshot=quota_snapshot,
             requested_by=scope.actor,
             reserved_at=at.astimezone(UTC).replace(tzinfo=None),
         )
@@ -107,8 +117,14 @@ async def admit(
 
 
 class MySQLEvaluationCapacity:
-    def __init__(self, transactions: Transactions, capacity: EvaluationCapacityPolicy) -> None:
+    def __init__(
+        self,
+        transactions: Transactions,
+        capacity: EvaluationCapacityPolicy,
+        quota_baseline: QuotaBaseline | None = None,
+    ) -> None:
         self.transactions, self.capacity = transactions, capacity
+        self.quota_baseline = quota_baseline
 
     async def get(self, scope: DraftScope, at: datetime) -> EvaluationCapacitySnapshot:
         if at.tzinfo is None or at.utcoffset() is None:
@@ -116,6 +132,9 @@ class MySQLEvaluationCapacity:
         day = at.astimezone(UTC).date()
         async with self.transactions.open() as db:
             await db.connection(execution_options={"isolation_level": "REPEATABLE READ"})
+            capacity, _ = await evaluation_policy(
+                db, scope.organization_id, self.capacity, self.quota_baseline
+            )
             matching = (
                 reservations.c.organization_id == scope.organization_id,
                 reservations.c.budget_day == day,
@@ -152,16 +171,16 @@ class MySQLEvaluationCapacity:
         reserved = int(reserved)
         frozen = await asyncio.to_thread(load_execution_policy)
         full = frozen.generation_per_run + frozen.semantic_per_run
-        remaining = max(0, self.capacity.daily_provider_calls - reserved)
+        remaining = max(0, capacity.daily_provider_calls - reserved)
         return EvaluationCapacitySnapshot(
             scope.organization_id,
             day.isoformat(),
-            self.capacity.daily_provider_calls,
+            capacity.daily_provider_calls,
             reserved,
             remaining,
             full,
             remaining // full,
-            self.capacity.max_active_runs,
+            capacity.max_active_runs,
             active,
             count,
             tuple(

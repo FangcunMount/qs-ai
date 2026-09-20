@@ -13,6 +13,7 @@ from qs_ai.application.evaluation.capacity import EvaluationCapacityPolicy
 from qs_ai.application.evaluation.gates import GatePreview
 from qs_ai.application.evaluation.management import EvaluationView, ManagementScope
 from qs_ai.application.evaluation.unknowns import UnknownExecutionIndex, validate_unknown_query
+from qs_ai.application.governance.quotas import QuotaBaseline
 from qs_ai.application.governance.solution_models import (
     DEFAULT_EDITABLE_MODELS,
     EditableModelPolicy,
@@ -94,9 +95,11 @@ class MySQLEvaluationManagement:
         transactions: Transactions,
         capacity: EvaluationCapacityPolicy = _DEFAULT_CAPACITY,
         models: EditableModelPolicy = DEFAULT_EDITABLE_MODELS,
+        quota_baseline: QuotaBaseline | None = None,
     ) -> None:
         self.transactions = transactions
         self.capacity = capacity
+        self.quota_baseline = quota_baseline
         self.models = models
 
     async def cancel(
@@ -229,7 +232,7 @@ class MySQLEvaluationManagement:
                 reason,
                 at,
             )
-            await admit(db, scope, self.capacity, at)
+            await admit(db, scope, self.capacity, at, self.quota_baseline)
             view = await read_view(db, scope)
             await db.commit()
             return view
@@ -251,6 +254,6 @@ class MySQLEvaluationManagement:
             )
             view = await read_view(db, scope)
             if view.status == "collecting":
-                await admit(db, scope, self.capacity, value.resolved_at)
+                await admit(db, scope, self.capacity, value.resolved_at, self.quota_baseline)
             await db.commit()
             return view

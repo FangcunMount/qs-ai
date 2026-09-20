@@ -18,6 +18,7 @@ from qs_ai.application.execution.capacity import (
 from qs_ai.application.execution.configuration import ConfigurationUnavailable
 from qs_ai.application.execution.errors import LeaseLost
 from qs_ai.application.execution.generation import GeneratedExplanation
+from qs_ai.application.governance.quotas import QuotaBaseline
 from qs_ai.application.interpretation.ports import Claim, WorkflowResult
 from qs_ai.application.interpretation.provider import ModelCall, ProviderFailure
 from qs_ai.domain.interpretation.model import EvidenceItem, EvidenceSet, Fact, Session, Status
@@ -51,8 +52,10 @@ class MySQLExecutionStore:
         self,
         transactions: Transactions,
         capacity: ParticipantCapacityPolicy = DEFAULT_PARTICIPANT_CAPACITY,
+        quota_baseline: QuotaBaseline | None = None,
     ) -> None:
         self.transactions, self.capacity = transactions, capacity
+        self.quota_baseline = quota_baseline
 
     async def begin_model_call(self, claim: Claim, request_json: str) -> tuple[ModelCall, bool]:
         """Commit a dispatch marker before HTTP. Only its creator may send once.
@@ -250,7 +253,7 @@ class MySQLExecutionStore:
                 if not guard["expired"]:
                     continue
                 if session.uses_qs_snapshot and not await acquire_capacity(
-                    db, session, self.capacity, datetime.now(UTC)
+                    db, session, self.capacity, datetime.now(UTC), self.quota_baseline
                 ):
                     # Defer this queued job; release all locks before trying another.
                     await db.execute(

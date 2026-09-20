@@ -14,6 +14,7 @@ from qs_ai.application.execution.capacity import (
     DEFAULT_PARTICIPANT_CAPACITY,
     ParticipantCapacityPolicy,
 )
+from qs_ai.application.governance.quotas import QuotaBaseline
 from qs_ai.application.interpretation.input import InvalidInput
 from qs_ai.application.interpretation.ports import AdmissionRejected, NotFound, Receipt, UnitOfWork
 from qs_ai.domain.interpretation.model import (
@@ -72,9 +73,13 @@ def session_values(session: Session) -> dict[str, Any]:
 
 class MySQLUnitOfWork:
     def __init__(
-        self, db: AsyncSession, capacity: ParticipantCapacityPolicy = DEFAULT_PARTICIPANT_CAPACITY
+        self,
+        db: AsyncSession,
+        capacity: ParticipantCapacityPolicy = DEFAULT_PARTICIPANT_CAPACITY,
+        quota_baseline: QuotaBaseline | None = None,
     ) -> None:
         self.db, self.capacity = db, capacity
+        self.quota_baseline = quota_baseline
 
     async def reserve(self, scope: str, key: str, request_hash: str) -> Receipt | None:
         statement = mysql_insert(idempotency).values(
@@ -185,7 +190,9 @@ class MySQLUnitOfWork:
         self, session: Session, answer: str | None, skip: bool, question_id: str | None
     ) -> None:
         if session.uses_qs_snapshot:
-            await reserve_capacity(self.db, session, self.capacity, datetime.now(UTC))
+            await reserve_capacity(
+                self.db, session, self.capacity, datetime.now(UTC), self.quota_baseline
+            )
         await self.db.execute(
             insert(runs).values(
                 id=session.active_run_id,
@@ -255,11 +262,13 @@ class MySQLUnitOfWorkFactory:
         self,
         transactions: Transactions,
         capacity: ParticipantCapacityPolicy = DEFAULT_PARTICIPANT_CAPACITY,
+        quota_baseline: QuotaBaseline | None = None,
     ) -> None:
         self.transactions, self.capacity = transactions, capacity
+        self.quota_baseline = quota_baseline
 
     @asynccontextmanager
     async def open(self) -> AsyncIterator[UnitOfWork]:
         async with self.transactions.open() as db:
             await db.connection(execution_options={"isolation_level": "REPEATABLE READ"})
-            yield MySQLUnitOfWork(db, self.capacity)
+            yield MySQLUnitOfWork(db, self.capacity, self.quota_baseline)

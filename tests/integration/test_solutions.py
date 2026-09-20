@@ -259,3 +259,36 @@ async def test_external_prompt_edit_cannot_be_silently_prepared(workspace):
         await store.apply(
             scope, sid, PrepareSolution(command_id=uuid4(), expected_revision=1, reason="测试"), at
         )
+
+
+async def test_solution_asset_file_reads_do_not_block_event_loop(workspace, monkeypatch):
+    import threading
+
+    from qs_ai.infrastructure.persistence.mysql import solution_assets, solutions
+
+    _, store, scope, sid, command, at = workspace
+    owner = threading.get_ident()
+    calls = []
+    for module, name in (
+        (solutions, "load_semantic_assets"),
+        (solution_assets, "load_execution_policy"),
+    ):
+        original = getattr(module, name)
+
+        def checked(*args, _original=original, _name=name, **kwargs):
+            assert threading.get_ident() != owner
+            calls.append(_name)
+            return _original(*args, **kwargs)
+
+        monkeypatch.setattr(module, name, checked)
+    created = await store.apply(scope, sid, command, at)
+    await store.apply(
+        scope,
+        sid,
+        PrepareSolution(
+            command_id=uuid4(), expected_revision=created["revision"], reason="异步准备验证"
+        ),
+        at,
+    )
+    assert "load_semantic_assets" in calls
+    assert "load_execution_policy" in calls

@@ -14,6 +14,9 @@ import (
 
 func main() {
 	var input struct {
+		QuotaBody                       json.RawMessage
+		QuotaOperation, QuotaCommandID  string
+		QuotaWrite                      bool
 		SolutionBody                    json.RawMessage
 		SolutionID, SolutionOperation   string
 		SolutionWrite                   bool
@@ -62,7 +65,15 @@ func main() {
 	}
 	scope := app.EvaluationScope{RunID: input.RunID, OrganizationID: input.OrgID, OperatorUserID: input.UserID}
 	var result any
-	if input.Action == "solution" {
+	if input.Action == "quota" {
+		quotas := &app.QuotaAdministration{Gateway: clients.Quotas}
+		scope := app.DraftScope{OrganizationID: input.OrgID, OperatorUserID: input.UserID}
+		if input.QuotaWrite {
+			result, err = quotas.Write(ctx, scope, input.QuotaOperation, input.QuotaBody)
+		} else {
+			result, err = quotas.Read(ctx, scope, input.QuotaOperation, input.QuotaCommandID, "")
+		}
+	} else if input.Action == "solution" {
 		solutions := &app.SolutionAdministration{Gateway: clients.Solutions}
 		scope := app.DraftScope{OrganizationID: input.OrgID, OperatorUserID: input.UserID}
 		if input.SolutionWrite {

@@ -468,6 +468,7 @@ evaluation_admission_locks = sa.Table(
 evaluation_capacity_reservations = sa.Table(
     "evaluation_capacity_reservations",
     metadata,
+    sa.Column("quota_snapshot", sa.JSON),
     sa.Column("run_id", ID, primary_key=True),
     sa.Column("organization_id", EXTERNAL_ID, nullable=False),
     sa.Column("budget_day", sa.Date, nullable=False),
@@ -490,6 +491,7 @@ participant_admission_locks = sa.Table(
 participant_capacity_reservations = sa.Table(
     "participant_capacity_reservations",
     metadata,
+    sa.Column("quota_snapshot", sa.JSON),
     sa.Column("run_id", ID, primary_key=True),
     sa.Column("session_id", ID, nullable=False),
     sa.Column("organization_id", EXTERNAL_ID, nullable=False),
@@ -559,6 +561,44 @@ solution_commands = sa.Table(
     sa.Column("receipt_json", mysql.LONGTEXT, nullable=False),
     sa.Column("receipt_sha256", sa.String(64), nullable=False),
     sa.Index("ix_solution_commands", "solution_id"),
+    mysql_engine="InnoDB",
+    mysql_charset="utf8mb4",
+)
+
+organization_quota_versions = sa.Table(
+    "organization_quota_versions",
+    metadata,
+    sa.Column("organization_id", EXTERNAL_ID, primary_key=True),
+    sa.Column("revision", sa.BigInteger, primary_key=True),
+    sa.Column("definition_json", mysql.LONGTEXT, nullable=False),
+    sa.Column("definition_sha256", sa.String(64), nullable=False),
+    sa.Column("operator_user_id", EXTERNAL_ID, nullable=False),
+    sa.Column("reason", sa.Text, nullable=False),
+    sa.Column("created_at", mysql.DATETIME(fsp=6), nullable=False),
+    mysql_engine="InnoDB",
+    mysql_charset="utf8mb4",
+)
+organization_quota_pointers = sa.Table(
+    "organization_quota_pointers",
+    metadata,
+    sa.Column("organization_id", EXTERNAL_ID, primary_key=True),
+    sa.Column("revision", sa.BigInteger, nullable=False),
+    sa.ForeignKeyConstraint(
+        ["organization_id", "revision"],
+        ["organization_quota_versions.organization_id", "organization_quota_versions.revision"],
+    ),
+    mysql_engine="InnoDB",
+    mysql_charset="utf8mb4",
+)
+organization_quota_commands = sa.Table(
+    "organization_quota_commands",
+    metadata,
+    sa.Column("organization_id", EXTERNAL_ID, primary_key=True),
+    sa.Column("command_id", sa.String(36, collation="utf8mb4_bin"), primary_key=True),
+    sa.Column("operator_user_id", EXTERNAL_ID, nullable=False),
+    sa.Column("request_json", mysql.LONGTEXT, nullable=False),
+    sa.Column("receipt_json", mysql.LONGTEXT, nullable=False),
+    sa.Column("receipt_sha256", sa.String(64), nullable=False),
     mysql_engine="InnoDB",
     mysql_charset="utf8mb4",
 )

@@ -1,5 +1,6 @@
 """Atomic editing and preparation, with immutable idempotency receipts."""
 
+import asyncio
 import hashlib
 import json
 from dataclasses import asdict
@@ -144,7 +145,7 @@ async def hydrate(db: AsyncSession, scope: DraftScope, state: dict[str, Any]) ->
         "data_preamble": raw["DataPreamble"],
         "allowed_placeholders": raw["AllowedPlaceholders"],
     }
-    semantic = load_semantic_assets()
+    semantic = await asyncio.to_thread(load_semantic_assets)
     if (release.semantic_prompt, release.semantic_output_schema) != (
         semantic.prompt,
         semantic.output_schema,
