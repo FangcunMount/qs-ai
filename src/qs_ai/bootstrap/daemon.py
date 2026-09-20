@@ -4,7 +4,7 @@ import asyncio
 import logging
 from collections.abc import Awaitable, Callable
 
-from qs_ai.infrastructure.observability.structured import emit
+from qs_ai.application.operations.diagnostics import emit
 
 
 async def run_loop(

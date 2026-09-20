@@ -9,6 +9,7 @@ from sqlalchemy import func, select
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict
 from qs_ai.application.interpretation.route_assets import RouteAssets
 from qs_ai.application.interpretation.schema_assets import SchemaAssets
+from qs_ai.application.operations.diagnostics import emit
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
 from qs_ai.infrastructure.persistence.mysql.evaluation_checkpoints import decode
 from qs_ai.infrastructure.persistence.mysql.evaluation_recovery import recover_expired
@@ -86,6 +87,12 @@ async def recover_next(
                     schemas,
                 )
                 await db.commit()
+            emit(
+                "evaluation.recovery_committed",
+                "evaluation",
+                run_id=str(row["run_id"]),
+                invocation_id=cp.invocation_id,
+            )
         except CheckpointConflict:
             continue
         return True

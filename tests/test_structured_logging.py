@@ -6,7 +6,8 @@ import threading
 
 import pytest
 
-from qs_ai.infrastructure.observability.structured import StructuredHandler, context, emit
+from qs_ai.application.operations.diagnostics import context, emit
+from qs_ai.infrastructure.observability.structured import StructuredHandler
 
 
 @pytest.fixture
@@ -116,10 +117,42 @@ def test_invalid_fields_do_not_stringify_objects(sink):
 
 
 def test_metrics_have_fixed_names_without_identifiers():
-    from qs_ai.infrastructure.observability.structured import render_process_metrics
+    from qs_ai.application.operations.diagnostics import render_process_metrics
 
     value = render_process_metrics()
     assert "qs_ai_logging_dropped_total" in value
     assert "qs_ai_logging_failed_total" in value
     assert "qs_ai_logging_queued" in value
     assert "request_id" not in value
+
+
+async def test_delivery_retry_and_commit_are_observed_after_persistence(sink):
+    from unittest.mock import AsyncMock
+
+    from qs_ai.application.integration.events import DeliverResults, StateEvent
+    from qs_ai.domain.interpretation.model import Actor
+
+    handler, output = sink
+    event = StateEvent(
+        "event-1", "request-1", "session-1", Actor("org", "subject"), "testee", 1, "completed"
+    )
+    store, receiver = AsyncMock(), AsyncMock()
+    store.pending.return_value = [event]
+    receiver.accept.side_effect = ConnectionError("SECRET_CONNECTION")
+    assert await DeliverResults(store, receiver).once() == 0
+    store.retry.assert_awaited_once_with("event-1")
+    store.delivered.assert_not_awaited()
+    receiver.accept.side_effect = None
+    assert await DeliverResults(store, receiver).once() == 1
+    store.delivered.assert_awaited_once_with("event-1")
+    assert handler.shutdown()
+    rows = [json.loads(line) for line in output.getvalue().splitlines()]
+    assert [row["event"] for row in rows] == [
+        "delivery.started",
+        "delivery.retry_scheduled",
+        "delivery.started",
+        "delivery.acknowledged",
+    ]
+    assert all(row["request_id"] == "request-1" for row in rows)
+    assert rows[0]["correlation_id"] != rows[2]["correlation_id"]
+    assert "SECRET" not in output.getvalue()

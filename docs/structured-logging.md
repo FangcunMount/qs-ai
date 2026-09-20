@@ -55,3 +55,25 @@ Final gates remain those approved in the plan: three 15-minute load comparisons;
 health P95 overhead <=20ms; throughput loss <=5%; normal-load drops zero; 30-minute
 collector outage recovery within buffering capacity; 95% searchable within 30s,
 all test events within 60s; five operator diagnosis scenarios within 10 minutes each.
+
+## L2 increment (local, not deployed)
+
+The application owns diagnostic context/events; infrastructure owns the queued
+output adapter. The architecture dependency/cycle test protects this boundary.
+Every unary business/management RPC records completion status and elapsed time,
+without reading request bodies or exception details. Metadata contract is
+`x-correlation-id`; incoming `x-request-id` remains accepted as transport fallback.
+Neither header is an authorization input. Missing/malformed values get a fresh ID.
+
+Generation attempt, committed result, evaluation dispatch/receipt/recovery and
+result delivery events reuse durable identifiers. Delivery starts a new transport
+correlation for each attempt and keeps the original request/event IDs. Logs are
+emitted after persistence for committed receipts and scheduled retries.
+
+Checked locally: 50 targeted tests, architecture rules and full-source mypy;
+real local gRPC success and permission-denied status preservation; delivery failure
+then success without altering persistence calls. Subsequent metadata adjustments
+passed the focused nine-test contract suite. Production, load and MySQL matrix
+acceptance still pending. Fine-grained fact/authorization stage coverage, safe stack
+frames, log rate limiting and full model/evaluation evidence remain open; do not
+mark all L2 requirements complete from RPC completion events alone.

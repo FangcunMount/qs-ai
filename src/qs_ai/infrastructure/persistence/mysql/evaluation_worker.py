@@ -9,6 +9,7 @@ from sqlalchemy import func, or_, select
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict
 from qs_ai.application.interpretation.route_assets import RouteAssets
 from qs_ai.application.interpretation.schema_assets import SchemaAssets
+from qs_ai.application.operations.diagnostics import attempt_context, operation
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
 from qs_ai.infrastructure.persistence.mysql.evaluation_progress import execute_preflight
 from qs_ai.infrastructure.persistence.mysql.evaluation_scan import RecoveryCursor, recover_next
@@ -80,24 +81,25 @@ class EvaluationWorker:
             return False
         run_id = UUID(row["run_id"])
         try:
-            if "preflight" not in row["progress_json"]:
-                async with self.transactions.open() as db:
-                    await execute_preflight(
-                        db, run_id, row["version"], row["organization_id"], self.clock()
+            with attempt_context(run_id=str(run_id)), operation("evaluation.step", "evaluation"):
+                if "preflight" not in row["progress_json"]:
+                    async with self.transactions.open() as db:
+                        await execute_preflight(
+                            db, run_id, row["version"], row["organization_id"], self.clock()
+                        )
+                        await db.commit()
+                else:
+                    await execute_step(
+                        self.transactions,
+                        run_id,
+                        row["version"],
+                        row["organization_id"],
+                        self.owner,
+                        self.gateway,
+                        self.routes,
+                        self.schemas,
+                        clock=self.clock,
                     )
-                    await db.commit()
-            else:
-                await execute_step(
-                    self.transactions,
-                    run_id,
-                    row["version"],
-                    row["organization_id"],
-                    self.owner,
-                    self.gateway,
-                    self.routes,
-                    self.schemas,
-                    clock=self.clock,
-                )
         except CheckpointConflict:
             # Another consumer or lifecycle transition won. Never retry this
             # invocation inside the same attempt; next poll reads current state.

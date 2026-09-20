@@ -1,6 +1,6 @@
 """Post-commit diagnostics; never a business retry trigger."""
 
-from qs_ai.infrastructure.observability.structured import emit as structured_emit
+from qs_ai.application.operations.diagnostics import emit as structured_emit
 
 
 def emit(event: str, *, session_id: str, run_id: str, invocation_id: str = "") -> None:

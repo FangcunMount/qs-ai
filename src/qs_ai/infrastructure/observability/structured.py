@@ -1,93 +1,14 @@
-"""Bounded, allowlisted diagnostics. Never a business receipt or retry trigger."""
+"""Bounded output adapter for application diagnostic events."""
 
 import json
 import logging
-import math
-import re
 import threading
 from collections import deque
-from collections.abc import Iterator
-from contextlib import contextmanager
-from contextvars import ContextVar
 from datetime import UTC, datetime
 from typing import TextIO
 from uuid import uuid4
 
-_FIELDS = frozenset(
-    {
-        "correlation_id",
-        "request_id",
-        "command_id",
-        "session_id",
-        "run_id",
-        "invocation_id",
-        "delivery_event_id",
-        "task_kind",
-        "stage",
-        "status",
-        "error_type",
-        "error_code",
-        "publication_id",
-        "policy_version",
-        "provider",
-        "model",
-        "attempt",
-        "failures",
-        "duration_ms",
-        "retryable",
-        "backoff_seconds",
-    }
-)
-_TOKEN = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}\Z")
-_context: ContextVar[dict[str, str | int | float | bool] | None] = ContextVar(
-    "log_context", default=None
-)
-
-
-def safe_fields(fields: dict[str, object]) -> dict[str, str | int | float | bool]:
-    result: dict[str, str | int | float | bool] = {}
-    for key, value in fields.items():
-        if key not in _FIELDS:
-            continue
-        if isinstance(value, str) and _TOKEN.fullmatch(value):
-            result[key] = value
-        elif (
-            isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
-        ):
-            result[key] = value
-        elif type(value) is bool:
-            result[key] = value
-    return result
-
-
-@contextmanager
-def context(**fields: object) -> Iterator[None]:
-    token = _context.set({**(_context.get() or {}), **safe_fields(fields)})
-    try:
-        yield
-    finally:
-        _context.reset(token)
-
-
-def emit(event: str, component: str, *, level: int = logging.INFO, **fields: object) -> None:
-    """Only structured fields cross the sink; arbitrary messages are not accepted."""
-    try:
-        if not _TOKEN.fullmatch(event) or not _TOKEN.fullmatch(component):
-            return
-        logging.getLogger("qs_ai.structured").log(
-            level,
-            "",
-            extra={
-                "diagnostic": {
-                    "event": event,
-                    "component": component,
-                    **(_context.get() or {}),
-                    **safe_fields(fields),
-                }
-            },
-        )
-    except Exception:
-        pass
+from qs_ai.application.operations.diagnostics import _FIELDS, _TOKEN, safe_fields
 
 
 class StructuredHandler(logging.Handler):
@@ -185,18 +106,3 @@ class StructuredHandler(logging.Handler):
     def snapshot(self) -> dict[str, int]:
         with self._condition:
             return {"queued": len(self._queue), "dropped": self.dropped, "failed": self.failed}
-
-
-def render_process_metrics() -> str:
-    """Independent of database availability; never logs its own failures."""
-    handler = next(
-        (item for item in logging.getLogger().handlers if isinstance(item, StructuredHandler)), None
-    )
-    values = handler.snapshot() if handler else {"queued": 0, "dropped": 0, "failed": 0}
-    lines: list[str] = []
-    for name, value in values.items():
-        suffix = name if name == "queued" else name + "_total"
-        kind = "gauge" if name == "queued" else "counter"
-        metric = "qs_ai_logging_" + suffix
-        lines.extend((f"# TYPE {metric} {kind}", f"{metric} {value}"))
-    return "\n".join(lines) + "\n"

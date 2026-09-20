@@ -4,8 +4,8 @@ from dishka.integrations.fastapi import DishkaRoute, FromDishka
 from fastapi import APIRouter
 from fastapi.responses import Response
 
+from qs_ai.application.operations.diagnostics import render_process_metrics
 from qs_ai.application.operations.metrics import OperationalMetrics
-from qs_ai.infrastructure.observability.structured import render_process_metrics
 
 router = APIRouter(route_class=DishkaRoute)
 

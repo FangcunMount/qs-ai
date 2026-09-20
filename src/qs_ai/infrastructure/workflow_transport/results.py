@@ -4,6 +4,7 @@ from grpc import aio
 
 from qs_ai.application.integration.events import StateEvent
 from qs_ai.application.interpretation.ports import DependencyUnavailable
+from qs_ai.application.operations.diagnostics import outgoing_metadata
 from qs_ai.contracts.workflow import workflow_pb2 as pb
 from qs_ai.contracts.workflow import workflow_pb2_grpc as rpc
 
@@ -15,7 +16,9 @@ class GRPCResultReceiver:
 
     async def accept(self, event: StateEvent) -> None:
         response = await self.stub.Accept(
-            pb.StateEvent(**asdict(event)), timeout=self.timeout_seconds
+            pb.StateEvent(**asdict(event)),
+            timeout=self.timeout_seconds,
+            metadata=outgoing_metadata(),
         )
         if response.event_id != event.event_id:
             raise DependencyUnavailable("Unmatched delivery acknowledgement")

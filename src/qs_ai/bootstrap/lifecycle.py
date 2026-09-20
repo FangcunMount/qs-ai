@@ -6,7 +6,7 @@ from collections.abc import Awaitable, Callable, Coroutine
 from dataclasses import dataclass, field
 from typing import Any
 
-from qs_ai.infrastructure.observability.structured import emit
+from qs_ai.application.operations.diagnostics import emit
 
 
 def event(name: str, component: str, **fields: str | int | float) -> None:

@@ -10,6 +10,7 @@ from qs_ai.config import Settings
 from qs_ai.contracts.workflow import workflow_pb2_grpc as rpc
 from qs_ai.transport.grpc.asset_catalog import AssetCatalogService
 from qs_ai.transport.grpc.commands import Commands
+from qs_ai.transport.grpc.diagnostics import Diagnostics
 from qs_ai.transport.grpc.evaluation import EvaluationManagement
 from qs_ai.transport.grpc.flow import FlowManagement
 from qs_ai.transport.grpc.participant import ParticipantManagement
@@ -32,7 +33,8 @@ def create_grpc_server(
     components: Callable[[], dict[str, str]] | None = None,
 ) -> aio.Server:
     server = aio.server(
-        options=(("grpc.max_receive_message_length", settings.grpc.max_receive_bytes),)
+        interceptors=[Diagnostics()],
+        options=(("grpc.max_receive_message_length", settings.grpc.max_receive_bytes),),
     )
     rpc.add_CommandsServicer_to_server(Commands(container), server)
     if settings.grpc.governance_enabled:

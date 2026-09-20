@@ -9,6 +9,7 @@ from qs_ai.application.interpretation.ports import (
     Workflow,
     WorkflowResult,
 )
+from qs_ai.application.operations.diagnostics import attempt_context, emit, operation
 from qs_ai.domain.interpretation.model import RuleViolation
 
 
@@ -35,6 +36,16 @@ class ExecuteNext:
         except RuleViolation:
             result = WorkflowResult("", failure_code="evidence_invalid")
         await self.store.finish(claim, result)
+        emit(
+            "generation.result_committed",
+            "generation",
+            status="failed" if result.failure_code else "completed",
+            error_code=result.failure_code or "none",
+        )
+
+    async def _observed_execute(self, claim: Claim) -> None:
+        with operation("generation", "generation"):
+            await self._execute(claim)
 
     async def once(self, ttl_seconds: int = 30) -> bool:
         if ttl_seconds < 3:
@@ -48,7 +59,8 @@ class ExecuteNext:
                 await asyncio.sleep(ttl_seconds / 3)
                 await self.store.renew(claim, ttl_seconds)
 
-        work = asyncio.create_task(self._execute(claim))
+        with attempt_context(session_id=claim.session.id, run_id=claim.run_id):
+            work = asyncio.create_task(self._observed_execute(claim))
         pulse = asyncio.create_task(heartbeat())
         try:
             done, _ = await asyncio.wait({work, pulse}, return_when=asyncio.FIRST_COMPLETED)

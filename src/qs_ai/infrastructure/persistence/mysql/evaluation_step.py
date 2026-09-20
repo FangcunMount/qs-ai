@@ -18,6 +18,7 @@ from qs_ai.application.interpretation.prompts import PromptMessages
 from qs_ai.application.interpretation.provider import ModelResponse, ModelRoute, ProviderFailure
 from qs_ai.application.interpretation.route_assets import RouteAssets
 from qs_ai.application.interpretation.schema_assets import SchemaAssets
+from qs_ai.application.operations.diagnostics import emit
 from qs_ai.domain.evaluation.completion import GenerationCompletion
 from qs_ai.domain.evaluation.contract_recovery import RECOVERY_INSTRUCTION, decode_recoveries
 from qs_ai.domain.evaluation.failure import ClassifiedFailure
@@ -167,6 +168,13 @@ async def execute_step(
         state = await reserve_dispatch(db, run_id, state.version, owner, at)
         # This commit must finish before control reaches the external gateway.
         await db.commit()
+    emit(
+        "evaluation.model_dispatched",
+        "evaluation",
+        run_id=str(run_id),
+        invocation_id=invocation_id,
+        stage=cp.kind,
+    )
     response = None
     failure = None
     try:
@@ -262,4 +270,12 @@ async def execute_step(
                 db, run_id, state.version, organization_id, owner, judged, routes
             )
         await db.commit()
+    emit(
+        "evaluation.receipt_committed",
+        "evaluation",
+        run_id=str(run_id),
+        invocation_id=invocation_id,
+        status=status,
+        stage=cp.kind,
+    )
     return state

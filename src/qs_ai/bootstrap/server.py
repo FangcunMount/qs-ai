@@ -19,6 +19,7 @@ from dishka import AsyncContainer, Provider, Scope, provide
 
 from qs_ai.application.execution.worker import ExecuteNext
 from qs_ai.application.integration.events import DeliverResults, ResultReceiver
+from qs_ai.application.operations.diagnostics import register_log_metrics
 from qs_ai.bootstrap.api import create_app
 from qs_ai.bootstrap.container import create_container
 from qs_ai.bootstrap.daemon import run_loop
@@ -269,6 +270,7 @@ async def run() -> None:
         reserved=settings.logging.reserved,
         max_bytes=settings.logging.max_bytes,
     )
+    register_log_metrics(handler.snapshot)
     logging.basicConfig(level=settings.logging.level.upper(), handlers=[handler], force=True)
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
