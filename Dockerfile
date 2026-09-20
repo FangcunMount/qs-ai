@@ -14,4 +14,4 @@ COPY migrations ./migrations
 RUN useradd --uid 10001 --create-home app
 USER app
 EXPOSE 8000
-CMD ["/app/.venv/bin/python", "-m", "qs_ai.bootstrap.http"]
+CMD ["/app/.venv/bin/python", "-m", "qs_ai.bootstrap.server"]

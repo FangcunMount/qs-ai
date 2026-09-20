@@ -27,7 +27,7 @@ def secret_override(database_url: str) -> dict:
         raise ValueError("Invalid database secret")
     return {
         "services": {
-            "api": {
+            "qs-ai": {
                 "environment": {
                     "QS_AI_DATABASE_URL": database_url.replace("$", "$$"),
                 }
@@ -78,6 +78,23 @@ def compose(release: Path, *args: str) -> list[str]:
     ]
 
 
+def runtime_service(release: Path) -> str:
+    services = run("compose services", compose(release, "config", "--services")).split()
+    return "qs-ai" if "qs-ai" in services else "api"
+
+
+def stop_release(release: Path) -> None:
+    # Stop admission first. Then stop old consumers together and wait for drain.
+    services = run("compose services", compose(release, "config", "--services")).split()
+    ingress = [s for s in ("grpc", "api") if s in services]
+    if ingress:
+        run("stop old admission", compose(release, "stop", "-t", "210", *ingress))
+    run("drain release", compose(release, "stop", "-t", "210"))
+    running = run("verify stopped", compose(release, "ps", "--status", "running", "-q")).strip()
+    if running:
+        raise DeploymentError("Previous release still running")
+
+
 def probe(release: Path, require_head: bool = False) -> dict:
     output = run(
         "database probe",
@@ -87,7 +104,7 @@ def probe(release: Path, require_head: bool = False) -> dict:
             "--rm",
             "--no-deps",
             "-T",
-            "api",
+            runtime_service(release),
             "/app/.venv/bin/python",
             "-m",
             "qs_ai.bootstrap.database_check",
@@ -126,6 +143,19 @@ def verify(release: Path) -> dict:
         ).strip()
         if image_id != manifest["image_id"]:
             raise DeploymentError("Running image does not match release")
+    if "qs-ai" in services:
+        run(
+            "live mTLS probe",
+            compose(
+                release,
+                "exec",
+                "-T",
+                "qs-ai",
+                "/app/.venv/bin/python",
+                "-m",
+                "qs_ai.bootstrap.grpc_probe",
+            ),
+        )
     return probe(release, True)
 
 
@@ -142,7 +172,15 @@ def restore(state: dict) -> None:
     target = release_path(previous)
     # Old image must recognize the current schema and require its own exact head.
     probe(target, True)
-    verify(target)
+    current = release_path(state["current"])
+    try:
+        stop_release(current)
+        verify(target)
+    except Exception:
+        stop_release(target)
+        probe(current, True)
+        verify(current)
+        raise
     write_json(ROOT / "state.json", {"current": previous, "previous": state["current"]})
     print(json.dumps({"rollback": "passed", "release": previous}))
 
@@ -171,7 +209,7 @@ def apply(release: Path, state: dict) -> None:
     ):
         raise DeploymentError("Image identity or architecture mismatch")
     services = run("compose services", compose(release, "config", "--services")).split()
-    if "grpc" in services:
+    if "grpc" in services or "qs-ai" in services:
         run(
             "TLS file preflight",
             compose(
@@ -180,7 +218,7 @@ def apply(release: Path, state: dict) -> None:
                 "--rm",
                 "--no-deps",
                 "-T",
-                "grpc",
+                "qs-ai" if "qs-ai" in services else "grpc",
                 "/app/.venv/bin/python",
                 "-m",
                 "qs_ai.bootstrap.grpc_probe",
@@ -198,7 +236,7 @@ def apply(release: Path, state: dict) -> None:
             "--rm",
             "--no-deps",
             "-T",
-            "api",
+            runtime_service(release),
             "/app/.venv/bin/alembic",
             "upgrade",
             "head",
@@ -206,10 +244,13 @@ def apply(release: Path, state: dict) -> None:
     )
     after = probe(release, True)
     try:
+        if state.get("current"):
+            stop_release(release_path(state["current"]))
         verify(release)
     except Exception:
         if state.get("current") and before["current"] == after["current"]:
             previous = release_path(state["current"])
+            stop_release(release)
             probe(previous, True)
             verify(previous)
             print("Service restored to previous successful release", flush=True)

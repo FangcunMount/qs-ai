@@ -6,3 +6,5 @@ grpc:
   ca_file: /run/qs-ai-tls/ca-chain.crt
   cert_file: /run/qs-ai-tls/qs-ai-fullchain.crt
   key_file: /run/qs-ai-tls/qs-ai.key
+evaluation:
+  shutdown_seconds: 190

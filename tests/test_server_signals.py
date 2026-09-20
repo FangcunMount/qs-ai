@@ -14,9 +14,10 @@ SCRIPT = r"""
 import asyncio, sys
 from pathlib import Path
 import grpc
-from qs_ai.bootstrap.grpc_lifecycle import serve_grpc
+from qs_ai.bootstrap import server as entry
+from qs_ai.bootstrap.lifecycle import Component, RuntimeState, supervise
 root=Path(sys.argv[1])
-async def main():
+async def main(settings, stop):
  server=grpc.aio.server()
  async def call(request, context):
   (root/'started').touch()
@@ -32,11 +33,16 @@ async def main():
    await channel.channel_ready()
    (root/'port').write_text(str(port))
  task=asyncio.create_task(ready())
- try: await serve_grpc(server, .5)
+ async def serve():
+  await server.start()
+  await server.wait_for_termination()
+ async def halt(): await server.stop(.5)
+ try: await supervise([Component('grpc', serve, halt, lambda: True, 1)], RuntimeState(), stop)
  finally:
   await task
   (root/'closed').touch()
-asyncio.run(main())
+entry.serve = main
+entry.main()
 """
 
 

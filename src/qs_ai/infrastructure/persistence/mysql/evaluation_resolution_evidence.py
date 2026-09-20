@@ -1,5 +1,6 @@
 """Shared original evidence for unknown-call inspection and authorized resolution."""
 
+import asyncio
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -41,7 +42,7 @@ class ResolutionEvidence:
 async def load_resolution_evidence(
     db: AsyncSession, run_id: UUID, creation: dict[str, Any], progress: dict[str, Any]
 ) -> ResolutionEvidence:
-    policy = load_execution_policy()
+    policy = await asyncio.to_thread(load_execution_policy)
     if creation["execution_policy_json"] != policy.definition_json:
         raise ValueError("Frozen execution policy unavailable")
     records = []
@@ -62,13 +63,16 @@ async def load_resolution_evidence(
         records.append(rows)
     generations, semantics, dispatches = records
     # Revalidate original bytes and indexes against every reserved dispatch and prior decision.
-    project_slots(
-        creation["slots"],
-        generations,
-        dispatches,
-        semantics,
-        progress.get("result_unknown_resolutions", []),
-        progress.get("semantic_contract_recoveries", []),
+    (
+        await asyncio.to_thread(
+            project_slots,
+            creation["slots"],
+            generations,
+            dispatches,
+            semantics,
+            progress.get("result_unknown_resolutions", []),
+            progress.get("semantic_contract_recoveries", []),
+        )
     )
     unknowns = tuple(
         UnknownExecution(

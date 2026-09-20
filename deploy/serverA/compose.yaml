@@ -1,26 +1,34 @@
 name: qs-ai
 services:
-  api: &runtime
+  qs-ai:
     image: ${QS_AI_IMAGE:?Set the immutable image tag}
-    container_name: qs-ai-api
+    container_name: qs-ai
     restart: unless-stopped
     environment:
       QS_AI_ENVIRONMENT: production
     ports:
-      - "127.0.0.1:18080:8000"
+    - 127.0.0.1:18080:8000
     networks:
-      - backend
-    mem_limit: 512m
-    cpus: "1.0"
+      backend:
+        aliases:
+        - qs-ai-grpc
+        - qs-ai-api
+    mem_limit: 1g
+    cpus: '2.0'
     read_only: true
     tmpfs:
-      - /tmp:rw,noexec,nosuid,size=64m
+    - /tmp:rw,noexec,nosuid,size=64m
     security_opt:
-      - no-new-privileges:true
+    - no-new-privileges:true
     cap_drop:
-      - ALL
+    - ALL
     healthcheck:
-      test: ["CMD", "/app/.venv/bin/python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/readyz', timeout=3)"]
+      test:
+      - CMD
+      - /app/.venv/bin/python
+      - -c
+      - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/readyz',
+        timeout=3)
       interval: 15s
       timeout: 5s
       retries: 4
@@ -28,40 +36,28 @@ services:
     logging:
       driver: json-file
       options:
-        max-size: "10m"
-        max-file: "3"
-  grpc:
-    <<: *runtime
-    container_name: qs-ai-grpc
-    ports: []
-    command: ["/app/.venv/bin/python", "-m", "qs_ai.bootstrap.integration", "serve"]
+        max-size: 10m
+        max-file: '3'
+    stop_grace_period: 210s
     volumes:
-      - type: bind
-        source: /data/infra/ssl/grpc/ca/ca-chain.crt
-        target: /run/qs-ai-tls/ca-chain.crt
-        read_only: true
-        bind:
-          create_host_path: false
-      - type: bind
-        source: /data/infra/ssl/grpc/server/qs-ai-fullchain.crt
-        target: /run/qs-ai-tls/qs-ai-fullchain.crt
-        read_only: true
-        bind:
-          create_host_path: false
-      - type: bind
-        source: /data/infra/ssl/grpc/server/qs-ai.key
-        target: /run/qs-ai-tls/qs-ai.key
-        read_only: true
-        bind:
-          create_host_path: false
-    healthcheck:
-      # The AI certificate must complete TLS but be denied as an inbound QS caller.
-      test: ["CMD", "/app/.venv/bin/python", "-m", "qs_ai.bootstrap.grpc_probe"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 15s
-
+    - type: bind
+      source: /data/infra/ssl/grpc/ca/ca-chain.crt
+      target: /run/qs-ai-tls/ca-chain.crt
+      read_only: true
+      bind:
+        create_host_path: false
+    - type: bind
+      source: /data/infra/ssl/grpc/server/qs-ai-fullchain.crt
+      target: /run/qs-ai-tls/qs-ai-fullchain.crt
+      read_only: true
+      bind:
+        create_host_path: false
+    - type: bind
+      source: /data/infra/ssl/grpc/server/qs-ai.key
+      target: /run/qs-ai-tls/qs-ai.key
+      read_only: true
+      bind:
+        create_host_path: false
 networks:
   backend:
     external: true

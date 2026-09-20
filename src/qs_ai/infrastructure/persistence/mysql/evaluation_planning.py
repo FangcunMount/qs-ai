@@ -1,5 +1,6 @@
 """Read immutable suites and assets from one snapshot; never reserve calls or create Runs."""
 
+import asyncio
 import json
 
 from qs_ai.application.evaluation.planning import EvaluationPlan, EvaluationPlanQuery
@@ -58,9 +59,9 @@ class MySQLEvaluationPlanner:
             if evaluation_ref(manifest.generation_route) != query.generation_route:
                 raise ValueError("Selected generation route does not match suite Profile")
             execution, gate, semantic = (
-                load_execution_policy(),
-                load_gate_policy(),
-                load_semantic_assets(),
+                (await asyncio.to_thread(load_execution_policy)),
+                (await asyncio.to_thread(load_gate_policy)),
+                (await asyncio.to_thread(load_semantic_assets)),
             )
             release = EvidenceReleaseIdentity(
                 suite=query.suite,

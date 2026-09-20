@@ -1,5 +1,6 @@
 """Resolve every original release component before creating an evaluation Run."""
 
+import asyncio
 import json
 
 from qs_ai.application.evaluation.release import resolve_generation_assets, resolve_semantic_route
@@ -28,11 +29,14 @@ async def validate_release_assets(
     *,
     frozen_suite: FrozenSuite | None = None,
 ) -> GenerationManifest:
-    suite = resolve_suite(release.suite, frozen_suite)
-    validate_suite_inputs(suite, release.input_schema)
-    execution, gate = load_execution_policy(), load_gate_policy()
+    suite = await asyncio.to_thread(resolve_suite, release.suite, frozen_suite)
+    (await asyncio.to_thread(validate_suite_inputs, suite, release.input_schema))
+    execution, gate = (
+        (await asyncio.to_thread(load_execution_policy)),
+        (await asyncio.to_thread(load_gate_policy)),
+    )
     release.validate_frozen_policies(execution.definition_json, gate.definition_json)
-    semantic = load_semantic_assets()
+    semantic = await asyncio.to_thread(load_semantic_assets)
     if (release.semantic_prompt, release.semantic_output_schema) != (
         semantic.prompt,
         semantic.output_schema,

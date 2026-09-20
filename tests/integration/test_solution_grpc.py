@@ -8,10 +8,10 @@ import grpc
 import pytest
 
 from qs_ai.bootstrap.container import create_container
+from qs_ai.bootstrap.grpc_server import create_grpc_server
 from qs_ai.config import Settings
 from qs_ai.contracts.workflow import workflow_pb2 as pb
 from qs_ai.contracts.workflow import workflow_pb2_grpc as rpc
-from qs_ai.transport.grpc.solutions import SolutionManagement
 from tests.integration.test_delivery import certificates
 from tests.integration.test_evaluation_management_interop import go_management as go_management
 from tests.integration.test_solutions import (
@@ -46,9 +46,9 @@ async def solution_rpc(workspace, tmp_path):
             )
         )
     )
-    server = grpc.aio.server()
-    rpc.add_SolutionManagementServicer_to_server(SolutionManagement(container), server)
     ca, cert, key = [(tmp_path / name).read_bytes() for name in ("ca.pem", "ai.pem", "ai.key")]
+    settings = Settings(grpc={"bind_address": "localhost:0", "governance_enabled": True})
+    server = create_grpc_server(container, settings, ca, cert, key)
     port = server.add_secure_port(
         "localhost:0",
         grpc.ssl_server_credentials([(key, cert)], root_certificates=ca, require_client_auth=True),

@@ -94,7 +94,7 @@ def test_deployment_secret_encoding_and_rejection():
     encode = runpy.run_path(str(script))["secret_override"]
     value = "mysql+asyncmy://user:pa$word@host/qs_ai"
     override = encode(value)
-    assert override["services"]["api"]["environment"]["QS_AI_DATABASE_URL"] == value.replace(
+    assert override["services"]["qs-ai"]["environment"]["QS_AI_DATABASE_URL"] == value.replace(
         "$", "$$"
     )
     with pytest.raises(ValueError):

@@ -1,5 +1,6 @@
 """Dispatch reservation inside a caller-owned transaction; no provider call occurs here."""
 
+import asyncio
 import hashlib
 import json
 from datetime import datetime
@@ -35,7 +36,7 @@ async def freeze_policy(db: AsyncSession, run_id: UUID, policy: ExecutionPolicy)
         != policy.fingerprint
     ):
         raise ValueError("Policy fingerprint mismatch")
-    if policy != load_execution_policy():
+    if policy != (await asyncio.to_thread(load_execution_policy)):
         raise ValueError("Unregistered evaluation policy")
     await db.execute(
         insert(policies).values(
