@@ -7,6 +7,7 @@ from qs_ai.application.evaluation.management import EvaluationManagementStore
 from qs_ai.application.evaluation.planning import EvaluationPlanner
 from qs_ai.application.evaluation.requests import EvaluationRequests
 from qs_ai.application.governance.asset_catalog import AssetCatalog
+from qs_ai.application.governance.asset_references import PolicyReferences
 from qs_ai.application.governance.flow import FlowReader
 from qs_ai.application.governance.profile_lifecycle import ProfileLifecycleReader
 from qs_ai.application.governance.profile_registration import ProfileRegistrar
@@ -25,6 +26,7 @@ from qs_ai.application.integration.events import (
 )
 from qs_ai.config import Settings
 from qs_ai.infrastructure.persistence.mysql.asset_catalog import MySQLAssetCatalog
+from qs_ai.infrastructure.persistence.mysql.asset_references import MySQLPolicyReferences
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
 from qs_ai.infrastructure.persistence.mysql.evaluation_capacity import MySQLEvaluationCapacity
 from qs_ai.infrastructure.persistence.mysql.evaluation_catalog import MySQLEvaluationCatalog
@@ -66,6 +68,9 @@ class IntegrationProvider(Provider):
     )
     profile_lifecycle = provide(
         MySQLProfileLifecycle, provides=ProfileLifecycleReader, scope=Scope.REQUEST
+    )
+    policy_references = provide(
+        MySQLPolicyReferences, provides=PolicyReferences, scope=Scope.REQUEST
     )
     asset_catalog = provide(MySQLAssetCatalog, provides=AssetCatalog, scope=Scope.REQUEST)
     evaluation_planner = provide(

@@ -11,6 +11,7 @@ from qs_ai.config import Settings
 from qs_ai.contracts.workflow import workflow_pb2 as pb
 from qs_ai.contracts.workflow import workflow_pb2_grpc as rpc
 from qs_ai.transport.grpc.asset_catalog import AssetCatalogService
+from qs_ai.transport.grpc.quotas import QuotaManagement
 from tests.integration.test_asset_catalog import assets as assets
 from tests.integration.test_asset_catalog import catalog as catalog
 from tests.integration.test_asset_catalog import complete_release as complete_release
@@ -36,6 +37,7 @@ async def catalog_server(catalog, tmp_path):
     )
     server = grpc.aio.server()
     rpc.add_AssetCatalogServicer_to_server(AssetCatalogService(container), server)
+    rpc.add_QuotaManagementServicer_to_server(QuotaManagement(container), server)
     ca, cert, key = [(tmp_path / name).read_bytes() for name in ("ca.pem", "ai.pem", "ai.key")]
     port = server.add_secure_port(
         "localhost:0",
@@ -127,3 +129,45 @@ async def test_wrong_workload_invalid_scope_filters_and_missing_detail(catalog_s
                 timeout=5,
             )
         assert error.value.code() == grpc.StatusCode.NOT_FOUND
+
+
+async def test_configuration_status_requires_qs_identity_and_valid_scope(catalog_server):
+    query = pb.QuotaQuery(scope=pb.PublicationScope(organization_id=1, operator_user_id=42))
+    async with catalog_server("other") as channel:
+        with pytest.raises(grpc.aio.AioRpcError) as error:
+            await rpc.QuotaManagementStub(channel).Status(query, timeout=5)
+        assert error.value.code() == grpc.StatusCode.PERMISSION_DENIED
+    async with catalog_server() as channel:
+        client = rpc.QuotaManagementStub(channel)
+        result = await client.Status(query, timeout=5)
+        assert result.schema_version == "qs-ai-configuration-status/v1"
+        data = json.loads(result.data_json)
+        assert data["organization_id"] == 1
+        assert data["categories"]
+        with pytest.raises(grpc.aio.AioRpcError) as error:
+            await client.Status(pb.QuotaQuery(), timeout=5)
+        assert error.value.code() == grpc.StatusCode.INVALID_ARGUMENT
+
+
+async def test_policy_references_require_qs_and_reject_invalid_scope(catalog_server):
+    query = pb.PolicyReferencesQuery(
+        scope=pb.PublicationScope(organization_id=1, operator_user_id=42),
+        kind="execution_policy",
+        usage_kind="evaluation",
+        reference=pb.FrozenEvaluationRef(
+            id="missing", version="v1", fingerprint="sha256:" + "a" * 64
+        ),
+    )
+    async with catalog_server("other") as channel:
+        with pytest.raises(grpc.aio.AioRpcError) as error:
+            await rpc.AssetCatalogStub(channel).References(query, timeout=5)
+        assert error.value.code() == grpc.StatusCode.PERMISSION_DENIED
+    async with catalog_server() as channel:
+        client = rpc.AssetCatalogStub(channel)
+        with pytest.raises(grpc.aio.AioRpcError) as error:
+            await client.References(query, timeout=5)
+        assert error.value.code() == grpc.StatusCode.NOT_FOUND
+        query.scope.Clear()
+        with pytest.raises(grpc.aio.AioRpcError) as error:
+            await client.References(query, timeout=5)
+        assert error.value.code() == grpc.StatusCode.INVALID_ARGUMENT
