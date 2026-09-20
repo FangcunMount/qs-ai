@@ -32,3 +32,5 @@
 - [语义契约故障单次恢复](semantic-contract-recovery.md)：受信主机预览与授权、原证据保留和发布校验。
 
 - [候选最终结果验收](candidate-completion-acceptance.md)：版本化规则、旧 Run 采用、发布门槛与调用观测。
+
+- [AI 解读管理第二版](ai-governance-v2.md)：持久方案、模型参数、原子准备与验证边界。

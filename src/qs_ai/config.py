@@ -120,6 +120,8 @@ class Settings(BaseSettings):
     environment: Literal["local", "production"] = "local"
     database_url: SecretStr | None = None
     model_api_key: SecretStr | None = None
+    # Only models verified for the deployed adapter may be offered for editing.
+    governance_models: tuple[str, ...] = ("deepseek-v4-pro",)
     participant_capacity: ParticipantCapacityOptions
     generation: GenerationOptions
     http: HTTPOptions

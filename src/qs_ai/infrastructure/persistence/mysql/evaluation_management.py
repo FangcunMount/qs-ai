@@ -13,11 +13,17 @@ from qs_ai.application.evaluation.capacity import EvaluationCapacityPolicy
 from qs_ai.application.evaluation.gates import GatePreview
 from qs_ai.application.evaluation.management import EvaluationView, ManagementScope
 from qs_ai.application.evaluation.unknowns import UnknownExecutionIndex, validate_unknown_query
+from qs_ai.application.governance.solution_models import (
+    DEFAULT_EDITABLE_MODELS,
+    EditableModelPolicy,
+)
 from qs_ai.application.interpretation.ports import NotFound
 from qs_ai.domain.evaluation.resolution import ResultUnknownResolution
 from qs_ai.domain.evaluation.review import CandidateHumanReview
 from qs_ai.infrastructure.persistence.mysql import evaluation_candidates
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
+from qs_ai.infrastructure.persistence.mysql.editable_model_policy import check_editable_models
+from qs_ai.infrastructure.persistence.mysql.evaluation_assets import run_release
 from qs_ai.infrastructure.persistence.mysql.evaluation_cancellation import cancel, read_cancellation
 from qs_ai.infrastructure.persistence.mysql.evaluation_capacity import admit, lock_admission
 from qs_ai.infrastructure.persistence.mysql.evaluation_creation_receipt import creation_receipt
@@ -87,9 +93,11 @@ class MySQLEvaluationManagement:
         self,
         transactions: Transactions,
         capacity: EvaluationCapacityPolicy = _DEFAULT_CAPACITY,
+        models: EditableModelPolicy = DEFAULT_EDITABLE_MODELS,
     ) -> None:
         self.transactions = transactions
         self.capacity = capacity
+        self.models = models
 
     async def cancel(
         self,
@@ -200,7 +208,17 @@ class MySQLEvaluationManagement:
             # Serialize starts before creating a read snapshot or acquiring Run locks.
             await lock_admission(db, scope.organization_id)
             # Scope lookup precedes state changes; absent and foreign Runs look identical.
-            await read_view(db, scope)
+            view = await read_view(db, scope)
+            if view.status == "requested":
+                creation = await db.scalar(
+                    select(evaluation_runs.c.definition_json).where(
+                        evaluation_runs.c.run_id == str(scope.run_id),
+                        evaluation_runs.c.organization_id == scope.organization_id,
+                    )
+                )
+                assert creation is not None
+                # Only new starts recheck policy. Accepted work keeps its original snapshot.
+                await check_editable_models(db, run_release(json.loads(creation)), self.models)
             await transition_requested(
                 db,
                 scope.run_id,

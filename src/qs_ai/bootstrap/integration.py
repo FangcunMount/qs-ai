@@ -23,6 +23,7 @@ from qs_ai.transport.grpc.participant import ParticipantManagement
 from qs_ai.transport.grpc.profile_registration import ProfileManagement
 from qs_ai.transport.grpc.prompt_drafts import PromptDraftManagement
 from qs_ai.transport.grpc.publication import PublicationManagement
+from qs_ai.transport.grpc.solutions import SolutionManagement
 from qs_ai.transport.grpc.suite_registration import SuiteManagement
 
 
@@ -55,6 +56,7 @@ async def main() -> None:
             )
             rpc.add_CommandsServicer_to_server(Commands(container), server)
             if settings.grpc.governance_enabled:
+                rpc.add_SolutionManagementServicer_to_server(SolutionManagement(container), server)
                 rpc.add_AssetCatalogServicer_to_server(AssetCatalogService(container), server)
                 rpc.add_SuiteManagementServicer_to_server(SuiteManagement(container), server)
                 rpc.add_ProfileManagementServicer_to_server(ProfileManagement(container), server)
