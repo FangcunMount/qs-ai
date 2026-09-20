@@ -172,3 +172,46 @@ async def test_management_capacity_reads_scoped_limits_and_current_usage_without
     assert foreign.organization.daily_reserved == foreign.organization.active == 0
     assert not foreign.daily_reservations and foreign.subject is None
     assert await reservations(kit) == before
+
+
+async def test_online_quota_reaches_admission_without_restarting_service(kit):
+    from datetime import UTC, datetime
+
+    from sqlalchemy import delete
+
+    from qs_ai.application.governance.prompt_drafts import DraftScope
+    from qs_ai.application.governance.quotas import default_baseline
+    from qs_ai.infrastructure.persistence.mysql.quotas import MySQLQuotas
+    from qs_ai.infrastructure.persistence.mysql.schema import (
+        organization_quota_commands,
+        organization_quota_pointers,
+        organization_quota_versions,
+    )
+
+    service, _ = services(kit, ParticipantCapacityPolicy())
+    scope = DraftScope(int(kit.actor.org_id), 42)
+    quotas = MySQLQuotas(kit.transactions, default_baseline())
+    baseline = default_baseline().defaults
+    lowered = replace(baseline, participant=replace(baseline.participant, daily_user=1))
+    try:
+        await quotas.apply(scope, uuid4(), 0, "验证在线额度", datetime.now(UTC), values=lowered)
+        first = await start(kit, service)
+        second = await start(kit, service)
+        assert first.status == "queued"
+        assert second.status == "blocked"
+        rows = await reservations(kit)
+        assert len(rows) == 1 and rows[0]["quota_snapshot"]["revision"] == 1
+        await quotas.apply(scope, uuid4(), 1, "恢复额度", datetime.now(UTC), values=baseline)
+        assert (await start(kit, service)).status == "queued"
+        assert len(await reservations(kit)) == 2
+    finally:
+        async with kit.transactions.open() as db:
+            for table in (
+                organization_quota_commands,
+                organization_quota_pointers,
+                organization_quota_versions,
+            ):
+                await db.execute(
+                    delete(table).where(table.c.organization_id == scope.organization_id)
+                )
+            await db.commit()

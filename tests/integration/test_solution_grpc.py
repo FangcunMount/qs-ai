@@ -14,6 +14,7 @@ from qs_ai.contracts.workflow import workflow_pb2 as pb
 from qs_ai.contracts.workflow import workflow_pb2_grpc as rpc
 from tests.integration.test_delivery import certificates
 from tests.integration.test_evaluation_management_interop import go_management as go_management
+from tests.integration.test_quotas import quotas as quotas
 from tests.integration.test_solutions import (
     assets as assets,
 )
@@ -178,3 +179,65 @@ async def test_go_authorized_proxy_to_python_persistent_receipt(
     )
     assert receipt == accepted
     assert (await call(SolutionWrite=False, SolutionOperation="get", OrgID=2))["Code"] == "NotFound"
+
+
+@pytest.mark.interop
+async def test_go_quota_authorization_to_python_receipt(
+    quotas, solution_rpc, go_management, tmp_path
+):
+    import asyncio
+    from uuid import uuid4
+
+    from tests.integration.test_quotas import reduced
+
+    _, scope, _ = quotas
+    port, _ = solution_rpc
+    command_id = str(uuid4())
+    body = dict(
+        Action="quota",
+        QuotaWrite=True,
+        QuotaOperation="update",
+        QuotaBody={
+            "command_id": command_id,
+            "expected_revision": 0,
+            "reason": "跨进程额度验证",
+            "values": asdict(reduced()),
+        },
+        OrgID=scope.organization_id,
+        UserID=scope.operator_user_id,
+        Allowed=True,
+    )
+
+    async def call(**changes):
+        process = await asyncio.create_subprocess_exec(
+            str(go_management),
+            f"localhost:{port}",
+            str(tmp_path / "ca.pem"),
+            str(tmp_path / "qs.pem"),
+            str(tmp_path / "qs.key"),
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        try:
+            output, _ = await asyncio.wait_for(
+                process.communicate(json.dumps({**body, **changes}).encode()), 20
+            )
+            assert process.returncode == 0
+            return json.loads(output)
+        finally:
+            if process.returncode is None:
+                process.kill()
+                await process.wait()
+
+    assert (await call(Allowed=False))["Denied"]
+    assert (await call(AuditOnly=True))["Denied"]
+    accepted = await call()
+    assert accepted["Code"] == "OK" and accepted["State"]["revision"] == 1
+    assert (
+        await call(QuotaWrite=False, QuotaOperation="receipt", QuotaCommandID=command_id)
+        == accepted
+    )
+    assert (
+        await call(QuotaWrite=False, QuotaOperation="receipt", QuotaCommandID=command_id, UserID=43)
+    )["Code"] == "NotFound"

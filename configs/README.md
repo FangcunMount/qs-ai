@@ -23,3 +23,9 @@
 连接池、租约、投递与 gRPC 参数是启动配置；Prompt、模型路线与发布版本是后续业务治理数据，不放进这些文件。不提供热更新，修改配置后需重启相应进程。
 
 生产部署操作和 Secret 名称见 [serverA 部署](../deploy/serverA/README.md)。
+
+### 组织额度部署边界
+
+现有 `participant_capacity` 和 `evaluation.daily_provider_calls/max_active_runs` 是部署默认值。
+可选 `quota_ceilings` 包含 `participant` 六项与 `evaluation` 两项完整正整数上限；未配置时上限等于当前部署默认值。
+默认值不得超过上限。上限由运维部署修改，组织写接口不能修改部署上限。

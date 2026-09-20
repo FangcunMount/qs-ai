@@ -1240,6 +1240,32 @@ class SolutionResponse(_message.Message):
     data_json: str
     def __init__(self, schema_version: _Optional[str] = ..., data_json: _Optional[str] = ...) -> None: ...
 
+class QuotaQuery(_message.Message):
+    __slots__ = ("scope", "command_id", "before_revision")
+    SCOPE_FIELD_NUMBER: _ClassVar[int]
+    COMMAND_ID_FIELD_NUMBER: _ClassVar[int]
+    BEFORE_REVISION_FIELD_NUMBER: _ClassVar[int]
+    scope: PublicationScope
+    command_id: str
+    before_revision: int
+    def __init__(self, scope: _Optional[_Union[PublicationScope, _Mapping]] = ..., command_id: _Optional[str] = ..., before_revision: _Optional[int] = ...) -> None: ...
+
+class QuotaWrite(_message.Message):
+    __slots__ = ("scope", "command_json")
+    SCOPE_FIELD_NUMBER: _ClassVar[int]
+    COMMAND_JSON_FIELD_NUMBER: _ClassVar[int]
+    scope: PublicationScope
+    command_json: str
+    def __init__(self, scope: _Optional[_Union[PublicationScope, _Mapping]] = ..., command_json: _Optional[str] = ...) -> None: ...
+
+class QuotaResponse(_message.Message):
+    __slots__ = ("schema_version", "data_json")
+    SCHEMA_VERSION_FIELD_NUMBER: _ClassVar[int]
+    DATA_JSON_FIELD_NUMBER: _ClassVar[int]
+    schema_version: str
+    data_json: str
+    def __init__(self, schema_version: _Optional[str] = ..., data_json: _Optional[str] = ...) -> None: ...
+
 class RuntimeQuery(_message.Message):
     __slots__ = ("scope", "session_ids")
     SCOPE_FIELD_NUMBER: _ClassVar[int]

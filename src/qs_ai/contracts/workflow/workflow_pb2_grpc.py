@@ -2648,6 +2648,253 @@ class SolutionManagement:
             _registered_method=True)
 
 
+class QuotaManagementStub:
+    """Organization quota policy. Scope is asserted by the authorized QS workload.
+    """
+
+    def __init__(self, channel):
+        """Constructor.
+
+        Args:
+            channel: A grpc.Channel.
+        """
+        self.Get = channel.unary_unary(
+                '/qsai.workflow.v1.QuotaManagement/Get',
+                request_serializer=workflow__pb2.QuotaQuery.SerializeToString,
+                response_deserializer=workflow__pb2.QuotaResponse.FromString,
+                _registered_method=True)
+        self.History = channel.unary_unary(
+                '/qsai.workflow.v1.QuotaManagement/History',
+                request_serializer=workflow__pb2.QuotaQuery.SerializeToString,
+                response_deserializer=workflow__pb2.QuotaResponse.FromString,
+                _registered_method=True)
+        self.GetReceipt = channel.unary_unary(
+                '/qsai.workflow.v1.QuotaManagement/GetReceipt',
+                request_serializer=workflow__pb2.QuotaQuery.SerializeToString,
+                response_deserializer=workflow__pb2.QuotaResponse.FromString,
+                _registered_method=True)
+        self.Update = channel.unary_unary(
+                '/qsai.workflow.v1.QuotaManagement/Update',
+                request_serializer=workflow__pb2.QuotaWrite.SerializeToString,
+                response_deserializer=workflow__pb2.QuotaResponse.FromString,
+                _registered_method=True)
+        self.Rollback = channel.unary_unary(
+                '/qsai.workflow.v1.QuotaManagement/Rollback',
+                request_serializer=workflow__pb2.QuotaWrite.SerializeToString,
+                response_deserializer=workflow__pb2.QuotaResponse.FromString,
+                _registered_method=True)
+
+
+class QuotaManagementServicer:
+    """Organization quota policy. Scope is asserted by the authorized QS workload.
+    """
+
+    def Get(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def History(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetReceipt(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def Update(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def Rollback(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+
+def add_QuotaManagementServicer_to_server(servicer, server):
+    rpc_method_handlers = {
+            'Get': grpc.unary_unary_rpc_method_handler(
+                    servicer.Get,
+                    request_deserializer=workflow__pb2.QuotaQuery.FromString,
+                    response_serializer=workflow__pb2.QuotaResponse.SerializeToString,
+            ),
+            'History': grpc.unary_unary_rpc_method_handler(
+                    servicer.History,
+                    request_deserializer=workflow__pb2.QuotaQuery.FromString,
+                    response_serializer=workflow__pb2.QuotaResponse.SerializeToString,
+            ),
+            'GetReceipt': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetReceipt,
+                    request_deserializer=workflow__pb2.QuotaQuery.FromString,
+                    response_serializer=workflow__pb2.QuotaResponse.SerializeToString,
+            ),
+            'Update': grpc.unary_unary_rpc_method_handler(
+                    servicer.Update,
+                    request_deserializer=workflow__pb2.QuotaWrite.FromString,
+                    response_serializer=workflow__pb2.QuotaResponse.SerializeToString,
+            ),
+            'Rollback': grpc.unary_unary_rpc_method_handler(
+                    servicer.Rollback,
+                    request_deserializer=workflow__pb2.QuotaWrite.FromString,
+                    response_serializer=workflow__pb2.QuotaResponse.SerializeToString,
+            ),
+    }
+    generic_handler = grpc.method_handlers_generic_handler(
+            'qsai.workflow.v1.QuotaManagement', rpc_method_handlers)
+    server.add_generic_rpc_handlers((generic_handler,))
+    server.add_registered_method_handlers('qsai.workflow.v1.QuotaManagement', rpc_method_handlers)
+
+
+ # This class is part of an EXPERIMENTAL API.
+class QuotaManagement:
+    """Organization quota policy. Scope is asserted by the authorized QS workload.
+    """
+
+    @staticmethod
+    def Get(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.QuotaManagement/Get',
+            workflow__pb2.QuotaQuery.SerializeToString,
+            workflow__pb2.QuotaResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def History(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.QuotaManagement/History',
+            workflow__pb2.QuotaQuery.SerializeToString,
+            workflow__pb2.QuotaResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetReceipt(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.QuotaManagement/GetReceipt',
+            workflow__pb2.QuotaQuery.SerializeToString,
+            workflow__pb2.QuotaResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def Update(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.QuotaManagement/Update',
+            workflow__pb2.QuotaWrite.SerializeToString,
+            workflow__pb2.QuotaResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def Rollback(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.QuotaManagement/Rollback',
+            workflow__pb2.QuotaWrite.SerializeToString,
+            workflow__pb2.QuotaResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+
 class RuntimeManagementStub:
     """Read-only runtime evidence. Does not renew leases or dispatch models.
     """

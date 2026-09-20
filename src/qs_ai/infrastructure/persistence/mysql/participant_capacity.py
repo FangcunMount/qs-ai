@@ -9,7 +9,9 @@ from sqlalchemy.dialects.mysql import insert as mysql_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from qs_ai.application.execution.capacity import ParticipantCapacityPolicy
+from qs_ai.application.governance.quotas import QuotaBaseline
 from qs_ai.domain.interpretation.model import RuleViolation, Session
+from qs_ai.infrastructure.persistence.mysql.quotas import participant_policy
 from qs_ai.infrastructure.persistence.mysql.schema import (
     participant_admission_locks as locks,
 )
@@ -60,13 +62,20 @@ async def prior(db: AsyncSession, session: Session) -> Mapping[Any, Any] | None:
 
 
 async def reserve(
-    db: AsyncSession, session: Session, policy: ParticipantCapacityPolicy, at: datetime
+    db: AsyncSession,
+    session: Session,
+    policy: ParticipantCapacityPolicy,
+    at: datetime,
+    quota_baseline: QuotaBaseline | None = None,
 ) -> None:
     if at.tzinfo is None or not session.active_run_id:
         raise ValueError("Participant reservation requires UTC time and Run")
     await lock(db, session)
     if await prior(db, session) is not None:
         return
+    policy, quota_snapshot = await participant_policy(
+        db, int(session.actor.org_id), policy, quota_baseline
+    )
     day = at.astimezone(UTC).date()
     # Current locking reads avoid an older snapshot established by idempotency lookup.
     rows = (
@@ -95,19 +104,24 @@ async def reserve(
             budget_day=day,
             reserved_at=at.astimezone(UTC).replace(tzinfo=None),
             active=False,
+            quota_snapshot=quota_snapshot,
         )
     )
 
 
 async def acquire(
-    db: AsyncSession, session: Session, policy: ParticipantCapacityPolicy, at: datetime
+    db: AsyncSession,
+    session: Session,
+    policy: ParticipantCapacityPolicy,
+    at: datetime,
+    quota_baseline: QuotaBaseline | None = None,
 ) -> bool:
     await lock(db, session)
     row = await prior(db, session)
     if row is None:
         # Pre-migration queued work cannot silently bypass the budget on its first call.
         try:
-            await reserve(db, session, policy, at)
+            await reserve(db, session, policy, at, quota_baseline)
         except RuleViolation as error:
             if error.code != "participant_daily_capacity_exceeded":
                 raise
@@ -130,6 +144,7 @@ async def acquire(
         .mappings()
         .all()
     )
+    policy, _ = await participant_policy(db, int(session.actor.org_id), policy, quota_baseline)
     if not fits(rows, session, (policy.active_org, policy.active_user, policy.active_assessment)):
         return False
     await db.execute(
