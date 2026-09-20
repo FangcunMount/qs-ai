@@ -98,3 +98,88 @@ async def test_publication_flow_remains_fixed_after_pointer_pause(ready, publish
     assert after["version"] == before["version"]
     assert after["nodes"] == before["nodes"]
     assert after["release_fingerprint"] == active.evidence.release.fingerprint()
+
+
+async def test_flow_uses_selected_org_judge_before_and_after_freeze(workspace):
+    from dataclasses import asdict
+
+    from sqlalchemy import delete
+
+    from qs_ai.application.governance.semantic_drafts import (
+        CreateSemanticDraft,
+        FreezeSemanticDraft,
+        ReviseSemanticDraft,
+    )
+    from qs_ai.infrastructure.persistence.mysql.semantic_drafts import MySQLSemanticDrafts
+    from qs_ai.infrastructure.persistence.mysql.solution_assets import release_from
+
+    tx, store, scope, sid, command, at = workspace
+    initial = await store.apply(scope, sid, command, at)
+    source = release_from(initial["source_release"])
+    draft_id, version = uuid4(), "flow-judge-" + str(uuid4())
+    drafts = MySQLSemanticDrafts(tx)
+    try:
+        first = await drafts.apply(
+            scope,
+            CreateSemanticDraft(
+                draft_id,
+                uuid4(),
+                source.semantic_prompt,
+                source.semantic_output_schema,
+                0,
+                version,
+                "流程选择回归",
+            ),
+            at,
+        )
+        markdown = first.markdown + "\n仅用于流程读取回归"
+        await drafts.apply(
+            scope, ReviseSemanticDraft(draft_id, uuid4(), 1, markdown, "修改测试正文"), at
+        )
+        frozen = await drafts.apply(
+            scope, FreezeSemanticDraft(draft_id, uuid4(), 2, "冻结供方案选择"), at
+        )
+        changed = await store.apply(
+            scope,
+            sid,
+            edit(
+                initial,
+                semantic_prompt=asdict(frozen.asset_reference()),
+                semantic_owner_organization_id=scope.organization_id,
+            ),
+            at,
+        )
+        for prepared in (False, True):
+            if prepared:
+                await store.apply(
+                    scope,
+                    sid,
+                    PrepareSolution(
+                        command_id=uuid4(),
+                        expected_revision=changed["revision"],
+                        reason="固定所选评测配置",
+                    ),
+                    at,
+                )
+            flow = await MySQLFlowReader(tx).solution(scope, sid)
+            semantic = next(n for n in flow["nodes"] if n["id"] == "semantic")
+            assert semantic["details"]["prompt"] == markdown
+            assert semantic["assets"][0] == asdict(frozen.asset_reference())
+            assert semantic["details"]["prompt_editable"] is False
+            assert flow["immutable"] is prepared
+            with pytest.raises(NotFound):
+                await MySQLFlowReader(tx).solution(DraftScope(2, 42), sid)
+    finally:
+        async with tx.open() as db:
+            for table in (
+                tables.semantic_draft_commands,
+                tables.semantic_draft_versions,
+                tables.semantic_draft_heads,
+            ):
+                await db.execute(delete(table).where(table.c.draft_id == str(draft_id)))
+            await db.execute(
+                delete(tables.semantic_prompt_assets).where(
+                    tables.semantic_prompt_assets.c.version == version
+                )
+            )
+            await db.commit()

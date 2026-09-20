@@ -156,7 +156,7 @@ async def hydrate(db: AsyncSession, scope: DraftScope, state: dict[str, Any]) ->
             "semantic_owner_organization_id", 0
         ),
     )
-    if (release.semantic_prompt, release.semantic_output_schema) != (
+    if (selected.semantic_prompt, selected.semantic_output_schema) != (
         semantic.prompt,
         semantic.output_schema,
     ):

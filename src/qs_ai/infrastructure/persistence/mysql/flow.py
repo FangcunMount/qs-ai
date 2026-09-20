@@ -32,11 +32,25 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
     prompt_assets,
     sessions,
 )
-from qs_ai.infrastructure.persistence.mysql.solution_assets import model_values, release_from
+from qs_ai.infrastructure.persistence.mysql.solution_assets import (
+    model_values,
+    release_from,
+    selected_release,
+)
 from qs_ai.infrastructure.persistence.mysql.solutions import read_state
+from qs_ai.infrastructure.persistence.mysql.suite_contracts import read as read_suite_contracts
 
 
-async def assets(db: AsyncSession, release: EvidenceReleaseIdentity, org: int) -> dict[str, Any]:
+async def assets(
+    db: AsyncSession,
+    release: EvidenceReleaseIdentity,
+    org: int,
+    *,
+    semantic_owner: int | None = None,
+) -> dict[str, Any]:
+    if semantic_owner is None:
+        binding = await read_suite_contracts(db, release.suite, org)
+        semantic_owner = binding.semantic_owner_organization_id
     _, manifest = await generation_snapshot(db, release)
     asset = await AssetSnapshotReader(db, prompt_assets, PromptAsset).get(
         manifest.prompt.identity, manifest.prompt.version
@@ -57,7 +71,7 @@ async def assets(db: AsyncSession, release: EvidenceReleaseIdentity, org: int) -
     semantic_prompt = None
     policy = None
     try:
-        semantic = await semantic_contract(db, release, org)
+        semantic = await semantic_contract(db, release, org, owner_organization_id=semantic_owner)
         semantic_prompt = semantic.prompt_markdown
     except NotFound:
         gaps.append("历史语义正文未登记；保留原指纹，不替换为当前版本。")
@@ -85,8 +99,15 @@ class MySQLFlowReader:
             await db.execute(text("START TRANSACTION READ ONLY"))
             state = await read_state(db, scope, identity)
             prepared = state["prepared"]
-            release = release_from(prepared["release"] if prepared else state["source_release"])
-            data = await assets(db, release, scope.organization_id)
+            release = release_from(prepared["release"]) if prepared else selected_release(state)
+            data = await assets(
+                db,
+                release,
+                scope.organization_id,
+                semantic_owner=None
+                if prepared
+                else state.get("evaluation_assets", {}).get("semantic_owner_organization_id", 0),
+            )
             draft = await read_draft(db, scope, UUID(state["draft_id"]), state["draft_revision"])
             data["content"] = asdict(draft.content)
             data["models"] = {name: state[name] for name in ("generation", "semantic")}
@@ -120,6 +141,8 @@ class MySQLFlowReader:
                 )
             )
             if org is None:
+                raise NotFound("Publication unavailable")
+            if org not in (0, scope.organization_id):
                 raise NotFound("Publication unavailable")
             if org != scope.organization_id:
                 # A global publication can be read only if it actually served this org.
