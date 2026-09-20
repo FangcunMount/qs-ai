@@ -1,11 +1,10 @@
 """Bounded process loops. Each attempt owns its own dependency/request scope."""
 
 import asyncio
-import json
 import logging
 from collections.abc import Awaitable, Callable
 
-logger = logging.getLogger(__name__)
+from qs_ai.application.operations.diagnostics import emit
 
 
 async def run_loop(
@@ -42,19 +41,13 @@ async def run_loop(
             except Exception as error:
                 failures = min(failures + 1, 16)
                 # Database/provider exceptions may embed sensitive data.
-                try:
-                    logger.warning(
-                        json.dumps(
-                            {
-                                "event": "attempt_failed",
-                                "component": component_name,
-                                "error_type": type(error).__name__,
-                                "failures": failures,
-                            }
-                        )
-                    )
-                except Exception:
-                    pass  # Logging must not change retry or shutdown behavior.
+                emit(
+                    "attempt_failed",
+                    component_name,
+                    level=logging.WARNING,
+                    error_type=type(error).__name__,
+                    failures=failures,
+                )
                 await wait(min(max_backoff_seconds, idle_seconds * 2**failures))
             else:
                 failures = 0

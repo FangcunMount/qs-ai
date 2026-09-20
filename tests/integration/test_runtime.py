@@ -1,6 +1,7 @@
 """Real SQL projections preserve business rows and cannot leak foreign sessions."""
 
 import json
+import logging
 import os
 from uuid import uuid4
 
@@ -123,7 +124,6 @@ async def test_milestones_share_commits_preserve_unknown_and_expire_only_diagnos
 ):
     from sqlalchemy import func, text, update
 
-    from qs_ai.infrastructure.observability import events
     from qs_ai.infrastructure.persistence.mysql.runtime_milestones import prune, record
     from qs_ai.infrastructure.persistence.mysql.schema import model_calls, runtime_milestones
 
@@ -131,7 +131,9 @@ async def test_milestones_share_commits_preserve_unknown_and_expire_only_diagnos
     claim = await kit.store.claim(30)
     assert claim is not None
     monkeypatch.setattr(
-        events.logger, "info", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("log offline"))
+        logging.getLogger("qs_ai.structured"),
+        "log",
+        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("log offline")),
     )
     call, dispatched = await kit.store.begin_model_call(claim, '{"fixture":"no provider call"}')
     assert dispatched

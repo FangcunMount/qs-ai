@@ -1,20 +1,21 @@
 """Own process lifetime, not business state. Components never install signals."""
 
 import asyncio
-import json
 import logging
 from collections.abc import Awaitable, Callable, Coroutine
 from dataclasses import dataclass, field
 from typing import Any
 
-logger = logging.getLogger(__name__)
+from qs_ai.application.operations.diagnostics import emit
 
 
 def event(name: str, component: str, **fields: str | int | float) -> None:
-    try:
-        logger.info(json.dumps({"event": name, "component": component, **fields}))
-    except Exception:
-        pass  # Observability failures cannot alter process or business state.
+    level = logging.INFO
+    if name in {"service_failed", "startup_or_runtime_failure", "component_stopped_with_error"}:
+        level = logging.ERROR
+    elif name == "drain_timeout":
+        level = logging.WARNING
+    emit(name, component, level=level, **fields)
 
 
 @dataclass

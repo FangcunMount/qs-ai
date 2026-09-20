@@ -4,6 +4,7 @@ from dishka.integrations.fastapi import DishkaRoute, FromDishka
 from fastapi import APIRouter
 from fastapi.responses import Response
 
+from qs_ai.application.operations.diagnostics import render_process_metrics
 from qs_ai.application.operations.metrics import OperationalMetrics
 
 router = APIRouter(route_class=DishkaRoute)
@@ -44,6 +45,6 @@ def render_metrics(values: dict[str, float]) -> str:
 @router.get("/metrics", include_in_schema=False)
 async def metrics(reader: FromDishka[OperationalMetrics]) -> Response:
     return Response(
-        render_metrics(await reader.collect()),
+        render_metrics(await reader.collect()) + render_process_metrics(),
         media_type="text/plain; version=0.0.4; charset=utf-8",
     )

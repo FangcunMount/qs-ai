@@ -1,6 +1,8 @@
+import logging
 from dataclasses import dataclass
 from typing import Protocol
 
+from qs_ai.application.operations.diagnostics import attempt_context, classify, emit
 from qs_ai.domain.interpretation.model import Actor
 
 
@@ -38,11 +40,25 @@ class DeliverResults:
     async def once(self, limit: int = 20) -> int:
         sent = 0
         for event in await self.store.pending(limit):
-            try:
-                await self.receiver.accept(event)
-            except Exception:
-                await self.store.retry(event.event_id)
-            else:
-                await self.store.delivered(event.event_id)
-                sent += 1
+            with attempt_context(
+                request_id=event.request_id,
+                session_id=event.session_id,
+                delivery_event_id=event.event_id,
+            ):
+                emit("delivery.started", "delivery")
+                try:
+                    await self.receiver.accept(event)
+                except Exception as error:
+                    await self.store.retry(event.event_id)
+                    emit(
+                        "delivery.retry_scheduled",
+                        "delivery",
+                        level=logging.WARNING,
+                        error_code=classify(error),
+                        error_type=type(error).__name__,
+                    )
+                else:
+                    await self.store.delivered(event.event_id)
+                    emit("delivery.acknowledged", "delivery", status=event.status)
+                    sent += 1
         return sent

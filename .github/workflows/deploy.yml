@@ -78,6 +78,7 @@ jobs:
         id: image
         with:
           context: .
+          build-args: RELEASE_SHA=${{ needs.gate.outputs.revision }}
           platforms: linux/amd64
           push: true
           # ACR rejects BuildKit attestation manifests; retain digest and revision checks.
