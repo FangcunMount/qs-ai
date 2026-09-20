@@ -1265,3 +1265,31 @@ class QuotaResponse(_message.Message):
     schema_version: str
     data_json: str
     def __init__(self, schema_version: _Optional[str] = ..., data_json: _Optional[str] = ...) -> None: ...
+
+class SemanticDraftWrite(_message.Message):
+    __slots__ = ("scope", "command_json")
+    SCOPE_FIELD_NUMBER: _ClassVar[int]
+    COMMAND_JSON_FIELD_NUMBER: _ClassVar[int]
+    scope: PublicationScope
+    command_json: str
+    def __init__(self, scope: _Optional[_Union[PublicationScope, _Mapping]] = ..., command_json: _Optional[str] = ...) -> None: ...
+
+class SemanticDraftQuery(_message.Message):
+    __slots__ = ("scope", "draft_id", "revision", "command_id")
+    SCOPE_FIELD_NUMBER: _ClassVar[int]
+    DRAFT_ID_FIELD_NUMBER: _ClassVar[int]
+    REVISION_FIELD_NUMBER: _ClassVar[int]
+    COMMAND_ID_FIELD_NUMBER: _ClassVar[int]
+    scope: PublicationScope
+    draft_id: str
+    revision: int
+    command_id: str
+    def __init__(self, scope: _Optional[_Union[PublicationScope, _Mapping]] = ..., draft_id: _Optional[str] = ..., revision: _Optional[int] = ..., command_id: _Optional[str] = ...) -> None: ...
+
+class SemanticDraftResponse(_message.Message):
+    __slots__ = ("schema_version", "data_json")
+    SCHEMA_VERSION_FIELD_NUMBER: _ClassVar[int]
+    DATA_JSON_FIELD_NUMBER: _ClassVar[int]
+    schema_version: str
+    data_json: str
+    def __init__(self, schema_version: _Optional[str] = ..., data_json: _Optional[str] = ...) -> None: ...

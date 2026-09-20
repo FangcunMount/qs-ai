@@ -2893,3 +2893,293 @@ class QuotaManagement:
             timeout,
             metadata,
             _registered_method=True)
+
+
+class SemanticPromptDraftsStub:
+    """Judge drafts are organization-scoped editing state, never evaluation approval.
+    """
+
+    def __init__(self, channel):
+        """Constructor.
+
+        Args:
+            channel: A grpc.Channel.
+        """
+        self.Create = channel.unary_unary(
+                '/qsai.workflow.v1.SemanticPromptDrafts/Create',
+                request_serializer=workflow__pb2.SemanticDraftWrite.SerializeToString,
+                response_deserializer=workflow__pb2.SemanticDraftResponse.FromString,
+                _registered_method=True)
+        self.Get = channel.unary_unary(
+                '/qsai.workflow.v1.SemanticPromptDrafts/Get',
+                request_serializer=workflow__pb2.SemanticDraftQuery.SerializeToString,
+                response_deserializer=workflow__pb2.SemanticDraftResponse.FromString,
+                _registered_method=True)
+        self.Revise = channel.unary_unary(
+                '/qsai.workflow.v1.SemanticPromptDrafts/Revise',
+                request_serializer=workflow__pb2.SemanticDraftWrite.SerializeToString,
+                response_deserializer=workflow__pb2.SemanticDraftResponse.FromString,
+                _registered_method=True)
+        self.Validate = channel.unary_unary(
+                '/qsai.workflow.v1.SemanticPromptDrafts/Validate',
+                request_serializer=workflow__pb2.SemanticDraftQuery.SerializeToString,
+                response_deserializer=workflow__pb2.SemanticDraftResponse.FromString,
+                _registered_method=True)
+        self.Freeze = channel.unary_unary(
+                '/qsai.workflow.v1.SemanticPromptDrafts/Freeze',
+                request_serializer=workflow__pb2.SemanticDraftWrite.SerializeToString,
+                response_deserializer=workflow__pb2.SemanticDraftResponse.FromString,
+                _registered_method=True)
+        self.GetReceipt = channel.unary_unary(
+                '/qsai.workflow.v1.SemanticPromptDrafts/GetReceipt',
+                request_serializer=workflow__pb2.SemanticDraftQuery.SerializeToString,
+                response_deserializer=workflow__pb2.SemanticDraftResponse.FromString,
+                _registered_method=True)
+
+
+class SemanticPromptDraftsServicer:
+    """Judge drafts are organization-scoped editing state, never evaluation approval.
+    """
+
+    def Create(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def Get(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def Revise(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def Validate(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def Freeze(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetReceipt(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+
+def add_SemanticPromptDraftsServicer_to_server(servicer, server):
+    rpc_method_handlers = {
+            'Create': grpc.unary_unary_rpc_method_handler(
+                    servicer.Create,
+                    request_deserializer=workflow__pb2.SemanticDraftWrite.FromString,
+                    response_serializer=workflow__pb2.SemanticDraftResponse.SerializeToString,
+            ),
+            'Get': grpc.unary_unary_rpc_method_handler(
+                    servicer.Get,
+                    request_deserializer=workflow__pb2.SemanticDraftQuery.FromString,
+                    response_serializer=workflow__pb2.SemanticDraftResponse.SerializeToString,
+            ),
+            'Revise': grpc.unary_unary_rpc_method_handler(
+                    servicer.Revise,
+                    request_deserializer=workflow__pb2.SemanticDraftWrite.FromString,
+                    response_serializer=workflow__pb2.SemanticDraftResponse.SerializeToString,
+            ),
+            'Validate': grpc.unary_unary_rpc_method_handler(
+                    servicer.Validate,
+                    request_deserializer=workflow__pb2.SemanticDraftQuery.FromString,
+                    response_serializer=workflow__pb2.SemanticDraftResponse.SerializeToString,
+            ),
+            'Freeze': grpc.unary_unary_rpc_method_handler(
+                    servicer.Freeze,
+                    request_deserializer=workflow__pb2.SemanticDraftWrite.FromString,
+                    response_serializer=workflow__pb2.SemanticDraftResponse.SerializeToString,
+            ),
+            'GetReceipt': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetReceipt,
+                    request_deserializer=workflow__pb2.SemanticDraftQuery.FromString,
+                    response_serializer=workflow__pb2.SemanticDraftResponse.SerializeToString,
+            ),
+    }
+    generic_handler = grpc.method_handlers_generic_handler(
+            'qsai.workflow.v1.SemanticPromptDrafts', rpc_method_handlers)
+    server.add_generic_rpc_handlers((generic_handler,))
+    server.add_registered_method_handlers('qsai.workflow.v1.SemanticPromptDrafts', rpc_method_handlers)
+
+
+ # This class is part of an EXPERIMENTAL API.
+class SemanticPromptDrafts:
+    """Judge drafts are organization-scoped editing state, never evaluation approval.
+    """
+
+    @staticmethod
+    def Create(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.SemanticPromptDrafts/Create',
+            workflow__pb2.SemanticDraftWrite.SerializeToString,
+            workflow__pb2.SemanticDraftResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def Get(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.SemanticPromptDrafts/Get',
+            workflow__pb2.SemanticDraftQuery.SerializeToString,
+            workflow__pb2.SemanticDraftResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def Revise(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.SemanticPromptDrafts/Revise',
+            workflow__pb2.SemanticDraftWrite.SerializeToString,
+            workflow__pb2.SemanticDraftResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def Validate(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.SemanticPromptDrafts/Validate',
+            workflow__pb2.SemanticDraftQuery.SerializeToString,
+            workflow__pb2.SemanticDraftResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def Freeze(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.SemanticPromptDrafts/Freeze',
+            workflow__pb2.SemanticDraftWrite.SerializeToString,
+            workflow__pb2.SemanticDraftResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetReceipt(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.SemanticPromptDrafts/GetReceipt',
+            workflow__pb2.SemanticDraftQuery.SerializeToString,
+            workflow__pb2.SemanticDraftResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)

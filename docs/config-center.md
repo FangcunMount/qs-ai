@@ -88,3 +88,22 @@ python -m qs_ai.bootstrap.import_evaluation_assets --imported-by <operator-refer
 策略 JSON；不提供写入或发布门槛调整接口。读取沿用审计权限，策略类型之间
 不能通过同名身份混读。初始化前目录可以为空，按指定版本读取不存在记录则
 返回 NOT_FOUND，不回退文件。
+
+## 裁判 Prompt 草稿契约（第二批，尚未发布）
+
+新增 `SemanticPromptDrafts`：Create、Get、Revise、Validate、Freeze、GetReceipt。
+读复用审计权限，Create/Revise/Freeze 使用组织管理员权限；组织、操作者由 QS
+可信上下文提供。草稿 Get 可指定 revision，0 表示当前草稿版本。资产运行读取
+仍必须指定精确版本及摘要，不使用该草稿读取语义。
+
+Create：draft_id、command_id、source_prompt、source_schema（完整 id/version/fingerprint）、
+source_owner_organization_id（0=共享基准，或当前组织）、target_version、reason。
+Revise：draft_id、command_id、expected_revision、markdown、reason。
+Freeze：draft_id、command_id、expected_revision、reason。
+Validate：读取指定草稿版本并校验三个文本块、唯一 payload 变量和原输出契约，
+不调用模型、不创建评测、不写入审核。
+
+所有写操作原命令重试返回原回执；同命令不同正文冲突。冻结生成组织私有不可变
+Prompt，既不审批也不发布，冻结后编辑需从该版本另建草稿。正文／命令上限分别
+128 KiB／256 KiB。跨组织和非原操作者的命令回执返回 NOT_FOUND。并发编辑返回
+ABORTED；格式错误 INVALID_ARGUMENT；依赖不可用返回 UNAVAILABLE，不回退文件。

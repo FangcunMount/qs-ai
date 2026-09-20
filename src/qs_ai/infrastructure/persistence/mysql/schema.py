@@ -642,3 +642,45 @@ semantic_prompt_assets = sa.Table(
     mysql_engine="InnoDB",
     mysql_charset="utf8mb4",
 )
+
+semantic_draft_heads = sa.Table(
+    "semantic_draft_heads",
+    metadata,
+    sa.Column("organization_id", EXTERNAL_ID, primary_key=True),
+    sa.Column("draft_id", sa.CHAR(36, collation="utf8mb4_bin"), primary_key=True),
+    sa.Column("revision", sa.BigInteger, nullable=False),
+    mysql_engine="InnoDB",
+    mysql_charset="utf8mb4",
+)
+semantic_draft_versions = sa.Table(
+    "semantic_draft_versions",
+    metadata,
+    sa.Column("organization_id", EXTERNAL_ID, primary_key=True),
+    sa.Column("draft_id", sa.CHAR(36, collation="utf8mb4_bin"), primary_key=True),
+    sa.Column("revision", sa.BigInteger, primary_key=True),
+    sa.Column("snapshot_json", mysql.LONGTEXT, nullable=False),
+    sa.Column("snapshot_sha256", sa.CHAR(64), nullable=False),
+    sa.ForeignKeyConstraint(
+        ["organization_id", "draft_id"],
+        ["semantic_draft_heads.organization_id", "semantic_draft_heads.draft_id"],
+    ),
+    mysql_engine="InnoDB",
+    mysql_charset="utf8mb4",
+)
+semantic_draft_commands = sa.Table(
+    "semantic_draft_commands",
+    metadata,
+    sa.Column("organization_id", EXTERNAL_ID, primary_key=True),
+    sa.Column("command_id", sa.CHAR(36, collation="utf8mb4_bin"), primary_key=True),
+    sa.Column("operator_user_id", EXTERNAL_ID, nullable=False),
+    sa.Column("draft_id", sa.CHAR(36, collation="utf8mb4_bin"), nullable=False),
+    sa.Column("request_json", mysql.LONGTEXT, nullable=False),
+    sa.Column("receipt_json", mysql.LONGTEXT, nullable=False),
+    sa.Column("receipt_sha256", sa.CHAR(64), nullable=False),
+    sa.ForeignKeyConstraint(
+        ["organization_id", "draft_id"],
+        ["semantic_draft_heads.organization_id", "semantic_draft_heads.draft_id"],
+    ),
+    mysql_engine="InnoDB",
+    mysql_charset="utf8mb4",
+)
