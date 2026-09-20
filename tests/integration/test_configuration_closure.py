@@ -23,7 +23,12 @@ pytestmark = pytest.mark.integration
 async def test_exact_scoped_usage_of_run_and_publication(setup_run):
     tx, run_id, release = setup_run
     ids = [str(uuid4()), str(uuid4())]
-    content = json.dumps({"evidence": {"release": asdict(release)}})
+    content = json.dumps(
+        {
+            "schema_version": "qs-ai-publication/v1",
+            "publication": {"evidence": {"release": asdict(release)}},
+        }
+    )
     async with tx.open() as db:
         await create_run(db, run_id, release, 1, "operator:42", "引用查询测试", datetime.now(UTC))
         for publication_id, org in zip(ids, (1, 2), strict=True):
