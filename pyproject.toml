@@ -18,6 +18,8 @@ dependencies = [
   "protobuf>=7.36.1,<8",
   "jsonschema>=4.23,<5",
   "httpx>=0.28,<1",
+  "langchain>=1,<2",
+  "langgraph>=1,<2",
 ]
 
 [dependency-groups]
