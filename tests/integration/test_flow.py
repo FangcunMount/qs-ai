@@ -183,3 +183,49 @@ async def test_flow_uses_selected_org_judge_before_and_after_freeze(workspace):
                 )
             )
             await db.commit()
+
+
+async def test_flow_tracks_selected_suite_instead_of_source_suite(workspace):
+    from dataclasses import asdict
+
+    from sqlalchemy import delete
+
+    from qs_ai.application.governance.suite_registration import RegisterSuite
+    from qs_ai.infrastructure.persistence.mysql.asset_snapshot import generation_snapshot
+    from qs_ai.infrastructure.persistence.mysql.evaluation_suites import MySQLSuiteRegistrar
+    from qs_ai.infrastructure.persistence.mysql.solution_assets import release_from
+
+    tx, store, scope, sid, command, at = workspace
+    initial = await store.apply(scope, sid, command, at)
+    source = release_from(initial["source_release"])
+    version = "flow-suite-" + str(uuid4())
+    try:
+        async with tx.open() as db:
+            _, manifest = await generation_snapshot(db, source)
+        registered = await MySQLSuiteRegistrar(tx).register(
+            scope,
+            RegisterSuite(
+                uuid4(),
+                source.suite,
+                source.suite.id,
+                version,
+                manifest.profile,
+                manifest.prompt,
+                manifest.generation_route,
+                "验证流程的套件选择",
+            ),
+            at,
+        )
+        await store.apply(scope, sid, edit(initial, evaluation_suite=asdict(registered.suite)), at)
+        flow = await MySQLFlowReader(tx).solution(scope, sid)
+        cases = next(n for n in flow["nodes"] if n["id"] == "cases")
+        assert cases["assets"][0] == asdict(registered.suite)
+        assert cases["assets"][0] != initial["source_release"]["suite"]
+    finally:
+        async with tx.open() as db:
+            await db.execute(
+                delete(tables.evaluation_suites).where(
+                    tables.evaluation_suites.c.suite_version == version
+                )
+            )
+            await db.commit()
