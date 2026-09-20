@@ -2646,3 +2646,121 @@ class SolutionManagement:
             timeout,
             metadata,
             _registered_method=True)
+
+
+class RuntimeManagementStub:
+    """Read-only runtime evidence. Does not renew leases or dispatch models.
+    """
+
+    def __init__(self, channel):
+        """Constructor.
+
+        Args:
+            channel: A grpc.Channel.
+        """
+        self.BatchGet = channel.unary_unary(
+                '/qsai.workflow.v1.RuntimeManagement/BatchGet',
+                request_serializer=workflow__pb2.RuntimeQuery.SerializeToString,
+                response_deserializer=workflow__pb2.RuntimeResponse.FromString,
+                _registered_method=True)
+        self.Get = channel.unary_unary(
+                '/qsai.workflow.v1.RuntimeManagement/Get',
+                request_serializer=workflow__pb2.RuntimeQuery.SerializeToString,
+                response_deserializer=workflow__pb2.RuntimeResponse.FromString,
+                _registered_method=True)
+
+
+class RuntimeManagementServicer:
+    """Read-only runtime evidence. Does not renew leases or dispatch models.
+    """
+
+    def BatchGet(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def Get(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+
+def add_RuntimeManagementServicer_to_server(servicer, server):
+    rpc_method_handlers = {
+            'BatchGet': grpc.unary_unary_rpc_method_handler(
+                    servicer.BatchGet,
+                    request_deserializer=workflow__pb2.RuntimeQuery.FromString,
+                    response_serializer=workflow__pb2.RuntimeResponse.SerializeToString,
+            ),
+            'Get': grpc.unary_unary_rpc_method_handler(
+                    servicer.Get,
+                    request_deserializer=workflow__pb2.RuntimeQuery.FromString,
+                    response_serializer=workflow__pb2.RuntimeResponse.SerializeToString,
+            ),
+    }
+    generic_handler = grpc.method_handlers_generic_handler(
+            'qsai.workflow.v1.RuntimeManagement', rpc_method_handlers)
+    server.add_generic_rpc_handlers((generic_handler,))
+    server.add_registered_method_handlers('qsai.workflow.v1.RuntimeManagement', rpc_method_handlers)
+
+
+ # This class is part of an EXPERIMENTAL API.
+class RuntimeManagement:
+    """Read-only runtime evidence. Does not renew leases or dispatch models.
+    """
+
+    @staticmethod
+    def BatchGet(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.RuntimeManagement/BatchGet',
+            workflow__pb2.RuntimeQuery.SerializeToString,
+            workflow__pb2.RuntimeResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def Get(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.RuntimeManagement/Get',
+            workflow__pb2.RuntimeQuery.SerializeToString,
+            workflow__pb2.RuntimeResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
