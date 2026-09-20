@@ -3,7 +3,9 @@
 import base64
 import json
 from dataclasses import asdict, dataclass
+from typing import Any, Protocol
 
+from qs_ai.application.governance.prompt_drafts import DraftScope
 from qs_ai.domain.evaluation.identity import FrozenContractRef
 
 
@@ -55,3 +57,7 @@ class ReferenceQuery:
                 self.binding(organization_id) + [identity, version], separators=(",", ":")
             ).encode()
         ).decode()
+
+
+class PolicyReferences(Protocol):
+    async def get(self, scope: DraftScope, query: ReferenceQuery) -> dict[str, Any]: ...

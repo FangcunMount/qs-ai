@@ -4,6 +4,7 @@ from dishka import Provider, Scope, from_context, provide
 
 from qs_ai.application.evaluation.capacity import EvaluationCapacityPolicy
 from qs_ai.application.execution.capacity import ParticipantCapacityPolicy
+from qs_ai.application.governance.configuration_status import ConfigurationStatus
 from qs_ai.application.governance.quotas import QuotaBaseline, QuotaStore, QuotaValues
 from qs_ai.application.operations.health import CheckReadiness, DatabaseProbe
 from qs_ai.application.operations.metrics import OperationalMetrics
@@ -28,7 +29,9 @@ class RuntimeProvider(Provider):
 
 
 class PersistenceProvider(Provider):
-    configuration_status = provide(MySQLConfigurationStatus, scope=Scope.REQUEST)
+    configuration_status = provide(
+        MySQLConfigurationStatus, provides=ConfigurationStatus, scope=Scope.REQUEST
+    )
     quotas = provide(MySQLQuotas, provides=QuotaStore, scope=Scope.REQUEST)
 
     @provide(scope=Scope.APP)

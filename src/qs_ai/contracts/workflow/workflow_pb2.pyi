@@ -1304,6 +1304,16 @@ class RuntimeResponse(_message.Message):
     data_json: str
     def __init__(self, schema_version: _Optional[str] = ..., data_json: _Optional[str] = ...) -> None: ...
 
+class FlowQuery(_message.Message):
+    __slots__ = ("scope", "solution_id", "publication_id")
+    SCOPE_FIELD_NUMBER: _ClassVar[int]
+    SOLUTION_ID_FIELD_NUMBER: _ClassVar[int]
+    PUBLICATION_ID_FIELD_NUMBER: _ClassVar[int]
+    scope: PublicationScope
+    solution_id: str
+    publication_id: str
+    def __init__(self, scope: _Optional[_Union[PublicationScope, _Mapping]] = ..., solution_id: _Optional[str] = ..., publication_id: _Optional[str] = ...) -> None: ...
+
 class SemanticDraftWrite(_message.Message):
     __slots__ = ("scope", "command_json")
     SCOPE_FIELD_NUMBER: _ClassVar[int]

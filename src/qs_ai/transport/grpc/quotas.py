@@ -10,13 +10,13 @@ import grpc
 from dishka import AsyncContainer
 from grpc import aio
 
+from qs_ai.application.governance.configuration_status import ConfigurationStatus
 from qs_ai.application.governance.prompt_drafts import DraftScope
 from qs_ai.application.governance.quotas import QuotaStore, QuotaValues
 from qs_ai.application.interpretation.ports import NotFound
 from qs_ai.contracts.workflow import workflow_pb2 as pb
 from qs_ai.contracts.workflow import workflow_pb2_grpc as rpc
 from qs_ai.domain.governance.prompt_draft import DraftConflict
-from qs_ai.infrastructure.persistence.mysql.configuration_status import MySQLConfigurationStatus
 from qs_ai.transport.grpc.identity import require_qs_workload
 from qs_ai.transport.grpc.prompt_drafts import identifier
 from qs_ai.transport.grpc.solution_input import unique_object
@@ -134,7 +134,7 @@ class QuotaManagement(rpc.QuotaManagementServicer):
                 raise ValueError("Configuration status query exceeds limit")
             scope = DraftScope(request.scope.organization_id, request.scope.operator_user_id)
             async with self.container() as operation:
-                reader = await operation.get(MySQLConfigurationStatus)
+                reader = await operation.get(ConfigurationStatus)
                 value = await reader.get(scope)
             return pb.QuotaResponse(
                 schema_version="qs-ai-configuration-status/v1",

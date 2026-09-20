@@ -17,13 +17,12 @@ from qs_ai.application.governance.asset_catalog import (
     CatalogPage,
     CatalogQuery,
 )
-from qs_ai.application.governance.asset_references import ReferenceQuery
+from qs_ai.application.governance.asset_references import PolicyReferences, ReferenceQuery
 from qs_ai.application.governance.prompt_drafts import DraftScope
 from qs_ai.application.interpretation.ports import NotFound
 from qs_ai.contracts.workflow import workflow_pb2 as pb
 from qs_ai.contracts.workflow import workflow_pb2_grpc as rpc
 from qs_ai.domain.evaluation.identity import FrozenContractRef
-from qs_ai.infrastructure.persistence.mysql.asset_references import MySQLPolicyReferences
 from qs_ai.transport.grpc.identity import require_qs_workload
 
 PAGE = TypeAdapter(CatalogPage)
@@ -101,7 +100,7 @@ class AssetCatalogService(rpc.AssetCatalogServicer):
                 request.cursor,
             )
             async with self.container() as operation:
-                reader = await operation.get(MySQLPolicyReferences)
+                reader = await operation.get(PolicyReferences)
                 value = await reader.get(scope, query)
             return pb.AssetCatalogResponse(
                 schema_version="qs-ai-policy-references/v1",
