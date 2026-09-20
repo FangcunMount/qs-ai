@@ -9,6 +9,11 @@ from qs_ai.bootstrap.import_profiles import baseline_assets as profile_baseline
 from qs_ai.bootstrap.import_prompts import baseline_assets as prompt_baseline
 from qs_ai.bootstrap.import_routes import baseline_assets as route_baseline
 from qs_ai.bootstrap.import_schemas import baseline_assets as schema_baseline
+from qs_ai.infrastructure.qs_server.evaluation_policies import (
+    load_execution_policy,
+    load_gate_policy,
+)
+from qs_ai.infrastructure.qs_server.semantic_assets import load_semantic_assets
 
 
 @pytest.fixture
@@ -183,7 +188,13 @@ async def complete_release(evaluation_release):
 async def test_complete_frozen_release_resolves_all_eleven_components(assets, complete_release):
     from qs_ai.infrastructure.qs_server.evaluation_release import validate_release_assets
 
-    await validate_release_assets(complete_release, *assets[0])
+    await validate_release_assets(
+        complete_release,
+        *assets[0],
+        execution_policy_json=load_execution_policy().definition_json,
+        gate_policy_json=load_gate_policy().definition_json,
+        semantic=load_semantic_assets(),
+    )
 
 
 @pytest.mark.parametrize(
@@ -197,21 +208,20 @@ async def test_complete_frozen_release_resolves_all_eleven_components(assets, co
         "gate_policy",
     ],
 )
-async def test_invalid_release_component_never_opens_creation_transaction(
+async def test_invalid_release_component_rejected_by_fixed_contracts(
     assets, complete_release, name
 ):
-    from datetime import UTC, datetime
-    from unittest.mock import Mock
-    from uuid import uuid4
+    from qs_ai.infrastructure.qs_server.evaluation_release import validate_release_assets
 
-    from qs_ai.infrastructure.persistence.mysql.evaluation_runs import MySQLRunCreator
-
-    tx = Mock()
-    creator = MySQLRunCreator(tx, *assets[0])
     invalid = replace(
         complete_release,
         **{name: replace(getattr(complete_release, name), fingerprint="sha256:" + "0" * 64)},
     )
     with pytest.raises(ValueError):
-        await creator.create(uuid4(), invalid, 1, "actor:1", "评测", datetime.now(UTC))
-    tx.open.assert_not_called()
+        await validate_release_assets(
+            invalid,
+            *assets[0],
+            execution_policy_json=load_execution_policy().definition_json,
+            gate_policy_json=load_gate_policy().definition_json,
+            semantic=load_semantic_assets(),
+        )

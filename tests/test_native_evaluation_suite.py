@@ -34,7 +34,9 @@ async def native_suite(assets):
     stores[0].get.return_value = profile
     selection["profile_version"] = profile.version
     manifest = await build_generation_manifest(*stores, **selection)
-    return derive_suite("native-evaluation", "v1", profile, manifest)
+    return derive_suite(
+        "native-evaluation", "v1", profile, manifest, source=load_suite(V6_PUBLISHED)
+    )
 
 
 async def test_native_suite_has_independent_identity_and_retains_full_obligations(native_suite):
@@ -99,4 +101,4 @@ async def test_native_suite_rejects_changed_quality_or_binding_even_with_new_has
         native_suite.reference, fingerprint="sha256:" + hashlib.sha256(raw.encode()).hexdigest()
     )
     with pytest.raises(ValueError):
-        load_suite(ref, definition_json=raw)
+        load_suite(ref, definition_json=raw, source=load_suite(V6_PUBLISHED))

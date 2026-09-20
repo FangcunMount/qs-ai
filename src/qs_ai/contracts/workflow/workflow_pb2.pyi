@@ -863,7 +863,7 @@ class ProfileRegistrationReceipt(_message.Message):
     def __init__(self, schema_version: _Optional[str] = ..., command_id: _Optional[str] = ..., receipt_json: _Optional[str] = ...) -> None: ...
 
 class SuiteRegisterCommand(_message.Message):
-    __slots__ = ("scope", "command_id", "source", "suite_id", "suite_version", "profile", "prompt", "generation_route", "reason")
+    __slots__ = ("scope", "command_id", "source", "suite_id", "suite_version", "profile", "prompt", "generation_route", "reason", "case_edits_json", "semantic_prompt", "semantic_owner_organization_id")
     SCOPE_FIELD_NUMBER: _ClassVar[int]
     COMMAND_ID_FIELD_NUMBER: _ClassVar[int]
     SOURCE_FIELD_NUMBER: _ClassVar[int]
@@ -873,6 +873,9 @@ class SuiteRegisterCommand(_message.Message):
     PROMPT_FIELD_NUMBER: _ClassVar[int]
     GENERATION_ROUTE_FIELD_NUMBER: _ClassVar[int]
     REASON_FIELD_NUMBER: _ClassVar[int]
+    CASE_EDITS_JSON_FIELD_NUMBER: _ClassVar[int]
+    SEMANTIC_PROMPT_FIELD_NUMBER: _ClassVar[int]
+    SEMANTIC_OWNER_ORGANIZATION_ID_FIELD_NUMBER: _ClassVar[int]
     scope: PublicationScope
     command_id: str
     source: FrozenEvaluationRef
@@ -882,7 +885,10 @@ class SuiteRegisterCommand(_message.Message):
     prompt: PromptDraftSource
     generation_route: PromptDraftSource
     reason: str
-    def __init__(self, scope: _Optional[_Union[PublicationScope, _Mapping]] = ..., command_id: _Optional[str] = ..., source: _Optional[_Union[FrozenEvaluationRef, _Mapping]] = ..., suite_id: _Optional[str] = ..., suite_version: _Optional[str] = ..., profile: _Optional[_Union[PromptDraftSource, _Mapping]] = ..., prompt: _Optional[_Union[PromptDraftSource, _Mapping]] = ..., generation_route: _Optional[_Union[PromptDraftSource, _Mapping]] = ..., reason: _Optional[str] = ...) -> None: ...
+    case_edits_json: str
+    semantic_prompt: FrozenEvaluationRef
+    semantic_owner_organization_id: int
+    def __init__(self, scope: _Optional[_Union[PublicationScope, _Mapping]] = ..., command_id: _Optional[str] = ..., source: _Optional[_Union[FrozenEvaluationRef, _Mapping]] = ..., suite_id: _Optional[str] = ..., suite_version: _Optional[str] = ..., profile: _Optional[_Union[PromptDraftSource, _Mapping]] = ..., prompt: _Optional[_Union[PromptDraftSource, _Mapping]] = ..., generation_route: _Optional[_Union[PromptDraftSource, _Mapping]] = ..., reason: _Optional[str] = ..., case_edits_json: _Optional[str] = ..., semantic_prompt: _Optional[_Union[FrozenEvaluationRef, _Mapping]] = ..., semantic_owner_organization_id: _Optional[int] = ...) -> None: ...
 
 class SuiteRegistrationQuery(_message.Message):
     __slots__ = ("scope", "command_id")

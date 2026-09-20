@@ -6,6 +6,7 @@ from typing import Any, Protocol
 from uuid import UUID
 
 from qs_ai.application.governance.prompt_drafts import DraftScope
+from qs_ai.domain.evaluation.identity import FrozenContractRef
 from qs_ai.domain.governance.prompt_draft import PromptDraftContent, valid_reason
 
 
@@ -77,11 +78,26 @@ class SaveSolution(Command):
     content: PromptDraftContent
     generation: ModelSelection
     semantic: ModelSelection
+    evaluation_suite: FrozenContractRef | None = None
+    semantic_prompt: FrozenContractRef | None = None
+    semantic_owner_organization_id: int = 0
 
     def __post_init__(self) -> None:
         super().__post_init__()
         title_required(self.title)
         revision_required(self.expected_revision)
+        if any(
+            value is not None and not isinstance(value, FrozenContractRef)
+            for value in (self.evaluation_suite, self.semantic_prompt)
+        ):
+            raise ValueError("Exact optional evaluation asset reference required")
+        if (
+            type(self.semantic_owner_organization_id) is not int
+            or not 0 <= self.semantic_owner_organization_id < 2**63
+        ):
+            raise ValueError("Invalid semantic owner")
+        if self.semantic_prompt is None and self.semantic_owner_organization_id:
+            raise ValueError("Semantic owner requires an explicit prompt")
         if not isinstance(self.content, PromptDraftContent) or not all(
             isinstance(v, ModelSelection) for v in (self.generation, self.semantic)
         ):

@@ -1,6 +1,5 @@
 """Atomic editing and preparation, with immutable idempotency receipts."""
 
-import asyncio
 import hashlib
 import json
 from dataclasses import asdict
@@ -28,6 +27,7 @@ from qs_ai.infrastructure.persistence.mysql.asset_snapshot import (
     generation_snapshot,
 )
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
+from qs_ai.infrastructure.persistence.mysql.evaluation_contracts import semantic_contract
 from qs_ai.infrastructure.persistence.mysql.evaluation_management import read_view
 from qs_ai.infrastructure.persistence.mysql.prompt_drafts import apply_draft, read_draft
 from qs_ai.infrastructure.persistence.mysql.schema import (
@@ -43,9 +43,11 @@ from qs_ai.infrastructure.persistence.mysql.solution_assets import (
     model_values,
     prepare_assets,
     release_from,
+    select_evaluation_assets,
+    selected_release,
     source_release,
 )
-from qs_ai.infrastructure.qs_server.semantic_assets import load_semantic_assets
+from qs_ai.infrastructure.persistence.mysql.suite_contracts import read as read_suite_contracts
 
 
 def encode(value: Any) -> str:
@@ -145,7 +147,15 @@ async def hydrate(db: AsyncSession, scope: DraftScope, state: dict[str, Any]) ->
         "data_preamble": raw["DataPreamble"],
         "allowed_placeholders": raw["AllowedPlaceholders"],
     }
-    semantic = await asyncio.to_thread(load_semantic_assets)
+    selected = selected_release(state)
+    semantic = await semantic_contract(
+        db,
+        selected,
+        scope.organization_id,
+        owner_organization_id=state.get("evaluation_assets", {}).get(
+            "semantic_owner_organization_id", 0
+        ),
+    )
     if (release.semantic_prompt, release.semantic_output_schema) != (
         semantic.prompt,
         semantic.output_schema,
@@ -234,12 +244,17 @@ class MySQLSolutions:
     ) -> dict[str, Any]:
         if not solution_id.int or at.tzinfo is None:
             raise ValueError("Solution identity and server time required")
+        command_payload = asdict(command)
+        if isinstance(command, SaveSolution):
+            for key in ("evaluation_suite", "semantic_prompt", "semantic_owner_organization_id"):
+                if command_payload[key] in (None, 0):
+                    command_payload.pop(key)
         request = encode(
             {
                 "scope": asdict(scope),
                 "solution_id": str(solution_id),
                 "action": type(command).__name__,
-                "command": asdict(command),
+                "command": command_payload,
             }
         )
         try:
@@ -265,6 +280,7 @@ class MySQLSolutions:
                         if not command.title.strip():
                             raise ValueError("Title required")
                         self._check_models(command.generation.model, command.semantic.model)
+                        selected_assets = await select_evaluation_assets(db, scope, state, command)
                         draft = await apply_draft(
                             db,
                             scope,
@@ -282,6 +298,7 @@ class MySQLSolutions:
                             draft_revision=draft.revision,
                             generation=asdict(command.generation),
                             semantic=asdict(command.semantic),
+                            evaluation_assets=selected_assets,
                         )
                     else:
                         self._check_models(state["generation"]["model"], state["semantic"]["model"])
@@ -343,6 +360,7 @@ class MySQLSolutions:
         release = await source_release(db, scope, command)
         _, manifest = await generation_snapshot(db, release)
         models = await model_values(db, release)
+        binding = await read_suite_contracts(db, release.suite, scope.organization_id)
         version = f"solution-{solution_id}"
         draft = await apply_draft(
             db,
@@ -381,6 +399,17 @@ class MySQLSolutions:
                 "run_id": str(command.source_run_id) if command.source_run_id else None,
             },
             "source_release": asdict(release),
+            "evaluation_assets": {
+                field: asdict(getattr(release, field))
+                for field in (
+                    "suite",
+                    "execution_policy",
+                    "gate_policy",
+                    "semantic_prompt",
+                    "semantic_output_schema",
+                )
+            }
+            | {"semantic_owner_organization_id": binding.semantic_owner_organization_id},
             "source_reviews": source_reviews,
             "draft_id": str(draft.draft_id),
             "draft_revision": draft.revision,

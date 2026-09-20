@@ -41,6 +41,14 @@ async def test_initializer_preserves_bytes_and_original_receipt(suite_registrati
             .mappings()
             .one()
         )
+    # Existing deployments have registered rows without contract metadata.
+    async with tx.open() as db:
+        await db.execute(
+            update(evaluation_suites)
+            .where(evaluation_suites.c.suite_id == command.suite_id)
+            .values(contracts_json=None, contracts_sha256=None)
+        )
+        await db.commit()
     first = await run("integration-initializer")
     assert first["bindings_added"] == 1
     assert (await run("integration-initializer"))["bindings_added"] == 0

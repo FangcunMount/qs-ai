@@ -127,3 +127,30 @@ ABORTED；格式错误 INVALID_ARGUMENT；依赖不可用返回 UNAVAILABLE，�
 新评测创建已经按精确引用读取 MySQL 策略与裁判并冻结裁判正文；执行和语义结果
 校验读取这些正文。历史缺少裁判正文时只允许按原摘要从资产库补齐，拒绝部分正文
 和损坏摘要。当前生产三条 Run 的原策略及裁判引用核对通过，发布记录摘要保持一致。
+
+### 套件固定来源与受约束案例（后续批次，尚未完成生产切换）
+
+套件注册命令新增可选 `case_edits_json`、`semantic_prompt` 和
+`semantic_owner_organization_id`。省略时继承来源套件的不可变绑定，不选择最新版本。
+案例修改只能针对现有生成案例，完整提交 case_id、title、purpose、provider_payload
+和 assertions；不能删除案例、改变断言类型或核心安全断言，预检不可编辑。
+方案 Save 可选 `evaluation_suite`、`semantic_prompt` 和 `semantic_owner_organization_id`。
+新引用必须属于共享资产或当前组织；执行策略、门槛及语义输出契约继承原方案。
+
+运行时套件从 MySQL 按身份、版本、摘要与组织读取。正式切换前必须先运行已发布的
+初始化命令并核对现有评测、发布及原始资产；初始化不批准、不发布、不改变指针。
+
+当前专项回归覆盖案例约束、套件隔离、无文件查找、原始回执保留和初始化重入；
+完整双版本 MySQL、互操作、剩余容量展示读取与生产切换仍待完成，不计为后端结项。
+
+### 2026-09-20 后端推进核证
+
+裁判草稿及套件初始化基础已由 #111 合入 main，生产镜像
+`ce05333f457fda56eb36c9a6f4c45fd92bfffab4` 已核对为 healthy。
+生产套件初始化结果为 inserted=1、bindings_added=3、runs_checked=3；
+重复执行 inserted=0、bindings_added=0、runs_checked=3，activated 均为 false。
+QS 裁判草稿代理 #121 已合并，尚需核对生产接口。
+
+下一批 #112 已移除容量展示的策略文件读取：该兼容响应使用明确固定的原执行策略
+版本作完整 Run 估算，实际准入始终读取各 Run 冻结策略。案例、裁判选型和数据库套件
+读取仍需该批完整 CI、代理接线和生产切换验证，不因初始化成功提前宣告完成。

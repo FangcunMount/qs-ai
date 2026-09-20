@@ -21,8 +21,25 @@ class RegisterSuite:
     prompt: AssetReference
     generation_route: AssetReference
     reason: str
+    case_edits_json: str = ""
+    semantic_prompt: FrozenContractRef | None = None
+    semantic_owner_organization_id: int = 0
 
     def __post_init__(self) -> None:
+        from qs_ai.domain.evaluation.case_edits import parse
+
+        parse(self.case_edits_json)
+        if (
+            (
+                self.semantic_prompt is not None
+                and not isinstance(self.semantic_prompt, FrozenContractRef)
+            )
+            or type(self.semantic_owner_organization_id) is not int
+            or not 0 <= self.semantic_owner_organization_id < 2**63
+        ):
+            raise ValueError("Explicit semantic asset and owner required")
+        if self.semantic_prompt is None and self.semantic_owner_organization_id != 0:
+            raise ValueError("Semantic owner requires an explicit reference")
         FrozenContractRef(self.suite_id, self.suite_version, "sha256:" + "0" * 64)
         if (
             not nonzero_uuid(self.command_id)

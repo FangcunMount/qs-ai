@@ -164,3 +164,22 @@ async def test_capacity_read_is_scoped_read_only_and_reports_current_limits(batc
     assert (foreign.reserved_provider_calls, foreign.active_runs) == (0, 0)
     assert not foreign.reservations
     assert await reservations(tx, scope.organization_id) == before
+
+
+async def test_capacity_estimate_uses_registered_policy_without_file_reads(batch, monkeypatch):
+    from qs_ai.application.governance.prompt_drafts import DraftScope
+    from qs_ai.infrastructure.persistence.mysql.evaluation_capacity import MySQLEvaluationCapacity
+
+    tx, scopes = batch
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("Capacity lookup read a policy file")
+
+    monkeypatch.setattr(
+        "qs_ai.infrastructure.qs_server.evaluation_policies.load_execution_policy", forbidden
+    )
+    result = await MySQLEvaluationCapacity(tx, EvaluationCapacityPolicy()).get(
+        DraftScope(scopes[0].organization_id, 42), AT
+    )
+    assert result.full_run_provider_calls == CALLS
+    assert result.remaining_provider_calls == 1024

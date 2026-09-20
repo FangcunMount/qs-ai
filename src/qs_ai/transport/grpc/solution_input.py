@@ -10,6 +10,7 @@ from qs_ai.application.governance.solutions import (
     PrepareSolution,
     SaveSolution,
 )
+from qs_ai.domain.evaluation.identity import FrozenContractRef
 from qs_ai.domain.governance.prompt_draft import PromptDraftContent
 
 
@@ -37,6 +38,9 @@ def parse_command(
             if str(value[key]) != original:
                 raise ValueError("Canonical identity required")
     if model is SaveSolution:
+        for key in ("evaluation_suite", "semantic_prompt"):
+            if value.get(key) is not None:
+                value[key] = FrozenContractRef(**value[key])
         for key in ("generation", "semantic"):
             value[key] = ModelSelection(**value[key])
         content = dict(value["content"])

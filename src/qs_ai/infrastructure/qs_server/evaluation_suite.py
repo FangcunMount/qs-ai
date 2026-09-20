@@ -8,6 +8,7 @@ from typing import Any
 
 from pydantic import TypeAdapter
 
+from qs_ai.domain.evaluation.case_edits import apply as apply_case_edits
 from qs_ai.domain.evaluation.identity import FrozenContractRef
 from qs_ai.domain.governance.manifest import GenerationManifest
 from qs_ai.domain.governance.profile import ProfileAsset
@@ -57,6 +58,7 @@ def load_suite(
     *,
     directory: Path | None = None,
     definition_json: str | None = None,
+    source: FrozenSuite | None = None,
 ) -> FrozenSuite:
     if definition_json is None:
         if reference not in RETAINED_SUITE_FILES:
@@ -74,7 +76,7 @@ def load_suite(
         raise ValueError("Frozen suite identity mismatch")
     manifest = None
     if reference not in RETAINED_SUITE_FILES:
-        manifest = validate_native(definition, raw.decode())
+        manifest = validate_native(definition, raw.decode(), source)
     generation = tuple(c["case_id"] for c in definition["cases"] if c["stage"] == "generation")
     preflight = tuple(c["case_id"] for c in definition["cases"] if c["stage"] == "preflight")
     repetitions = definition["execution_policy"]["generation_repetitions_per_case"]
@@ -108,14 +110,18 @@ def canonical(document: dict[str, Any]) -> str:
     )
 
 
-def validate_native(document: dict[str, Any], raw: str) -> GenerationManifest:
+def validate_native(
+    document: dict[str, Any], raw: str, source: FrozenSuite | None
+) -> GenerationManifest:
     """Rebind the full retained case set; changing quality obligations needs a new contract."""
     from qs_ai.infrastructure.qs_server.profiles import Definition, canonical_definition
 
-    baseline = json.loads(load_suite(V6_PUBLISHED).definition_json)
+    if source is None:
+        raise ValueError("Exact source suite required for native validation")
+    baseline = json.loads(source.definition_json)
     if raw != canonical(document) or document.get("registration_schema") != "qs-ai-suite/v1":
         raise ValueError("Canonical native suite required")
-    if document.get("derived_from") != asdict(V6_PUBLISHED):
+    if document.get("derived_from") != asdict(source.reference):
         raise ValueError("Native suite must retain the published-input case contract")
     mutable = {
         "suite_id",
@@ -125,11 +131,16 @@ def validate_native(document: dict[str, Any], raw: str) -> GenerationManifest:
         "derived_from",
         "registration_schema",
         "manifest",
+        "cases",
+        "case_edits",
     }
     if canonical({k: v for k, v in document.items() if k not in mutable}) != canonical(
         {k: v for k, v in baseline.items() if k not in mutable}
     ):
         raise ValueError("Native suite changed inherited cases or quality obligations")
+    edits = document.get("case_edits", "")
+    if document["cases"] != apply_case_edits(baseline["cases"], edits):
+        raise ValueError("Cases differ from confirmed source revisions")
     manifest = TypeAdapter(GenerationManifest).validate_python(document["manifest"])
     fixture = document["profile_fixture"]
     definition = Definition.model_validate(
@@ -176,13 +187,23 @@ def validate_native(document: dict[str, Any], raw: str) -> GenerationManifest:
 
 
 def derive_suite(
-    identity: str, version: str, profile: ProfileAsset, manifest: GenerationManifest
+    identity: str,
+    version: str,
+    profile: ProfileAsset,
+    manifest: GenerationManifest,
+    *,
+    source: FrozenSuite,
+    case_edits_json: str = "",
 ) -> FrozenSuite:
-    document = json.loads(load_suite(V6_PUBLISHED).definition_json)
+    document = json.loads(source.definition_json)
+    document.pop("case_edits", None)
+    if case_edits_json:
+        document["cases"] = apply_case_edits(document["cases"], case_edits_json)
+        document["case_edits"] = case_edits_json
     document.update(
         suite_id=identity,
         suite_version=version,
-        derived_from=asdict(V6_PUBLISHED),
+        derived_from=asdict(source.reference),
         registration_schema="qs-ai-suite/v1",
         manifest=asdict(manifest),
         prompt=asdict(manifest.prompt),
@@ -198,7 +219,7 @@ def derive_suite(
     )
     if (identity, version) in {(ref.id, ref.version) for ref in RETAINED_SUITE_FILES}:
         raise ValueError("Retained suite identity cannot be replaced")
-    return load_suite(reference, definition_json=raw)
+    return load_suite(reference, definition_json=raw, source=source)
 
 
 def suite_prompt(suite: FrozenSuite) -> tuple[str, str]:
@@ -211,4 +232,11 @@ def suite_prompt(suite: FrozenSuite) -> tuple[str, str]:
 def resolve_suite(reference: FrozenContractRef, frozen: FrozenSuite | None = None) -> FrozenSuite:
     if frozen is not None and frozen.reference != reference:
         raise ValueError("Supplied suite differs from release")
-    return load_suite(reference, definition_json=frozen.definition_json if frozen else None)
+    if frozen is not None:
+        if (
+            "sha256:" + hashlib.sha256(frozen.definition_json.encode()).hexdigest()
+            != reference.fingerprint
+        ):
+            raise ValueError("Supplied suite bytes differ from release")
+        return frozen
+    return load_suite(reference)

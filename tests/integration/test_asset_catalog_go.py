@@ -110,10 +110,25 @@ async def test_go_discovery_pagination_exact_detail_and_shared_read(go_client, k
         "catalog-list", AuditOnly=True, OrgID=2, UserID=43, CatalogQuery={"kind": kind, "limit": 50}
     )
     assert shared["Code"] == "OK" and not shared["Conflict"], shared
-    assert [
+    shared_keys = [
         (item["reference"]["identity"], item["reference"]["version"])
         for item in shared["State"]["items"]
-    ] == seen
+    ]
+    if kind == "suite":
+        from qs_ai.infrastructure.qs_server.evaluation_suite import SUITE_FILES
+
+        assert shared_keys == sorted((ref.id, ref.version) for ref in SUITE_FILES)
+        private = next(key for key in seen if key not in shared_keys)
+        denied = await go_client(
+            "catalog-get",
+            AuditOnly=True,
+            OrgID=2,
+            UserID=43,
+            CatalogGet={"kind": kind, "identity": private[0], "version": private[1]},
+        )
+        assert denied["Code"] != "OK"
+    else:
+        assert shared_keys == seen
 
 
 async def test_go_catalog_denial_wrong_workload_and_invalid_cursor(go_client):

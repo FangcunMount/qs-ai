@@ -2,6 +2,8 @@
 
 import asyncio
 import hashlib
+import json
+from dataclasses import asdict, replace
 from datetime import datetime
 from uuid import UUID
 
@@ -32,7 +34,6 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
 from qs_ai.infrastructure.qs_server.evaluation_suite import (
     BASELINE_SUITE_FILES,
     SUITE_FILES,
-    V6_PUBLISHED,
     FrozenSuite,
     derive_suite,
     load_suite,
@@ -41,10 +42,13 @@ from qs_ai.infrastructure.qs_server.evaluation_suite import (
 RECEIPT = TypeAdapter(SuiteRegistrationReceipt)
 
 
-def decode_record(row: RowMapping) -> tuple[FrozenSuite, SuiteRegistrationReceipt | None]:
+def decode_record(
+    row: RowMapping, source: FrozenSuite | None = None
+) -> tuple[FrozenSuite, SuiteRegistrationReceipt | None]:
     suite = load_suite(
         FrozenContractRef(row["suite_id"], row["suite_version"], row["fingerprint"]),
         definition_json=row["definition_json"],
+        source=source,
     )
     if row["organization_id"] == 0:
         if (
@@ -65,7 +69,7 @@ def decode_record(row: RowMapping) -> tuple[FrozenSuite, SuiteRegistrationReceip
     ):
         raise ValueError("Suite registration receipt changed")
     receipt = RECEIPT.validate_json(raw, strict=True)
-    if RECEIPT.dump_json(receipt).decode() != raw or (
+    if RECEIPT.dump_json(receipt, exclude_defaults=True).decode() != raw or (
         receipt.suite,
         receipt.manifest,
         str(receipt.command.command_id),
@@ -79,32 +83,50 @@ def decode_record(row: RowMapping) -> tuple[FrozenSuite, SuiteRegistrationReceip
         row["operator_user_id"],
     ):
         raise ValueError("Suite receipt differs from asset index")
-    if receipt.command.source != V6_PUBLISHED:
+    if asdict(receipt.command.source) != json.loads(suite.definition_json)["derived_from"]:
         raise ValueError("Suite registration source changed")
     return suite, receipt
 
 
-async def load_registered_suite(db: AsyncSession, reference: FrozenContractRef) -> FrozenSuite:
+async def load_registered_suite(
+    db: AsyncSession,
+    reference: FrozenContractRef,
+    *,
+    organization_id: int,
+    _seen: frozenset[tuple[str, str]] = frozenset(),
+) -> FrozenSuite:
     if (reference.id, reference.version) in {(ref.id, ref.version) for ref in BASELINE_SUITE_FILES}:
         raise ValueError("Retired suite is a verification baseline, not an executable suite")
-    if reference in SUITE_FILES:
-        return await asyncio.to_thread(load_suite, reference)
+    if type(organization_id) is not int or organization_id <= 0:
+        raise ValueError("Suite caller organization required")
+    key = (reference.id, reference.version)
+    if key in _seen or len(_seen) >= 64:
+        raise ValueError("Suite source lineage cyclic or exceeds bound")
     row = (
         (
             await db.execute(
                 select(table).where(
-                    table.c.suite_id == reference.id, table.c.suite_version == reference.version
+                    table.c.suite_id == reference.id,
+                    table.c.suite_version == reference.version,
+                    table.c.organization_id.in_((0, organization_id)),
                 )
             )
         )
         .mappings()
         .one_or_none()
     )
-    if row is None:
-        raise ValueError("Registered evaluation suite unavailable")
-    suite, _ = await asyncio.to_thread(decode_record, row)
-    if suite.reference != reference:
-        raise ValueError("Registered evaluation suite fingerprint mismatch")
+    if row is None or row["fingerprint"] != reference.fingerprint:
+        raise ValueError("Exact scoped evaluation suite unavailable")
+    source = None
+    if row["organization_id"] != 0:
+        try:
+            parent = FrozenContractRef(**json.loads(row["definition_json"])["derived_from"])
+        except (KeyError, TypeError) as error:
+            raise ValueError("Suite source reference unavailable") from error
+        source = await load_registered_suite(
+            db, parent, organization_id=organization_id, _seen=_seen | {key}
+        )
+    suite, _ = await asyncio.to_thread(decode_record, row, source)
     return suite
 
 
@@ -123,7 +145,17 @@ async def prior_receipt(
         scope.operator_user_id,
     ):
         raise NotFound("Suite command unavailable")
-    return (await asyncio.to_thread(decode_record, row))[1]
+    suite = await load_registered_suite(
+        db,
+        FrozenContractRef(row["suite_id"], row["suite_version"], row["fingerprint"]),
+        organization_id=scope.organization_id,
+    )
+    source = await load_registered_suite(
+        db,
+        FrozenContractRef(**json.loads(suite.definition_json)["derived_from"]),
+        organization_id=scope.organization_id,
+    )
+    return (await asyncio.to_thread(decode_record, row, source))[1]
 
 
 async def apply_registration(
@@ -134,8 +166,7 @@ async def apply_registration(
         if prior.command != command:
             raise AssetConflict("Suite command already used")
         return prior
-    if command.source != V6_PUBLISHED:
-        raise ValueError("Confirmed published-input case source required")
+    source = await load_registered_suite(db, command.source, organization_id=scope.organization_id)
     manifest = await build_generation_manifest(
         AssetSnapshotReader(db, profile_assets, ProfileAsset),
         AssetSnapshotReader(db, prompt_assets, PromptAsset),
@@ -157,12 +188,55 @@ async def apply_registration(
     if profile is None:
         raise ValueError("Profile unavailable")
     suite = await asyncio.to_thread(
-        derive_suite, command.suite_id, command.suite_version, profile, manifest
+        derive_suite,
+        command.suite_id,
+        command.suite_version,
+        profile,
+        manifest,
+        source=source,
+        case_edits_json=command.case_edits_json,
     )
+    from qs_ai.infrastructure.qs_server.evaluation_input import validate_suite_inputs
+
+    if suite.input_schema is None:
+        raise ValueError("Suite input schema required")
+    await asyncio.to_thread(validate_suite_inputs, suite, suite.input_schema)
     receipt = SuiteRegistrationReceipt(scope, command, suite.reference, manifest, at)
-    raw = RECEIPT.dump_json(receipt).decode()
+    raw = RECEIPT.dump_json(receipt, exclude_defaults=True).decode()
     if len(raw.encode()) > 32768:
         raise ValueError("Suite receipt exceeds limit")
+    from qs_ai.infrastructure.persistence.mysql.suite_contracts import encode, read
+
+    bindings = await read(db, command.source, scope.organization_id)
+    if command.semantic_prompt is not None:
+        from qs_ai.infrastructure.persistence.mysql.evaluation_asset_registry import (
+            read_semantic_prompt,
+        )
+        from qs_ai.infrastructure.qs_server.semantic_assets import semantic_assets
+
+        asset = await read_semantic_prompt(
+            db,
+            command.semantic_prompt,
+            owner_organization_id=command.semantic_owner_organization_id,
+            requesting_organization_id=scope.organization_id,
+        )
+        schema_id, version = bindings.semantic_output_schema.version.rsplit("/", 1)
+        schema = await AssetSnapshotReader(db, schema_assets, SchemaAsset).get(schema_id, version)
+        if schema is None:
+            raise ValueError("Fixed semantic schema unavailable")
+        await asyncio.to_thread(
+            semantic_assets,
+            asset.markdown,
+            schema.definition_json,
+            asset.reference,
+            bindings.semantic_output_schema,
+        )
+        bindings = replace(
+            bindings,
+            semantic_prompt=asset.reference,
+            semantic_owner_organization_id=command.semantic_owner_organization_id,
+        )
+    contracts, contracts_sha = encode(bindings)
     await db.execute(
         insert(table).values(
             suite_id=suite.reference.id,
@@ -174,6 +248,8 @@ async def apply_registration(
             operator_user_id=scope.operator_user_id,
             receipt_json=raw,
             receipt_sha256=hashlib.sha256(raw.encode()).hexdigest(),
+            contracts_json=contracts,
+            contracts_sha256=contracts_sha,
         )
     )
     return receipt

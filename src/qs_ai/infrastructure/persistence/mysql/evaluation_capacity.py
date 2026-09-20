@@ -17,7 +17,10 @@ from qs_ai.application.evaluation.capacity import (
 from qs_ai.application.evaluation.management import ManagementScope
 from qs_ai.application.governance.prompt_drafts import DraftScope
 from qs_ai.application.governance.quotas import QuotaBaseline
+from qs_ai.domain.evaluation.assets import PolicyKind
+from qs_ai.domain.evaluation.identity import FrozenContractRef
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
+from qs_ai.infrastructure.persistence.mysql.evaluation_asset_registry import read_policy
 from qs_ai.infrastructure.persistence.mysql.evaluation_frozen_policies import frozen_policies
 from qs_ai.infrastructure.persistence.mysql.quotas import evaluation_policy
 from qs_ai.infrastructure.persistence.mysql.schema import (
@@ -30,7 +33,18 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_run_policies,
     evaluation_runs,
 )
-from qs_ai.infrastructure.qs_server.evaluation_policies import load_execution_policy
+from qs_ai.infrastructure.qs_server.evaluation_policies import (
+    FrozenPolicyDocument,
+    execution_policy,
+)
+
+# Existing capacity response estimates a full run against this explicit baseline.
+# Actual reservations always use the accepted Run's own frozen policy above.
+CAPACITY_ESTIMATE_POLICY = FrozenContractRef(
+    "release-evaluation-bounded-recovery",
+    "v2",
+    "sha256:6d2e6c27057d6297b78d1210fe5ae4342b3b2a06ae946374edf53eb5807a8e4d",
+)
 
 
 async def lock_admission(db: AsyncSession, organization_id: int) -> None:
@@ -178,8 +192,11 @@ class MySQLEvaluationCapacity:
                 .mappings()
                 .all()
             )
+            estimate = await read_policy(db, PolicyKind.EXECUTION, CAPACITY_ESTIMATE_POLICY)
+            frozen = execution_policy(
+                FrozenPolicyDocument(estimate.reference, estimate.definition_json)
+            )
         reserved = int(reserved)
-        frozen = await asyncio.to_thread(load_execution_policy)
         full = frozen.generation_per_run + frozen.semantic_per_run
         remaining = max(0, capacity.daily_provider_calls - reserved)
         return EvaluationCapacitySnapshot(
