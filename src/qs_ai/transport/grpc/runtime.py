@@ -1,6 +1,7 @@
 """QS workload only, read-only runtime diagnostics with bounded responses."""
 
 import json
+from collections.abc import Callable
 from typing import Any
 
 import grpc
@@ -16,8 +17,11 @@ from qs_ai.transport.grpc.identity import require_qs_workload
 
 
 class RuntimeManagement(rpc.RuntimeManagementServicer):
-    def __init__(self, container: AsyncContainer) -> None:
+    def __init__(
+        self, container: AsyncContainer, components: Callable[[], dict[str, str]] | None = None
+    ) -> None:
         self.container = container
+        self.components = components
 
     async def read(
         self, request: pb.RuntimeQuery, context: aio.ServicerContext[Any, Any], *, detail: bool
@@ -61,3 +65,23 @@ class RuntimeManagement(rpc.RuntimeManagementServicer):
         self, request: pb.RuntimeQuery, context: aio.ServicerContext[Any, Any]
     ) -> pb.RuntimeResponse:
         return await self.read(request, context, detail=True)
+
+    async def Health(
+        self, request: pb.RuntimeQuery, context: aio.ServicerContext[Any, Any]
+    ) -> pb.RuntimeResponse:
+        await require_qs_workload(context)
+        try:
+            scope = DraftScope(request.scope.organization_id, request.scope.operator_user_id)
+            if request.session_ids or request.ByteSize() > 8192:
+                raise ValueError("Health takes scope only")
+            async with self.container() as operation:
+                data = await (await operation.get(RuntimeReader)).health(scope)
+            data["components"] = self.components() if self.components else {"runtime": "unobserved"}
+            return pb.RuntimeResponse(
+                schema_version="qs-ai-runtime-health/v1", data_json=json.dumps(data)
+            )
+        except ValueError:
+            await context.abort(grpc.StatusCode.INVALID_ARGUMENT, "Invalid health query")
+        except Exception:
+            await context.abort(grpc.StatusCode.UNAVAILABLE, "Runtime evidence unavailable")
+        raise AssertionError("abort must raise")

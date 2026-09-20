@@ -602,3 +602,20 @@ organization_quota_commands = sa.Table(
     mysql_engine="InnoDB",
     mysql_charset="utf8mb4",
 )
+
+
+runtime_milestones = sa.Table(
+    "runtime_milestones",
+    metadata,
+    sa.Column("session_id", ID, sa.ForeignKey(sessions.c.id, ondelete="CASCADE"), primary_key=True),
+    sa.Column("dedupe_key", sa.String(128, collation="utf8mb4_bin"), primary_key=True),
+    sa.Column("run_id", ID, nullable=False),
+    sa.Column("kind", sa.String(32), nullable=False),
+    sa.Column("invocation_id", ID),
+    sa.Column("attempt", sa.Integer),
+    sa.Column("occurred_at", mysql.DATETIME(fsp=6), nullable=False),
+    sa.Column("expires_at", mysql.DATETIME(fsp=6), nullable=False),
+    sa.Index("ix_runtime_milestones_expiry", "expires_at"),
+    mysql_engine="InnoDB",
+    mysql_charset="utf8mb4",
+)

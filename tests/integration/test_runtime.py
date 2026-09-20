@@ -116,3 +116,65 @@ async def test_actual_factory_mtls_and_dependency_graph(kit, tmp_path):
     finally:
         await server.stop(0)
         await container.close()
+
+
+async def test_milestones_share_commits_preserve_unknown_and_expire_only_diagnostics(
+    kit, monkeypatch
+):
+    from sqlalchemy import func, text, update
+
+    from qs_ai.infrastructure.observability import events
+    from qs_ai.infrastructure.persistence.mysql.runtime_milestones import prune, record
+    from qs_ai.infrastructure.persistence.mysql.schema import model_calls, runtime_milestones
+
+    receipt, _ = await bind(kit)
+    claim = await kit.store.claim(30)
+    assert claim is not None
+    monkeypatch.setattr(
+        events.logger, "info", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("log offline"))
+    )
+    call, dispatched = await kit.store.begin_model_call(claim, '{"fixture":"no provider call"}')
+    assert dispatched
+    await kit.store.record_model_response(
+        claim, call.invocation_id, failure_code="provider_result_unknown", result_unknown=True
+    )
+    same, dispatched = await kit.store.begin_model_call(claim, "{}")
+    assert not dispatched and same.invocation_id == call.invocation_id and same.status == "unknown"
+    reader = MySQLRuntimeReader(kit.transactions)
+    detail = await reader.detail(DraftScope(1, 42), receipt.session_id)
+    assert {v["kind"] for v in detail["milestones"]} == {
+        "execution_claimed",
+        "model_dispatched",
+        "model_unknown",
+    }
+    async with kit.transactions.open() as db:
+        await record(db, receipt.session_id, claim.run_id, "test_rollback", "never-committed")
+    detail = await reader.detail(DraftScope(1, 42), receipt.session_id)
+    assert all(v["kind"] != "test_rollback" for v in detail["milestones"])
+    async with kit.transactions.open() as db:
+        await db.execute(
+            update(runtime_milestones)
+            .where(runtime_milestones.c.session_id == receipt.session_id)
+            .values(expires_at=text("UTC_TIMESTAMP(6) - INTERVAL 1 DAY"))
+        )
+        await db.commit()
+    assert await prune(kit.transactions) >= 3
+    async with kit.transactions.open() as db:
+        assert (
+            await db.scalar(
+                select(func.count())
+                .select_from(model_calls)
+                .where(model_calls.c.run_id == claim.run_id)
+            )
+            == 1
+        )
+    assert (await reader.detail(DraftScope(1, 42), receipt.session_id))["milestones"] == []
+
+
+async def test_runtime_health_counts_are_organization_scoped(kit):
+    await bind(kit)
+    reader = MySQLRuntimeReader(kit.transactions)
+    own = await reader.health(DraftScope(1, 42))
+    foreign = await reader.health(DraftScope(987654, 42))
+    assert own["backlog"]["queued_jobs"] >= 1
+    assert all(v == 0 for v in foreign["backlog"].values())

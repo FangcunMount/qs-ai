@@ -10,6 +10,7 @@ from qs_ai.application.execution.retry import (
     ParticipantExecution,
     ParticipantRetry,
     ParticipantTarget,
+    retry_available,
 )
 from qs_ai.application.governance.prompt_drafts import DraftScope
 from qs_ai.application.governance.quotas import QuotaBaseline
@@ -115,10 +116,7 @@ class MySQLParticipantRetries:
                 call["status"] if call else "",
                 call["invocation_id"] if call else "",
                 source_run_id or "",
-                session.status == "blocked"
-                and run_status == "blocked"
-                and job_status in {None, "done", "dead"}
-                and has_configuration,
+                retry_available(session.status, run_status, job_status, has_configuration),
                 bool(call and call["status"] in {"dispatched", "unknown"}),
             )
 
