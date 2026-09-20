@@ -4,7 +4,7 @@ import asyncio
 import hashlib
 import json
 from collections.abc import Callable
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from typing import Any, Protocol
 from uuid import UUID, uuid4
@@ -13,12 +13,12 @@ from sqlalchemy import select
 
 from qs_ai.application.evaluation.checkpoints import CheckpointState
 from qs_ai.application.evaluation.model_response import response_evidence
-from qs_ai.application.evaluation.provider_failure import classify_provider_failure
 from qs_ai.application.interpretation.prompts import PromptMessages
-from qs_ai.application.interpretation.provider import ModelResponse, ModelRoute, ProviderFailure
+from qs_ai.application.interpretation.provider import ModelResponse, ModelRoute
 from qs_ai.application.interpretation.route_assets import RouteAssets
 from qs_ai.application.interpretation.schema_assets import SchemaAssets
 from qs_ai.application.operations.diagnostics import emit
+from qs_ai.domain.evaluation.checkpoint import ExecutionCheckpoint
 from qs_ai.domain.evaluation.completion import GenerationCompletion
 from qs_ai.domain.evaluation.contract_recovery import RECOVERY_INSTRUCTION, decode_recoveries
 from qs_ai.domain.evaluation.failure import ClassifiedFailure
@@ -47,6 +47,8 @@ from qs_ai.infrastructure.qs_server.evaluation_assertions import (
     assertion_inventory,
     semantic_obligations,
 )
+from qs_ai.infrastructure.qs_server.evaluation_suite import FrozenSuite
+from qs_ai.infrastructure.qs_server.semantic_assets import SemanticAssets
 from qs_ai.infrastructure.qs_server.semantic_input import prepare_semantic_messages
 from qs_ai.infrastructure.qs_server.semantic_output import (
     SemanticDecisionInvalid,
@@ -64,21 +66,38 @@ class MessagesGateway(Protocol):
     ) -> ModelResponse: ...
 
 
-async def execute_step(
+@dataclass(frozen=True)
+class PreparedStep:
+    state: CheckpointState
+    cp: ExecutionCheckpoint
+    at: datetime
+    invocation_id: str
+    execution_id: str
+    candidate_fingerprint: str
+    assertions: tuple[AssertionReceipt, ...]
+    release: EvidenceReleaseIdentity
+    suite: FrozenSuite
+    route: ModelRoute
+    messages: PromptMessages
+    schema: dict[str, Any]
+    semantic: SemanticAssets | None
+
+
+async def prepare_step(
     transactions: Transactions,
     run_id: UUID,
     expected_version: int,
     organization_id: int,
     owner: str,
-    gateway: MessagesGateway,
     routes: RouteAssets,
     schemas: SchemaAssets,
     *,
     clock: Callable[[], datetime] = lambda: datetime.now(UTC),
-) -> CheckpointState:
+) -> PreparedStep:
     """Run must already be collecting with passed preflight; caller supplies authorized scope."""
     at = clock()
     invocation_id, execution_id = str(uuid4()), str(uuid4())
+    semantic: SemanticAssets | None = None
     candidate_fingerprint = ""
     assertions: tuple[AssertionReceipt, ...] = ()
     async with transactions.open() as db:
@@ -175,12 +194,48 @@ async def execute_step(
         invocation_id=invocation_id,
         stage=cp.kind,
     )
-    response = None
-    failure = None
-    try:
-        response = await gateway.generate_messages(messages, route, schema, invocation_id)
-    except ProviderFailure as error:
-        failure = classify_provider_failure(cp.kind, execution_id, error)
+    return PreparedStep(
+        state,
+        cp,
+        at,
+        invocation_id,
+        execution_id,
+        candidate_fingerprint,
+        assertions,
+        release,
+        suite,
+        route,
+        messages,
+        schema,
+        semantic,
+    )
+
+
+async def finish_step(
+    transactions: Transactions,
+    run_id: UUID,
+    organization_id: int,
+    owner: str,
+    routes: RouteAssets,
+    schemas: SchemaAssets,
+    prepared: PreparedStep,
+    response: ModelResponse | None,
+    failure: ClassifiedFailure | None,
+    *,
+    clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+) -> CheckpointState:
+    state = prepared.state
+    cp = prepared.cp
+    at = prepared.at
+    invocation_id = prepared.invocation_id
+    execution_id = prepared.execution_id
+    candidate_fingerprint = prepared.candidate_fingerprint
+    assertions = prepared.assertions
+    release = prepared.release
+    suite = prepared.suite
+    route = prepared.route
+    schema = prepared.schema
+    semantic = prepared.semantic
     finished = max(clock(), at)
     receipt = None
     raw, normalized = b"", b""
@@ -193,6 +248,7 @@ async def execute_step(
             evidence.failure,
         )
     if cp.kind == "semantic" and failure is None:
+        assert semantic is not None
         assert receipt is not None
         obligations = semantic_obligations(
             (
@@ -279,3 +335,31 @@ async def execute_step(
         stage=cp.kind,
     )
     return state
+
+
+async def execute_step(
+    transactions: Transactions,
+    run_id: UUID,
+    expected_version: int,
+    organization_id: int,
+    owner: str,
+    gateway: MessagesGateway,
+    routes: RouteAssets,
+    schemas: SchemaAssets,
+    *,
+    clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+) -> CheckpointState:
+    """Run must already be collecting with passed preflight; caller supplies authorized scope."""
+    from qs_ai.infrastructure.workflows.evaluation import run_evaluation_step
+
+    return await run_evaluation_step(
+        transactions,
+        run_id,
+        expected_version,
+        organization_id,
+        owner,
+        gateway,
+        routes,
+        schemas,
+        clock=clock,
+    )
