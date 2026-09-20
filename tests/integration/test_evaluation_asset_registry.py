@@ -113,3 +113,28 @@ async def test_semantic_owner_is_explicit_and_never_falls_back(registry):
             await read_semantic_prompt(
                 db, prompt.reference, owner_organization_id=0, requesting_organization_id=52
             )
+
+
+async def test_policy_catalog_keeps_kinds_separate_and_exact_versions(registry):
+    from qs_ai.application.governance.asset_catalog import CatalogQuery
+    from qs_ai.application.governance.prompt_drafts import DraftScope
+    from qs_ai.infrastructure.persistence.mysql.asset_catalog import MySQLAssetCatalog
+
+    store, source = registry
+    asset = unique_policy()
+    await store.put_policy(asset, source, "test")
+    catalog = MySQLAssetCatalog(store.transactions)
+    scope = DraftScope(52, 42)
+    page = await catalog.list(scope, CatalogQuery("execution_policy", asset.reference.id))
+    assert len(page.items) == 1
+    value = await catalog.get(
+        scope, "execution_policy", asset.reference.id, asset.reference.version
+    )
+    assert value.item == page.items[0]
+    assert value.definition_json == asset.definition_json
+    assert value.item.reference.fingerprint == asset.reference.fingerprint
+    assert not (await catalog.list(scope, CatalogQuery("gate_policy", asset.reference.id))).items
+    with pytest.raises(NotFound):
+        await catalog.get(scope, "gate_policy", asset.reference.id, asset.reference.version)
+    with pytest.raises(NotFound):
+        await catalog.get(scope, "execution_policy", asset.reference.id, "missing")

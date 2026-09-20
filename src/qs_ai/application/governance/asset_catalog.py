@@ -10,8 +10,10 @@ from typing import Literal, Protocol
 from qs_ai.application.governance.prompt_drafts import DraftScope
 from qs_ai.domain.governance.manifest import AssetReference
 
-AssetKind = Literal["profile", "prompt", "route", "schema", "suite"]
-KINDS = ("profile", "prompt", "route", "schema", "suite")
+AssetKind = Literal[
+    "profile", "prompt", "route", "schema", "suite", "execution_policy", "gate_policy"
+]
+KINDS = ("profile", "prompt", "route", "schema", "suite", "execution_policy", "gate_policy")
 
 
 def validate_identity(identity: str, *, optional: bool = False) -> None:

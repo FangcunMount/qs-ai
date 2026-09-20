@@ -80,3 +80,11 @@ python -m qs_ai.bootstrap.import_evaluation_assets --imported-by <operator-refer
 - QS #118 全部检查通过，按 qs-ai 先行顺序发布。
 - 第二批存储准备与历史策略恢复位于 qs-ai #107，尚未完成第二批交付。
 - 页面接入、实际管理员操作及第二批生产资产核对仍单列验收。
+
+## 策略只读目录接口（第二批）
+
+复用 `AssetCatalog.List/Get` 和现有 QS 资产目录代理，新增 `execution_policy`、
+`gate_policy` 两种 kind。查询、分页、版本与摘要字段保持原协议。正文是原始
+策略 JSON；不提供写入或发布门槛调整接口。读取沿用审计权限，策略类型之间
+不能通过同名身份混读。初始化前目录可以为空，按指定版本读取不存在记录则
+返回 NOT_FOUND，不回退文件。
