@@ -142,7 +142,15 @@ class MySQLUnitOfWork:
         )
 
     async def add(self, session: Session) -> None:
-        await self.db.execute(insert(sessions).values(**session_values(session)))
+        await self.db.execute(
+            insert(sessions).values(
+                **session_values(session),
+                created_at=func.utc_timestamp(6),
+                updated_at=func.utc_timestamp(6),
+                created_at_utc=func.utc_timestamp(6),
+                updated_at_utc=func.utc_timestamp(6),
+            )
+        )
 
     async def add_evidence(self, evidence: EvidenceSet) -> None:
         await self.db.execute(
@@ -159,7 +167,11 @@ class MySQLUnitOfWork:
         await self.db.execute(
             update(sessions)
             .where(sessions.c.id == session.id)
-            .values(**session_values(session), updated_at=func.utc_timestamp(6))
+            .values(
+                **session_values(session),
+                updated_at=func.utc_timestamp(6),
+                updated_at_utc=func.utc_timestamp(6),
+            )
         )
 
         await stage_state(self.db, session)

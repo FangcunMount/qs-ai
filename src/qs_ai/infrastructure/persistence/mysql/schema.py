@@ -26,6 +26,8 @@ sessions = sa.Table(
     sa.Column("created_at", mysql.DATETIME(fsp=6), server_default=sa.text("CURRENT_TIMESTAMP(6)")),
     sa.Column("updated_at", mysql.DATETIME(fsp=6), server_default=sa.text("CURRENT_TIMESTAMP(6)")),
     sa.Index("ix_session_owner", "org_id", "owner_subject_id", "updated_at", "id"),
+    sa.Column("created_at_utc", mysql.DATETIME(fsp=6)),
+    sa.Column("updated_at_utc", mysql.DATETIME(fsp=6)),
     mysql_engine="InnoDB",
     mysql_charset="utf8mb4",
 )
@@ -97,6 +99,7 @@ model_calls = sa.Table(
     sa.Column("response_json", mysql.LONGTEXT),
     sa.Column("failure_code", sa.String(64)),
     sa.Column("created_at", mysql.DATETIME(fsp=6), server_default=sa.text("CURRENT_TIMESTAMP(6)")),
+    sa.Column("created_at_utc", mysql.DATETIME(fsp=6)),
     mysql_engine="InnoDB",
     mysql_charset="utf8mb4",
 )
