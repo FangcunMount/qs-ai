@@ -11,12 +11,12 @@ from qs_ai.infrastructure.persistence.mysql.evaluation_progress import (
     execute_preflight,
     transition_requested,
 )
-from qs_ai.infrastructure.persistence.mysql.evaluation_step import execute_step
 from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_generation_completions,
     evaluation_semantic_completions,
 )
 from qs_ai.infrastructure.qs_server.semantic_assets import load_semantic_assets
+from qs_ai.infrastructure.workflows.evaluation import execute_step
 from tests.integration.test_evaluation_creation_interop import persisted_assets as persisted_assets
 from tests.integration.test_evaluation_runs import rows
 from tests.integration.test_evaluation_runs import setup_run as setup_run

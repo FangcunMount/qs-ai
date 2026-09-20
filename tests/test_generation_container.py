@@ -5,6 +5,7 @@ from qs_ai.application.interpretation.ports import Workflow
 from qs_ai.bootstrap.container import create_container
 from qs_ai.config import Settings, read_yaml
 from qs_ai.infrastructure.interpretation.unconfigured import UnconfiguredWorkflow
+from qs_ai.infrastructure.workflows.report import create_report_workflow
 
 
 async def test_generation_is_disabled_by_default():
@@ -85,7 +86,7 @@ async def test_legacy_workflow_cannot_reach_reader_or_model():
         async def generate(self, *args):
             pytest.fail("legacy workflow must never call the model")
 
-    workflow = PublishedReportWorkflow(Forbidden(), Forbidden())
+    workflow = PublishedReportWorkflow(Forbidden(), Forbidden(), create_report_workflow)
     result = await workflow.execute(
         SimpleNamespace(session=SimpleNamespace(workflow_version="qs-snapshot-v1")), None
     )

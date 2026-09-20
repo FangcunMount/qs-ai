@@ -5,7 +5,6 @@ from dataclasses import dataclass
 from typing import Any, Protocol
 
 from qs_ai.application.execution.generation import DurableGeneration
-from qs_ai.application.execution.report_workflow import ReportWorkflow
 from qs_ai.application.interpretation.output import OutputParser
 from qs_ai.application.interpretation.ports import Claim, WorkflowResult
 from qs_ai.application.interpretation.prompts import PromptPackage
@@ -34,9 +33,21 @@ class ConfigurationReader(Protocol):
     async def get(self, claim: Claim, evidence: EvidenceSet) -> ExecutionConfiguration: ...
 
 
+class ReportExecutor(Protocol):
+    async def execute(self, claim: Claim, evidence: EvidenceSet) -> WorkflowResult: ...
+
+
+class ReportFactory(Protocol):
+    def __call__(
+        self, generation: DurableGeneration, config: ExecutionConfiguration
+    ) -> ReportExecutor: ...
+
+
 class PublishedReportWorkflow:
-    def __init__(self, reader: ConfigurationReader, generation: DurableGeneration) -> None:
-        self.reader, self.generation = reader, generation
+    def __init__(
+        self, reader: ConfigurationReader, generation: DurableGeneration, factory: ReportFactory
+    ) -> None:
+        self.reader, self.generation, self.factory = reader, generation, factory
 
     async def execute(self, claim: Claim, evidence: EvidenceSet) -> WorkflowResult:
         if claim.session.workflow_version != "qs-published-snapshot-v1":
@@ -45,14 +56,4 @@ class PublishedReportWorkflow:
             config = await self.reader.get(claim, evidence)
         except ConfigurationUnavailable:
             return WorkflowResult("", failure_code="configuration_invalid")
-        return await ReportWorkflow(
-            self.generation,
-            config.release,
-            config.package,
-            config.route,
-            config.schema,
-            config.parser,
-            publication_id=config.publication_id,
-            manifest_fingerprint=config.manifest_fingerprint,
-            validate_input=config.validate_input,
-        ).execute(claim, evidence)
+        return await self.factory(self.generation, config).execute(claim, evidence)

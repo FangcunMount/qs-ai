@@ -7,14 +7,15 @@ from uuid import UUID
 from sqlalchemy import func, or_, select
 
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict
+from qs_ai.application.interpretation.provider import MessagesGateway
 from qs_ai.application.interpretation.route_assets import RouteAssets
 from qs_ai.application.interpretation.schema_assets import SchemaAssets
 from qs_ai.application.operations.diagnostics import attempt_context, operation
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
 from qs_ai.infrastructure.persistence.mysql.evaluation_progress import execute_preflight
 from qs_ai.infrastructure.persistence.mysql.evaluation_scan import RecoveryCursor, recover_next
-from qs_ai.infrastructure.persistence.mysql.evaluation_step import MessagesGateway, execute_step
 from qs_ai.infrastructure.persistence.mysql.schema import evaluation_checkpoints, evaluation_runs
+from qs_ai.infrastructure.workflows.evaluation import execute_step
 
 
 class EvaluationWorker:

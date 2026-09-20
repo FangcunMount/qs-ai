@@ -34,6 +34,7 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
     sessions,
 )
 from qs_ai.infrastructure.qs_server.evaluation_suite import V6_PUBLISHED
+from qs_ai.infrastructure.workflows.report import create_report_workflow
 from tests.integration.test_generation import Gateway
 from tests.integration.test_interpretation import expire
 from tests.integration.test_interpretation import kit as kit
@@ -78,6 +79,7 @@ def workflow(kit, model):
     return PublishedReportWorkflow(
         MySQLExecutionConfigurations(kit.transactions),
         DurableGeneration(kit.store, model, JSONModelCallCodec()),
+        create_report_workflow,
     )
 
 

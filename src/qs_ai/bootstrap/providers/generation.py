@@ -16,6 +16,7 @@ from qs_ai.infrastructure.persistence.mysql.execution_configurations import (
     MySQLExecutionConfigurations,
 )
 from qs_ai.infrastructure.qs_server.responses import DeepSeekResponses
+from qs_ai.infrastructure.workflows.report import create_report_workflow
 
 
 class GenerationProvider(Provider):
@@ -44,4 +45,6 @@ class GenerationProvider(Provider):
             generation = DurableGeneration(
                 MySQLExecutionStore(transactions), gateway, JSONModelCallCodec()
             )
-            yield PublishedReportWorkflow(MySQLExecutionConfigurations(transactions), generation)
+            yield PublishedReportWorkflow(
+                MySQLExecutionConfigurations(transactions), generation, create_report_workflow
+            )

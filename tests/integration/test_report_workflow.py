@@ -11,6 +11,7 @@ from qs_ai.application.interpretation.provider import ProviderFailure
 from qs_ai.infrastructure.persistence.model_call_codec import JSONModelCallCodec
 from qs_ai.infrastructure.persistence.mysql.result_outbox import MySQLResultOutbox
 from qs_ai.infrastructure.persistence.mysql.schema import artifacts
+from qs_ai.infrastructure.workflows.report import create_report_workflow
 from tests.integration.test_generation import Gateway
 from tests.integration.test_interpretation import kit as kit
 from tests.probes.session_inspection import read_session
@@ -63,6 +64,7 @@ async def test_worker_to_validated_artifact_or_visible_failure(kit, scenario, ex
     workflow = PublishedReportWorkflow(
         MySQLExecutionConfigurations(kit.transactions),
         DurableGeneration(kit.store, model, JSONModelCallCodec()),
+        create_report_workflow,
     )
     assert await ExecuteNext(kit.store, kit.source, workflow).once()
     view = await read_session(kit.service.uows, receipt.session_id)

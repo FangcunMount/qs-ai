@@ -8,11 +8,11 @@ from sqlalchemy import select
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict
 from qs_ai.domain.evaluation.resolution import ResultUnknownResolution
 from qs_ai.infrastructure.persistence.mysql.evaluation_resolution import accept_resolution
-from qs_ai.infrastructure.persistence.mysql.evaluation_step import execute_step
 from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_generation_completions,
     evaluation_semantic_completions,
 )
+from qs_ai.infrastructure.workflows.evaluation import execute_step
 from tests.integration.test_evaluation_recovery import EXPIRY, pending, recover
 from tests.integration.test_evaluation_runs import rows
 from tests.integration.test_evaluation_runs import setup_run as setup_run
