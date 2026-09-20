@@ -52,9 +52,9 @@ async def create_run(
         raise ValueError("Invalid request reason")
     if created_at.tzinfo is None or created_at.utcoffset() is None:
         raise ValueError("Creation time must have a time zone")
+    suite = await load_registered_suite(db, release.suite)
     contracts = await evaluation_contracts(db, release, organization_id)
     policy, gate, semantic = contracts.execution, contracts.gate, contracts.semantic
-    suite = await load_registered_suite(db, release.suite)
     if suite.manifest is not None and generation_manifest != suite.manifest:
         raise ValueError("Native suite requires its registered generation manifest")
     release.validate_frozen_policies(policy.definition_json, gate.definition_json)
