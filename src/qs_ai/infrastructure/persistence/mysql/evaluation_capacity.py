@@ -1,6 +1,7 @@
 """Admission uses the same transaction as Start or an authorized resumption."""
 
 import asyncio
+import json
 from datetime import UTC, datetime
 
 from sqlalchemy import func, insert, select
@@ -17,6 +18,7 @@ from qs_ai.application.evaluation.management import ManagementScope
 from qs_ai.application.governance.prompt_drafts import DraftScope
 from qs_ai.application.governance.quotas import QuotaBaseline
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
+from qs_ai.infrastructure.persistence.mysql.evaluation_frozen_policies import frozen_policies
 from qs_ai.infrastructure.persistence.mysql.quotas import evaluation_policy
 from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_admission_locks as locks,
@@ -73,7 +75,15 @@ async def admit(
             raise ValueError("Evaluation reservation organization mismatch")
         # Resuming the same frozen Run consumes its original worst-case reservation.
         return
-    frozen = await asyncio.to_thread(load_execution_policy)
+    creation = (
+        await db.execute(
+            select(evaluation_runs.c.definition_json).where(
+                evaluation_runs.c.run_id == str(scope.run_id),
+                evaluation_runs.c.organization_id == scope.organization_id,
+            )
+        )
+    ).scalar_one()
+    frozen, _ = await asyncio.to_thread(frozen_policies, json.loads(creation))
     stored = (
         (
             await db.execute(

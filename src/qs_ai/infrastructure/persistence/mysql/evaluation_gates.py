@@ -27,6 +27,7 @@ from qs_ai.domain.evaluation.quality_gates import (
 from qs_ai.domain.evaluation.review import CandidateHumanReview, ReviewCandidate
 from qs_ai.infrastructure.persistence.mysql.evaluation_assets import stored_run_suite
 from qs_ai.infrastructure.persistence.mysql.evaluation_checkpoints import decode
+from qs_ai.infrastructure.persistence.mysql.evaluation_frozen_policies import frozen_policies
 from qs_ai.infrastructure.persistence.mysql.evaluation_projection import (
     decode_completion,
     decode_semantic_completion,
@@ -44,9 +45,7 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_semantic_completions,
 )
 from qs_ai.infrastructure.qs_server.evaluation_policies import (
-    load_execution_policy,
-    load_gate_policy,
-    load_quality_thresholds,
+    quality_thresholds,
 )
 from qs_ai.infrastructure.qs_server.preflight import run_preflight
 
@@ -125,10 +124,7 @@ async def load_snapshot(
     release = EvidenceReleaseIdentity(
         **{k: FrozenContractRef(**v) for k, v in creation["release"].items()}
     )
-    policy, gate = (
-        (await asyncio.to_thread(load_execution_policy)),
-        (await asyncio.to_thread(load_gate_policy)),
-    )
+    policy, gate = await asyncio.to_thread(frozen_policies, creation)
     suite = await stored_run_suite(db, creation)
     release.validate_frozen_policies(
         creation["execution_policy_json"], creation["gate_policy_json"]
@@ -212,6 +208,7 @@ async def load_snapshot(
         semantics,
         resolutions,
         recoveries,
+        policy=policy,
     )
     generated = tuple(decode_completion(r) for r in generations)
     judged = tuple(decode_semantic_completion(r) for r in semantics)
@@ -282,7 +279,7 @@ async def load_snapshot(
     candidates.sort(key=lambda c: (c.case_id, c.slot_ordinal))
     targets = tuple(c.evidence for c in candidates)
     reviews = decode_reviews(progress.get("human_reviews", []))
-    thresholds = await asyncio.to_thread(load_quality_thresholds)
+    thresholds = await asyncio.to_thread(quality_thresholds, gate)
     rule = acceptance_version(creation, progress, run["version"], at)
 
     def calculate(

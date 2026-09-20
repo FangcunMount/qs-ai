@@ -602,3 +602,43 @@ organization_quota_commands = sa.Table(
     mysql_engine="InnoDB",
     mysql_charset="utf8mb4",
 )
+
+evaluation_policy_assets = sa.Table(
+    "evaluation_policy_assets",
+    metadata,
+    sa.Column("kind", sa.String(16, collation="utf8mb4_bin"), primary_key=True),
+    sa.Column("asset_id", sa.String(128, collation="utf8mb4_bin"), primary_key=True),
+    sa.Column("version", sa.String(128, collation="utf8mb4_bin"), primary_key=True),
+    sa.Column("fingerprint", sa.String(71, collation="utf8mb4_bin"), nullable=False),
+    sa.Column("definition_json", mysql.LONGTEXT, nullable=False),
+    sa.Column("source_ref", sa.String(255), nullable=False),
+    sa.Column("imported_by", sa.String(255), nullable=False),
+    sa.Column(
+        "created_at",
+        mysql.DATETIME(fsp=6),
+        nullable=False,
+        server_default=sa.text("CURRENT_TIMESTAMP(6)"),
+    ),
+    sa.CheckConstraint("kind IN ('execution', 'gate')", name="ck_evaluation_policy_kind"),
+    mysql_engine="InnoDB",
+    mysql_charset="utf8mb4",
+)
+semantic_prompt_assets = sa.Table(
+    "semantic_prompt_assets",
+    metadata,
+    sa.Column("organization_id", EXTERNAL_ID, primary_key=True),
+    sa.Column("asset_id", sa.String(128, collation="utf8mb4_bin"), primary_key=True),
+    sa.Column("version", sa.String(128, collation="utf8mb4_bin"), primary_key=True),
+    sa.Column("fingerprint", sa.String(71, collation="utf8mb4_bin"), nullable=False),
+    sa.Column("markdown", mysql.LONGTEXT, nullable=False),
+    sa.Column("source_ref", sa.String(255), nullable=False),
+    sa.Column("imported_by", sa.String(255), nullable=False),
+    sa.Column(
+        "created_at",
+        mysql.DATETIME(fsp=6),
+        nullable=False,
+        server_default=sa.text("CURRENT_TIMESTAMP(6)"),
+    ),
+    mysql_engine="InnoDB",
+    mysql_charset="utf8mb4",
+)

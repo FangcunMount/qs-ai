@@ -17,6 +17,7 @@ from qs_ai.domain.evaluation.preflight import AssertionReceipt
 from qs_ai.domain.evaluation.semantic_completion import SemanticCompletion
 from qs_ai.infrastructure.persistence.mysql.evaluation_assets import stored_run_suite
 from qs_ai.infrastructure.persistence.mysql.evaluation_checkpoints import decode, save_checkpoint
+from qs_ai.infrastructure.persistence.mysql.evaluation_frozen_policies import frozen_policies
 from qs_ai.infrastructure.persistence.mysql.evaluation_projection import (
     decode_completion,
     project_slots,
@@ -34,7 +35,6 @@ from qs_ai.infrastructure.qs_server.evaluation_assertions import (
     assertion_inventory,
     semantic_obligations,
 )
-from qs_ai.infrastructure.qs_server.evaluation_policies import load_execution_policy
 from qs_ai.infrastructure.qs_server.semantic_output import parse_semantic_output
 
 
@@ -145,7 +145,7 @@ async def complete_semantic(
     ) or any(r["result_json"] is not None for r in previous):
         raise CheckpointConflict("Semantic sequence already accepted or incomplete")
     creation = json.loads(run["definition_json"])
-    policy = await asyncio.to_thread(load_execution_policy)
+    policy, _ = await asyncio.to_thread(frozen_policies, creation)
     if creation["execution_policy_json"] != policy.definition_json:
         raise CheckpointConflict("Unsupported frozen execution policy")
     release = EvidenceReleaseIdentity(
@@ -281,6 +281,7 @@ async def complete_semantic(
             list(semantics),
             progress.get("result_unknown_resolutions", []),
             progress.get("semantic_contract_recoveries", []),
+            policy=policy,
         )
         preflight = progress["preflight"]
         action = next_action(

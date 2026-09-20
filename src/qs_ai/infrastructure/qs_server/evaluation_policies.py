@@ -67,7 +67,13 @@ def load_gate_policy(*, directory: Path | None = None) -> FrozenPolicyDocument:
 
 def load_quality_thresholds(*, directory: Path | None = None) -> QualityThresholds:
     """Use the checksum-verified frozen policy, not deployment configuration defaults."""
-    value = json.loads(load_gate_policy(directory=directory).definition_json)
+    return quality_thresholds(load_gate_policy(directory=directory))
+
+
+def quality_thresholds(document: FrozenPolicyDocument) -> QualityThresholds:
+    if not document.reference.matches_document(document.definition_json):
+        raise ValueError("Gate policy fingerprint mismatch")
+    value = json.loads(document.definition_json)
     sample, reliability, quality, human = (
         value["sample_completeness"],
         value["execution_reliability"],
@@ -95,6 +101,12 @@ def load_execution_policy(*, directory: Path | None = None) -> ExecutionPolicy:
         "release-evaluation-bounded-recovery",
         directory,
     )
+    return execution_policy(document)
+
+
+def execution_policy(document: FrozenPolicyDocument) -> ExecutionPolicy:
+    if not document.reference.matches_document(document.definition_json):
+        raise ValueError("Execution policy fingerprint mismatch")
     raw = document.definition_json
     definition = json.loads(raw)
     slot, generation, semantic, recovery = (
@@ -103,6 +115,26 @@ def load_execution_policy(*, directory: Path | None = None) -> ExecutionPolicy:
         definition["semantic_budget"],
         definition["recovery_policy"],
     )
+    if (
+        (
+            slot["required_generation_cases"],
+            slot["required_candidates_per_case"],
+            slot["required_preflight_cases"],
+        )
+        != (7, 5, 1)
+        or recovery["result_unknown_requires_manual_acknowledgement"] is not True
+        or recovery["quality_failure_replacement_allowed"] is not False
+        or recovery["semantic_failure_regenerates_candidate"] is not False
+    ):
+        raise ValueError("Evaluation policy violates mandatory safety obligations")
+    limits = (
+        generation["max_executions_per_slot"],
+        generation["max_executions_per_run"],
+        semantic["max_executions_per_candidate"],
+        semantic["max_executions_per_run"],
+    )
+    if any(type(value) is not int or value <= 0 for value in limits):
+        raise ValueError("Invalid execution policy limits")
     return ExecutionPolicy(
         definition["policy_id"],
         definition["version"],
