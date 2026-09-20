@@ -44,7 +44,7 @@ class MySQLPolicyReferences:
             table = configuration_publications
             identity, version, raw = table.c.publication_id, literal(""), table.c.content_json
             checksum = table.c.content_sha256
-            path = "$.evidence.release"
+            path = "$.publication.evidence.release"
             visible = table.c.organization_id == scope.organization_id
         conditions: list[ColumnElement[bool]] = [visible]
         for field, expected in asdict(query.reference).items():

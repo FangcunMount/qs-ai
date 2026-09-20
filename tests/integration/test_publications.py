@@ -578,3 +578,31 @@ async def test_history_rejects_corrupted_retained_records(ready, corrupt):
     with pytest.raises(ValueError):
         await store.get_history(command.selector, 1)
     assert await inventory(tx) == before
+
+
+async def test_policy_references_find_canonical_publication_and_isolate_org(ready):
+    from qs_ai.application.governance.asset_references import ReferenceQuery
+    from qs_ai.application.governance.prompt_drafts import DraftScope
+    from qs_ai.infrastructure.persistence.mysql.asset_references import MySQLPolicyReferences
+
+    tx, scope, command, at = ready
+    receipt = await MySQLPublications(tx).apply(scope, command, at)
+    publication = receipt.change.current.active
+    assert publication is not None
+    reader = MySQLPolicyReferences(tx)
+    for kind in ("execution_policy", "gate_policy"):
+        query = ReferenceQuery(kind, getattr(publication.evidence.release, kind), "publication", 1)
+        found = []
+        for _ in range(100):
+            page = await reader.get(
+                DraftScope(scope.organization_id, scope.operator_user_id), query
+            )
+            found.extend(item["identity"] for item in page["items"])
+            if not page["next_cursor"]:
+                break
+            query = replace(query, cursor=page["next_cursor"])
+        else:
+            pytest.fail("publication reference pagination did not terminate")
+        assert str(publication.publication_id) in found
+        hidden = await reader.get(DraftScope(2, 43), replace(query, cursor=""))
+        assert str(publication.publication_id) not in [v["identity"] for v in hidden["items"]]
