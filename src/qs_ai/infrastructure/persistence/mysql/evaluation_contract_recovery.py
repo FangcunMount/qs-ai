@@ -115,6 +115,7 @@ async def authorize_contract_recovery(
         evidence.semantics,
         progress.get("result_unknown_resolutions", []),
         serialized,
+        policy=evidence.policy,
     )
     preflight = progress["preflight"]
     action = next_action(

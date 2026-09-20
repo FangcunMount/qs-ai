@@ -2,8 +2,8 @@
 
 from alembic import op
 
-revision = "0031_runtime_milestones"
-down_revision = "0030_organization_quotas"
+revision = "0032_runtime_milestones"
+down_revision = "0031_evaluation_policy_assets"
 branch_labels = None
 depends_on = None
 

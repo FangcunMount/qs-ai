@@ -13,13 +13,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict
 from qs_ai.domain.evaluation.policy import ExecutionPolicy
 from qs_ai.domain.evaluation.resolution import ResultUnknownResolution, UnknownExecution
+from qs_ai.infrastructure.persistence.mysql.evaluation_frozen_policies import frozen_policies
 from qs_ai.infrastructure.persistence.mysql.evaluation_projection import project_slots
 from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_dispatches,
     evaluation_generation_completions,
     evaluation_semantic_completions,
 )
-from qs_ai.infrastructure.qs_server.evaluation_policies import load_execution_policy
 
 
 def decode_resolutions(values: list[dict]) -> tuple[ResultUnknownResolution, ...]:
@@ -42,7 +42,7 @@ class ResolutionEvidence:
 async def load_resolution_evidence(
     db: AsyncSession, run_id: UUID, creation: dict[str, Any], progress: dict[str, Any]
 ) -> ResolutionEvidence:
-    policy = await asyncio.to_thread(load_execution_policy)
+    policy, _ = await asyncio.to_thread(frozen_policies, creation)
     if creation["execution_policy_json"] != policy.definition_json:
         raise ValueError("Frozen execution policy unavailable")
     records = []
@@ -72,6 +72,7 @@ async def load_resolution_evidence(
             semantics,
             progress.get("result_unknown_resolutions", []),
             progress.get("semantic_contract_recoveries", []),
+            policy=policy,
         )
     )
     unknowns = tuple(

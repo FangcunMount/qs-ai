@@ -73,6 +73,7 @@ async def record_for(
             evidence.semantics,
             progress.get("result_unknown_resolutions", []),
             progress.get("semantic_contract_recoveries", []),
+            policy=evidence.policy,
         )
         preflight = progress.get("preflight", creation["preflight"])
         planned = next_action(

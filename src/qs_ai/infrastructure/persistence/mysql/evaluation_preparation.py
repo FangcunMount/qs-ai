@@ -12,6 +12,7 @@ from qs_ai.application.evaluation.checkpoints import CheckpointConflict, Checkpo
 from qs_ai.domain.evaluation.actions import next_action
 from qs_ai.domain.evaluation.checkpoint import ExecutionCheckpoint
 from qs_ai.infrastructure.persistence.mysql.evaluation_checkpoints import save_checkpoint
+from qs_ai.infrastructure.persistence.mysql.evaluation_frozen_policies import frozen_policies
 from qs_ai.infrastructure.persistence.mysql.evaluation_projection import project_slots
 from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_checkpoints,
@@ -20,7 +21,6 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_runs,
     evaluation_semantic_completions,
 )
-from qs_ai.infrastructure.qs_server.evaluation_policies import load_execution_policy
 
 
 async def prepare_execution(
@@ -68,7 +68,7 @@ async def prepare_execution(
     if run is None or run["progress_json"] is None:
         raise CheckpointConflict("Run progress unavailable")
     creation, progress = json.loads(run["definition_json"]), run["progress_json"]
-    policy = await asyncio.to_thread(load_execution_policy)
+    policy, _ = await asyncio.to_thread(frozen_policies, creation)
     if creation["execution_policy_json"] != policy.definition_json:
         raise CheckpointConflict("Unsupported frozen execution policy")
     dispatches = (
@@ -112,6 +112,7 @@ async def prepare_execution(
         list(semantic),
         run["progress_json"].get("result_unknown_resolutions", []),
         run["progress_json"].get("semantic_contract_recoveries", []),
+        policy=policy,
     )
     preflight = progress.get("preflight", creation["preflight"])
     action = next_action(
