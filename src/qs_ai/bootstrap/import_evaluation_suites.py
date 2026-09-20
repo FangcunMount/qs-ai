@@ -14,10 +14,10 @@ from qs_ai.infrastructure.persistence.mysql.database import Database, Transactio
 from qs_ai.infrastructure.persistence.mysql.evaluation_suites import decode_record
 from qs_ai.infrastructure.persistence.mysql.schema import evaluation_runs, evaluation_suites
 from qs_ai.infrastructure.persistence.mysql.suite_contracts import encode
-from qs_ai.infrastructure.qs_server.evaluation_suite import V6_PUBLISHED, load_suite
+from qs_ai.infrastructure.qs_server.evaluation_suite import V6_PUBLISHED, FrozenSuite, load_suite
 
 
-def baseline():
+def baseline() -> tuple[str, FrozenSuite, SuiteContracts]:
     source, policies, semantic, schema = baseline_assets()
     suite = load_suite(V6_PUBLISHED)
     refs = {p.kind.value: p.reference for p in policies}

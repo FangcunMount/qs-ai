@@ -153,7 +153,7 @@ class MySQLAssetCatalog:
                 and (after is None or key(value.item) > after)
             ]
         items.sort(key=key)
-        unique = {}
+        unique: dict[tuple[str, str], CatalogItem] = {}
         for item in items:
             if key(item) in unique and unique[key(item)] != item:
                 raise ValueError("Catalog has conflicting suite sources")
