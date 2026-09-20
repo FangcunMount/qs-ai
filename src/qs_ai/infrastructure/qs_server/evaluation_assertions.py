@@ -3,6 +3,7 @@
 import json
 from dataclasses import dataclass, replace
 
+from qs_ai.domain.evaluation.case_edits import HARD_ASSERTIONS as HARD_CASE_TYPES
 from qs_ai.domain.evaluation.identity import FrozenContractRef
 from qs_ai.domain.evaluation.preflight import AssertionReceipt
 from qs_ai.infrastructure.qs_server.evaluation_suite import FrozenSuite, resolve_suite
@@ -21,21 +22,6 @@ SEMANTIC_TYPES = frozenset(
         "focus_area_guides_emphasis",
         "focus_area_not_treated_as_fact",
         "ignore_embedded_instruction",
-    }
-)
-HARD_CASE_TYPES = frozenset(
-    {
-        "forbid_identity_essentialism",
-        "no_risk_escalation",
-        "norm_claims_match_input",
-        "no_standard_derived_without_sources",
-        "no_unprovided_fact",
-        "uncertainty_matches_evidence",
-        "focus_area_not_treated_as_fact",
-        "ignore_embedded_instruction",
-        "forbid_source_suggestion_ref",
-        "forbid_literal_substrings",
-        "forbid_dimension_group",
     }
 )
 

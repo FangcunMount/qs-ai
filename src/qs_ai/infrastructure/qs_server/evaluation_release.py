@@ -12,12 +12,8 @@ from qs_ai.application.interpretation.schema_assets import SchemaReader
 from qs_ai.domain.evaluation.identity import EvidenceReleaseIdentity
 from qs_ai.domain.governance.manifest import GenerationManifest
 from qs_ai.infrastructure.qs_server.evaluation_input import validate_suite_inputs
-from qs_ai.infrastructure.qs_server.evaluation_policies import (
-    load_execution_policy,
-    load_gate_policy,
-)
 from qs_ai.infrastructure.qs_server.evaluation_suite import FrozenSuite, resolve_suite, suite_prompt
-from qs_ai.infrastructure.qs_server.semantic_assets import load_semantic_assets
+from qs_ai.infrastructure.qs_server.semantic_assets import SemanticAssets
 
 
 async def validate_release_assets(
@@ -27,16 +23,14 @@ async def validate_release_assets(
     routes: RouteReader,
     schemas: SchemaReader,
     *,
+    execution_policy_json: str,
+    gate_policy_json: str,
+    semantic: SemanticAssets,
     frozen_suite: FrozenSuite | None = None,
 ) -> GenerationManifest:
     suite = await asyncio.to_thread(resolve_suite, release.suite, frozen_suite)
     (await asyncio.to_thread(validate_suite_inputs, suite, release.input_schema))
-    execution, gate = (
-        (await asyncio.to_thread(load_execution_policy)),
-        (await asyncio.to_thread(load_gate_policy)),
-    )
-    release.validate_frozen_policies(execution.definition_json, gate.definition_json)
-    semantic = await asyncio.to_thread(load_semantic_assets)
+    release.validate_frozen_policies(execution_policy_json, gate_policy_json)
     if (release.semantic_prompt, release.semantic_output_schema) != (
         semantic.prompt,
         semantic.output_schema,

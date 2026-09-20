@@ -23,7 +23,6 @@ from qs_ai.infrastructure.persistence.mysql.evaluation_contracts import evaluati
 from qs_ai.infrastructure.persistence.mysql.evaluation_dispatches import freeze_policy
 from qs_ai.infrastructure.persistence.mysql.evaluation_suites import load_registered_suite
 from qs_ai.infrastructure.persistence.mysql.schema import evaluation_checkpoints, evaluation_runs
-from qs_ai.infrastructure.qs_server.evaluation_suite import SUITE_FILES
 
 
 async def create_run(
@@ -52,9 +51,9 @@ async def create_run(
         raise ValueError("Invalid request reason")
     if created_at.tzinfo is None or created_at.utcoffset() is None:
         raise ValueError("Creation time must have a time zone")
+    suite = await load_registered_suite(db, release.suite, organization_id=organization_id)
     contracts = await evaluation_contracts(db, release, organization_id)
     policy, gate, semantic = contracts.execution, contracts.gate, contracts.semantic
-    suite = await load_registered_suite(db, release.suite)
     if suite.manifest is not None and generation_manifest != suite.manifest:
         raise ValueError("Native suite requires its registered generation manifest")
     release.validate_frozen_policies(policy.definition_json, gate.definition_json)
@@ -72,6 +71,7 @@ async def create_run(
         "execution_policy_json": policy.definition_json,
         "gate_policy_json": gate.definition_json,
         "semantic_prompt_markdown": semantic.prompt_markdown,
+        "semantic_owner_organization_id": contracts.semantic_owner_organization_id,
         "semantic_output_schema_json": semantic.output_schema_json,
         "acceptance_rule": rule_document(),
         "suite_json": suite.definition_json,
@@ -141,16 +141,20 @@ class MySQLRunCreator:
     ) -> CheckpointState:
         from qs_ai.infrastructure.qs_server.evaluation_release import validate_release_assets
 
-        suite = None
-        if (release.suite.id, release.suite.version) not in {
-            (r.id, r.version) for r in SUITE_FILES
-        }:
-            async with self.transactions.open() as db:
-                suite = await load_registered_suite(db, release.suite)
-        manifest = await validate_release_assets(
-            release, self.profiles, self.prompts, self.routes, self.schemas, frozen_suite=suite
-        )
         async with self.transactions.open() as db:
+            suite = await load_registered_suite(db, release.suite, organization_id=organization_id)
+            contracts = await evaluation_contracts(db, release, organization_id)
+            manifest = await validate_release_assets(
+                release,
+                self.profiles,
+                self.prompts,
+                self.routes,
+                self.schemas,
+                frozen_suite=suite,
+                execution_policy_json=contracts.execution.definition_json,
+                gate_policy_json=contracts.gate.definition_json,
+                semantic=contracts.semantic,
+            )
             state = await create_run(
                 db,
                 run_id,

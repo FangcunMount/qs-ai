@@ -1,4 +1,4 @@
-"""Read immutable assets and bundled/registered suites without disclosing command audits."""
+"""Read exact database assets; organization-derived suites remain scoped."""
 
 import asyncio
 import hashlib
@@ -27,7 +27,7 @@ from qs_ai.domain.governance.prompt import PromptAsset
 from qs_ai.domain.governance.route import RouteAsset
 from qs_ai.domain.governance.schema import SchemaAsset
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
-from qs_ai.infrastructure.persistence.mysql.evaluation_suites import decode_record
+from qs_ai.infrastructure.persistence.mysql.evaluation_suites import load_registered_suite
 from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_policy_assets,
     evaluation_suites,
@@ -36,7 +36,6 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
     route_assets,
     schema_assets,
 )
-from qs_ai.infrastructure.qs_server.evaluation_suite import SUITE_FILES, load_suite
 
 TABLES: dict[AssetKind, Table] = {
     "profile": profile_assets,
@@ -89,15 +88,6 @@ def decode(kind: AssetKind, row: RowMapping) -> CatalogDetail:
             policy.reference.fingerprint,
             policy.definition_json,
         )
-    if kind == "suite":
-        suite, _ = decode_record(row)
-        return detail(
-            kind,
-            suite.reference.id,
-            suite.reference.version,
-            suite.reference.fingerprint,
-            suite.definition_json,
-        )
     cls = TYPES[kind]
     asset = cls(**{field.name: row[field.name] for field in fields(cls)})
     keys = list(TABLES[kind].primary_key.columns)
@@ -105,10 +95,11 @@ def decode(kind: AssetKind, row: RowMapping) -> CatalogDetail:
     return detail(kind, row[keys[0].name], row[keys[1].name], asset.fingerprint, raw)
 
 
-def bundled() -> tuple[CatalogDetail, ...]:
-    return tuple(
-        detail("suite", ref.id, ref.version, ref.fingerprint, load_suite(ref).definition_json)
-        for ref in SUITE_FILES
+async def suite_detail(db: Any, row: RowMapping, scope: DraftScope) -> CatalogDetail:
+    reference = FrozenContractRef(row["suite_id"], row["suite_version"], row["fingerprint"])
+    suite = await load_registered_suite(db, reference, organization_id=scope.organization_id)
+    return detail(
+        "suite", reference.id, reference.version, reference.fingerprint, suite.definition_json
     )
 
 
@@ -121,8 +112,7 @@ class MySQLAssetCatalog:
         self.transactions = transactions
 
     async def list(self, scope: DraftScope, query: CatalogQuery) -> CatalogPage:
-        # Scope proves a trusted caller supplied actor context, not an organization partition:
-        # definitions are shared just as in QS. Command receipts and Runs remain scoped.
+        # Original assets are shared; suite derivatives belong to their author organization.
         DraftScope(scope.organization_id, scope.operator_user_id)
         table = TABLES[query.kind]
         identity, version = columns(query.kind)
@@ -132,6 +122,8 @@ class MySQLAssetCatalog:
             column.collate("utf8mb4_0900_bin") for column in (identity, version)
         )
         statement = select(table)
+        if query.kind == "suite":
+            statement = statement.where(table.c.organization_id.in_((0, scope.organization_id)))
         if query.kind in POLICY_KINDS:
             statement = statement.where(table.c.kind == POLICY_KINDS[query.kind].value)
         if query.identity:
@@ -144,21 +136,12 @@ class MySQLAssetCatalog:
         statement = statement.order_by(identity_key, version_key).limit(query.limit + 1)
         async with self.transactions.open() as db:
             rows = (await db.execute(statement)).mappings().all()
-            items = [(await asyncio.to_thread(decode, query.kind, row)).item for row in rows]
-        if query.kind == "suite":
-            items += [
-                value.item
-                for value in (await asyncio.to_thread(bundled))
-                if (not query.identity or value.item.reference.identity == query.identity)
-                and (after is None or key(value.item) > after)
+            items = [
+                (await suite_detail(db, row, scope)).item
+                if query.kind == "suite"
+                else (await asyncio.to_thread(decode, query.kind, row)).item
+                for row in rows
             ]
-        items.sort(key=key)
-        unique: dict[tuple[str, str], CatalogItem] = {}
-        for item in items:
-            if key(item) in unique and unique[key(item)] != item:
-                raise ValueError("Catalog has conflicting suite sources")
-            unique[key(item)] = item
-        items = list(unique.values())
         page = tuple(items[: query.limit])
         cursor = query.next_cursor(page[-1].reference) if len(items) > query.limit else ""
         return CatalogPage(page, cursor)
@@ -174,6 +157,8 @@ class MySQLAssetCatalog:
         table = TABLES[kind]
         first, second = columns(kind)
         statement = select(table)
+        if kind == "suite":
+            statement = statement.where(table.c.organization_id.in_((0, scope.organization_id)))
         if kind in POLICY_KINDS:
             statement = statement.where(table.c.kind == POLICY_KINDS[kind].value)
         async with self.transactions.open() as db:
@@ -189,22 +174,8 @@ class MySQLAssetCatalog:
                 .mappings()
                 .one_or_none()
             )
-        built_in = (
-            next(
-                (
-                    value
-                    for value in (await asyncio.to_thread(bundled))
-                    if key(value.item) == (identity, version)
-                ),
-                None,
-            )
-            if kind == "suite"
-            else None
-        )
-        if built_in:
-            if row is not None and await asyncio.to_thread(decode, kind, row) != built_in:
-                raise ValueError("Catalog has conflicting suite sources")
-            return built_in
+            if row is not None and kind == "suite":
+                return await suite_detail(db, row, scope)
         if row is None:
             raise NotFound()
         return await asyncio.to_thread(decode, kind, row)

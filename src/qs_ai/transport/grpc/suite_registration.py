@@ -36,7 +36,7 @@ def response(value: SuiteRegistrationReceipt) -> pb.SuiteRegistrationReceipt:
     receipt = pb.SuiteRegistrationReceipt(
         schema_version="qs-ai-suite-registration/v1",
         command_id=str(value.command.command_id),
-        receipt_json=RECEIPT.dump_json(value).decode(),
+        receipt_json=RECEIPT.dump_json(value, exclude_defaults=True).decode(),
     )
     if receipt.ByteSize() > 32768:
         raise ValueError("Suite receipt exceeds limit")
@@ -83,6 +83,15 @@ class SuiteManagement(rpc.SuiteManagementServicer):
                 reference(request.prompt),
                 reference(request.generation_route),
                 request.reason,
+                case_edits_json=request.case_edits_json,
+                semantic_prompt=FrozenContractRef(
+                    request.semantic_prompt.id,
+                    request.semantic_prompt.version,
+                    request.semantic_prompt.fingerprint,
+                )
+                if request.HasField("semantic_prompt")
+                else None,
+                semantic_owner_organization_id=request.semantic_owner_organization_id,
             )
             async with self.container() as operation:
                 store = await operation.get(SuiteRegistrar)

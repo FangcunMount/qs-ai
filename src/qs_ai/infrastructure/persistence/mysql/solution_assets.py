@@ -1,6 +1,5 @@
 """Resolve exact sources and atomically prepare existing governance assets."""
 
-import asyncio
 import hashlib
 import json
 from dataclasses import asdict, replace
@@ -16,7 +15,7 @@ from qs_ai.application.governance.profile_registration import RegisterProfile
 from qs_ai.application.governance.prompt_drafts import DraftScope
 from qs_ai.application.governance.prompt_freeze import FreezePromptDraft
 from qs_ai.application.governance.solution_models import edited_route, selection
-from qs_ai.application.governance.solutions import CreateSolution, ModelSelection
+from qs_ai.application.governance.solutions import CreateSolution, ModelSelection, SaveSolution
 from qs_ai.application.governance.suite_registration import RegisterSuite
 from qs_ai.application.interpretation.route_assets import executable_route
 from qs_ai.domain.evaluation.identity import EvidenceReleaseIdentity, FrozenContractRef
@@ -30,6 +29,10 @@ from qs_ai.infrastructure.persistence.mysql.asset_snapshot import (
     generation_snapshot,
 )
 from qs_ai.infrastructure.persistence.mysql.evaluation_assets import run_release, stored_run_suite
+from qs_ai.infrastructure.persistence.mysql.evaluation_contracts import (
+    evaluation_contracts,
+    semantic_contract,
+)
 from qs_ai.infrastructure.persistence.mysql.evaluation_runs import create_run
 from qs_ai.infrastructure.persistence.mysql.evaluation_snapshot import header
 from qs_ai.infrastructure.persistence.mysql.evaluation_suites import (
@@ -47,13 +50,67 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
     route_assets,
     schema_assets,
 )
-from qs_ai.infrastructure.qs_server.evaluation_policies import load_execution_policy
+from qs_ai.infrastructure.persistence.mysql.suite_contracts import read as read_suite_contracts
 from qs_ai.infrastructure.qs_server.evaluation_release import validate_release_assets
-from qs_ai.infrastructure.qs_server.evaluation_suite import V6_PUBLISHED
 
 
 def release_from(raw: dict[str, Any]) -> EvidenceReleaseIdentity:
     return EvidenceReleaseIdentity(**{k: FrozenContractRef(**v) for k, v in raw.items()})
+
+
+def selected_release(state: dict[str, Any]) -> EvidenceReleaseIdentity:
+    release = release_from(state["source_release"])
+    selected = state.get("evaluation_assets")
+    if not selected:
+        return release
+    return replace(
+        release,
+        **{
+            field: FrozenContractRef(**selected[field])
+            for field in (
+                "suite",
+                "execution_policy",
+                "gate_policy",
+                "semantic_prompt",
+                "semantic_output_schema",
+            )
+        },
+    )
+
+
+async def select_evaluation_assets(
+    db: AsyncSession, scope: DraftScope, state: dict[str, Any], command: SaveSolution
+) -> dict[str, Any]:
+    previous = selected_release(state)
+    suite_ref = command.evaluation_suite or previous.suite
+    await load_registered_suite(db, suite_ref, organization_id=scope.organization_id)
+    binding = await read_suite_contracts(db, suite_ref, scope.organization_id)
+    original = release_from(state["source_release"])
+    if (binding.execution_policy, binding.gate_policy, binding.semantic_output_schema) != (
+        original.execution_policy,
+        original.gate_policy,
+        original.semantic_output_schema,
+    ):
+        raise ValueError("Solution cannot change execution or gate contracts")
+    owner = binding.semantic_owner_organization_id
+    prompt = binding.semantic_prompt
+    if command.semantic_prompt is not None:
+        prompt, owner = command.semantic_prompt, command.semantic_owner_organization_id
+    elif command.evaluation_suite is None and state.get("evaluation_assets"):
+        prompt = previous.semantic_prompt
+        owner = state["evaluation_assets"]["semantic_owner_organization_id"]
+    selected = replace(original, suite=suite_ref, semantic_prompt=prompt)
+    await semantic_contract(db, selected, scope.organization_id, owner_organization_id=owner)
+    return {
+        field: asdict(getattr(selected, field))
+        for field in (
+            "suite",
+            "execution_policy",
+            "gate_policy",
+            "semantic_prompt",
+            "semantic_output_schema",
+        )
+    } | {"semantic_owner_organization_id": owner}
 
 
 async def route_for(db: AsyncSession, ref: FrozenContractRef) -> RouteAsset:
@@ -137,7 +194,7 @@ async def prepare_assets(
 ) -> dict[str, Any]:
     """All writes share one transaction. No model invocation or publication happens here."""
     solution_id = UUID(state["solution_id"])
-    release = release_from(state["source_release"])
+    release = selected_release(state)
     profile, manifest = await generation_snapshot(db, release)
     prompt = await apply_freeze(
         db,
@@ -193,13 +250,17 @@ async def prepare_assets(
         scope,
         RegisterSuite(
             uuid5(command_id, "suite"),
-            V6_PUBLISHED,
-            V6_PUBLISHED.id,
+            release.suite,
+            release.suite.id,
             state["target_version"],
             registered.manifest.profile,
             prompt.asset,
             generation,
             state["reason"],
+            semantic_prompt=release.semantic_prompt,
+            semantic_owner_organization_id=state.get("evaluation_assets", {}).get(
+                "semantic_owner_organization_id", 0
+            ),
         ),
         at,
     )
@@ -219,13 +280,19 @@ async def prepare_assets(
         ),
         semantic_route=FrozenContractRef(semantic.identity, semantic.version, semantic.fingerprint),
     )
+    contracts = await evaluation_contracts(db, target, scope.organization_id)
     await validate_release_assets(
         target,
         AssetSnapshotReader(db, profile_assets, ProfileAsset),
         AssetSnapshotReader(db, prompt_assets, PromptAsset),
         AssetSnapshotReader(db, route_assets, RouteAsset),
         AssetSnapshotReader(db, schema_assets, SchemaAsset),
-        frozen_suite=await load_registered_suite(db, suite.suite),
+        frozen_suite=await load_registered_suite(
+            db, suite.suite, organization_id=scope.organization_id
+        ),
+        execution_policy_json=contracts.execution.definition_json,
+        gate_policy_json=contracts.gate.definition_json,
+        semantic=contracts.semantic,
     )
     run_id = uuid5(solution_id, "evaluation")
     await create_run(
@@ -238,7 +305,7 @@ async def prepare_assets(
         at,
         generation_manifest=suite.manifest,
     )
-    policy = await asyncio.to_thread(load_execution_policy)
+    policy = contracts.execution
     return {
         "plan": {
             "generation_case_count": policy.generation_cases,

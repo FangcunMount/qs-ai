@@ -6,6 +6,7 @@ import hashlib
 import json
 
 from sqlalchemy import insert, select, update
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from qs_ai.bootstrap.import_evaluation_assets import baseline_assets
 from qs_ai.config import Settings
@@ -18,30 +19,74 @@ from qs_ai.infrastructure.persistence.mysql.database import Database, Transactio
 from qs_ai.infrastructure.persistence.mysql.evaluation_asset_registry import (
     read_policy,
 )
-from qs_ai.infrastructure.persistence.mysql.evaluation_suites import decode_record
+from qs_ai.infrastructure.persistence.mysql.evaluation_suites import (
+    decode_record,
+    load_registered_suite,
+)
 from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_runs,
     evaluation_suites,
     schema_assets,
     semantic_prompt_assets,
 )
-from qs_ai.infrastructure.persistence.mysql.suite_contracts import encode
+from qs_ai.infrastructure.persistence.mysql.suite_contracts import decode, encode
 from qs_ai.infrastructure.qs_server.evaluation_suite import V6_PUBLISHED, FrozenSuite, load_suite
+from qs_ai.infrastructure.qs_server.semantic_assets import load_semantic_assets
 
 
 def baseline() -> tuple[str, FrozenSuite, SuiteContracts]:
-    source, policies, semantic, schema = baseline_assets()
+    source, policies, semantic, _ = baseline_assets()
     suite = load_suite(V6_PUBLISHED)
     refs = {p.kind.value: p.reference for p in policies}
     contracts = SuiteContracts(
         refs["execution"],
         refs["gate"],
         semantic.reference,
-        FrozenContractRef(
-            schema.schema_id, schema.schema_id + "/" + schema.version, schema.fingerprint
-        ),
+        load_semantic_assets().output_schema,
     )
     return source, suite, contracts
+
+
+async def install_baseline(
+    db: AsyncSession, source: str, suite: FrozenSuite, contracts: SuiteContracts, imported_by: str
+) -> bool:
+    raw, checksum = encode(contracts)
+    row = (
+        (
+            await db.execute(
+                select(evaluation_suites).where(
+                    evaluation_suites.c.suite_id == suite.reference.id,
+                    evaluation_suites.c.suite_version == suite.reference.version,
+                )
+            )
+        )
+        .mappings()
+        .one_or_none()
+    )
+    if row is not None:
+        if (
+            row["definition_json"],
+            row["fingerprint"],
+            row["organization_id"],
+            row["contracts_json"],
+            row["contracts_sha256"],
+        ) != (suite.definition_json, suite.reference.fingerprint, 0, raw, checksum):
+            raise ValueError("Original initialized suite differs")
+        return False
+    await db.execute(
+        insert(evaluation_suites).values(
+            suite_id=suite.reference.id,
+            suite_version=suite.reference.version,
+            fingerprint=suite.reference.fingerprint,
+            definition_json=suite.definition_json,
+            organization_id=0,
+            source_ref=source,
+            imported_by=imported_by,
+            contracts_json=raw,
+            contracts_sha256=checksum,
+        )
+    )
+    return True
 
 
 async def run(imported_by: str) -> dict[str, int]:
@@ -83,7 +128,9 @@ async def run(imported_by: str) -> dict[str, int]:
                 raise ValueError("Initialize original semantic schema before suites")
             rows = (await db.execute(select(evaluation_suites).with_for_update())).mappings().all()
             runs = (await db.execute(select(evaluation_runs.c.definition_json))).scalars().all()
-            wanted = json.loads(raw_contracts)
+            inserted = int(
+                await install_baseline(db, source, baseline_suite, contracts, imported_by)
+            )
             # Existing evidence must agree before the original static source can be bound.
             for raw in runs:
                 creation = json.loads(raw)
@@ -95,6 +142,21 @@ async def run(imported_by: str) -> dict[str, int]:
                 )
                 if not known:
                     raise ValueError("Run references an unaccounted suite")
+                existing = next(
+                    (
+                        r
+                        for r in rows
+                        if (r["suite_id"], r["suite_version"], r["fingerprint"])
+                        == (suite_ref.id, suite_ref.version, suite_ref.fingerprint)
+                    ),
+                    None,
+                )
+                binding = (
+                    contracts
+                    if existing is None or existing["contracts_json"] is None
+                    else decode(existing["contracts_json"], existing["contracts_sha256"])
+                )
+                wanted = json.loads(encode(binding)[0])
                 for field in (
                     "execution_policy",
                     "gate_policy",
@@ -103,11 +165,18 @@ async def run(imported_by: str) -> dict[str, int]:
                 ):
                     if creation["release"][field] != wanted[field]:
                         raise ValueError("Historical Run requires a different contract binding")
-            inserted = bound = 0
+            bound = 0
             for row in rows:
                 reference = FrozenContractRef(
                     row["suite_id"], row["suite_version"], row["fingerprint"]
                 )
+                if row["contracts_json"] is not None:
+                    decode(row["contracts_json"], row["contracts_sha256"])
+                    if reference != baseline_suite.reference:
+                        await load_registered_suite(
+                            db, reference, organization_id=row["organization_id"]
+                        )
+                    continue
                 if reference == baseline_suite.reference:
                     if (
                         row["definition_json"] != baseline_suite.definition_json
@@ -116,14 +185,7 @@ async def run(imported_by: str) -> dict[str, int]:
                         raise ValueError("Original suite source collides with another asset")
                 else:
                     # The original validator verifies every inherited byte against its fixed source.
-                    await asyncio.to_thread(decode_record, row)
-                if row["contracts_json"] is not None:
-                    if (row["contracts_json"], row["contracts_sha256"]) != (
-                        raw_contracts,
-                        checksum,
-                    ):
-                        raise ValueError("Existing suite binding differs")
-                    continue
+                    await asyncio.to_thread(decode_record, row, baseline_suite)
                 await db.execute(
                     update(evaluation_suites)
                     .where(
@@ -133,25 +195,6 @@ async def run(imported_by: str) -> dict[str, int]:
                     .values(contracts_json=raw_contracts, contracts_sha256=checksum)
                 )
                 bound += 1
-            if not any(
-                (r["suite_id"], r["suite_version"])
-                == (baseline_suite.reference.id, baseline_suite.reference.version)
-                for r in rows
-            ):
-                await db.execute(
-                    insert(evaluation_suites).values(
-                        suite_id=baseline_suite.reference.id,
-                        suite_version=baseline_suite.reference.version,
-                        fingerprint=baseline_suite.reference.fingerprint,
-                        definition_json=baseline_suite.definition_json,
-                        organization_id=0,
-                        source_ref=source,
-                        imported_by=imported_by,
-                        contracts_json=raw_contracts,
-                        contracts_sha256=checksum,
-                    )
-                )
-                inserted = 1
             await db.commit()
             return {"inserted": inserted, "bindings_added": bound, "runs_checked": len(runs)}
     finally:

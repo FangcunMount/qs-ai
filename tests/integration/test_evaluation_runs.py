@@ -48,6 +48,12 @@ async def setup_run():
         await registry.put_policy(policy, source, "integration-baseline")
     await registry.put_semantic_prompt(prompt, source, "integration-baseline")
     await MySQLSchemaAssets(tx).put(schema, source, "integration-baseline")
+    from qs_ai.bootstrap.import_evaluation_suites import baseline, install_baseline
+
+    suite_source, base_suite, contracts = baseline()
+    async with tx.open() as db:
+        await install_baseline(db, suite_source, base_suite, contracts, "integration-baseline")
+        await db.commit()
     run_id = uuid4()
     execution = load_execution_policy()
     # Placeholder asset refs isolate storage atomicity; this is not an eligible release.

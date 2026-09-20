@@ -1,6 +1,7 @@
 """Resolve executable evaluation inputs from the Run's immutable asset snapshot."""
 
 import asyncio
+import hashlib
 import json
 from typing import Any
 
@@ -22,7 +23,7 @@ from qs_ai.infrastructure.persistence.mysql.schema import prompt_assets, route_a
 from qs_ai.infrastructure.qs_server.evaluation_case import (
     prepare_asset_evaluation_case,
 )
-from qs_ai.infrastructure.qs_server.evaluation_suite import FrozenSuite, load_suite
+from qs_ai.infrastructure.qs_server.evaluation_suite import FrozenSuite
 from qs_ai.infrastructure.qs_server.profiles import decode_published_profile
 
 
@@ -33,7 +34,12 @@ def run_release(creation: dict[str, Any]) -> EvidenceReleaseIdentity:
     if creation["release_fingerprint"] != release.fingerprint():
         raise ValueError("Frozen Run release fingerprint changed")
     # Validate the stored bytes against their identity, including native case obligations.
-    load_suite(release.suite, definition_json=creation["suite_json"])
+    raw = creation["suite_json"]
+    if "sha256:" + hashlib.sha256(raw.encode()).hexdigest() != release.suite.fingerprint or (
+        json.loads(raw)["suite_id"],
+        json.loads(raw)["suite_version"],
+    ) != (release.suite.id, release.suite.version):
+        raise ValueError("Frozen Run suite identity changed")
     # An incomplete manifest is corruption, never a reason to fall back to legacy assets.
     if ("generation_manifest_json" in creation) != ("generation_manifest_fingerprint" in creation):
         raise ValueError("Incomplete frozen Run manifest")
@@ -91,7 +97,9 @@ async def run_model_route(
 
 async def stored_run_suite(db: AsyncSession, creation: dict[str, Any]) -> FrozenSuite:
     release = await asyncio.to_thread(run_release, creation)
-    suite = await load_registered_suite(db, release.suite)
+    suite = await load_registered_suite(
+        db, release.suite, organization_id=creation["audit"]["organization_id"]
+    )
     if suite.definition_json != creation["suite_json"]:
         raise ValueError("Frozen Run suite differs from registered asset")
     if suite.manifest is not None and (

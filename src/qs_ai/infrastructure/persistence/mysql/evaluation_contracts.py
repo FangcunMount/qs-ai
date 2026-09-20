@@ -16,6 +16,7 @@ from qs_ai.infrastructure.persistence.mysql.evaluation_asset_registry import (
     read_semantic_prompt,
 )
 from qs_ai.infrastructure.persistence.mysql.schema import schema_assets
+from qs_ai.infrastructure.persistence.mysql.suite_contracts import read as read_suite_contracts
 from qs_ai.infrastructure.qs_server.evaluation_policies import (
     FrozenPolicyDocument,
     execution_policy,
@@ -28,6 +29,7 @@ class EvaluationContracts:
     execution: ExecutionPolicy
     gate: FrozenPolicyDocument
     semantic: SemanticAssets
+    semantic_owner_organization_id: int = 0
 
 
 async def semantic_contract(
@@ -71,8 +73,18 @@ async def evaluation_contracts(
     release: EvidenceReleaseIdentity,
     organization_id: int,
     *,
-    semantic_owner_organization_id: int = 0,
+    semantic_owner_organization_id: int | None = None,
 ) -> EvaluationContracts:
+    refs = await read_suite_contracts(db, release.suite, organization_id)
+    for field in ("execution_policy", "gate_policy", "semantic_prompt", "semantic_output_schema"):
+        if getattr(refs, field) != getattr(release, field):
+            raise ValueError("Release differs from fixed suite contracts")
+    if (
+        semantic_owner_organization_id is not None
+        and semantic_owner_organization_id != refs.semantic_owner_organization_id
+    ):
+        raise ValueError("Suite semantic owner mismatch")
+    semantic_owner_organization_id = refs.semantic_owner_organization_id
     execution = await read_policy(db, PolicyKind.EXECUTION, release.execution_policy)
     gate = await read_policy(db, PolicyKind.GATE, release.gate_policy)
     return EvaluationContracts(
@@ -83,4 +95,5 @@ async def evaluation_contracts(
         await semantic_contract(
             db, release, organization_id, owner_organization_id=semantic_owner_organization_id
         ),
+        semantic_owner_organization_id,
     )

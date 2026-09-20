@@ -140,7 +140,7 @@ async def test_register_replay_scoped_receipt_and_original_cases(suite_registrat
         with pytest.raises(NotFound):
             await store.get_receipt(foreign, command.command_id)
     async with tx.open() as db:
-        suite = await load_registered_suite(db, first.suite)
+        suite = await load_registered_suite(db, first.suite, organization_id=scope.organization_id)
     assert suite.manifest == manifest
     assert (
         json.loads(suite.definition_json)["cases"]
@@ -341,3 +341,41 @@ async def test_valid_changed_eligibility_requires_new_case_contract(
                 delete(profile_assets).where(profile_assets.c.version == definition["version"])
             )
             await db.commit()
+
+
+async def test_revised_cases_are_scoped_frozen_and_do_not_read_files(
+    suite_registration, monkeypatch
+):
+    tx, store, scope, command, at, _, _ = suite_registration
+    source = load_suite(V6_PUBLISHED)
+    case = next(
+        c for c in json.loads(source.definition_json)["cases"] if c["stage"] == "generation"
+    )
+    revision = {
+        "case_id": case["case_id"],
+        "title": "受控案例说明修订",
+        "purpose": case["purpose"],
+        "provider_payload": case["provider_payload"],
+        "assertions": case["expected"]["assertions"],
+    }
+    command = replace(command, case_edits_json=json.dumps([revision], ensure_ascii=False))
+
+    def forbidden(*args, **kwargs):
+        if kwargs.get("definition_json") is None:
+            raise AssertionError("runtime attempted file suite lookup")
+        return load_suite(*args, **kwargs)
+
+    monkeypatch.setattr("qs_ai.infrastructure.qs_server.evaluation_suite.load_suite", forbidden)
+    first = await store.register(scope, command, at)
+    assert await store.register(scope, command, at) == first
+    async with tx.open() as db:
+        frozen = await load_registered_suite(db, first.suite, organization_id=scope.organization_id)
+        assert frozen.slots() == source.slots()
+        changed = next(
+            c
+            for c in json.loads(frozen.definition_json)["cases"]
+            if c["case_id"] == case["case_id"]
+        )
+        assert changed["title"] == revision["title"]
+        with pytest.raises(ValueError):
+            await load_registered_suite(db, first.suite, organization_id=scope.organization_id + 1)
