@@ -1,5 +1,6 @@
 """Admission uses the same transaction as Start or an authorized resumption."""
 
+import asyncio
 from datetime import UTC, datetime
 
 from sqlalchemy import func, insert, select
@@ -63,7 +64,7 @@ async def admit(
             raise ValueError("Evaluation reservation organization mismatch")
         # Resuming the same frozen Run consumes its original worst-case reservation.
         return
-    frozen = load_execution_policy()
+    frozen = await asyncio.to_thread(load_execution_policy)
     stored = (
         (
             await db.execute(
@@ -149,7 +150,7 @@ class MySQLEvaluationCapacity:
                 .all()
             )
         reserved = int(reserved)
-        frozen = load_execution_policy()
+        frozen = await asyncio.to_thread(load_execution_policy)
         full = frozen.generation_per_run + frozen.semantic_per_run
         remaining = max(0, self.capacity.daily_provider_calls - reserved)
         return EvaluationCapacitySnapshot(

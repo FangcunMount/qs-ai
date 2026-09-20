@@ -1,5 +1,6 @@
 """Resolve executable evaluation inputs from the Run's immutable asset snapshot."""
 
+import asyncio
 import json
 from typing import Any
 
@@ -43,7 +44,7 @@ async def prepare_run_case(
     db: AsyncSession, creation: dict[str, Any], case_id: str
 ) -> PreparedExplanation:
     require_generation_manifest(creation)
-    release = run_release(creation)
+    release = await asyncio.to_thread(run_release, creation)
     suite = await stored_run_suite(db, creation)
     profile, manifest = await generation_snapshot(db, release)
     if (creation["generation_manifest_json"], creation["generation_manifest_fingerprint"]) != (
@@ -63,8 +64,13 @@ async def prepare_run_case(
             "status": "published",
         }
     )
-    return prepare_asset_evaluation_case(
-        release, case_id, policy, executable_prompt(prompt), frozen_suite=suite
+    return await asyncio.to_thread(
+        prepare_asset_evaluation_case,
+        release,
+        case_id,
+        policy,
+        executable_prompt(prompt),
+        frozen_suite=suite,
     )
 
 
@@ -72,7 +78,7 @@ async def run_model_route(
     db: AsyncSession, creation: dict[str, Any], *, semantic: bool
 ) -> ModelRoute:
     require_generation_manifest(creation)
-    release = run_release(creation)
+    release = await asyncio.to_thread(run_release, creation)
     ref = release.semantic_route if semantic else release.generation_route
     asset = await AssetSnapshotReader(db, route_assets, RouteAsset).get(ref.id, ref.version)
     if asset is None:
@@ -84,7 +90,7 @@ async def run_model_route(
 
 
 async def stored_run_suite(db: AsyncSession, creation: dict[str, Any]) -> FrozenSuite:
-    release = run_release(creation)
+    release = await asyncio.to_thread(run_release, creation)
     suite = await load_registered_suite(db, release.suite)
     if suite.definition_json != creation["suite_json"]:
         raise ValueError("Frozen Run suite differs from registered asset")

@@ -2,7 +2,7 @@
 
 ## 启动和职责
 
-`python -m qs_ai.bootstrap.server` 是唯一生产常驻入口；不使用子进程或多 Uvicorn worker。HTTP 和 gRPC 与生成、评测、投递在同一 asyncio 循环运行。Dishka 容器及 Database 为应用级，每次请求/任务尝试各有作用域和事务。默认池 5+5，各后台并发默认1。
+`python -m qs_ai.bootstrap.server` 是唯一生产常驻入口；不使用子进程或多 Uvicorn worker。HTTP 和 gRPC 与生成、评测、投递在同一 asyncio 循环运行。Dishka 容器及 Database 为应用级，每次请求/任务尝试各有作用域和事务。默认池 5+5，各后台并发默认1。本地评测资产读取与校验通过最多4个线程执行，数据库会话和模型异步调用仍留在事件循环。
 
 配置沿用 configs 和环境变量。QS_AI_EXECUTION_ENABLED、QS_AI_EVALUATION_ENABLED、QS_AI_GOVERNANCE_ENABLED 是 Actions 变量，分别映射生成、评测和治理开关，不选择容器。QS_AI_QS_ADDRESS 始终必需，结果投递不随生成关闭。启用生成或评测才要求模型凭据。生产评测排空190秒。
 

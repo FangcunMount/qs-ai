@@ -1,5 +1,6 @@
 """Register and resolve complete suite bytes, retaining all original evaluation obligations."""
 
+import asyncio
 import hashlib
 from datetime import datetime
 from uuid import UUID
@@ -75,7 +76,7 @@ async def load_registered_suite(db: AsyncSession, reference: FrozenContractRef) 
     if (reference.id, reference.version) in {(ref.id, ref.version) for ref in BASELINE_SUITE_FILES}:
         raise ValueError("Retired suite is a verification baseline, not an executable suite")
     if reference in SUITE_FILES:
-        return load_suite(reference)
+        return await asyncio.to_thread(load_suite, reference)
     row = (
         (
             await db.execute(
@@ -89,7 +90,7 @@ async def load_registered_suite(db: AsyncSession, reference: FrozenContractRef) 
     )
     if row is None:
         raise ValueError("Registered evaluation suite unavailable")
-    suite, _ = decode_record(row)
+    suite, _ = await asyncio.to_thread(decode_record, row)
     if suite.reference != reference:
         raise ValueError("Registered evaluation suite fingerprint mismatch")
     return suite
@@ -110,7 +111,7 @@ async def prior_receipt(
         scope.operator_user_id,
     ):
         raise NotFound("Suite command unavailable")
-    return decode_record(row)[1]
+    return (await asyncio.to_thread(decode_record, row))[1]
 
 
 async def apply_registration(
@@ -143,7 +144,9 @@ async def apply_registration(
     )
     if profile is None:
         raise ValueError("Profile unavailable")
-    suite = derive_suite(command.suite_id, command.suite_version, profile, manifest)
+    suite = await asyncio.to_thread(
+        derive_suite, command.suite_id, command.suite_version, profile, manifest
+    )
     receipt = SuiteRegistrationReceipt(scope, command, suite.reference, manifest, at)
     raw = RECEIPT.dump_json(receipt).decode()
     if len(raw.encode()) > 32768:

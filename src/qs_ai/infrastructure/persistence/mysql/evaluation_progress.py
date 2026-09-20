@@ -1,5 +1,6 @@
 """Initial lifecycle transitions share the checkpoint CAS and caller transaction."""
 
+import asyncio
 import json
 import re
 from datetime import datetime
@@ -206,7 +207,7 @@ async def execute_preflight(
     from qs_ai.infrastructure.persistence.mysql.evaluation_assets import stored_run_suite
 
     suite = await stored_run_suite(db, creation)
-    evidence = run_preflight(
-        FrozenContractRef(**creation["release"]["suite"]), at, frozen_suite=suite
+    evidence = await asyncio.to_thread(
+        run_preflight, FrozenContractRef(**creation["release"]["suite"]), at, frozen_suite=suite
     )
     return await complete_preflight(db, run_id, expected_version, organization_id, evidence)

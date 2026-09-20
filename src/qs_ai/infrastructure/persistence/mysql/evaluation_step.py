@@ -1,5 +1,6 @@
 """One durable evaluation step; no automatic replay of an active dispatch checkpoint."""
 
+import asyncio
 import hashlib
 import json
 from collections.abc import Callable
@@ -136,8 +137,13 @@ async def execute_step(
             generation = decode_completion(row)
             candidate_fingerprint = generation.normalized_fingerprint
             assertions = tuple(AssertionReceipt(**a) for a in row["candidate_json"]["assertions"])
-            messages = prepare_semantic_messages(
-                release, generation, assertions, prepared=prepared, frozen_suite=suite
+            messages = await asyncio.to_thread(
+                prepare_semantic_messages,
+                release,
+                generation,
+                assertions,
+                prepared=prepared,
+                frozen_suite=suite,
             )
             progress = (
                 await db.execute(
@@ -155,7 +161,7 @@ async def execute_step(
                 messages = replace(
                     messages, task_message=messages.task_message + "\n" + RECOVERY_INSTRUCTION
                 )
-            schema = json.loads(load_semantic_assets().output_schema_json)
+            schema = json.loads((await asyncio.to_thread(load_semantic_assets)).output_schema_json)
         state = await reserve_dispatch(db, run_id, state.version, owner, at)
         # This commit must finish before control reaches the external gateway.
         await db.commit()
@@ -179,7 +185,12 @@ async def execute_step(
     if cp.kind == "semantic" and failure is None:
         assert receipt is not None
         obligations = semantic_obligations(
-            assertion_inventory(release.suite, cp.case_id, frozen_suite=suite), assertions
+            (
+                await asyncio.to_thread(
+                    assertion_inventory, release.suite, cp.case_id, frozen_suite=suite
+                )
+            ),
+            assertions,
         )
         try:
             await parse_semantic_output(

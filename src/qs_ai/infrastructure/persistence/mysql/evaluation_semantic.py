@@ -1,5 +1,6 @@
 """Accept judge completion and candidate decisions in one caller-owned transaction."""
 
+import asyncio
 import json
 from dataclasses import asdict
 from uuid import UUID
@@ -144,7 +145,7 @@ async def complete_semantic(
     ) or any(r["result_json"] is not None for r in previous):
         raise CheckpointConflict("Semantic sequence already accepted or incomplete")
     creation = json.loads(run["definition_json"])
-    policy = load_execution_policy()
+    policy = await asyncio.to_thread(load_execution_policy)
     if creation["execution_policy_json"] != policy.definition_json:
         raise CheckpointConflict("Unsupported frozen execution policy")
     release = EvidenceReleaseIdentity(
@@ -161,8 +162,13 @@ async def complete_semantic(
     if completion.status == "succeeded":
         assert completion.receipt is not None
         obligations = semantic_obligations(
-            assertion_inventory(
-                release.suite, generated.case_id, frozen_suite=await stored_run_suite(db, creation)
+            (
+                await asyncio.to_thread(
+                    assertion_inventory,
+                    release.suite,
+                    generated.case_id,
+                    frozen_suite=await stored_run_suite(db, creation),
+                )
             ),
             tuple(AssertionReceipt(**a) for a in candidate["assertions"]),
         )
@@ -267,7 +273,8 @@ async def complete_semantic(
             .mappings()
             .all()
         )
-        slots = project_slots(
+        slots = await asyncio.to_thread(
+            project_slots,
             creation["slots"],
             list(generations),
             list(dispatches),

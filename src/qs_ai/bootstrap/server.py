@@ -5,6 +5,7 @@ import logging
 import signal
 import ssl
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterator
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -221,6 +222,7 @@ async def run() -> None:
     )
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
+    loop.set_default_executor(ThreadPoolExecutor(max_workers=4, thread_name_prefix="qs-ai-io"))
     for sig in (signal.SIGTERM, signal.SIGINT):
         loop.add_signal_handler(sig, stop.set)
     try:
