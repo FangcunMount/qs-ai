@@ -13,7 +13,6 @@ import time
 from pathlib import Path
 from urllib.parse import urlsplit
 
-import yaml
 from sqlalchemy import URL
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -52,9 +51,8 @@ def database_url(environment: dict) -> str:
 def runtime_config(environment: dict) -> dict:
     # Compose processes interpolation in JSON too.
     url = database_url(environment).replace("$", "$$")
-    runtime = {
-        "services": {name: {"environment": {"QS_AI_DATABASE_URL": url}} for name in ("api", "grpc")}
-    }
+    values = {"QS_AI_DATABASE_URL": url}
+    runtime = {"services": {"qs-ai": {"environment": values}}}
     flags = {}
     for name in ("EXECUTION", "GOVERNANCE", "EVALUATION"):
         key = f"QS_AI_{name}_ENABLED"
@@ -62,21 +60,22 @@ def runtime_config(environment: dict) -> dict:
         if value not in {"true", "false"}:
             raise ValueError(f"{key} must be true or false")
         flags[name] = value == "true"
-    grpc_environment = runtime["services"]["grpc"]["environment"]
-    grpc_environment.update(
+    values.update(
         {
+            "QS_AI_GENERATION__ENABLED": str(flags["EXECUTION"]).lower(),
             "QS_AI_GRPC__GOVERNANCE_ENABLED": str(flags["GOVERNANCE"]).lower(),
+            "QS_AI_EVALUATION__ENABLED": str(flags["EVALUATION"]).lower(),
         }
     )
-    if flags["EXECUTION"] or flags["GOVERNANCE"]:
-        address = required(environment, "QS_AI_QS_ADDRESS")
-        if (
-            not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9.-]*:[0-9]{1,5}", address)
-            or not 1 <= int(address.rsplit(":", 1)[1]) <= 65535
-        ):
-            raise ValueError("Expected QS internal host:port")
-        # Command acceptance and managed retry both recheck current QS authorization.
-        grpc_environment["QS_AI_GRPC__ACCESS_ADDRESS"] = address
+    # Delivery remains active even when new generation is disabled.
+    address = required(environment, "QS_AI_QS_ADDRESS")
+    if (
+        not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9.-]*:[0-9]{1,5}", address)
+        or not 1 <= int(address.rsplit(":", 1)[1]) <= 65535
+    ):
+        raise ValueError("Expected QS internal host:port")
+    values["QS_AI_GRPC__ACCESS_ADDRESS"] = address
+    values["QS_AI_GRPC__RESULT_ADDRESS"] = address
     if flags["EXECUTION"] or flags["EVALUATION"]:
         endpoint = required(environment, "QS_AI_MODEL_ENDPOINT")
         parsed = urlsplit(endpoint)
@@ -91,23 +90,9 @@ def runtime_config(environment: dict) -> dict:
         credential = required(environment, "QS_AI_MODEL_API_KEY")
         if not credential.strip():
             raise ValueError("Missing model credential")
-        services = yaml.safe_load((ROOT / "deploy/serverA/execution.yaml").read_text())["services"]
-        selected = []
-        if flags["EXECUTION"]:
-            selected.extend(("worker", "delivery"))
-            services["worker"]["environment"]["QS_AI_GENERATION__ENABLED"] = "true"
-            services["worker"]["environment"]["QS_AI_GRPC__ACCESS_ADDRESS"] = address
-            services["delivery"]["environment"]["QS_AI_GRPC__RESULT_ADDRESS"] = address
-        if flags["EVALUATION"]:
-            selected.append("evaluation")
-            services["evaluation"]["environment"]["QS_AI_EVALUATION__ENABLED"] = "true"
-        for name in selected:
-            values = services[name]["environment"]
-            values["QS_AI_DATABASE_URL"] = url
-            if name in {"worker", "evaluation"}:
-                values["QS_AI_GENERATION__ENDPOINT"] = endpoint.replace("$", "$$")
-                values["QS_AI_MODEL_API_KEY"] = credential.replace("$", "$$")
-            runtime["services"][name] = services[name]
+        values["QS_AI_GENERATION__ENDPOINT"] = endpoint.replace("$", "$$")
+        values["QS_AI_MODEL_API_KEY"] = credential.replace("$", "$$")
+
     return runtime
 
 

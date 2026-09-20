@@ -18,7 +18,7 @@
 | `QS_AI_GRPC__CA_FILE` / `CERT_FILE` / `KEY_FILE` | 分别使用完整 QS_AI_GRPC__ 前缀的证书文件路径 |
 | `QS_AI_DELIVERY__BATCH_SIZE` | 单次回传数量，1–100 |
 
-HTTP 启动：`uv run python -m qs_ai.bootstrap.http`。直接使用 uvicorn CLI 会由 CLI 控制端口；需要统一配置时使用上述入口。gRPC 命令行参数可显式覆盖地址与证书路径，未提供时读取 Settings。
+统一启动：`uv run python -m qs_ai.bootstrap.server`。所有组件使用一份 Settings；生成与评测开关仅控制内部执行循环，投递始终启用。生产必须配置 QS 回传地址和三份 TLS 文件。
 
 连接池、租约、投递与 gRPC 参数是启动配置；Prompt、模型路线与发布版本是后续业务治理数据，不放进这些文件。不提供热更新，修改配置后需重启相应进程。
 

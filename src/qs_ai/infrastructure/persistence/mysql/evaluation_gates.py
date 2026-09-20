@@ -1,5 +1,6 @@
 """Rebuild all release gates from a scoped, immutable MySQL snapshot."""
 
+import asyncio
 import json
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -124,7 +125,10 @@ async def load_snapshot(
     release = EvidenceReleaseIdentity(
         **{k: FrozenContractRef(**v) for k, v in creation["release"].items()}
     )
-    policy, gate = load_execution_policy(), load_gate_policy()
+    policy, gate = (
+        (await asyncio.to_thread(load_execution_policy)),
+        (await asyncio.to_thread(load_gate_policy)),
+    )
     suite = await stored_run_suite(db, creation)
     release.validate_frozen_policies(
         creation["execution_policy_json"], creation["gate_policy_json"]
@@ -172,7 +176,11 @@ async def load_snapshot(
             "assertions": tuple(AssertionReceipt(**a) for a in raw["assertions"]),
         }
     )
-    if preflight != run_preflight(release.suite, preflight.evaluated_at, frozen_suite=suite):
+    if preflight != (
+        await asyncio.to_thread(
+            run_preflight, release.suite, preflight.evaluated_at, frozen_suite=suite
+        )
+    ):
         raise ValueError("Preflight evidence differs from frozen rejection case")
     generations: list[RowMapping] = []
     semantics: list[RowMapping] = []
@@ -196,8 +204,14 @@ async def load_snapshot(
             raise ValueError("Persisted execution budget exceeded")
     resolutions = progress.get("result_unknown_resolutions", [])
     recoveries = progress.get("semantic_contract_recoveries", [])
-    slots = project_slots(
-        creation["slots"], generations, dispatches, semantics, resolutions, recoveries
+    slots = await asyncio.to_thread(
+        project_slots,
+        creation["slots"],
+        generations,
+        dispatches,
+        semantics,
+        resolutions,
+        recoveries,
     )
     generated = tuple(decode_completion(r) for r in generations)
     judged = tuple(decode_semantic_completion(r) for r in semantics)
@@ -268,7 +282,7 @@ async def load_snapshot(
     candidates.sort(key=lambda c: (c.case_id, c.slot_ordinal))
     targets = tuple(c.evidence for c in candidates)
     reviews = decode_reviews(progress.get("human_reviews", []))
-    thresholds = load_quality_thresholds()
+    thresholds = await asyncio.to_thread(load_quality_thresholds)
     rule = acceptance_version(creation, progress, run["version"], at)
 
     def calculate(

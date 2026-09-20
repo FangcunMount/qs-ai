@@ -18,7 +18,7 @@ def configured(**changes):
     return Settings(**values)
 
 
-@pytest.mark.parametrize("mode", [{"once": True}, {"serve": True}])
+@pytest.mark.parametrize("mode", [{"once": True}])
 async def test_execution_disabled_before_constructing_dependencies(mode, monkeypatch):
     def forbidden(*args):
         pytest.fail("Disabled execution must not create dependencies")
@@ -72,18 +72,16 @@ def test_evaluation_defaults_are_independent_and_disabled(monkeypatch):
     settings = Settings()
     assert settings.evaluation.enabled
     assert not settings.generation.enabled
-    assert settings.evaluation.health_file != settings.worker.health_file
+    assert settings.evaluation is not settings.worker
 
 
-@pytest.mark.parametrize("mode", ["probe", "once", "serve"])
+@pytest.mark.parametrize("mode", ["probe", "once"])
 async def test_entrypoint_scopes_and_modes(mode, monkeypatch, capsys):
-    from inspect import signature
     from unittest.mock import AsyncMock
 
     from dishka import Provider, Scope, provide
 
     from qs_ai.application.operations.health import CheckReadiness, Readiness
-    from qs_ai.bootstrap.daemon import serve_loop
 
     workers = []
 
@@ -106,16 +104,7 @@ async def test_entrypoint_scopes_and_modes(mode, monkeypatch, capsys):
         lambda settings, *providers: create_container(settings, *providers, Overrides()),
     )
 
-    async def serve(attempt, **options):
-        # Keep the fake bound to the actual daemon API, including future config fields.
-        signature(serve_loop).bind(attempt, **options)
-        assert "enabled" not in options
-        assert options["health_file"] == configured().evaluation.health_file
-        assert await attempt()
-        assert await attempt()
-
-    monkeypatch.setattr("qs_ai.bootstrap.evaluation.serve_loop", serve)
-    assert await run(configured(), once=mode == "once", serve=mode == "serve") == 0
+    assert await run(configured(), once=mode == "once") == 0
     expected = {"probe": 0, "once": 1, "serve": 2}[mode]
     assert sum(w.once.await_count for w in workers) == expected
     assert len(workers) == (0 if mode == "probe" else expected + 1)

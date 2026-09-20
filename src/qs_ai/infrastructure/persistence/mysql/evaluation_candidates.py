@@ -1,5 +1,6 @@
 """Organization-scoped candidate reads from one repeatable-read snapshot."""
 
+import asyncio
 import json
 from dataclasses import asdict
 from datetime import datetime
@@ -147,8 +148,10 @@ async def get_candidate(
         for r in progress.get("semantic_contract_recoveries", [])
         if r["execution_id"] in execution_ids
     ]
-    projected = project_slots(
-        [slot], records, dispatches, semantic_records, resolutions, recoveries
+    projected = (
+        await asyncio.to_thread(
+            project_slots, [slot], records, dispatches, semantic_records, resolutions, recoveries
+        )
     )[0]
     if projected.candidate is None or not projected.candidate.review_ready:
         raise CheckpointConflict("Candidate semantic evidence is not complete")

@@ -171,14 +171,8 @@ jobs:
         run: |
           set -euo pipefail
           docker run --rm --network none --read-only --tmpfs /tmp -e QS_AI_ENVIRONMENT=production qs-ai:ci /app/.venv/bin/python -c 'import os; from qs_ai.config import Settings; from qs_ai.bootstrap.container import create_container; assert os.getuid() != 0; create_container(Settings())'
-          docker run -d --name qs-ai-smoke --read-only --tmpfs /tmp -p 127.0.0.1:18080:8000 -e QS_AI_ENVIRONMENT=production qs-ai:ci
-          trap 'docker rm -f qs-ai-smoke >/dev/null' EXIT
-          for attempt in $(seq 1 30); do
-            if curl --fail --silent http://127.0.0.1:18080/healthz; then break; fi
-            sleep 1
-          done
-          curl --fail --silent http://127.0.0.1:18080/healthz
-          test "$(curl --silent -o /dev/null -w '%{http_code}' http://127.0.0.1:18080/readyz)" = 503
+          python3 scripts/ci/smoke_single_process.py qs-ai:ci
+
   retirement-tools:
     name: Retirement backup and restore (${{ matrix.mysql-version }})
     runs-on: ubuntu-latest

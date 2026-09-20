@@ -1,5 +1,6 @@
 """Atomically prepare the next planned execution from persisted terminal evidence."""
 
+import asyncio
 import json
 from datetime import datetime
 from uuid import UUID
@@ -67,7 +68,7 @@ async def prepare_execution(
     if run is None or run["progress_json"] is None:
         raise CheckpointConflict("Run progress unavailable")
     creation, progress = json.loads(run["definition_json"]), run["progress_json"]
-    policy = load_execution_policy()
+    policy = await asyncio.to_thread(load_execution_policy)
     if creation["execution_policy_json"] != policy.definition_json:
         raise CheckpointConflict("Unsupported frozen execution policy")
     dispatches = (
@@ -103,7 +104,8 @@ async def prepare_execution(
         .mappings()
         .all()
     )
-    slots = project_slots(
+    slots = await asyncio.to_thread(
+        project_slots,
         creation["slots"],
         list(completions),
         list(dispatches),

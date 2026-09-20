@@ -1,5 +1,6 @@
 """Read immutable assets and bundled/registered suites without disclosing command audits."""
 
+import asyncio
 import hashlib
 from dataclasses import fields
 
@@ -111,11 +112,11 @@ class MySQLAssetCatalog:
         statement = statement.order_by(identity_key, version_key).limit(query.limit + 1)
         async with self.transactions.open() as db:
             rows = (await db.execute(statement)).mappings().all()
-            items = [decode(query.kind, row).item for row in rows]
+            items = [(await asyncio.to_thread(decode, query.kind, row)).item for row in rows]
         if query.kind == "suite":
             items += [
                 value.item
-                for value in bundled()
+                for value in (await asyncio.to_thread(bundled))
                 if (not query.identity or value.item.reference.identity == query.identity)
                 and (after is None or key(value.item) > after)
             ]
@@ -150,7 +151,14 @@ class MySQLAssetCatalog:
                 .one_or_none()
             )
         built_in = (
-            next((value for value in bundled() if key(value.item) == (identity, version)), None)
+            next(
+                (
+                    value
+                    for value in (await asyncio.to_thread(bundled))
+                    if key(value.item) == (identity, version)
+                ),
+                None,
+            )
             if kind == "suite"
             else None
         )
@@ -160,4 +168,4 @@ class MySQLAssetCatalog:
             return built_in
         if row is None:
             raise NotFound()
-        return decode(kind, row)
+        return await asyncio.to_thread(decode, kind, row)

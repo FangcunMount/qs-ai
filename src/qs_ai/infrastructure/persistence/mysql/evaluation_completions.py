@@ -1,5 +1,6 @@
 """Accept terminal generation evidence under the shared Run lock and version."""
 
+import asyncio
 import json
 import re
 from dataclasses import asdict
@@ -100,7 +101,7 @@ async def complete_generation(
     ):
         raise CheckpointConflict("Collecting Run in organization required")
     creation = json.loads(run["definition_json"])
-    policy = load_execution_policy()
+    policy = await asyncio.to_thread(load_execution_policy)
     if creation["execution_policy_json"] != policy.definition_json:
         raise CheckpointConflict("Unsupported frozen execution policy")
     if not any(
@@ -238,7 +239,8 @@ async def complete_evaluated_generation(
             **{k: FrozenContractRef(**v) for k, v in creation["release"].items()}
         )
         prepared = await prepare_run_case(db, creation, completion.case_id)
-        assertions = evaluate_candidate_assertions(
+        assertions = await asyncio.to_thread(
+            evaluate_candidate_assertions,
             completion.normalized_output,
             prepared,
             release.suite,

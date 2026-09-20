@@ -1,5 +1,6 @@
 """Accept authenticated candidate review batches under the shared Run CAS lock."""
 
+import asyncio
 import json
 from dataclasses import asdict
 from datetime import datetime
@@ -86,7 +87,10 @@ async def accept_reviews(
     if run is None or run["progress_json"] is None:
         raise CheckpointConflict("Run unavailable in organization")
     creation, progress = json.loads(run["definition_json"]), run["progress_json"]
-    policy, gate = load_execution_policy(), load_gate_policy()
+    policy, gate = (
+        (await asyncio.to_thread(load_execution_policy)),
+        (await asyncio.to_thread(load_gate_policy)),
+    )
     if (creation["execution_policy_json"], creation["gate_policy_json"]) != (
         policy.definition_json,
         gate.definition_json,
@@ -142,7 +146,8 @@ async def accept_reviews(
         .mappings()
         .all()
     )
-    slots = project_slots(
+    slots = await asyncio.to_thread(
+        project_slots,
         creation["slots"],
         generations,
         dispatches,

@@ -1,5 +1,6 @@
 """Parse the frozen judge contract and resolve exactly its requested obligations."""
 
+import asyncio
 import hashlib
 import json
 from dataclasses import dataclass
@@ -41,7 +42,7 @@ async def parse_semantic_output(
     obligations: tuple[AssertionReceipt, ...],
 ) -> SemanticResult:
     """Input is normalized output bytes; caller retains raw response and candidate binding."""
-    assets = load_semantic_assets()
+    assets = await asyncio.to_thread(load_semantic_assets)
     if (
         release.semantic_prompt != assets.prompt
         or release.semantic_output_schema != assets.output_schema

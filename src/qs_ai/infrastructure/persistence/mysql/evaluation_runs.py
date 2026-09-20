@@ -1,5 +1,6 @@
 """Create frozen Run records in the caller's transaction; no execution is scheduled."""
 
+import asyncio
 import json
 import re
 from dataclasses import asdict
@@ -55,8 +56,8 @@ async def create_run(
         raise ValueError("Invalid request reason")
     if created_at.tzinfo is None or created_at.utcoffset() is None:
         raise ValueError("Creation time must have a time zone")
-    policy = load_execution_policy()
-    gate = load_gate_policy()
+    policy = await asyncio.to_thread(load_execution_policy)
+    gate = await asyncio.to_thread(load_gate_policy)
     suite = await load_registered_suite(db, release.suite)
     if suite.manifest is not None and generation_manifest != suite.manifest:
         raise ValueError("Native suite requires its registered generation manifest")

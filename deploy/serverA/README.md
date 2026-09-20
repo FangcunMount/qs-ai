@@ -1,6 +1,6 @@
 # serverA 内部基础服务部署
 
-当前发布范围是 HTTP API 和独立 MySQL schema。真实身份、事实与业务工作流仍未接通；readiness 证明数据库连接，发布探针另核对 schema 和镜像版本。
+当前发布为单容器、单进程 qs-ai：HTTP 运维端点、gRPC 业务与管理、生成、评测和投递共享生命周期及连接池。readiness 同时检查组件和数据库；部署另核对 schema、镜像版本和 mTLS。
 
 ## 工作流
 
@@ -32,6 +32,6 @@ state.json 仅在全部验收通过后更新，保存 current/previous 发布目
 
 ## 运行范围
 
-一个 API 容器，512 MB 内存、1 CPU、UID 10001、只读根文件系统和有界日志。仅监听 127.0.0.1:18080，连接现有 infra-network。worker/gRPC/relay 常驻运行与 QS 业务流量切换属于下一批。
+一个 qs-ai 容器，上限 1 GiB / 2 CPU，UID 10001、只读根文件系统和有界日志。HTTP 映射 127.0.0.1:18080，gRPC 仅容器网络可达。qs-ai-grpc / qs-ai-api 为网络别名。短维护窗口内先停止旧准入并排空全部旧进程，再启动新服务；回滚也先停止新服务，不允许执行器重叠。停止宽限 210 秒。完整验收见 [单进程说明](../../docs/single-process.md)。
 
 建设背景及后续计划见 [CI/CD 方案](../../docs/cicd-plan.md)。实际发布结果见 [部署验证](../../docs/deployment-verification.md)。

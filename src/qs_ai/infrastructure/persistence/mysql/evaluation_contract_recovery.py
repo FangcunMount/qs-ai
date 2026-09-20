@@ -1,5 +1,6 @@
 """A narrow operator-authorized recovery transaction, not a status-editing shortcut."""
 
+import asyncio
 import json
 from dataclasses import asdict
 from datetime import datetime
@@ -106,7 +107,8 @@ async def authorize_contract_recovery(
     ):
         raise ValueError("Already retried execution or exhausted Run budget")
     serialized = [{**asdict(r), "resolved_at": r.resolved_at.isoformat()} for r in values]
-    slots = project_slots(
+    slots = await asyncio.to_thread(
+        project_slots,
         creation["slots"],
         evidence.generations,
         evidence.dispatches,

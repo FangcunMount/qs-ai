@@ -1,5 +1,6 @@
 """General cancellation competes with dispatch under the same Run/checkpoint CAS."""
 
+import asyncio
 import json
 from datetime import datetime
 
@@ -64,7 +65,8 @@ async def record_for(
     if progress["status"] == "requested" and evidence.dispatches:
         raise CheckpointConflict("Requested Run cannot own dispatched work")
     if cp is not None:
-        slots = project_slots(
+        slots = await asyncio.to_thread(
+            project_slots,
             creation["slots"],
             evidence.generations,
             evidence.dispatches,
