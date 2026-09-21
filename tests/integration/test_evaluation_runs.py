@@ -70,6 +70,18 @@ async def setup_run():
         ),
         gate_policy=load_gate_policy().reference,
     )
+    # Starting a run now validates persisted routes before reserving capacity.
+    # Keep other placeholder references for storage-only tests, but use genuine
+    # immutable routes so these fixtures do not bypass that admission boundary.
+    from qs_ai.bootstrap.import_routes import baseline_assets as route_baseline
+    from qs_ai.infrastructure.persistence.mysql.route_assets import MySQLRouteAssets
+
+    route_source, route_values = route_baseline()
+    for asset in route_values:
+        await MySQLRouteAssets(tx).put(asset, route_source, "integration-baseline")
+    route = route_values[0]
+    route_ref = FrozenContractRef(route.route, route.revision, route.fingerprint)
+    refs.update(generation_route=route_ref, semantic_route=route_ref)
     release = EvidenceReleaseIdentity(**refs)
     try:
         yield tx, run_id, release
