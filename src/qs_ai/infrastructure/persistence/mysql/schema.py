@@ -262,6 +262,7 @@ evaluation_runs = sa.Table(
     "evaluation_runs",
     metadata,
     sa.Column("run_id", sa.CHAR(36), primary_key=True),
+    sa.Column("execution_mode", sa.String(32), nullable=False, server_default="serial_v1"),
     sa.Column("organization_id", sa.BigInteger, nullable=False),
     sa.Column("requested_by", sa.String(128, collation="utf8mb4_bin"), nullable=False),
     sa.Column("definition_json", mysql.LONGTEXT, nullable=False),
@@ -705,6 +706,34 @@ semantic_draft_commands = sa.Table(
         ["organization_id", "draft_id"],
         ["semantic_draft_heads.organization_id", "semantic_draft_heads.draft_id"],
     ),
+    mysql_engine="InnoDB",
+    mysql_charset="utf8mb4",
+)
+
+
+# Run coordination remains in evaluation_checkpoints; ownership is per frozen slot.
+evaluation_slot_claims = sa.Table(
+    "evaluation_slot_claims",
+    metadata,
+    sa.Column("run_id", sa.CHAR(36), sa.ForeignKey("evaluation_runs.run_id"), primary_key=True),
+    sa.Column("case_id", sa.String(128, collation="utf8mb4_bin"), primary_key=True),
+    sa.Column("slot_ordinal", sa.Integer, primary_key=True),
+    sa.Column("version", sa.BigInteger, nullable=False),
+    sa.Column("checkpoint_json", mysql.JSON, nullable=False),
+    mysql_engine="InnoDB",
+    mysql_charset="utf8mb4",
+)
+
+evaluation_response_receipts = sa.Table(
+    "evaluation_response_receipts",
+    metadata,
+    sa.Column("run_id", sa.CHAR(36), sa.ForeignKey("evaluation_runs.run_id"), primary_key=True),
+    sa.Column("invocation_id", sa.String(128, collation="utf8mb4_bin"), primary_key=True),
+    sa.Column("execution_id", sa.String(128, collation="utf8mb4_bin"), nullable=False),
+    sa.Column("claim_version", sa.BigInteger, nullable=False),
+    sa.Column("definition_json", mysql.LONGTEXT, nullable=False),
+    sa.Column("sha256", sa.CHAR(64), nullable=False),
+    sa.UniqueConstraint("run_id", "execution_id", name="uq_evaluation_response_execution"),
     mysql_engine="InnoDB",
     mysql_charset="utf8mb4",
 )
