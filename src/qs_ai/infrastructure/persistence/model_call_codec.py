@@ -27,7 +27,10 @@ class JSONModelCallCodec:
         return replace(_REQUEST.validate_json(raw, strict=True), route=route)
 
     def encode_response(self, response: ModelResponse) -> str:
-        return _RESPONSE.dump_json(response).decode()
+        return _RESPONSE.dump_json(
+            response,
+            exclude={"execution_identity"} if response.execution_identity is None else None,
+        ).decode()
 
     def decode_response(self, raw: str) -> ModelResponse:
         return _RESPONSE.validate_json(raw, strict=True)

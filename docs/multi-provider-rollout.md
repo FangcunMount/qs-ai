@@ -95,3 +95,17 @@ Still pending: production catalog population after account-level probes, model-s
 - 脱敏原始探测结果见 [连通证据](evidence/multi-provider-connectivity-20260921.json)，包括失败记录；不含正文、凭据或推理内容。
 
 下一批必须把智谱 enabled/low 要求进入参数能力与默认值，补齐观测回执及页面接入，再进行完整评测。不得将本次合成成功直接计作 M3/M4 完成。
+
+## Governance wiring batch (in review)
+
+- Production catalog now declares the four requested model IDs and purpose-specific defaults.
+  `verified` denotes connectivity evidence only; it does not denote quality approval.
+  v2 writes remain disabled until the compatible editor is deployed.
+- Save and new admission enforce the same model-specific thinking/sampling constraints.
+  The GLM entries expose enabled thinking / low effort only; unverified sampling remains unavailable.
+- v2 dispatch receipts retain provider, requested model, adapter, original binding and route fingerprint.
+  v1 model-call JSON omits the new identity field. Missing evaluation token usage stays unknown.
+- Operating editor integration is on `codex/multi-provider-ui`; explicit defaults, purpose filtering,
+  capability revision protection and model identity differences are included.
+- Local validation: backend non-integration suite 1279 passed, 1 existing skip; Ruff and mypy passed.
+  Production matrix has not started. MySQL/interop CI and deployed UI acceptance remain mandatory.

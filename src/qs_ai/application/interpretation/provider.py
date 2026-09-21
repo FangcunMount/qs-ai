@@ -15,6 +15,17 @@ class ProviderFailure(Exception):
 
 
 @dataclass(frozen=True)
+class ModelExecutionIdentity:
+    provider: str
+    requested_model: str
+    protocol: str
+    adapter_contract: str
+    binding_id: str
+    binding_revision: str
+    route_fingerprint: str
+
+
+@dataclass(frozen=True)
 class ModelResponse:
     invocation_id: str
     request_id: str
@@ -25,6 +36,7 @@ class ModelResponse:
     input_tokens: int | None
     output_tokens: int | None
     latency_milliseconds: int
+    execution_identity: ModelExecutionIdentity | None = None
 
 
 @dataclass(frozen=True)

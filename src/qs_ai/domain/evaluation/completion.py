@@ -24,8 +24,8 @@ class ProviderReceipt:
     request_id: str
     provider: str
     model: str
-    input_tokens: int
-    output_tokens: int
+    input_tokens: int | None
+    output_tokens: int | None
     latency_ns: int
 
     def __post_init__(self) -> None:
@@ -39,9 +39,12 @@ class ProviderReceipt:
             raise ValueError("Invalid provider or model")
         if any(
             type(x) is not int or not 0 <= x <= 2**63 - 1
-            for x in (self.input_tokens, self.output_tokens, self.latency_ns)
+            for x in (self.input_tokens, self.output_tokens)
+            if x is not None
         ):
             raise ValueError("Invalid provider usage")
+        if type(self.latency_ns) is not int or not 0 <= self.latency_ns <= 2**63 - 1:
+            raise ValueError("Invalid provider latency")
 
 
 @dataclass(frozen=True)

@@ -80,3 +80,26 @@ def test_deepseek_credential_aliases_are_explicit_and_conflicts_are_redacted():
         Settings(model_api_key="old-private", deepseek_api_key="new-private")
     assert "old-private" not in str(error.value)
     assert "new-private" not in str(error.value)
+
+
+def test_production_catalog_defaults_are_explicit_and_keep_writes_closed():
+    from pathlib import Path
+
+    import yaml
+
+    config = ModelConfiguration.model_validate(
+        yaml.safe_load(Path("configs/production.yaml").read_text())["models"]
+    )
+    assert not config.v2_writes_enabled
+    assert {entry.model_id for entry in config.catalog} == {
+        "deepseek-v4-pro",
+        "deepseek-flash",
+        "glm-5.3",
+        "glm-5.3-flash",
+    }
+    for entry in config.catalog:
+        assert set(entry.defaults) == set(entry.purposes)
+        if entry.model_id.startswith("glm-"):
+            assert entry.thinking_modes == ("enabled",)
+            assert all(value.thinking == "enabled" for value in entry.defaults.values())
+        assert not entry.sampling_parameters

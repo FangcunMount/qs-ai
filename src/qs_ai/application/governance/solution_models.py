@@ -39,12 +39,19 @@ def edited_route(
         entry, binding = configuration.resolve(values.model_key, values.catalog_revision, purpose)
         if values.model != entry.model_id:
             raise ValueError("model_identity_mismatch")
-        if (
-            values.max_output_tokens > entry.max_output_tokens
-            or values.timeout_milliseconds > entry.max_timeout_milliseconds
-            or values.reasoning_effort not in entry.reasoning_efforts
-        ):
-            raise ValueError("model_parameter_invalid")
+        entry.validate_parameters(
+            **{
+                name: getattr(values, name)
+                for name in (
+                    "max_output_tokens",
+                    "timeout_milliseconds",
+                    "reasoning_effort",
+                    "thinking",
+                    "temperature",
+                    "top_p",
+                )
+            }
+        )
         return ModelRouteV2(
             route=source.route,
             revision=version,
@@ -107,9 +114,16 @@ def validate_v2_admission(
         binding.adapter_contract,
     ):
         raise ValueError("Frozen model identity mismatch")
-    if (
-        route.max_output_tokens > entry.max_output_tokens
-        or route.timeout_milliseconds > entry.max_timeout_milliseconds
-        or route.reasoning_effort not in entry.reasoning_efforts
-    ):
-        raise ValueError("model_parameter_invalid")
+    entry.validate_parameters(
+        **{
+            name: getattr(route, name)
+            for name in (
+                "max_output_tokens",
+                "timeout_milliseconds",
+                "reasoning_effort",
+                "thinking",
+                "temperature",
+                "top_p",
+            )
+        }
+    )
