@@ -405,7 +405,7 @@ class EvaluationUnknownIndex(_message.Message):
     def __init__(self, run_id: _Optional[str] = ..., version: _Optional[int] = ..., release_fingerprint: _Optional[str] = ..., status: _Optional[str] = ..., unresolved_result_unknown_count: _Optional[int] = ..., can_resolve: _Optional[bool] = ..., executions: _Optional[_Iterable[_Union[EvaluationUnknownExecution, _Mapping]]] = ...) -> None: ...
 
 class EvaluationState(_message.Message):
-    __slots__ = ("run_id", "version", "status", "unresolved_result_unknown_count", "resolutions_json", "reviews_json", "finalization_json", "reopenings_json", "creation_json", "cancellation_json", "can_reopen_review")
+    __slots__ = ("run_id", "version", "status", "unresolved_result_unknown_count", "resolutions_json", "reviews_json", "finalization_json", "reopenings_json", "creation_json", "cancellation_json", "can_reopen_review", "execution_mode", "active_call_count", "parallel_call_limit", "cancel_draining", "cancel_request_json")
     RUN_ID_FIELD_NUMBER: _ClassVar[int]
     VERSION_FIELD_NUMBER: _ClassVar[int]
     STATUS_FIELD_NUMBER: _ClassVar[int]
@@ -417,6 +417,11 @@ class EvaluationState(_message.Message):
     CREATION_JSON_FIELD_NUMBER: _ClassVar[int]
     CANCELLATION_JSON_FIELD_NUMBER: _ClassVar[int]
     CAN_REOPEN_REVIEW_FIELD_NUMBER: _ClassVar[int]
+    EXECUTION_MODE_FIELD_NUMBER: _ClassVar[int]
+    ACTIVE_CALL_COUNT_FIELD_NUMBER: _ClassVar[int]
+    PARALLEL_CALL_LIMIT_FIELD_NUMBER: _ClassVar[int]
+    CANCEL_DRAINING_FIELD_NUMBER: _ClassVar[int]
+    CANCEL_REQUEST_JSON_FIELD_NUMBER: _ClassVar[int]
     run_id: str
     version: int
     status: str
@@ -428,7 +433,12 @@ class EvaluationState(_message.Message):
     creation_json: str
     cancellation_json: str
     can_reopen_review: bool
-    def __init__(self, run_id: _Optional[str] = ..., version: _Optional[int] = ..., status: _Optional[str] = ..., unresolved_result_unknown_count: _Optional[int] = ..., resolutions_json: _Optional[str] = ..., reviews_json: _Optional[str] = ..., finalization_json: _Optional[str] = ..., reopenings_json: _Optional[str] = ..., creation_json: _Optional[str] = ..., cancellation_json: _Optional[str] = ..., can_reopen_review: _Optional[bool] = ...) -> None: ...
+    execution_mode: str
+    active_call_count: int
+    parallel_call_limit: int
+    cancel_draining: bool
+    cancel_request_json: str
+    def __init__(self, run_id: _Optional[str] = ..., version: _Optional[int] = ..., status: _Optional[str] = ..., unresolved_result_unknown_count: _Optional[int] = ..., resolutions_json: _Optional[str] = ..., reviews_json: _Optional[str] = ..., finalization_json: _Optional[str] = ..., reopenings_json: _Optional[str] = ..., creation_json: _Optional[str] = ..., cancellation_json: _Optional[str] = ..., can_reopen_review: _Optional[bool] = ..., execution_mode: _Optional[str] = ..., active_call_count: _Optional[int] = ..., parallel_call_limit: _Optional[int] = ..., cancel_draining: _Optional[bool] = ..., cancel_request_json: _Optional[str] = ...) -> None: ...
 
 class SemanticContradictionReview(_message.Message):
     __slots__ = ("policy_version", "execution_id", "output_fingerprint", "assertion_ordinal", "original_detail", "candidate_excerpt", "reason")

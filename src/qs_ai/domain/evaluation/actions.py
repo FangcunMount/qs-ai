@@ -158,45 +158,52 @@ def next_action(
     if len(slots) != policy.generation_cases * policy.candidates_per_case:
         raise ValueError("Incomplete frozen slot plan")
     for slot in slots:
-        candidate = slot.candidate
-        if candidate is not None and candidate.review_ready:
-            continue
-        kind = "generation" if candidate is None else "semantic"
-        executions = slot.generation if candidate is None else candidate.semantic
-        ordinal = len(executions) + 1
-        candidate_id = "" if candidate is None else candidate.candidate_id
-
-        def action(
-            kind: str,
-            cause: str,
-            slot: SlotProgress = slot,
-            candidate_id: str = candidate_id,
-            ordinal: int = ordinal,
-        ) -> NextAction:
-            return NextAction(kind, cause, slot.case_id, slot.ordinal, candidate_id, ordinal)
-
-        if not executions:
-            return action(
-                kind, "candidate_missing" if candidate is None else "semantic_evidence_missing"
-            )
-        last = executions[-1]
-        if last.status == "result_unknown" and not last.replacement_authorized:
-            return action("block", "result_unknown_requires_review")
-        limit = policy.generation_per_slot if candidate is None else policy.semantic_per_candidate
-        if ordinal > limit:
-            return action("block", kind + "_budget_exhausted")
-        if last.contract_recovery_authorized:
-            if kind != "semantic":
-                raise ValueError("Contract recovery cannot regenerate candidates")
-            return action(kind, "semantic_contract_recovery_approved")
-        if last.replacement_authorized:
-            return action(kind, "manual_recovery_approved")
-        allowed = (
-            policy.allows_automatic_generation_recovery
-            if candidate is None
-            else policy.allows_automatic_semantic_recovery
-        )
-        if last.failure is None or not allowed(last.failure):
-            return action("block", kind + "_recovery_not_allowed")
-        return action(kind, kind + "_recovery_allowed")
+        planned = slot_action(slot, policy)
+        if planned is not None:
+            return planned
     return NextAction("await_review", "candidate_evidence_complete")
+
+
+def slot_action(slot: SlotProgress, policy: ExecutionPolicy) -> NextAction | None:
+    """Plan one slot from terminal evidence; Run-level guards belong to the caller."""
+    candidate = slot.candidate
+    if candidate is not None and candidate.review_ready:
+        return None
+    kind = "generation" if candidate is None else "semantic"
+    executions = slot.generation if candidate is None else candidate.semantic
+    ordinal = len(executions) + 1
+    candidate_id = "" if candidate is None else candidate.candidate_id
+
+    def action(
+        kind: str,
+        cause: str,
+        slot: SlotProgress = slot,
+        candidate_id: str = candidate_id,
+        ordinal: int = ordinal,
+    ) -> NextAction:
+        return NextAction(kind, cause, slot.case_id, slot.ordinal, candidate_id, ordinal)
+
+    if not executions:
+        return action(
+            kind, "candidate_missing" if candidate is None else "semantic_evidence_missing"
+        )
+    last = executions[-1]
+    if last.status == "result_unknown" and not last.replacement_authorized:
+        return action("block", "result_unknown_requires_review")
+    limit = policy.generation_per_slot if candidate is None else policy.semantic_per_candidate
+    if ordinal > limit:
+        return action("block", kind + "_budget_exhausted")
+    if last.contract_recovery_authorized:
+        if kind != "semantic":
+            raise ValueError("Contract recovery cannot regenerate candidates")
+        return action(kind, "semantic_contract_recovery_approved")
+    if last.replacement_authorized:
+        return action(kind, "manual_recovery_approved")
+    allowed = (
+        policy.allows_automatic_generation_recovery
+        if candidate is None
+        else policy.allows_automatic_semantic_recovery
+    )
+    if last.failure is None or not allowed(last.failure):
+        return action("block", kind + "_recovery_not_allowed")
+    return action(kind, kind + "_recovery_allowed")

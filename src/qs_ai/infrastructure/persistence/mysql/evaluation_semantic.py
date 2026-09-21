@@ -6,16 +6,22 @@ from dataclasses import asdict
 from uuid import UUID
 
 from sqlalchemy import insert, select, update
+from sqlalchemy.engine import RowMapping
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict, CheckpointState
 from qs_ai.application.evaluation.release import resolve_semantic_route
 from qs_ai.application.interpretation.route_assets import RouteAssets
 from qs_ai.domain.evaluation.actions import next_action
+from qs_ai.domain.evaluation.checkpoint import ExecutionCheckpoint
 from qs_ai.domain.evaluation.identity import EvidenceReleaseIdentity, FrozenContractRef
 from qs_ai.domain.evaluation.preflight import AssertionReceipt
 from qs_ai.domain.evaluation.semantic_completion import SemanticCompletion
 from qs_ai.infrastructure.persistence.mysql.evaluation_assets import stored_run_suite
+from qs_ai.infrastructure.persistence.mysql.evaluation_candidate_completion import (
+    complete_claim,
+    completion_owner,
+)
 from qs_ai.infrastructure.persistence.mysql.evaluation_checkpoints import decode, save_checkpoint
 from qs_ai.infrastructure.persistence.mysql.evaluation_contracts import semantic_contract
 from qs_ai.infrastructure.persistence.mysql.evaluation_frozen_policies import frozen_policies
@@ -23,6 +29,7 @@ from qs_ai.infrastructure.persistence.mysql.evaluation_projection import (
     decode_completion,
     project_slots,
 )
+from qs_ai.infrastructure.persistence.mysql.evaluation_slot_claims import SlotClaim
 from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_checkpoints,
     evaluation_dispatches,
@@ -47,37 +54,59 @@ async def complete_semantic(
     owner: str,
     completion: SemanticCompletion,
     routes: RouteAssets,
+    *,
+    claim: SlotClaim | None = None,
 ) -> CheckpointState:
-    checkpoint = (
-        (
-            await db.execute(
-                select(evaluation_checkpoints)
-                .where(evaluation_checkpoints.c.run_id == str(run_id))
-                .with_for_update()
-            )
-        )
-        .mappings()
-        .one_or_none()
-    )
-    if checkpoint is None or checkpoint["version"] != expected_version:
-        raise CheckpointConflict("Run version changed")
-    cp = decode(checkpoint["checkpoint_json"])
-    run = (
-        (
-            await db.execute(
-                select(evaluation_runs)
-                .where(
-                    evaluation_runs.c.run_id == str(run_id),
-                    evaluation_runs.c.organization_id == organization_id,
+    run: dict | RowMapping | None
+    cp: ExecutionCheckpoint | None
+    if claim is not None:
+        run, expected_version, claim = await completion_owner(db, run_id, organization_id, claim)
+        cp = claim.checkpoint
+    else:
+        checkpoint = (
+            (
+                await db.execute(
+                    select(evaluation_checkpoints)
+                    .where(evaluation_checkpoints.c.run_id == str(run_id))
+                    .with_for_update()
                 )
-                .with_for_update()
             )
+            .mappings()
+            .one_or_none()
         )
-        .mappings()
-        .one_or_none()
-    )
-    if run is None or not run["progress_json"] or run["progress_json"]["status"] != "collecting":
-        raise CheckpointConflict("Collecting Run in organization required")
+        if checkpoint is None:
+            raise CheckpointConflict("Run version changed")
+        cp = decode(checkpoint["checkpoint_json"])
+        run = (
+            (
+                await db.execute(
+                    select(evaluation_runs)
+                    .where(
+                        evaluation_runs.c.run_id == str(run_id),
+                        evaluation_runs.c.organization_id == organization_id,
+                    )
+                    .with_for_update()
+                )
+            )
+            .mappings()
+            .one_or_none()
+        )
+        if (
+            run is None
+            or not run["progress_json"]
+            or run["progress_json"]["status"] != "collecting"
+        ):
+            raise CheckpointConflict("Collecting Run in organization required")
+    if claim is None:
+        assert checkpoint is not None
+    if claim is None and checkpoint is not None and checkpoint["version"] != expected_version:
+        intent = run["progress_json"].get("cancel_requested", {})
+        if (
+            intent.get("source_version") != expected_version
+            or intent.get("version") != checkpoint["version"]
+        ):
+            raise CheckpointConflict("Run version changed outside cancellation")
+        expected_version = checkpoint["version"]
     row = (
         (
             await db.execute(
@@ -236,6 +265,10 @@ async def complete_semantic(
             completion.failure
         ):
             cause = "semantic_recovery_not_allowed"
+    if claim is not None:
+        return await complete_claim(
+            db, run_id, expected_version, claim, progress, owner, completion.finished_at
+        )
     if cause:
         progress["status"] = "blocked"
         progress["transitions"] = [
@@ -249,7 +282,7 @@ async def complete_semantic(
                 "evidence_refs": [completion.execution_id],
             },
         ]
-    if result is not None:
+    if result is not None and not progress.get("cancel_requested"):
         generations = (
             (
                 await db.execute(

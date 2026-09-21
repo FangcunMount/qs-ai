@@ -54,7 +54,7 @@ def runtime_config(environment: dict) -> dict:
     values = {"QS_AI_DATABASE_URL": url}
     runtime = {"services": {"qs-ai": {"environment": values}}}
     flags = {}
-    for name in ("EXECUTION", "GOVERNANCE", "EVALUATION", "MODEL_V2_WRITES"):
+    for name in ("EXECUTION", "GOVERNANCE", "EVALUATION", "MODEL_V2_WRITES", "CANDIDATE_MODE"):
         key = f"QS_AI_{name}_ENABLED"
         value = environment.get(key, "false")
         if value not in {"true", "false"}:
@@ -68,6 +68,20 @@ def runtime_config(environment: dict) -> dict:
             "QS_AI_MODELS__V2_WRITES_ENABLED": str(flags["MODEL_V2_WRITES"]).lower(),
         }
     )
+    values["QS_AI_EVALUATION__CANDIDATE_MODE_ENABLED"] = str(flags["CANDIDATE_MODE"]).lower()
+    for name, target, default in (
+        ("EVALUATION_PARALLEL_CALLS", "EVALUATION__PARALLEL_CALLS", 1),
+        ("EVALUATION_PER_RUN_PARALLEL_CALLS", "EVALUATION__PER_RUN_PARALLEL_CALLS", 1),
+        ("EVALUATION_CONCURRENCY", "EVALUATION__CONCURRENCY", 1),
+        ("DEEPSEEK_TOTAL_CAPACITY", "MODEL_CAPACITY__DEEPSEEK__TOTAL", 2),
+        ("ZHIPU_TOTAL_CAPACITY", "MODEL_CAPACITY__ZHIPU__TOTAL", 2),
+    ):
+        value = str(environment.get(f"QS_AI_{name}") or default)
+        if not value.isdigit() or not 1 <= int(value) <= 32:
+            raise ValueError(f"QS_AI_{name} must be an integer between 1 and 32")
+        if "TOTAL_CAPACITY" in name and int(value) < 2:
+            raise ValueError("Provider capacity must preserve one generation slot")
+        values[f"QS_AI_{target}"] = value
     # Delivery remains active even when new generation is disabled.
     address = required(environment, "QS_AI_QS_ADDRESS")
     if (

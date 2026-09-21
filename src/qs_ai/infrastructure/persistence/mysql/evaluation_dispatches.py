@@ -10,6 +10,7 @@ from sqlalchemy import insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict, CheckpointState
+from qs_ai.domain.evaluation.checkpoint import ExecutionCheckpoint
 from qs_ai.domain.evaluation.identity import FrozenContractRef
 from qs_ai.domain.evaluation.policy import ExecutionPolicy
 from qs_ai.infrastructure.persistence.mysql.evaluation_checkpoints import (
@@ -84,7 +85,7 @@ async def reserve_dispatch(
         .mappings()
         .one_or_none()
     )
-    if run is None:
+    if run is None or run["execution_mode"] != "serial_v1":
         raise CheckpointConflict("Frozen evaluation Run required")
     progress = run["progress_json"]
     if (
@@ -93,6 +94,8 @@ async def reserve_dispatch(
         or progress.get("preflight", {}).get("status") != "passed"
     ):
         raise CheckpointConflict("Collecting Run with passed preflight required")
+    if run["progress_json"].get("cancel_requested"):
+        raise CheckpointConflict("Cancellation requested; no new dispatch")
     creation = json.loads(run["definition_json"])
     if not any(
         slot["case_id"] == checkpoint.case_id and slot["ordinal"] == checkpoint.slot_ordinal
@@ -100,6 +103,19 @@ async def reserve_dispatch(
     ):
         raise CheckpointConflict("Checkpoint target is outside frozen Run slots")
     dispatched = checkpoint.mark_dispatching(owner, at)
+    await record_dispatch(db, run_id, dispatched)
+    state = CheckpointState(run_id, expected_version + 1, dispatched)
+    await save_checkpoint(db, state, expected_version)
+    return state
+
+
+async def record_dispatch(
+    db: AsyncSession,
+    run_id: UUID,
+    checkpoint: ExecutionCheckpoint,
+) -> None:
+    """Caller holds coordinator, Run and slot locks. Shared budget and immutable ledger."""
+    dispatched = checkpoint
     policy = (
         await db.execute(select(policies.c.definition_json).where(policies.c.run_id == str(run_id)))
     ).scalar_one()
@@ -132,8 +148,6 @@ async def reserve_dispatch(
         raise CheckpointConflict("Evaluation execution budget exhausted")
     if checkpoint.execution_ordinal != used + 1:
         raise CheckpointConflict("Evaluation execution ordinal is not next")
-    state = CheckpointState(run_id, expected_version + 1, dispatched)
-    await save_checkpoint(db, state, expected_version)
     await db.execute(
         insert(dispatches).values(
             run_id=str(run_id),
@@ -146,4 +160,3 @@ async def reserve_dispatch(
             checkpoint_json=encode(dispatched),
         )
     )
-    return state

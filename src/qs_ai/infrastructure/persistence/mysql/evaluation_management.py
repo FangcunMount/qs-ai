@@ -1,7 +1,7 @@
 import json
 from datetime import datetime
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from qs_ai.application.evaluation.candidates import (
@@ -10,6 +10,10 @@ from qs_ai.application.evaluation.candidates import (
     validate_candidate_query,
 )
 from qs_ai.application.evaluation.capacity import EvaluationCapacityPolicy
+from qs_ai.application.evaluation.execution_mode import (
+    SERIAL_RUNTIME_LIMITS,
+    EvaluationRuntimeLimits,
+)
 from qs_ai.application.evaluation.gates import GatePreview
 from qs_ai.application.evaluation.management import EvaluationView, ManagementScope
 from qs_ai.application.evaluation.unknowns import UnknownExecutionIndex, validate_unknown_query
@@ -39,10 +43,18 @@ from qs_ai.infrastructure.persistence.mysql.evaluation_resolution import accept_
 from qs_ai.infrastructure.persistence.mysql.evaluation_review_history import canonical
 from qs_ai.infrastructure.persistence.mysql.evaluation_reviews import accept_reviews
 from qs_ai.infrastructure.persistence.mysql.evaluation_unknowns import list_unknowns
-from qs_ai.infrastructure.persistence.mysql.schema import evaluation_checkpoints, evaluation_runs
+from qs_ai.infrastructure.persistence.mysql.schema import (
+    evaluation_checkpoints,
+    evaluation_runs,
+    evaluation_slot_claims,
+)
 
 
-async def read_view(db: AsyncSession, scope: ManagementScope) -> EvaluationView:
+async def read_view(
+    db: AsyncSession,
+    scope: ManagementScope,
+    runtime_limits: EvaluationRuntimeLimits = SERIAL_RUNTIME_LIMITS,
+) -> EvaluationView:
     row = (
         (
             await db.execute(
@@ -71,6 +83,18 @@ async def read_view(db: AsyncSession, scope: ManagementScope) -> EvaluationView:
         raise ValueError("Legacy progress needs reconciliation")
     cancellation, source = await read_cancellation(db, scope, dict(row))
     finalization, can_reopen = await read_finalization(db, scope, source)
+    mode = row["execution_mode"]
+    active = (
+        (
+            await db.execute(
+                select(func.count())
+                .select_from(evaluation_slot_claims)
+                .where(evaluation_slot_claims.c.run_id == str(scope.run_id))
+            )
+        ).scalar_one()
+        if mode == "candidate_v2"
+        else int(bool(row["checkpoint_json"]))
+    )
     return EvaluationView(
         str(scope.run_id),
         row["version"],
@@ -81,8 +105,15 @@ async def read_view(db: AsyncSession, scope: ManagementScope) -> EvaluationView:
         finalization,
         canonical(progress.get("review_reopenings", [])),
         creation_receipt(dict(row)),
-        cancellation,
+        cancellation
+        if not progress.get("cancel_requested") or progress["status"] == "canceled"
+        else "",
         can_reopen and not bool(cancellation),
+        mode,
+        active,
+        runtime_limits.parallel_calls if mode == "candidate_v2" else 1,
+        bool(progress.get("cancel_requested")) and progress["status"] != "canceled",
+        canonical(progress["cancel_requested"]) if progress.get("cancel_requested") else "",
     )
 
 
@@ -96,11 +127,13 @@ class MySQLEvaluationManagement:
         capacity: EvaluationCapacityPolicy = _DEFAULT_CAPACITY,
         models: EditableModelPolicy = DEFAULT_EDITABLE_MODELS,
         quota_baseline: QuotaBaseline | None = None,
+        runtime_limits: EvaluationRuntimeLimits = SERIAL_RUNTIME_LIMITS,
     ) -> None:
         self.transactions = transactions
         self.capacity = capacity
         self.quota_baseline = quota_baseline
         self.models = models
+        self.runtime_limits = runtime_limits
 
     async def cancel(
         self,
@@ -114,7 +147,7 @@ class MySQLEvaluationManagement:
     ) -> EvaluationView:
         async with self.transactions.open() as db:
             await cancel(db, scope, expected_version, reason, at, discard=discard, confirm=confirm)
-            view = await read_view(db, scope)
+            view = await read_view(db, scope, self.runtime_limits)
             await db.commit()
             return view
 
@@ -136,7 +169,7 @@ class MySQLEvaluationManagement:
     ) -> EvaluationView:
         async with self.transactions.open() as db:
             await reopen(db, scope, expected_version, reason, at, confirm=confirm)
-            view = await read_view(db, scope)
+            view = await read_view(db, scope, self.runtime_limits)
             await db.commit()
             return view
 
@@ -154,7 +187,7 @@ class MySQLEvaluationManagement:
             await finalize(
                 db, scope, expected_version, expected_passed, reason, at, confirm=confirm
             )
-            view = await read_view(db, scope)
+            view = await read_view(db, scope, self.runtime_limits)
             await db.commit()
             return view
 
@@ -180,7 +213,7 @@ class MySQLEvaluationManagement:
     async def get(self, scope: ManagementScope) -> EvaluationView:
         async with self.transactions.open() as db:
             await db.connection(execution_options={"isolation_level": "REPEATABLE READ"})
-            return await read_view(db, scope)
+            return await read_view(db, scope, self.runtime_limits)
 
     async def review(
         self,
@@ -190,9 +223,9 @@ class MySQLEvaluationManagement:
     ) -> EvaluationView:
         async with self.transactions.open() as db:
             await db.connection(execution_options={"isolation_level": "REPEATABLE READ"})
-            await read_view(db, scope)
+            await read_view(db, scope, self.runtime_limits)
             await accept_reviews(db, scope, expected_version, values)
-            view = await read_view(db, scope)
+            view = await read_view(db, scope, self.runtime_limits)
             await db.commit()
             return view
 
@@ -211,7 +244,7 @@ class MySQLEvaluationManagement:
             # Serialize starts before creating a read snapshot or acquiring Run locks.
             await lock_admission(db, scope.organization_id)
             # Scope lookup precedes state changes; absent and foreign Runs look identical.
-            view = await read_view(db, scope)
+            view = await read_view(db, scope, self.runtime_limits)
             if view.status == "requested":
                 creation = await db.scalar(
                     select(evaluation_runs.c.definition_json).where(
@@ -233,7 +266,7 @@ class MySQLEvaluationManagement:
                 at,
             )
             await admit(db, scope, self.capacity, at, self.quota_baseline)
-            view = await read_view(db, scope)
+            view = await read_view(db, scope, self.runtime_limits)
             await db.commit()
             return view
 
@@ -252,7 +285,7 @@ class MySQLEvaluationManagement:
             await accept_resolution(
                 db, scope.run_id, expected_version, scope.organization_id, value, confirm=confirm
             )
-            view = await read_view(db, scope)
+            view = await read_view(db, scope, self.runtime_limits)
             if view.status == "collecting":
                 await admit(db, scope, self.capacity, value.resolved_at, self.quota_baseline)
             await db.commit()

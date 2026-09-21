@@ -19,6 +19,7 @@ from qs_ai.infrastructure.persistence.mysql.schema import evaluation_checkpoints
 @dataclass
 class RecoveryCursor:
     after_run_id: str = ""
+    after_candidate: tuple[str, str, int] = ("", "", 0)
 
 
 async def recover_next(

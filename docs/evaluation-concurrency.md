@@ -1,0 +1,116 @@
+# 候选级有界并发实施记录
+
+## 目标与基线
+
+基线 main：4c3b943。单进程、单事件循环；不引入 MQ，不改线上发布。
+目标是同一 Run 的独立候选并发推进，每个候选保持生成后再语义评测。
+初始评测并行调用目标为 3，供应商总并发与线上生成预留必须独立限制。
+
+## A：领域调度分离（已实现，尚未启用并发）
+
+- 提取 `slot_action`，串行 `next_action` 继续使用相同规则。
+- 新增纯函数 `plan_parallel`：返回可领取动作、终态阻塞槽位和 Run 控制动作。
+- 活动槽位必须来自持久领取记录，不能以本机 asyncio Task 推断。
+- 容量包含已有活动任务；降低上限只停止新领取，不取消既有调用。
+- 预检、非 collecting 状态和未知结果阻止新调用；已有工作应继续提交。
+- 已知的单候选终态失败允许其他独立候选完成，但不能把整轮标记为成功。
+- 本批不接入 Worker，不修改检查点表或生产配置。
+
+## B：持久领取、投影、恢复与取消（代码已接入，待 CI 与发布验收）
+
+已新增增量迁移 0036：Run 默认 `serial_v1`、候选槽位领取表、不可变响应回执表。
+已完成底层槽位竞争、续租、owner 隔离、独立响应持久化与摘要校验。
+回执写入核对 dispatch 身份以及实际提交时间，过期 owner 不能通过回填完成时间写入。
+活动 dispatch 只有与持久领取完全匹配时才可暂不纳入终态投影。
+
+验证：MySQL 8.0 与 8.4 各 19 项持久化/原串行 dispatch 回归通过；
+新增容量、回执、活动 dispatch 与候选调度单测共 33 项通过；定向 Ruff / mypy 通过。
+两个隔离空库已升级到 0036。以上不代表生产已升级或完整恢复验收通过。
+
+下一批已接入：
+
+- Worker 根据持久 execution_mode 选择串行或候选领取；v2 单 Run 默认上限 1，隔离验收显式设为 3。
+- 领取重新读取持久计划，串行/并发共用 dispatch 预算算法；提交按槽位身份校验，并使用最新 Run 版本更新投影。
+- LangGraph 调用后先独立提交模型回执，再提交候选；不增加供应商内部重试。
+- v2 每 30 秒续租；恢复按精确观察到的租约判断，已续租的任务拒绝旧恢复操作。
+- 过期准备释放；已发送无回执变为未知；生成与语义的已有回执均可恢复投影，不再次调用模型。
+- 串行/并发取消均支持停止意图，保留在途身份及回执；排空且无未知结果后复用原终态取消审计。
+- 核对未知结果后仍保留停止意图；不能因授权替代调用而重新启动已经请求取消的 Run。
+- 有其他候选在途时禁止人工关闭未知结果，避免终态覆盖迟到结果；多个未知结果不能被停止请求掩盖。
+
+本批验证：MySQL 8.0 运行 80 项 Worker/领取/完成/取消/恢复/处置回归通过；
+MySQL 8.4 分批运行相同关键路径，其中完整新 Worker 评测完成 35 候选、70 次调用。
+另补生成/语义回执恢复和多未知调用保护定向测试，MySQL 8.0 三项通过，8.4 两阶段回执恢复通过。
+并发屏障验证同一 Run 峰值 3；单候选不可重试失败后，其余 34 候选完成评审，整轮 blocked（69 次调用）。未以耗时宣称生产加速。
+定向 Ruff 与 mypy 通过。CI、生产切换、真实供应商评测尚未验收。
+
+新 Run 创建仍保持 serial_v1，未开放生产并发。不得手工修改生产 Run 的 execution_mode。
+
+串行检查点与 v2 协调行共用原表；v2 活动所有权位于槽位表。不得仅提高 evaluation.concurrency。
+
+1. 增量引入候选槽位领取记录，以 Run + case + slot 唯一约束；原 Run 版本继续承担管理 CAS。
+2. 同一短事务内校验 Run 状态、选取并领取槽位；并发竞争不得重复生成。
+3. 模型调用前持久化 dispatch，完成时按调用身份与领取版本提交，不依赖旧 Run 全局版本。
+4. 结果提交与全 Run 投影使用一致锁顺序；所有活动领取排空后才汇总终态。
+5. 取消阻止新领取，允许在途回执落库；未知结果不自动重发。
+6. 明确旧 Run 执行版本：已有活动旧检查点继续旧恢复，不能在线转换为并发执行。
+7. MySQL 8.0/8.4 测试：竞争领取、乱序完成、取消竞态、崩溃恢复、未知结果和迁移。
+
+## C：共享容量及受控启用（待完成）
+
+已新增单事件循环共享容量组件：全局评测上限、供应商总容量与用户生成预留。
+计数更新无 await，获取失败不创建等待租约；释放幂等。
+目前尚未注入生成和评测执行路径，不能据此宣称生产限流或并发已生效。
+
+- 应用级供应商容量控制，生成与评测共用；评测不得占用用户生成保留容量。
+- 获取容量应在持久 dispatch 之前，避免等待本地 Semaphore 耗尽 dispatch 租约。
+- 每个候选执行独立依赖作用域、数据库会话；网络等待期间不持有事务。
+- 业务失败隔离，不因一个候选失败取消其他已发送请求。
+- 混合负载、优雅退出、强制恢复和幂等验收后才开放生产并发。
+- 不以纯调度单测通过宣称并发已上线或取得加速收益。
+
+
+## 下一批发布前门槛
+
+1. 将应用级供应商容量同时注入生成及评测，在持久 dispatch 前获取，补混合负载和用户预留验证。
+2. 新 Run 模式写入开关默认关闭；补接口执行/排空状态与 Operating 最小提示，保持旧回执可读。
+3. 补独立请求作用域、停机 190 秒排空、容量释放、性能目标和健康检查验收。
+4. 必需 CI 通过后先兼容发布；验证旧记录后仅新 Run 开启 v2，按 1→3 验收。
+
+本分支当前适合审查与 CI，不代表可直接启用生产并发；不修改已有 Run，也不替代人工审核。
+
+## Shared capacity and drain-status integration
+
+Generation and serial/candidate evaluation share one application-scoped `ModelCapacity`.
+New generation waits before creating a dispatch marker; persisted model-call evidence
+bypasses capacity admission for replay. Evaluation acquisition is nonblocking and a
+capacity miss rolls back the short preparation transaction, including candidate ownership.
+All terminal/error/cancellation paths release the local token. Limits are single-process only.
+
+New Runs select their immutable execution mode using `evaluation.candidate_mode_enabled`
+(default false). Replaying creation never converts a Run. Atomic solution preparation
+and direct Run creation both use this deployment choice without changing release fingerprints.
+
+Reads add execution mode, active ownership count, configured parallel limit and cancellation
+drain status. `cancel_request_json` is the immutable acceptance receipt and remains available
+after drain completion; `cancellation_json` retains its existing terminal-only contract.
+QS and Operating must deploy the additive read/receipt changes before enabling new Runs.
+Active ownership includes preparation/commit time, not exclusively network I/O.
+
+Actions variables (all conservative by default):
+- `QS_AI_CANDIDATE_MODE_ENABLED=false`
+- `QS_AI_EVALUATION_CONCURRENCY=1`
+- `QS_AI_EVALUATION_PARALLEL_CALLS=1`
+- `QS_AI_EVALUATION_PER_RUN_PARALLEL_CALLS=1`
+- `QS_AI_DEEPSEEK_TOTAL_CAPACITY=2`
+- `QS_AI_ZHIPU_TOTAL_CAPACITY=2`
+
+Generation reserve remains one per provider. After compatibility deployment and an
+entire candidate_v2 Run at parallel one, confirmed provider account limits permit
+setting the three evaluation concurrency values to three and provider totals to four.
+No production activation or real-provider performance result is claimed by these tests.
+
+Local evidence for this batch: MySQL 8.0 candidate/generation suite 19 passed;
+MySQL 8.4 generation/requests/solutions 24 passed and immutable-mode replay passed;
+config/deploy/container suite 75 passed; mypy 293 source files passed. Previous commit
+CI 35580376565 passed all shards; this batch requires fresh CI and production checks.

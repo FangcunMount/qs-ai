@@ -135,3 +135,27 @@ async def test_process_kill_recovers_durable_call_without_another_send(kit, boun
         if child.returncode is None:
             child.kill()
         await asyncio.wait_for(child.wait(), 10)
+
+
+async def test_shared_capacity_wait_creates_no_dispatch_and_receipt_bypasses_wait(kit):
+    from qs_ai.application.execution.model_capacity import ModelCapacity, ProviderCapacity
+
+    receipt = await kit.queued()
+    claim = await kit.store.claim(60)
+    pool = ModelCapacity({"deepseek": ProviderCapacity(2, 1)}, 1)
+    held = [pool.try_acquire("deepseek", evaluation=False) for _ in range(2)]
+    gateway = Gateway()
+    execution = DurableGeneration(kit.store, gateway, JSONModelCallCodec(), capacity=pool)
+    pending = asyncio.create_task(execution.execute(claim, request()))
+    await asyncio.sleep(0.05)
+    assert not pending.done()
+    assert not await kit.store.has_model_call(claim)
+    held[0].release()
+    result = await asyncio.wait_for(pending, 3)
+    held[0] = pool.try_acquire("deepseek", evaluation=False)
+    await expire(kit, receipt.session_id)
+    replacement = await kit.store.claim(60)
+    assert await asyncio.wait_for(execution.execute(replacement, request()), 3) == result
+    assert gateway.calls == 1
+    for token in held:
+        token.release()

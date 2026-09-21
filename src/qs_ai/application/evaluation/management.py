@@ -44,6 +44,11 @@ class EvaluationView:
     cancellation_json: str = ""
     # None preserves response presence for older adapters; persisted reads return a bool.
     can_reopen_review: bool | None = None
+    execution_mode: str = "serial_v1"
+    active_call_count: int = 0
+    parallel_call_limit: int = 1
+    cancel_draining: bool = False
+    cancel_request_json: str = ""
 
 
 class EvaluationManagementStore(Protocol):

@@ -65,8 +65,10 @@ async def prepare_execution(
         .mappings()
         .one_or_none()
     )
-    if run is None or run["progress_json"] is None:
+    if run is None or run["progress_json"] is None or run["execution_mode"] != "serial_v1":
         raise CheckpointConflict("Run progress unavailable")
+    if run["progress_json"].get("cancel_requested"):
+        raise CheckpointConflict("Cancellation requested; no new dispatch")
     creation, progress = json.loads(run["definition_json"]), run["progress_json"]
     policy, _ = await asyncio.to_thread(frozen_policies, creation)
     if creation["execution_policy_json"] != policy.definition_json:

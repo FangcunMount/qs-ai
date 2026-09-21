@@ -86,3 +86,18 @@ async def test_invalid_creation_leaves_no_partial_records(requests, reason, conf
     with pytest.raises(ValueError):
         await store.create(scope, release, reason, AT, confirm=confirm)
     assert await rows(tx, scope.run_id) == [None, None, None]
+
+
+async def test_new_mode_is_fixed_at_creation_and_not_rewritten_by_replay(requests, assets):
+    from qs_ai.application.evaluation.execution_mode import ExecutionMode
+
+    store, scope, release, tx = requests
+    enabled = MySQLEvaluationRequests(
+        tx, MySQLRunCreator(tx, *assets[0], execution_mode=ExecutionMode("candidate_v2"))
+    )
+    first = await enabled.create(scope, release, "创建评测", AT, confirm=True)
+    assert first.execution_mode == "candidate_v2"
+    replay = await store.create(scope, release, "创建评测", AT, confirm=True)
+    assert replay.execution_mode == "candidate_v2"
+    assert replay.creation_json == first.creation_json
+    assert json.loads(first.creation_json)["release_fingerprint"] == release.fingerprint()

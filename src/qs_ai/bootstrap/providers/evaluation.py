@@ -7,6 +7,7 @@ from uuid import uuid4
 import httpx
 from dishka import Provider, Scope, provide
 
+from qs_ai.application.execution.model_capacity import ModelCapacity
 from qs_ai.application.interpretation.route_assets import RouteAssets
 from qs_ai.application.interpretation.schema_assets import SchemaAssets
 from qs_ai.config import Settings
@@ -29,6 +30,7 @@ class EvaluationProvider(Provider):
         routes: RouteAssets,
         schemas: SchemaAssets,
         recovery_cursor: RecoveryCursor,
+        capacity: ModelCapacity,
     ) -> AsyncIterator[EvaluationWorker]:
         endpoint = settings.generation.endpoint
         if not settings.evaluation.enabled:
@@ -51,4 +53,6 @@ class EvaluationProvider(Provider):
                 "evaluation:" + str(uuid4()),
                 enabled=True,
                 recovery_cursor=recovery_cursor,
+                candidate_limit=settings.evaluation.per_run_parallel_calls,
+                capacity=capacity,
             )

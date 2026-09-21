@@ -3,7 +3,9 @@ from collections.abc import AsyncIterator
 from dishka import Provider, Scope, from_context, provide
 
 from qs_ai.application.evaluation.capacity import EvaluationCapacityPolicy
+from qs_ai.application.evaluation.execution_mode import EvaluationRuntimeLimits, ExecutionMode
 from qs_ai.application.execution.capacity import ParticipantCapacityPolicy
+from qs_ai.application.execution.model_capacity import ModelCapacity, ProviderCapacity
 from qs_ai.application.governance.configuration_status import ConfigurationStatus
 from qs_ai.application.governance.quotas import QuotaBaseline, QuotaStore, QuotaValues
 from qs_ai.application.operations.health import CheckReadiness, DatabaseProbe
@@ -17,6 +19,32 @@ from qs_ai.infrastructure.persistence.mysql.quotas import MySQLQuotas
 
 class RuntimeProvider(Provider):
     settings = from_context(provides=Settings, scope=Scope.APP)
+
+    @provide(scope=Scope.APP)
+    def evaluation_execution_mode(self, settings: Settings) -> ExecutionMode:
+        return ExecutionMode(
+            "candidate_v2" if settings.evaluation.candidate_mode_enabled else "serial_v1"
+        )
+
+    @provide(scope=Scope.APP)
+    def evaluation_runtime_limits(self, settings: Settings) -> EvaluationRuntimeLimits:
+        return EvaluationRuntimeLimits(
+            min(
+                settings.evaluation.parallel_calls,
+                settings.evaluation.per_run_parallel_calls,
+                settings.evaluation.concurrency,
+            )
+        )
+
+    @provide(scope=Scope.APP)
+    def model_capacity(self, settings: Settings) -> ModelCapacity:
+        return ModelCapacity(
+            {
+                key: ProviderCapacity(**value)
+                for key, value in settings.model_capacity.model_dump().items()
+            },
+            settings.evaluation.parallel_calls,
+        )
 
     @provide(scope=Scope.APP)
     async def database(self, settings: Settings) -> AsyncIterator[Database]:

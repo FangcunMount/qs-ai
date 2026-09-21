@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from typing import Any, Literal, Protocol
 
+from qs_ai.application.execution.model_capacity import ModelCapacity
 from qs_ai.application.interpretation.model_route_v2 import ModelRouteV2
 from qs_ai.application.interpretation.ports import Claim
 from qs_ai.application.interpretation.preparation import PreparedExplanation
@@ -15,6 +16,8 @@ from qs_ai.application.interpretation.provider import (
 
 
 class ModelCallStore(Protocol):
+    async def has_model_call(self, claim: Claim) -> bool: ...
+
     async def begin_model_call(self, claim: Claim, request_json: str) -> tuple[ModelCall, bool]: ...
 
     async def record_model_response(
@@ -62,12 +65,28 @@ class ModelCallCodec(Protocol):
 
 
 class DurableGeneration:
-    def __init__(self, store: ModelCallStore, gateway: ModelGateway, codec: ModelCallCodec) -> None:
+    def __init__(
+        self,
+        store: ModelCallStore,
+        gateway: ModelGateway,
+        codec: ModelCallCodec,
+        capacity: ModelCapacity | None = None,
+    ) -> None:
+        self.capacity = capacity
         self.store = store
         self.gateway = gateway
         self.codec = codec
 
     async def execute(self, claim: Claim, request: FrozenGeneration) -> GeneratedExplanation:
+        if self.capacity is None or await self.store.has_model_call(claim):
+            return await self._execute(claim, request)
+        token = await self.capacity.acquire_generation(request.route.provider)
+        try:
+            return await self._execute(claim, request)
+        finally:
+            token.release()
+
+    async def _execute(self, claim: Claim, request: FrozenGeneration) -> GeneratedExplanation:
         # Endpoint and credential are owned by the gateway and never serialized.
         call, created = await self.store.begin_model_call(claim, self.codec.encode_request(request))
         try:

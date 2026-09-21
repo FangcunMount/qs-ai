@@ -368,6 +368,9 @@ class MySQLSolutions:
                             at,
                             self.settings.governance_models,
                             self.settings.models,
+                            execution_mode="candidate_v2"
+                            if self.settings.evaluation.candidate_mode_enabled
+                            else "serial_v1",
                         )
                     state.update(revision=state["revision"] + 1, updated_at=at.isoformat())
                 raw = encode(state)

@@ -4,15 +4,15 @@ import asyncio
 import json
 from datetime import datetime
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from qs_ai.application.evaluation.checkpoints import CheckpointConflict
+from qs_ai.application.evaluation.checkpoints import CheckpointConflict, CheckpointState
 from qs_ai.application.evaluation.management import ManagementScope
 from qs_ai.application.interpretation.ports import NotFound
 from qs_ai.domain.evaluation.actions import next_action
 from qs_ai.domain.evaluation.cancellation import CancellationDecision
-from qs_ai.infrastructure.persistence.mysql.evaluation_checkpoints import decode
+from qs_ai.infrastructure.persistence.mysql.evaluation_checkpoints import decode, save_checkpoint
 from qs_ai.infrastructure.persistence.mysql.evaluation_creation_receipt import creation_receipt
 from qs_ai.infrastructure.persistence.mysql.evaluation_finalization import (
     read_finalization,
@@ -23,6 +23,7 @@ from qs_ai.infrastructure.persistence.mysql.evaluation_resolution_evidence impor
     load_resolution_evidence,
 )
 from qs_ai.infrastructure.persistence.mysql.evaluation_review_history import canonical
+from qs_ai.infrastructure.persistence.mysql.evaluation_slot_claims import active_claims
 from qs_ai.infrastructure.persistence.mysql.schema import evaluation_checkpoints, evaluation_runs
 
 
@@ -119,7 +120,8 @@ async def cancel(
     ):
         raise ValueError("Explicit version and confirmation required")
     decision = CancellationDecision(scope.actor, reason.strip(), discard, at)
-    await db.connection(execution_options={"isolation_level": "REPEATABLE READ"})
+    if not db.in_transaction():
+        await db.connection(execution_options={"isolation_level": "REPEATABLE READ"})
     checkpoint = (
         (
             await db.execute(
@@ -149,6 +151,45 @@ async def cancel(
         raise NotFound("Evaluation unavailable in organization")
     if checkpoint is None or checkpoint["version"] != expected_version:
         raise CheckpointConflict("Cancellation version changed")
+    progress = run["progress_json"]
+    active = (
+        await active_claims(db, scope.run_id) if run["execution_mode"] == "candidate_v2" else ()
+    )
+    cp = decode(checkpoint["checkpoint_json"])
+    if progress and (
+        active
+        or (cp and cp.phase == "dispatching")
+        or progress.get("unresolved_result_unknown_count", 0)
+    ):
+        if progress["status"] not in ("collecting", "blocked") or discard:
+            raise CheckpointConflict("Only running work can request cancellation drain")
+        if progress.get("cancel_requested"):
+            raise CheckpointConflict("Cancellation already requested")
+        times = [t["at"] for t in progress.get("transitions", [])]
+        times += [c.checkpoint.claimed_at.isoformat() for c in active]
+        if cp is not None:
+            times.append(cp.claimed_at.isoformat())
+        if any(at < datetime.fromisoformat(t) for t in times):
+            raise ValueError("Cancellation cannot precede existing work")
+        intent = {
+            "schema_version": "qs-ai-evaluation-cancel-request/v1",
+            "run_id": str(scope.run_id),
+            "source_version": expected_version,
+            "version": expected_version + 1,
+            "status": "cancel_requested",
+            "actor": decision.actor,
+            "reason": decision.reason,
+            "requested_at": at.isoformat(),
+        }
+        await save_checkpoint(
+            db, CheckpointState(scope.run_id, expected_version + 1, cp), expected_version
+        )
+        await db.execute(
+            update(evaluation_runs)
+            .where(evaluation_runs.c.run_id == str(scope.run_id))
+            .values(progress_json={**progress, "cancel_requested": intent})
+        )
+        return
     original = {**run, "version": expected_version}
     record = await record_for(db, scope, original, checkpoint["checkpoint_json"], decision)
     progress = run["progress_json"]
@@ -173,11 +214,40 @@ async def read_cancellation(
 ) -> tuple[str, dict]:
     """Return the audited receipt plus original source state for historical-review validation."""
     progress = run["progress_json"]
+    intent = progress.get("cancel_requested")
+    if intent is not None:
+        keys = {
+            "schema_version",
+            "run_id",
+            "source_version",
+            "version",
+            "status",
+            "actor",
+            "reason",
+            "requested_at",
+        }
+        if (
+            not isinstance(intent, dict)
+            or set(intent) != keys
+            or intent["schema_version"] != "qs-ai-evaluation-cancel-request/v1"
+            or intent["run_id"] != str(scope.run_id)
+            or intent["status"] != "cancel_requested"
+            or type(intent["source_version"]) is not int
+            or intent["source_version"] < 1
+            or intent["version"] != intent["source_version"] + 1
+            or intent["version"] > run["version"]
+        ):
+            raise ValueError("Cancellation request audit requires reconciliation")
+        CancellationDecision(
+            intent["actor"], intent["reason"], False, datetime.fromisoformat(intent["requested_at"])
+        )
     record = progress.get("cancellation")
     if record is None:
         if progress.get("canceled_checkpoint") is not None:
             raise ValueError("Canceled preparation requires its original audit")
-        return "", run
+        return canonical(progress["cancel_requested"]) if progress.get(
+            "cancel_requested"
+        ) else "", run
     if (
         not isinstance(record, dict)
         or progress["status"] != "canceled"
@@ -209,3 +279,57 @@ async def read_cancellation(
     if canonical(record) != canonical(expected):
         raise ValueError("Cancellation differs from its source evidence")
     return canonical(record), original
+
+
+async def finish_cancellation(db: AsyncSession, scope: ManagementScope, at: datetime) -> bool:
+    """Finalize only once persistent ownership has drained and all unknowns are resolved."""
+    checkpoint = (
+        (
+            await db.execute(
+                select(evaluation_checkpoints)
+                .where(evaluation_checkpoints.c.run_id == str(scope.run_id))
+                .with_for_update()
+            )
+        )
+        .mappings()
+        .one()
+    )
+    run = (
+        (
+            await db.execute(
+                select(evaluation_runs)
+                .where(
+                    evaluation_runs.c.run_id == str(scope.run_id),
+                    evaluation_runs.c.organization_id == scope.organization_id,
+                )
+                .with_for_update()
+            )
+        )
+        .mappings()
+        .one()
+    )
+    progress = run["progress_json"]
+    intent = progress.get("cancel_requested") if progress else None
+    if not intent or progress["status"] == "canceled":
+        return False
+    if (
+        checkpoint["checkpoint_json"] is not None
+        or await active_claims(db, scope.run_id)
+        or progress.get("unresolved_result_unknown_count", 0)
+    ):
+        return False
+    requested = datetime.fromisoformat(intent["requested_at"])
+    actor_scope = ManagementScope(
+        scope.run_id, scope.organization_id, int(intent["actor"].removeprefix("user:"))
+    )
+    # Reuse the existing audited terminal cancellation after all evidence has drained.
+    await cancel(
+        db,
+        actor_scope,
+        checkpoint["version"],
+        intent["reason"],
+        max(at, requested),
+        discard=False,
+        confirm=True,
+    )
+    return True
