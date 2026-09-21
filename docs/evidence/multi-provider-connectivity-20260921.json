@@ -1,0 +1,108 @@
+{
+  "deployed_commit": "3e3d4b1360814ddc4b2b2cdcc9d122b7b1bbb299",
+  "scope": "synthetic connectivity, not quality evaluation",
+  "requests": [
+    {
+      "model_key": "deepseek/deepseek-v4-pro",
+      "purpose": "generation",
+      "invocation_id": "7056a2ce-3c47-4f6d-ae3c-412ff2b923a5",
+      "route_fingerprint": "sha256:1781f766d2b216cba1d4f08be2b383517e6afc7be534ed5e6749e1dd3a18b850",
+      "adapter_contract": "deepseek-responses/v1",
+      "evidence_kind": "synthetic_connectivity_only",
+      "quality_approved": false,
+      "status": "succeeded",
+      "input_tokens": 84,
+      "output_tokens": 5,
+      "latency_ms": 635
+    },
+    {
+      "model_key": "deepseek/deepseek-flash",
+      "purpose": "generation",
+      "invocation_id": "c2ff9287-adea-4c57-bbf9-36a0216094d7",
+      "route_fingerprint": "sha256:7e11350bd7ab161d5f9ab7c0c73fd8cbedf1f63a17bd4df26b7e907c429129a7",
+      "adapter_contract": "deepseek-responses/v1",
+      "evidence_kind": "synthetic_connectivity_only",
+      "quality_approved": false,
+      "status": "succeeded",
+      "input_tokens": 85,
+      "output_tokens": 5,
+      "latency_ms": 688
+    },
+    {
+      "model_key": "zhipu/glm-5.3",
+      "purpose": "generation",
+      "invocation_id": "ede57f5f-43dc-45ed-8cca-77a0d0f8561d",
+      "route_fingerprint": "sha256:8d9214267327547afaad05919812d0c783702d36f4cecb7ad4181234f86ce8ef",
+      "adapter_contract": "zhipu-chat/v1",
+      "evidence_kind": "synthetic_connectivity_only",
+      "quality_approved": false,
+      "status": "failed",
+      "failure_code": "provider_request_rejected",
+      "result_unknown": false
+    },
+    {
+      "model_key": "zhipu/glm-5.3-flash",
+      "purpose": "generation",
+      "invocation_id": "83a45adb-1caf-486f-bc7d-070872cd025a",
+      "route_fingerprint": "sha256:b876f69e4ca298d2e7a4657680a93066ba9de3b02917a468bfd3e468f268a8be",
+      "adapter_contract": "zhipu-chat/v1",
+      "evidence_kind": "synthetic_connectivity_only",
+      "quality_approved": false,
+      "status": "failed",
+      "failure_code": "provider_request_rejected",
+      "result_unknown": false
+    },
+    {
+      "model_key": "deepseek/deepseek-v4-pro",
+      "purpose": "semantic",
+      "invocation_id": "d21a4630-8979-42a9-b2a1-ea6571f4f167",
+      "route_fingerprint": "sha256:6ddb039a8c37e23b3c9555747da918dc2a66b821268d0c725e6e10da269f9489",
+      "adapter_contract": "deepseek-responses/v1",
+      "evidence_kind": "synthetic_connectivity_only",
+      "quality_approved": false,
+      "status": "succeeded",
+      "input_tokens": 84,
+      "output_tokens": 32,
+      "latency_ms": 1580
+    },
+    {
+      "model_key": "zhipu/glm-5.3",
+      "purpose": "semantic",
+      "invocation_id": "891804da-228d-4611-ac0b-437f5b73a57f",
+      "route_fingerprint": "sha256:4b10e170c0c6c252d114df8f0b1c3ac7083d26d78244ba35bc10ff0b66610f00",
+      "adapter_contract": "zhipu-chat/v1",
+      "evidence_kind": "synthetic_connectivity_only",
+      "quality_approved": false,
+      "status": "succeeded",
+      "input_tokens": 136,
+      "output_tokens": 11,
+      "latency_ms": 1728
+    },
+    {
+      "model_key": "zhipu/glm-5.3",
+      "purpose": "generation",
+      "invocation_id": "eb4156f5-9531-4c2c-adbb-db509f92cfbe",
+      "route_fingerprint": "sha256:ac4425a88417e0fe2f3320ef4721b97dddaa014f6e389414fc8ac5aeccc609ea",
+      "adapter_contract": "zhipu-chat/v1",
+      "evidence_kind": "synthetic_connectivity_only",
+      "quality_approved": false,
+      "status": "succeeded",
+      "input_tokens": 136,
+      "output_tokens": 11,
+      "latency_ms": 1836
+    },
+    {
+      "model_key": "zhipu/glm-5.3-flash",
+      "purpose": "generation",
+      "invocation_id": "ea5ad49a-646d-4266-a204-03395c3413f1",
+      "route_fingerprint": "sha256:69b552a7f56ebcaeba6663f48ce925fd7ae473f6f4f1c88a224cec79bcec618e",
+      "adapter_contract": "zhipu-chat/v1",
+      "evidence_kind": "synthetic_connectivity_only",
+      "quality_approved": false,
+      "status": "succeeded",
+      "input_tokens": 136,
+      "output_tokens": 11,
+      "latency_ms": 958
+    }
+  ]
+}

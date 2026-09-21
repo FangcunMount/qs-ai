@@ -13,6 +13,8 @@ def test_only_six_declared_model_purpose_pairs():
             assert route.model == model
             assert route.binding_id == binding.binding_id
             assert route.max_output_tokens == 1024
+            if route.provider == "zhipu":
+                assert route.thinking == "enabled" and route.reasoning_effort == "low"
     with pytest.raises(ValueError):
         probe_route("zhipu/glm-5.3-flash", "semantic")
 

@@ -6,8 +6,8 @@
 
 | 阶段 | 状态 | 尚缺证据 |
 |---|---|---|
-| 后端兼容发布 | PR #118 已合并，main 为 `3e3d4b1`；主干检查及自动部署进行中 | 生产镜像、就绪、mTLS、旧链路核证 |
-| 可操作的多模型评测 | 目录/方案/执行接线已合并；受控探测工具在下一批分支开发 | 真实账号探测、参数目录、三端接入、五轮完整评测 |
+| 后端兼容发布 | PR #118 已合并，main 为 `3e3d4b1`；主干检查及自动部署成功；单进程、就绪及 mTLS 已核证 | 新版真实业务生成回归 |
+| 可操作的多模型评测 | 目录/方案/执行接线已合并；受控探测已完成四模型六用途连通验证 | 参数目录、三端接入、五轮完整评测 |
 | 业务上线与结项 | 未开始 | 含智谱组合的人工审核发布、真实结果及恢复、过渡配置清理 |
 
 以下批次记录为历史实施证据，以本表为当前状态，不将旧待办误作最新结论。
@@ -81,3 +81,17 @@ Implemented on `codex/multi-provider` (not yet deployed):
 Local evidence: focused selection, adapter, legacy wire, container and route tests pass; disposable MySQL 8.4 solution tests cover Zhipu generation and semantic route freezing, 35 candidate obligations, and original preparation receipt recovery after catalog removal. Interop tests requiring the Go harness must run with that harness/CI; a skipped test is not acceptance evidence.
 
 Still pending: production catalog population after account-level probes, model-specific capability/default refinement, receipt observability metadata, QS/Operating integration and real four-model evaluation/publication. GLM-5.3-Flash remains unverified. The v2 write flag remains disabled by default; this batch does not change the published v6 configuration.
+
+
+## 第一批生产核证与第二批探测
+
+- PR #118 合并 main：`3e3d4b1360814ddc4b2b2cdcc9d122b7b1bbb299`。
+- 主干 CI `35557080244`、部署 `35557544359` 均成功。
+- serverA 实际镜像匹配；`docker top` 仅一个 Python 业务进程；readyz 200，mTLS 探针通过。
+- 生成、评测仍开启，v2 写入关闭；两家专用凭据存在，旧通用密钥未注入。GitHub 旧 Secret 暂未删除。
+- 发布指针一条，部署前后摘要均为 `3c82153cbf8e025f25c5f86ef637e3115608065d250f769810183e4349c8eb31`。
+- 初轮六次合成探测中，智谱两个生成用途因 disabled 思考配置被拒绝；明确改为 enabled/low 后另做两次参数校正探测，均成功。没有自动重试或供应商切换。
+- 四模型六声明用途组合均有连通证据；`glm-5.3-flash` 精确 API ID 已获实际响应验证。该结论不代表最大参数边界、业务质量、完整评测或人工批准。
+- 脱敏原始探测结果见 [连通证据](evidence/multi-provider-connectivity-20260921.json)，包括失败记录；不含正文、凭据或推理内容。
+
+下一批必须把智谱 enabled/low 要求进入参数能力与默认值，补齐观测回执及页面接入，再进行完整评测。不得将本次合成成功直接计作 M3/M4 完成。
