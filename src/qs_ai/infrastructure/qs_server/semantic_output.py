@@ -85,7 +85,7 @@ async def parse_semantic_output(
             expected=tuple(sorted(wanted)),
             received=tuple(),
         )
-    seen = set()
+    seen: set[tuple[str, str, int]] = set()
     decisions = []
     for decision in output["decisions"]:
         key = (decision["type"], decision["scope"], decision["ordinal"])
