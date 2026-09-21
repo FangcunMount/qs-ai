@@ -183,3 +183,43 @@ async def test_capacity_estimate_uses_registered_policy_without_file_reads(batch
     )
     assert result.full_run_provider_calls == CALLS
     assert result.remaining_provider_calls == 1024
+
+
+async def test_unknown_cancellation_drain_keeps_active_capacity(batch):
+    from sqlalchemy import update
+
+    from qs_ai.application.governance.prompt_drafts import DraftScope
+    from qs_ai.infrastructure.persistence.mysql.evaluation_capacity import MySQLEvaluationCapacity
+
+    tx, (one, two, _) = batch
+    limits = EvaluationCapacityPolicy(CALLS * 3, 1)
+    store = MySQLEvaluationManagement(tx, limits)
+    await start(store, one)
+    run = (await rows(tx, one.run_id))[0]
+    progress = {
+        **run["progress_json"],
+        "status": "blocked",
+        "cancel_requested": {"status": "cancel_requested"},
+    }
+    async with tx.open() as db:
+        await db.execute(
+            update(evaluation_runs)
+            .where(evaluation_runs.c.run_id == str(one.run_id))
+            .values(progress_json=progress)
+        )
+        await db.commit()
+    snapshot = await MySQLEvaluationCapacity(tx, limits).get(
+        DraftScope(one.organization_id, 42), AT
+    )
+    assert snapshot.active_runs == 1
+    with pytest.raises(CapacityExceeded, match="active"):
+        await start(store, two)
+    assert len(await reservations(tx, one.organization_id)) == 1
+    async with tx.open() as db:
+        await db.execute(
+            update(evaluation_runs)
+            .where(evaluation_runs.c.run_id == str(one.run_id))
+            .values(progress_json={**progress, "status": "canceled"})
+        )
+        await db.commit()
+    await start(store, two)
