@@ -169,7 +169,8 @@ async def test_dispatched_call_must_finish_before_cancel_and_keeps_accepted_outp
         scope, 5, "调用已发送", value.finished_at, discard=False, confirm=True
     )
     assert pending_cancel.status == "collecting"
-    assert json.loads(pending_cancel.cancellation_json)["status"] == "cancel_requested"
+    assert pending_cancel.cancel_draining and pending_cancel.cancellation_json == ""
+    assert json.loads(pending_cancel.cancel_request_json)["status"] == "cancel_requested"
     async with tx.open() as db:
         await accept(db, dispatched)
         await db.commit()
@@ -234,7 +235,7 @@ async def test_dispatch_and_cancellation_cannot_both_win(requested):
             scope, checkpoint["version"], "停止并排空已发送调用", AT, discard=False, confirm=True
         )
         assert result.status == "collecting"
-        assert json.loads(result.cancellation_json)["status"] == "cancel_requested"
+        assert json.loads(result.cancel_request_json)["status"] == "cancel_requested"
 
 
 async def test_unknown_calls_require_the_original_resolution_path(ready):
