@@ -4,9 +4,10 @@ import asyncio
 import json
 from datetime import UTC, datetime
 
-from sqlalchemy import func, insert, select
+from sqlalchemy import and_, func, insert, or_, select
 from sqlalchemy.dialects.mysql import insert as mysql_insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.elements import ColumnElement
 
 from qs_ai.application.evaluation.capacity import (
     CapacityExceeded,
@@ -47,6 +48,18 @@ CAPACITY_ESTIMATE_POLICY = FrozenContractRef(
 )
 
 
+def active_run_predicate() -> ColumnElement[bool]:
+    """Pending cancellation retains its slot until unknown evidence is resolved."""
+    progress = evaluation_runs.c.progress_json
+    return or_(
+        progress["status"].as_string() == "collecting",
+        and_(
+            progress["status"].as_string() == "blocked",
+            progress["cancel_requested"]["status"].as_string() == "cancel_requested",
+        ),
+    )
+
+
 async def lock_admission(db: AsyncSession, organization_id: int) -> None:
     # Must precede the first snapshot read and every checkpoint/Run lock.
     stmt = mysql_insert(locks).values(organization_id=organization_id)
@@ -73,7 +86,7 @@ async def admit(
             .where(
                 evaluation_runs.c.organization_id == scope.organization_id,
                 evaluation_runs.c.run_id != str(scope.run_id),
-                evaluation_runs.c.progress_json["status"].as_string() == "collecting",
+                active_run_predicate(),
             )
         )
     ).scalar_one()
@@ -176,7 +189,7 @@ class MySQLEvaluationCapacity:
                     .select_from(evaluation_runs)
                     .where(
                         evaluation_runs.c.organization_id == scope.organization_id,
-                        evaluation_runs.c.progress_json["status"].as_string() == "collecting",
+                        active_run_predicate(),
                     )
                 )
             ).scalar_one()
