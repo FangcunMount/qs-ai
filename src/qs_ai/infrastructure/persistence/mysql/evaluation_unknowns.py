@@ -13,7 +13,10 @@ from qs_ai.infrastructure.persistence.mysql.evaluation_resolution_evidence impor
     load_resolution_evidence,
 )
 from qs_ai.infrastructure.persistence.mysql.evaluation_snapshot import header
-from qs_ai.infrastructure.persistence.mysql.schema import evaluation_checkpoints
+from qs_ai.infrastructure.persistence.mysql.schema import (
+    evaluation_checkpoints,
+    evaluation_slot_claims,
+)
 
 
 async def list_unknowns(
@@ -29,7 +32,14 @@ async def list_unknowns(
             )
         )
     ).scalar_one()
-    if checkpoint is not None:
+    candidate = (
+        await db.execute(
+            select(evaluation_slot_claims.c.run_id)
+            .where(evaluation_slot_claims.c.run_id == str(scope.run_id))
+            .limit(1)
+        )
+    ).first()
+    if checkpoint is not None or candidate is not None:
         raise CheckpointConflict("Execution remains active; read after recovery")
     receipt = json.loads(creation_receipt(dict(run)))
     creation, progress = json.loads(run["definition_json"]), run["progress_json"]

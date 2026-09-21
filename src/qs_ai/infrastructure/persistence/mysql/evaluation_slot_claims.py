@@ -208,3 +208,29 @@ def terminal_dispatches(
     ):
         raise CheckpointConflict("Dispatched claim has no ledger")
     return filtered
+
+
+async def dispatch_claim(
+    db: AsyncSession,
+    organization_id: int,
+    claim: SlotClaim,
+    at: datetime,
+) -> SlotClaim:
+    from qs_ai.infrastructure.persistence.mysql.evaluation_dispatches import record_dispatch
+
+    run, _ = await lock_run(db, claim.run_id, organization_id)
+    await active_claims(db, claim.run_id)
+    current = await require_claim(db, claim)
+    progress = run["progress_json"]
+    if (
+        progress["status"] != "collecting"
+        or progress.get("cancel_requested")
+        or progress.get("unresolved_result_unknown_count", 0)
+        or progress.get("preflight", {}).get("status") != "passed"
+        or at >= current.checkpoint.lease_expires_at
+    ):
+        raise CheckpointConflict("Run cannot dispatch new work")
+    cp = current.checkpoint.mark_dispatching(current.checkpoint.owner, at)
+    await record_dispatch(db, claim.run_id, cp)
+    await db.execute(update(claims).where(*identity(claim)).values(checkpoint_json=encode(cp)))
+    return replace(current, checkpoint=cp)

@@ -13,7 +13,10 @@ from qs_ai.application.evaluation.checkpoints import CheckpointConflict
 from qs_ai.application.evaluation.management import ManagementScope
 from qs_ai.application.interpretation.ports import NotFound
 from qs_ai.domain.evaluation.preflight import AssertionReceipt, PreflightEvidence
-from qs_ai.infrastructure.persistence.mysql.evaluation_cancellation import cancel
+from qs_ai.infrastructure.persistence.mysql.evaluation_cancellation import (
+    cancel,
+    finish_cancellation,
+)
 from qs_ai.infrastructure.persistence.mysql.evaluation_dispatches import reserve_dispatch
 from qs_ai.infrastructure.persistence.mysql.evaluation_management import MySQLEvaluationManagement
 from qs_ai.infrastructure.persistence.mysql.evaluation_preparation import prepare_execution
@@ -162,17 +165,19 @@ async def test_dispatched_call_must_finish_before_cancel_and_keeps_accepted_outp
     tx, run_id, value, *_ = dispatched
     scope = ManagementScope(run_id, 1, 42)
     store = MySQLEvaluationManagement(tx)
-    before = await rows(tx, run_id)
-    with pytest.raises(CheckpointConflict):
-        await store.cancel(scope, 5, "调用已发送", value.finished_at, discard=False, confirm=True)
-    assert await rows(tx, run_id) == before
+    pending_cancel = await store.cancel(
+        scope, 5, "调用已发送", value.finished_at, discard=False, confirm=True
+    )
+    assert pending_cancel.status == "collecting"
+    assert json.loads(pending_cancel.cancellation_json)["status"] == "cancel_requested"
     async with tx.open() as db:
-        state = await accept(db, dispatched)
+        await accept(db, dispatched)
         await db.commit()
     evidence = await stored(tx, run_id)
-    result = await store.cancel(
-        scope, state.version, "停止后续调用", value.finished_at, discard=False, confirm=True
-    )
+    async with tx.open() as db:
+        assert await finish_cancellation(db, scope, value.finished_at)
+        await db.commit()
+    result = await store.get(scope)
     assert result.status == "canceled" and await store.get(scope) == result
     assert await stored(tx, run_id) == evidence
     async with tx.open() as db:
@@ -225,10 +230,11 @@ async def test_dispatch_and_cancellation_cannot_both_win(requested):
     assert checkpoint["version"] == state.version + 1
     assert (run["progress_json"]["status"] == "canceled") == (checkpoint["checkpoint_json"] is None)
     if checkpoint["checkpoint_json"] is not None:
-        with pytest.raises(CheckpointConflict):
-            await store.cancel(
-                scope, checkpoint["version"], "已经发送不能取消", AT, discard=False, confirm=True
-            )
+        result = await store.cancel(
+            scope, checkpoint["version"], "停止并排空已发送调用", AT, discard=False, confirm=True
+        )
+        assert result.status == "collecting"
+        assert json.loads(result.cancellation_json)["status"] == "cancel_requested"
 
 
 async def test_unknown_calls_require_the_original_resolution_path(ready):
@@ -236,16 +242,18 @@ async def test_unknown_calls_require_the_original_resolution_path(ready):
     state = await pending(ready, dispatched=True)
     state = await recover(ready, state)
     before = await rows(tx, run_id)
-    with pytest.raises(CheckpointConflict):
-        await MySQLEvaluationManagement(tx).cancel(
-            ManagementScope(run_id, 1, 42),
-            state.version,
-            "不能绕开未知调用核对",
-            EXPIRY,
-            discard=False,
-            confirm=True,
-        )
-    assert await rows(tx, run_id) == before
+    scope = ManagementScope(run_id, 1, 42)
+    result = await MySQLEvaluationManagement(tx).cancel(
+        scope, state.version, "不能绕开未知调用核对", EXPIRY, discard=False, confirm=True
+    )
+    assert result.status == "blocked"
+    assert result.unresolved_result_unknown_count == 1
+    after = await rows(tx, run_id)
+    assert after[0]["progress_json"].get("result_unknown_resolutions", []) == before[0][
+        "progress_json"
+    ].get("result_unknown_resolutions", [])
+    async with tx.open() as db:
+        assert not await finish_cancellation(db, scope, EXPIRY)
 
 
 async def test_discard_keeps_reopened_reviews_and_all_original_outputs(rejected_round):

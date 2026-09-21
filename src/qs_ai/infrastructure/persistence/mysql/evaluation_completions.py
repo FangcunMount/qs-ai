@@ -7,17 +7,24 @@ from dataclasses import asdict
 from uuid import UUID
 
 from sqlalchemy import insert, select, update
+from sqlalchemy.engine import RowMapping
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict, CheckpointState
 from qs_ai.application.evaluation.completion import validate_generation_completion
 from qs_ai.application.interpretation.route_assets import RouteAssets
 from qs_ai.application.interpretation.schema_assets import SchemaAssets
+from qs_ai.domain.evaluation.checkpoint import ExecutionCheckpoint
 from qs_ai.domain.evaluation.completion import GenerationCompletion
 from qs_ai.domain.evaluation.identity import EvidenceReleaseIdentity, FrozenContractRef
 from qs_ai.domain.evaluation.preflight import AssertionReceipt
+from qs_ai.infrastructure.persistence.mysql.evaluation_candidate_completion import (
+    complete_claim,
+    completion_owner,
+)
 from qs_ai.infrastructure.persistence.mysql.evaluation_checkpoints import decode, save_checkpoint
 from qs_ai.infrastructure.persistence.mysql.evaluation_frozen_policies import frozen_policies
+from qs_ai.infrastructure.persistence.mysql.evaluation_slot_claims import SlotClaim
 from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_checkpoints,
     evaluation_dispatches,
@@ -40,6 +47,7 @@ async def complete_generation(
     *,
     candidate_id: str = "",
     assertions: tuple[AssertionReceipt, ...] = (),
+    claim: SlotClaim | None = None,
 ) -> CheckpointState:
     """Caller owns commit/rollback and trusted assertion computation; no model call here."""
     candidate = None
@@ -61,45 +69,58 @@ async def complete_generation(
         }
     elif candidate_id or assertions:
         raise ValueError("Failed generation cannot create candidate evidence")
-    row = (
-        (
-            await db.execute(
-                select(evaluation_checkpoints)
-                .where(evaluation_checkpoints.c.run_id == str(run_id))
-                .with_for_update()
-            )
-        )
-        .mappings()
-        .one_or_none()
-    )
-    cp = decode(row["checkpoint_json"]) if row is not None else None
-    if (
-        row is None
-        or row["version"] != expected_version
-        or cp is None
-        or not completion.matches_checkpoint(cp, owner)
-    ):
-        raise CheckpointConflict("Terminal evidence does not match active Run checkpoint")
-    run = (
-        (
-            await db.execute(
-                select(evaluation_runs)
-                .where(
-                    evaluation_runs.c.run_id == str(run_id),
-                    evaluation_runs.c.organization_id == organization_id,
+    run: dict | RowMapping | None
+    cp: ExecutionCheckpoint | None
+    if claim is not None:
+        run, expected_version, claim = await completion_owner(db, run_id, organization_id, claim)
+        cp = claim.checkpoint
+        if not completion.matches_checkpoint(cp, owner):
+            raise CheckpointConflict("Completion differs from candidate ownership")
+    else:
+        row = (
+            (
+                await db.execute(
+                    select(evaluation_checkpoints)
+                    .where(evaluation_checkpoints.c.run_id == str(run_id))
+                    .with_for_update()
                 )
-                .with_for_update()
             )
+            .mappings()
+            .one_or_none()
         )
-        .mappings()
-        .one_or_none()
-    )
-    if (
-        run is None
-        or run["progress_json"] is None
-        or run["progress_json"]["status"] != "collecting"
-    ):
-        raise CheckpointConflict("Collecting Run in organization required")
+        cp = decode(row["checkpoint_json"]) if row is not None else None
+        if row is None or cp is None or not completion.matches_checkpoint(cp, owner):
+            raise CheckpointConflict("Terminal evidence does not match active Run checkpoint")
+        run = (
+            (
+                await db.execute(
+                    select(evaluation_runs)
+                    .where(
+                        evaluation_runs.c.run_id == str(run_id),
+                        evaluation_runs.c.organization_id == organization_id,
+                    )
+                    .with_for_update()
+                )
+            )
+            .mappings()
+            .one_or_none()
+        )
+        if (
+            run is None
+            or run["progress_json"] is None
+            or run["progress_json"]["status"] != "collecting"
+        ):
+            raise CheckpointConflict("Collecting Run in organization required")
+    if claim is None:
+        assert row is not None
+    if claim is None and row is not None and row["version"] != expected_version:
+        intent = run["progress_json"].get("cancel_requested", {})
+        if (
+            intent.get("source_version") != expected_version
+            or intent.get("version") != row["version"]
+        ):
+            raise CheckpointConflict("Run version changed outside cancellation")
+        expected_version = row["version"]
     creation = json.loads(run["definition_json"])
     policy, _ = await asyncio.to_thread(frozen_policies, creation)
     if creation["execution_policy_json"] != policy.definition_json:
@@ -182,6 +203,10 @@ async def complete_generation(
             completion.failure
         ):
             cause = "generation_recovery_not_allowed"
+    if claim is not None:
+        return await complete_claim(
+            db, run_id, expected_version, claim, progress, owner, completion.finished_at
+        )
     if cause:
         progress["status"] = "blocked"
         progress["transitions"] = [
@@ -216,6 +241,7 @@ async def complete_evaluated_generation(
     schemas: SchemaAssets,
     *,
     candidate_id: str = "",
+    claim: SlotClaim | None = None,
 ) -> CheckpointState:
     """Compute original case assertions; callers cannot supply a passing assertion list."""
     from qs_ai.infrastructure.persistence.mysql.evaluation_assets import (
@@ -260,4 +286,5 @@ async def complete_evaluated_generation(
         schemas,
         candidate_id=candidate_id,
         assertions=assertions,
+        claim=claim,
     )

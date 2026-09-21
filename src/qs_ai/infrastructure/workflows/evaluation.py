@@ -1,7 +1,9 @@
 """A graph per durable evaluation attempt; existing CAS owns recovery."""
 
+import asyncio
 from collections.abc import Callable
-from datetime import UTC, datetime
+from contextlib import suppress
+from datetime import UTC, datetime, timedelta
 from typing import TypedDict
 from uuid import UUID
 
@@ -20,6 +22,11 @@ from qs_ai.application.interpretation.schema_assets import SchemaAssets
 from qs_ai.application.operations.diagnostics import operation
 from qs_ai.domain.evaluation.failure import ClassifiedFailure
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
+from qs_ai.infrastructure.persistence.mysql.evaluation_response_receipts import (
+    EvaluationResponse,
+    save_response,
+)
+from qs_ai.infrastructure.persistence.mysql.evaluation_slot_claims import lock_run, renew_claim
 from qs_ai.infrastructure.persistence.mysql.evaluation_step import (
     PreparedStep,
     finish_step,
@@ -45,8 +52,22 @@ async def execute_step(
     schemas: SchemaAssets,
     *,
     clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+    candidate_limit: int | None = None,
 ) -> CheckpointState:
+    heartbeat: asyncio.Task[None] | None = None
+
+    async def renew(prepared: PreparedStep) -> None:
+        assert prepared.claim is not None
+        while True:
+            await asyncio.sleep(30)
+            at = clock()
+            async with transactions.open() as db:
+                await lock_run(db, run_id, organization_id)
+                await renew_claim(db, prepared.claim, at, at + timedelta(minutes=5))
+                await db.commit()
+
     async def prepare(state: EvaluationState) -> EvaluationState:
+        nonlocal heartbeat
         with operation("graph.evaluation.prepare", "evaluation"):
             value = await prepare_step(
                 transactions,
@@ -57,7 +78,10 @@ async def execute_step(
                 routes,
                 schemas,
                 clock=clock,
+                candidate_limit=candidate_limit,
             )
+            if value.claim is not None:
+                heartbeat = asyncio.create_task(renew(value))
             return {"prepared": value}
 
     async def invoke(state: EvaluationState) -> EvaluationState:
@@ -83,6 +107,20 @@ async def execute_step(
 
     async def complete(state: EvaluationState) -> EvaluationState:
         with operation("graph.evaluation.complete", "evaluation"):
+            prepared = state["prepared"]
+            if heartbeat is not None and heartbeat.done():
+                heartbeat.result()
+            finished = max(clock(), prepared.at)
+            if prepared.claim is not None:
+                async with transactions.open() as db:
+                    await save_response(
+                        db,
+                        organization_id,
+                        prepared.claim,
+                        EvaluationResponse(state["response"], state["failure"], finished),
+                        at=clock(),
+                    )
+                    await db.commit()
             result = await finish_step(
                 transactions,
                 run_id,
@@ -93,7 +131,7 @@ async def execute_step(
                 state["prepared"],
                 state["response"],
                 state["failure"],
-                clock=clock,
+                clock=lambda: finished,
             )
             return {"result": result}
 
@@ -105,6 +143,12 @@ async def execute_step(
     graph.add_edge("prepare_dispatch", "invoke_model")
     graph.add_edge("invoke_model", "commit_receipt")
     graph.add_edge("commit_receipt", END)
-    with tracing_context(enabled=False):
-        result = await graph.compile().ainvoke({})
-    return result["result"]
+    try:
+        with tracing_context(enabled=False):
+            result = await graph.compile().ainvoke({})
+        return result["result"]
+    finally:
+        if heartbeat is not None:
+            heartbeat.cancel()
+            with suppress(asyncio.CancelledError):
+                await heartbeat

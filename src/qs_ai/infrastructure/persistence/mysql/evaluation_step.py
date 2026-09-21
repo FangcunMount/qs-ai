@@ -31,6 +31,7 @@ from qs_ai.infrastructure.persistence.mysql.evaluation_assets import (
     run_model_route,
     stored_run_suite,
 )
+from qs_ai.infrastructure.persistence.mysql.evaluation_candidate_plan import prepare_candidate
 from qs_ai.infrastructure.persistence.mysql.evaluation_completions import (
     complete_evaluated_generation,
 )
@@ -39,6 +40,7 @@ from qs_ai.infrastructure.persistence.mysql.evaluation_dispatches import reserve
 from qs_ai.infrastructure.persistence.mysql.evaluation_preparation import prepare_execution
 from qs_ai.infrastructure.persistence.mysql.evaluation_projection import decode_completion
 from qs_ai.infrastructure.persistence.mysql.evaluation_semantic import complete_semantic
+from qs_ai.infrastructure.persistence.mysql.evaluation_slot_claims import SlotClaim, dispatch_claim
 from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_generation_completions,
     evaluation_runs,
@@ -71,6 +73,7 @@ class PreparedStep:
     messages: PromptMessages
     schema: dict[str, Any]
     semantic: SemanticAssets | None
+    claim: SlotClaim | None = None
 
 
 async def prepare_step(
@@ -83,6 +86,8 @@ async def prepare_step(
     schemas: SchemaAssets,
     *,
     clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+    candidate_limit: int | None = None,
+    resume_claim: SlotClaim | None = None,
 ) -> PreparedStep:
     """Run must already be collecting with passed preflight; caller supplies authorized scope."""
     at = clock()
@@ -92,17 +97,41 @@ async def prepare_step(
     assertions: tuple[AssertionReceipt, ...] = ()
     async with transactions.open() as db:
         await db.connection(execution_options={"isolation_level": "REPEATABLE READ"})
-        state = await prepare_execution(
-            db,
-            run_id,
-            expected_version,
-            organization_id,
-            owner,
-            execution_id,
-            invocation_id,
-            at,
-            at + timedelta(minutes=5),
-        )
+        claim = resume_claim
+        if claim is not None:
+            if claim.run_id != run_id:
+                raise ValueError("Resume claim Run differs")
+            state = CheckpointState(run_id, claim.version, claim.checkpoint)
+            invocation_id, execution_id = (
+                claim.checkpoint.invocation_id,
+                claim.checkpoint.execution_id,
+            )
+            at = claim.checkpoint.dispatch_started_at or claim.checkpoint.claimed_at
+        elif candidate_limit is not None:
+            claim = await prepare_candidate(
+                db,
+                run_id,
+                organization_id,
+                owner,
+                execution_id,
+                invocation_id,
+                at,
+                at + timedelta(minutes=5),
+                limit=candidate_limit,
+            )
+            state = CheckpointState(run_id, claim.version, claim.checkpoint)
+        else:
+            state = await prepare_execution(
+                db,
+                run_id,
+                expected_version,
+                organization_id,
+                owner,
+                execution_id,
+                invocation_id,
+                at,
+                at + timedelta(minutes=5),
+            )
         cp = state.checkpoint
         assert cp is not None
         creation = json.loads(
@@ -174,7 +203,15 @@ async def prepare_step(
                     messages, task_message=messages.task_message + "\n" + RECOVERY_INSTRUCTION
                 )
             schema = json.loads(semantic.output_schema_json)
-        state = await reserve_dispatch(db, run_id, state.version, owner, at)
+        if claim is not None:
+            if resume_claim is None:
+                claim = await dispatch_claim(db, organization_id, claim, clock())
+                cp = claim.checkpoint
+                assert cp.dispatch_started_at is not None
+                at = cp.dispatch_started_at
+            state = CheckpointState(run_id, claim.version, claim.checkpoint)
+        else:
+            state = await reserve_dispatch(db, run_id, state.version, owner, at)
         # This commit must finish before control reaches the external gateway.
         await db.commit()
     emit(
@@ -198,6 +235,7 @@ async def prepare_step(
         messages,
         schema,
         semantic,
+        claim,
     )
 
 
@@ -213,6 +251,7 @@ async def finish_step(
     failure: ClassifiedFailure | None,
     *,
     clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+    recovery_at: datetime | None = None,
 ) -> CheckpointState:
     state = prepared.state
     cp = prepared.cp
@@ -268,6 +307,27 @@ async def finish_step(
     )
     async with transactions.open() as db:
         await db.connection(execution_options={"isolation_level": "REPEATABLE READ"})
+        if prepared.claim is not None:
+            from qs_ai.infrastructure.persistence.mysql.evaluation_candidate_completion import (
+                completed_claim_state,
+            )
+            from qs_ai.infrastructure.persistence.mysql.evaluation_slot_claims import (
+                lock_run,
+                require_claim,
+            )
+
+            completed_state = await completed_claim_state(db, organization_id, prepared.claim)
+            if completed_state is not None:
+                return completed_state
+            await lock_run(db, run_id, organization_id)
+            current = await require_claim(db, prepared.claim)
+            if recovery_at is not None and (
+                current.checkpoint.lease_expires_at != prepared.claim.checkpoint.lease_expires_at
+                or recovery_at < current.checkpoint.lease_expires_at
+            ):
+                from qs_ai.application.evaluation.checkpoints import CheckpointConflict
+
+                raise CheckpointConflict("Recovery ownership was renewed")
         if cp.kind == "generation":
             completed = GenerationCompletion(
                 execution_id,
@@ -295,6 +355,7 @@ async def finish_step(
                 routes,
                 schemas,
                 candidate_id=str(uuid4()) if status == "succeeded" else "",
+                claim=prepared.claim,
             )
         else:
             judged = SemanticCompletion(
@@ -313,7 +374,14 @@ async def finish_step(
                 failure,
             )
             state = await complete_semantic(
-                db, run_id, state.version, organization_id, owner, judged, routes
+                db,
+                run_id,
+                state.version,
+                organization_id,
+                owner,
+                judged,
+                routes,
+                claim=prepared.claim,
             )
         await db.commit()
     emit(

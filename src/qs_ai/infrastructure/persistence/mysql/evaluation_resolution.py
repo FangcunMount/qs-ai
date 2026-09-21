@@ -64,11 +64,17 @@ async def accept_resolution(
     )
     if run is None or run["progress_json"] is None:
         raise CheckpointConflict("Run unavailable in organization")
+    from qs_ai.infrastructure.persistence.mysql.evaluation_slot_claims import active_claims
+
+    if run["execution_mode"] == "candidate_v2" and await active_claims(db, run_id):
+        raise CheckpointConflict("Drain candidate executions before resolving unknown calls")
     creation, progress = json.loads(run["definition_json"]), run["progress_json"]
     evidence = await load_resolution_evidence(db, run_id, creation, progress)
     result = resolve_unknown(
         progress["status"], evidence.unknowns, evidence.resolutions, value, evidence.policy
     )
+    if progress.get("cancel_requested") and result.status == "canceled" and result.unresolved_count:
+        raise CheckpointConflict("Resolve remaining unknown calls before cancellation completes")
     if value.resolved_at < datetime.fromisoformat(creation["audit"]["created_at"]):
         raise ValueError("Resolution precedes Run creation")
     updated = {
