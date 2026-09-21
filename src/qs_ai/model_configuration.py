@@ -57,6 +57,15 @@ class ModelBinding(Configuration):
         return self
 
 
+class ModelParameterDefaults(Configuration):
+    max_output_tokens: int = Field(strict=True, ge=1, le=12000)
+    timeout_milliseconds: int = Field(strict=True, ge=1000, le=180000)
+    reasoning_effort: Literal["none", "low", "high", "max"]
+    thinking: Literal["enabled", "disabled"] | None = None
+    temperature: float | None = None
+    top_p: float | None = None
+
+
 class ModelCapability(Configuration):
     model_key: str = Field(pattern=r"^[a-z][a-z0-9._/-]{0,127}$")
     model_id: str = Field(min_length=1, max_length=128)
@@ -71,6 +80,33 @@ class ModelCapability(Configuration):
     max_timeout_milliseconds: int = Field(default=180000, strict=True, ge=1000, le=180000)
     reasoning_efforts: tuple[Literal["none", "low", "high", "max"], ...]
 
+    defaults: dict[Literal["generation", "semantic"], ModelParameterDefaults] = Field(
+        default_factory=dict
+    )
+    thinking_modes: tuple[Literal["enabled", "disabled"], ...] = ("enabled",)
+    # Sampling remains unavailable until explicitly validated for this model.
+    sampling_parameters: tuple[Literal["temperature", "top_p"], ...] = ()
+
+    def validate_parameters(
+        self,
+        *,
+        max_output_tokens: int,
+        timeout_milliseconds: int,
+        reasoning_effort: str,
+        thinking: str | None,
+        temperature: float | None,
+        top_p: float | None,
+    ) -> None:
+        if (
+            max_output_tokens > self.max_output_tokens
+            or timeout_milliseconds > self.max_timeout_milliseconds
+            or reasoning_effort not in self.reasoning_efforts
+            or (thinking is not None and thinking not in self.thinking_modes)
+            or (temperature is not None and "temperature" not in self.sampling_parameters)
+            or (top_p is not None and "top_p" not in self.sampling_parameters)
+        ):
+            raise ValueError("model_parameter_invalid")
+
     @model_validator(mode="after")
     def validate_evidence(self) -> "ModelCapability":
         if not self.purposes or len(set(self.purposes)) != len(self.purposes):
@@ -79,6 +115,10 @@ class ModelCapability(Configuration):
             self.reasoning_efforts
         ):
             raise ValueError("Distinct reasoning efforts required")
+        for purpose, defaults in self.defaults.items():
+            if purpose not in self.purposes:
+                raise ValueError("Default purpose is not enabled")
+            self.validate_parameters(**defaults.model_dump())
         if self.verified and (not self.evidence_ref or not self.evidence_ref.strip()):
             raise ValueError("Verified model requires evidence")
         return self

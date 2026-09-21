@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Any, Protocol
 
 from qs_ai.application.interpretation.prompts import PromptMessages
+from qs_ai.domain.interpretation.model_identity import ModelExecutionIdentity
 
 
 class ProviderFailure(Exception):
@@ -25,6 +26,7 @@ class ModelResponse:
     input_tokens: int | None
     output_tokens: int | None
     latency_milliseconds: int
+    execution_identity: ModelExecutionIdentity | None = None
 
 
 @dataclass(frozen=True)

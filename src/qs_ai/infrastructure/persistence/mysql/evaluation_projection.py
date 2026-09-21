@@ -16,7 +16,15 @@ from qs_ai.domain.evaluation.resolution import (
     resolve_unknown,
 )
 from qs_ai.domain.evaluation.semantic_completion import SemanticCompletion
+from qs_ai.domain.interpretation.model_identity import ModelExecutionIdentity
 from qs_ai.infrastructure.persistence.mysql.evaluation_checkpoints import decode
+
+
+def decode_receipt(value: dict) -> ProviderReceipt:
+    fields = dict(value)
+    if fields.get("execution_identity") is not None:
+        fields["execution_identity"] = ModelExecutionIdentity(**fields["execution_identity"])
+    return ProviderReceipt(**fields)
 
 
 def decode_completion(row: Any) -> GenerationCompletion:
@@ -24,7 +32,7 @@ def decode_completion(row: Any) -> GenerationCompletion:
     for key in ("started_at", "finished_at"):
         value[key] = datetime.fromisoformat(value[key])
     if value["receipt"] is not None:
-        value["receipt"] = ProviderReceipt(**value["receipt"])
+        value["receipt"] = decode_receipt(value["receipt"])
     if value["failure"] is not None:
         failure = dict(value["failure"])
         failure["evidence_refs"] = tuple(failure["evidence_refs"])
@@ -161,7 +169,7 @@ def decode_semantic_completion(row: Any) -> SemanticCompletion:
     for key in ("started_at", "finished_at"):
         fields[key] = datetime.fromisoformat(fields[key])
     if fields["receipt"] is not None:
-        fields["receipt"] = ProviderReceipt(**fields["receipt"])
+        fields["receipt"] = decode_receipt(fields["receipt"])
     if fields["failure"] is not None:
         failure = dict(fields["failure"])
         failure["evidence_refs"] = tuple(failure["evidence_refs"])

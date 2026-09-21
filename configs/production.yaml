@@ -1,4 +1,5 @@
 # Secrets are injected by GitHub Actions, never stored here.
+# Catalog verification is technical connectivity, not quality approval.
 http:
   host: 0.0.0.0
 grpc:
@@ -8,3 +9,121 @@ grpc:
   key_file: /run/qs-ai-tls/qs-ai.key
 evaluation:
   shutdown_seconds: 190
+models:
+  v2_writes_enabled: false
+  bindings:
+  - binding_id: deepseek-official
+    revision: v1
+    provider: deepseek
+    protocol: responses
+    adapter_contract: deepseek-responses/v1
+    endpoint: https://api.deepseek.com/responses
+    credential_slot: deepseek
+  - binding_id: zhipu-official
+    revision: v1
+    provider: zhipu
+    protocol: chat_completions
+    adapter_contract: zhipu-chat/v1
+    endpoint: https://open.bigmodel.cn/api/paas/v4/chat/completions
+    credential_slot: zhipu
+  catalog:
+  - model_key: deepseek/quality
+    model_id: deepseek-v4-pro
+    catalog_revision: 20260921-2
+    binding_id: deepseek-official
+    binding_revision: v1
+    purposes:
+    - generation
+    - semantic
+    verified: true
+    evidence_ref: docs/evidence/multi-provider-connectivity-20260921.json
+    max_output_tokens: 12000
+    max_timeout_milliseconds: 180000
+    reasoning_efforts:
+    - none
+    - low
+    thinking_modes: []
+    sampling_parameters: []
+    defaults:
+      generation:
+        max_output_tokens: 12000
+        timeout_milliseconds: 120000
+        reasoning_effort: none
+        thinking: null
+      semantic:
+        max_output_tokens: 8000
+        timeout_milliseconds: 180000
+        reasoning_effort: low
+        thinking: null
+  - model_key: deepseek/light
+    model_id: deepseek-flash
+    catalog_revision: 20260921-2
+    binding_id: deepseek-official
+    binding_revision: v1
+    purposes:
+    - generation
+    verified: true
+    evidence_ref: docs/evidence/multi-provider-connectivity-20260921.json
+    max_output_tokens: 12000
+    max_timeout_milliseconds: 180000
+    reasoning_efforts:
+    - none
+    - low
+    thinking_modes: []
+    sampling_parameters: []
+    defaults:
+      generation:
+        max_output_tokens: 12000
+        timeout_milliseconds: 120000
+        reasoning_effort: none
+        thinking: null
+  - model_key: zhipu/quality
+    model_id: glm-5.3
+    catalog_revision: 20260921-2
+    binding_id: zhipu-official
+    binding_revision: v1
+    purposes:
+    - generation
+    - semantic
+    verified: true
+    evidence_ref: docs/evidence/multi-provider-connectivity-20260921.json
+    max_output_tokens: 12000
+    max_timeout_milliseconds: 180000
+    reasoning_efforts:
+    - low
+    thinking_modes:
+    - enabled
+    sampling_parameters: []
+    defaults:
+      generation:
+        max_output_tokens: 12000
+        timeout_milliseconds: 120000
+        reasoning_effort: low
+        thinking: enabled
+      semantic:
+        max_output_tokens: 8000
+        timeout_milliseconds: 180000
+        reasoning_effort: low
+        thinking: enabled
+  - model_key: zhipu/light
+    model_id: glm-5.3-flash
+    catalog_revision: 20260921-2
+    binding_id: zhipu-official
+    binding_revision: v1
+    purposes:
+    - generation
+    verified: true
+    evidence_ref: docs/evidence/multi-provider-connectivity-20260921.json
+    max_output_tokens: 12000
+    max_timeout_milliseconds: 180000
+    reasoning_efforts:
+    - low
+    thinking_modes:
+    - enabled
+    sampling_parameters: []
+    defaults:
+      generation:
+        max_output_tokens: 12000
+        timeout_milliseconds: 120000
+        reasoning_effort: low
+        thinking: enabled

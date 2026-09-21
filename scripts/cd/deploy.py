@@ -54,7 +54,7 @@ def runtime_config(environment: dict) -> dict:
     values = {"QS_AI_DATABASE_URL": url}
     runtime = {"services": {"qs-ai": {"environment": values}}}
     flags = {}
-    for name in ("EXECUTION", "GOVERNANCE", "EVALUATION"):
+    for name in ("EXECUTION", "GOVERNANCE", "EVALUATION", "MODEL_V2_WRITES"):
         key = f"QS_AI_{name}_ENABLED"
         value = environment.get(key, "false")
         if value not in {"true", "false"}:
@@ -65,6 +65,7 @@ def runtime_config(environment: dict) -> dict:
             "QS_AI_GENERATION__ENABLED": str(flags["EXECUTION"]).lower(),
             "QS_AI_GRPC__GOVERNANCE_ENABLED": str(flags["GOVERNANCE"]).lower(),
             "QS_AI_EVALUATION__ENABLED": str(flags["EVALUATION"]).lower(),
+            "QS_AI_MODELS__V2_WRITES_ENABLED": str(flags["MODEL_V2_WRITES"]).lower(),
         }
     )
     # Delivery remains active even when new generation is disabled.

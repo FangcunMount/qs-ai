@@ -118,3 +118,23 @@ def test_new_admission_rejects_removed_catalog_without_mutating_frozen_route():
     with pytest.raises(ValueError, match="model_not_enabled"):
         validate_v2_admission(frozen, ModelConfiguration(), "generation")
     assert frozen.definition_json() == original
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"thinking": "disabled", "reasoning_effort": "low"},
+        {"temperature": 0.5},
+        {"top_p": 0.9},
+    ],
+)
+def test_catalog_rejects_unverified_parameter_modes_on_save_and_admission(changes):
+    from qs_ai.application.governance.solution_models import validate_v2_admission
+
+    with pytest.raises(ValueError):
+        edited_route(route(), replace(selection(route()), **changes), "next", (), configuration())
+    # Route-level validity alone is not model-specific capability approval.
+    if "thinking" not in changes:
+        frozen = replace(route(), **changes)
+        with pytest.raises(ValueError, match="model_parameter_invalid"):
+            validate_v2_admission(frozen, configuration(), "generation")

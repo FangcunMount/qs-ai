@@ -3,11 +3,12 @@
 import hashlib
 import json
 import re
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import datetime
 
 from qs_ai.domain.evaluation.checkpoint import ExecutionCheckpoint
 from qs_ai.domain.evaluation.failure import ClassifiedFailure
+from qs_ai.domain.interpretation.model_identity import ModelExecutionIdentity
 
 
 def _identity(value: str) -> bool:
@@ -24,9 +25,16 @@ class ProviderReceipt:
     request_id: str
     provider: str
     model: str
-    input_tokens: int
-    output_tokens: int
+    input_tokens: int | None
+    output_tokens: int | None
     latency_ns: int
+    execution_identity: ModelExecutionIdentity | None = None
+
+    def definition(self) -> dict:
+        value = asdict(self)
+        if self.execution_identity is None:
+            del value["execution_identity"]
+        return value
 
     def __post_init__(self) -> None:
         if not _identity(self.invocation_id) or not _identity(self.request_id):
@@ -39,9 +47,12 @@ class ProviderReceipt:
             raise ValueError("Invalid provider or model")
         if any(
             type(x) is not int or not 0 <= x <= 2**63 - 1
-            for x in (self.input_tokens, self.output_tokens, self.latency_ns)
+            for x in (self.input_tokens, self.output_tokens)
+            if x is not None
         ):
             raise ValueError("Invalid provider usage")
+        if type(self.latency_ns) is not int or not 0 <= self.latency_ns <= 2**63 - 1:
+            raise ValueError("Invalid provider latency")
 
 
 @dataclass(frozen=True)

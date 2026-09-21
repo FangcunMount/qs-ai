@@ -62,9 +62,10 @@ def response_evidence(
             response.request_id,
             route.provider,
             response.model,
-            response.input_tokens if response.input_tokens is not None else 0,
-            response.output_tokens if response.output_tokens is not None else 0,
+            response.input_tokens,
+            response.output_tokens,
             response.latency_milliseconds * 1_000_000,
+            response.execution_identity,
         )
     except ValueError:
         code = "receipt_invalid"

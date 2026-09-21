@@ -1,5 +1,6 @@
 """Resolve frozen execution bindings without consulting mutable model eligibility."""
 
+from dataclasses import replace
 from typing import Any
 
 import httpx
@@ -9,7 +10,12 @@ from langsmith import tracing_context
 from qs_ai.application.interpretation.model_route_v2 import ModelRouteV2
 from qs_ai.application.interpretation.preparation import PreparedExplanation
 from qs_ai.application.interpretation.prompts import PromptMessages
-from qs_ai.application.interpretation.provider import ModelResponse, ModelRoute, ProviderFailure
+from qs_ai.application.interpretation.provider import (
+    ModelExecutionIdentity,
+    ModelResponse,
+    ModelRoute,
+    ProviderFailure,
+)
 from qs_ai.config import Settings
 from qs_ai.infrastructure.models.zhipu import ZhipuChatModel, build_chat
 from qs_ai.infrastructure.qs_server.responses import DeepSeekResponses
@@ -69,9 +75,10 @@ class ModelGatewayRouter:
         if not endpoint or credential is None or not credential.get_secret_value().strip():
             raise ProviderFailure("binding_unavailable")
         if route.provider == "deepseek":
-            return await DeepSeekResponses(
+            response = await DeepSeekResponses(
                 self._client, endpoint, credential.get_secret_value()
             ).generate_messages(messages, route, schema, invocation_id)
+            return self._with_identity(response, route)
         if not isinstance(route, ModelRouteV2):
             raise ProviderFailure("model_route_unsupported")
         body = build_chat(messages, route, schema, invocation_id)
@@ -92,4 +99,21 @@ class ModelGatewayRouter:
                 route=route,
                 invocation_id=invocation_id,
             )
-        return ModelResponse(**reply.response_metadata["qs_receipt"])
+        return self._with_identity(ModelResponse(**reply.response_metadata["qs_receipt"]), route)
+
+    @staticmethod
+    def _with_identity(response: ModelResponse, route: ModelRoute) -> ModelResponse:
+        if not isinstance(route, ModelRouteV2):
+            return response
+        return replace(
+            response,
+            execution_identity=ModelExecutionIdentity(
+                provider=route.provider,
+                requested_model=route.model,
+                protocol=route.protocol,
+                adapter_contract=route.adapter_contract,
+                binding_id=route.binding_id,
+                binding_revision=route.binding_revision,
+                route_fingerprint=route.fingerprint(),
+            ),
+        )

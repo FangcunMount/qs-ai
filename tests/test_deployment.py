@@ -523,3 +523,26 @@ def test_provider_credentials_are_migrated_without_cross_wiring():
     with pytest.raises(ValueError, match="aliases disagree") as error:
         module.runtime_config(env)
     assert "different-private-value" not in str(error.value)
+
+
+def test_v2_write_switch_is_explicit_and_defaults_closed():
+    module = load("scripts/cd/deploy.py")
+    env = dict(
+        QS_AI_QS_ADDRESS="qs-apiserver:9090",
+        MYSQL_HOST="mysql.internal",
+        MYSQL_DATABASE="qs_ai",
+        MYSQL_USERNAME="test",
+        MYSQL_PASSWORD="test-only",
+    )
+
+    def value():
+        return module.runtime_config(env)["services"]["qs-ai"]["environment"][
+            "QS_AI_MODELS__V2_WRITES_ENABLED"
+        ]
+
+    assert value() == "false"
+    env["QS_AI_MODEL_V2_WRITES_ENABLED"] = "true"
+    assert value() == "true"
+    env["QS_AI_MODEL_V2_WRITES_ENABLED"] = "yes"
+    with pytest.raises(ValueError, match="must be true or false"):
+        value()

@@ -203,7 +203,7 @@ async def get_candidate(
             "invocation_id": value.invocation_id,
             "started_at": value.started_at.isoformat(),
             "finished_at": value.finished_at.isoformat(),
-            "receipt": asdict(value.receipt) if value.receipt is not None else None,
+            "receipt": value.receipt.definition() if value.receipt is not None else None,
         }
 
     frozen_input: dict[str, Any] = {"available": False, "reason": "frozen_input_unavailable"}
