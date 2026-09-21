@@ -22,7 +22,7 @@ from qs_ai.application.operations.diagnostics import emit
 from qs_ai.domain.evaluation.checkpoint import ExecutionCheckpoint
 from qs_ai.domain.evaluation.completion import GenerationCompletion
 from qs_ai.domain.evaluation.contract_recovery import RECOVERY_INSTRUCTION, decode_recoveries
-from qs_ai.domain.evaluation.failure import ClassifiedFailure
+from qs_ai.domain.evaluation.failure import ClassifiedFailure, ProviderDiagnostics
 from qs_ai.domain.evaluation.identity import EvidenceReleaseIdentity, FrozenContractRef
 from qs_ai.domain.evaluation.preflight import AssertionReceipt
 from qs_ai.domain.evaluation.semantic_completion import SemanticCompletion
@@ -337,7 +337,14 @@ async def finish_step(
             await parse_semantic_output(
                 normalized, release, routes, receipt, invocation_id, obligations, assets=semantic
             )
-        except SemanticDecisionInvalid:
+        except SemanticDecisionInvalid as error:
+            diagnostic_codes = {
+                "Semantic decisions do not cover obligations": "decision_count_mismatch",
+                "Unknown or duplicate semantic decision": "decision_identity_mismatch",
+                "Invalid semantic decision rationale": "decision_rationale_invalid",
+                "Invalid semantic rationale": "rationale_invalid",
+            }
+            diagnostic_code = diagnostic_codes.get(str(error), "decision_contract_invalid")
             failure = ClassifiedFailure(
                 "semantic_evaluation",
                 "semantic_execution",
@@ -347,6 +354,7 @@ async def finish_step(
                 "retry_semantic",
                 "Semantic decision evidence invalid",
                 (execution_id,),
+                ProviderDiagnostics(code=diagnostic_code, response_shape="semantic_decision"),
             )
     status = (
         "succeeded" if failure is None else "result_unknown" if failure.result_unknown else "failed"
