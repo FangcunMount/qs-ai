@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from typing import Any, Literal, Protocol
 
+from qs_ai.application.interpretation.model_route_v2 import ModelRouteV2
 from qs_ai.application.interpretation.ports import Claim
 from qs_ai.application.interpretation.preparation import PreparedExplanation
 from qs_ai.application.interpretation.provider import (
@@ -40,7 +41,7 @@ class ModelGateway(Protocol):
 @dataclass(frozen=True)
 class FrozenGeneration:
     prepared: PreparedExplanation
-    route: ModelRoute
+    route: ModelRouteV2 | ModelRoute
     schema: dict[str, Any]
     version: Literal["qs-ai-generation/v1"] = "qs-ai-generation/v1"
     publication_id: str | None = None

@@ -1,7 +1,9 @@
 import hashlib
 import json
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any, ClassVar, Protocol
+
+from pydantic import ConfigDict
 
 from qs_ai.application.interpretation.prompts import PromptMessages
 
@@ -38,6 +40,8 @@ class ModelCall:
 
 @dataclass(frozen=True)
 class ModelRoute:
+    __pydantic_config__: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
+
     route: str
     revision: str
     provider: str
