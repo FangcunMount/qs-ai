@@ -193,6 +193,8 @@ async def complete_semantic(
         candidate["review_ready"] = True
         candidate["accepted_semantic_execution_id"] = completion.execution_id
     evidence = asdict(completion)
+    if completion.receipt is not None:
+        evidence["receipt"] = completion.receipt.definition()
     for key in ("raw_output", "normalized_output"):
         del evidence[key]
     for key in ("started_at", "finished_at"):

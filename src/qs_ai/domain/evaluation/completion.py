@@ -3,11 +3,12 @@
 import hashlib
 import json
 import re
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import datetime
 
 from qs_ai.domain.evaluation.checkpoint import ExecutionCheckpoint
 from qs_ai.domain.evaluation.failure import ClassifiedFailure
+from qs_ai.domain.interpretation.model_identity import ModelExecutionIdentity
 
 
 def _identity(value: str) -> bool:
@@ -27,6 +28,13 @@ class ProviderReceipt:
     input_tokens: int | None
     output_tokens: int | None
     latency_ns: int
+    execution_identity: ModelExecutionIdentity | None = None
+
+    def definition(self) -> dict:
+        value = asdict(self)
+        if self.execution_identity is None:
+            del value["execution_identity"]
+        return value
 
     def __post_init__(self) -> None:
         if not _identity(self.invocation_id) or not _identity(self.request_id):

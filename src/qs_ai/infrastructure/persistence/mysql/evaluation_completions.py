@@ -147,6 +147,8 @@ async def complete_generation(
     )
     await validate_generation_completion(release, completion, routes, schemas)
     evidence = asdict(completion)
+    if completion.receipt is not None:
+        evidence["receipt"] = completion.receipt.definition()
     for name in ("raw_output", "normalized_output"):
         del evidence[name]
     for name in ("started_at", "finished_at"):

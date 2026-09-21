@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Any, Protocol
 
 from qs_ai.application.interpretation.prompts import PromptMessages
+from qs_ai.domain.interpretation.model_identity import ModelExecutionIdentity
 
 
 class ProviderFailure(Exception):
@@ -12,17 +13,6 @@ class ProviderFailure(Exception):
         self.retryable = retryable
         self.result_unknown = result_unknown
         super().__init__(code)
-
-
-@dataclass(frozen=True)
-class ModelExecutionIdentity:
-    provider: str
-    requested_model: str
-    protocol: str
-    adapter_contract: str
-    binding_id: str
-    binding_revision: str
-    route_fingerprint: str
 
 
 @dataclass(frozen=True)
