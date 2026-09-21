@@ -16,6 +16,11 @@ from qs_ai.application.execution.configuration import (
 )
 from qs_ai.application.execution.generation import FrozenGeneration
 from qs_ai.application.governance.publication_codec import canonical, publication_json
+from qs_ai.application.governance.solution_models import (
+    DEFAULT_EDITABLE_MODELS,
+    EditableModelPolicy,
+    validate_v2_admission,
+)
 from qs_ai.application.interpretation.input import InvalidInput
 from qs_ai.application.interpretation.ports import Claim, NotFound
 from qs_ai.application.interpretation.preparation import prepare_explanation
@@ -126,7 +131,12 @@ async def compile_configuration(
     )
 
 
-async def bind_configuration(db: AsyncSession, session: Session, evidence: EvidenceSet) -> None:
+async def bind_configuration(
+    db: AsyncSession,
+    session: Session,
+    evidence: EvidenceSet,
+    models: EditableModelPolicy = DEFAULT_EDITABLE_MODELS,
+) -> None:
     """Caller owns the same transaction as task acceptance and idempotency receipt."""
     query = report_selector(session, evidence)
     selectors = {
@@ -148,6 +158,7 @@ async def bind_configuration(db: AsyncSession, session: Session, evidence: Evide
     if publication is None:
         raise RuleViolation("configuration_unavailable")
     config = await compile_configuration(db, publication)
+    validate_v2_admission(config.route, models.configuration, "generation")
     prepared = prepare_explanation(session, evidence, config.release, config.package)
     config.validate_input(prepared.assembled_input.canonical_json)
     pointer = next(p for p in candidates if p.active == publication)

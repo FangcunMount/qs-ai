@@ -22,6 +22,7 @@ from qs_ai.contracts.workflow import workflow_pb2 as pb
 from qs_ai.contracts.workflow import workflow_pb2_grpc as rpc
 from qs_ai.domain.governance.profile import AssetConflict
 from qs_ai.domain.governance.prompt_draft import DraftConflict
+from qs_ai.model_configuration import ModelCatalogConflict
 from qs_ai.transport.grpc.identity import require_qs_workload
 from qs_ai.transport.grpc.prompt_drafts import identifier
 from qs_ai.transport.grpc.solution_input import parse_command
@@ -45,6 +46,8 @@ class SolutionManagement(rpc.SolutionManagementServicer):
             yield
         except NotFound:
             await context.abort(grpc.StatusCode.NOT_FOUND, "Solution or command unavailable")
+        except ModelCatalogConflict:
+            await context.abort(grpc.StatusCode.ABORTED, "model_capability_changed")
         except (DraftConflict, AssetConflict):
             await context.abort(
                 grpc.StatusCode.ABORTED, "Solution changed; reload before continuing"

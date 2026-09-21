@@ -105,7 +105,7 @@ class QSResponsesModel(BaseChatModel):
                             raise ProviderFailure(
                                 "provider_response_too_large", result_unknown=True
                             )
-            return parse_response(
+            return self._parse_response(
                 bytes(payload), route, invocation_id, int((time.monotonic() - started) * 1000)
             )
         except (httpx.ConnectError, httpx.ConnectTimeout):
@@ -116,3 +116,8 @@ class QSResponsesModel(BaseChatModel):
             raise ProviderFailure(
                 "provider_transport_error", retryable=True, result_unknown=True
             ) from None
+
+    def _parse_response(
+        self, raw: bytes, route: ModelRoute, invocation_id: str, latency: int
+    ) -> ModelResponse:
+        return parse_response(raw, route, invocation_id, latency)

@@ -297,14 +297,14 @@ def test_single_runtime_flags_preserve_delivery_when_generation_disabled():
     runtime = module.runtime_config(env)["services"]
     assert set(runtime) == {"qs-ai"}
     values = runtime["qs-ai"]["environment"]
-    assert values["QS_AI_MODEL_API_KEY"] == "synthetic-$$key-only"
+    assert values["QS_AI_DEEPSEEK_API_KEY"] == "synthetic-$$key-only"
     assert values["QS_AI_GENERATION__ENABLED"] == "true"
     env["QS_AI_EXECUTION_ENABLED"] = "false"
     del env["QS_AI_MODEL_API_KEY"], env["QS_AI_MODEL_ENDPOINT"]
     values = module.runtime_config(env)["services"]["qs-ai"]["environment"]
     assert values["QS_AI_GENERATION__ENABLED"] == "false"
     assert values["QS_AI_GRPC__RESULT_ADDRESS"] == "qs-apiserver:9090"
-    assert "QS_AI_MODEL_API_KEY" not in values
+    assert "QS_AI_DEEPSEEK_API_KEY" not in values
     for key in ("QS_AI_MODEL_ENDPOINT", "QS_AI_MODEL_API_KEY", "QS_AI_QS_ADDRESS"):
         incomplete = execution_environment()
         del incomplete[key]
@@ -393,9 +393,9 @@ def test_execution_compose_resolves_isolation_tls_and_health(tmp_path, mode):
     assert "readyz" in " ".join(service["healthcheck"]["test"])
     assert values["QS_AI_GRPC__RESULT_ADDRESS"] == "qs-apiserver:9090"
     if mode in {"execution", "evaluation", "all"}:
-        assert values["QS_AI_MODEL_API_KEY"] == "synthetic-$$key-only"
+        assert values["QS_AI_DEEPSEEK_API_KEY"] == "synthetic-$$key-only"
     else:
-        assert "QS_AI_MODEL_API_KEY" not in values
+        assert "QS_AI_DEEPSEEK_API_KEY" not in values
 
 
 def test_deployment_receipt_uses_actual_remote_revision(tmp_path, monkeypatch):
@@ -506,3 +506,20 @@ def test_failed_manual_rollback_restores_current_without_changing_state(
         ("verify", state["current"]),
     ]
     assert not (tmp_path / "state.json").exists()
+
+
+def test_provider_credentials_are_migrated_without_cross_wiring():
+    module = load("scripts/cd/deploy.py")
+    env = execution_environment()
+    env["QS_AI_DEEPSEEK_API_KEY"] = env["QS_AI_MODEL_API_KEY"]
+    env["QS_AI_ZHIPU_API_KEY"] = "synthetic-zhipu-$key"
+    values = module.runtime_config(env)["services"]["qs-ai"]["environment"]
+    assert "QS_AI_MODEL_API_KEY" not in values
+    assert values["QS_AI_DEEPSEEK_API_KEY"] == "synthetic-$$key-only"
+    assert values["QS_AI_ZHIPU_API_KEY"] == "synthetic-zhipu-$$key"
+    del env["QS_AI_MODEL_API_KEY"]
+    assert module.runtime_config(env)["services"]["qs-ai"]["environment"] == values
+    env["QS_AI_MODEL_API_KEY"] = "different-private-value"
+    with pytest.raises(ValueError, match="aliases disagree") as error:
+        module.runtime_config(env)
+    assert "different-private-value" not in str(error.value)

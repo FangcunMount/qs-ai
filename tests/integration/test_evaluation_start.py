@@ -63,3 +63,24 @@ async def test_invalid_start_does_not_schedule_or_change_audit(requested, invali
     with pytest.raises((NotFound, ValueError, CheckpointConflict)):
         await store.start(scope, **kwargs)
     assert await rows(tx, scope.run_id) == before
+
+
+@pytest.mark.parametrize("damage", ["missing", "fingerprint"])
+async def test_admission_rejects_missing_or_changed_persisted_route(setup_run, damage):
+    from dataclasses import replace
+
+    from qs_ai.application.governance.solution_models import DEFAULT_EDITABLE_MODELS
+    from qs_ai.infrastructure.persistence.mysql.editable_model_policy import check_editable_models
+
+    tx, _, release = setup_run
+    ref = release.generation_route
+    ref = (
+        replace(ref, id="unregistered-route")
+        if damage == "missing"
+        else replace(ref, fingerprint="sha256:" + "0" * 64)
+    )
+    async with tx.open() as db:
+        with pytest.raises(ValueError, match="unavailable or changed"):
+            await check_editable_models(
+                db, replace(release, generation_route=ref), DEFAULT_EDITABLE_MODELS
+            )

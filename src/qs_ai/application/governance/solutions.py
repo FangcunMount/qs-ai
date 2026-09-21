@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 from uuid import UUID
 
 from qs_ai.application.governance.prompt_drafts import DraftScope
@@ -56,8 +56,25 @@ class ModelSelection:
     max_output_tokens: int
     timeout_milliseconds: int
     reasoning_effort: str
+    model_key: str | None = None
+    catalog_revision: str | None = None
+    thinking: Literal["enabled", "disabled"] | None = None
+    temperature: float | None = None
+    top_p: float | None = None
 
     def __post_init__(self) -> None:
+        if self.model_key is None and any(
+            v is not None
+            for v in (self.catalog_revision, self.thinking, self.temperature, self.top_p)
+        ):
+            raise ValueError("Explicit model identity required for v2 parameters")
+        if self.model_key is not None and (
+            not isinstance(self.model_key, str)
+            or not self.model_key.strip()
+            or not isinstance(self.catalog_revision, str)
+            or not self.catalog_revision.strip()
+        ):
+            raise ValueError("Model identity and catalog revision required")
         if not isinstance(self.model, str) or not self.model.strip() or len(self.model) > 128:
             raise ValueError("Model required")
         if type(self.max_output_tokens) is not int or not 1 <= self.max_output_tokens <= 12000:
@@ -67,7 +84,16 @@ class ModelSelection:
             or not 1000 <= self.timeout_milliseconds <= 180000
         ):
             raise ValueError("Invalid timeout")
-        if self.reasoning_effort not in ("", "none", "minimal", "low", "medium", "high", "xhigh"):
+        if self.reasoning_effort not in (
+            "",
+            "none",
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max",
+        ):
             raise ValueError("Unsupported reasoning effort")
 
 

@@ -10,10 +10,10 @@ from dishka import Provider, Scope, provide
 from qs_ai.application.interpretation.route_assets import RouteAssets
 from qs_ai.application.interpretation.schema_assets import SchemaAssets
 from qs_ai.config import Settings
+from qs_ai.infrastructure.models.router import ModelGatewayRouter
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
 from qs_ai.infrastructure.persistence.mysql.evaluation_scan import RecoveryCursor
 from qs_ai.infrastructure.persistence.mysql.evaluation_worker import EvaluationWorker
-from qs_ai.infrastructure.qs_server.responses import DeepSeekResponses
 
 
 class EvaluationProvider(Provider):
@@ -33,19 +33,19 @@ class EvaluationProvider(Provider):
         endpoint = settings.generation.endpoint
         if not settings.evaluation.enabled:
             raise ValueError("Evaluation execution is disabled")
-        if (
-            not endpoint
-            or urlsplit(endpoint).scheme != "https"
-            or not urlsplit(endpoint).hostname
-            or not settings.model_api_key
-            or not settings.model_api_key.get_secret_value().strip()
-            or not settings.database_url
-        ):
-            raise ValueError("Evaluation requires HTTPS endpoint, model credential and database")
+        legacy_ready = bool(
+            endpoint
+            and urlsplit(endpoint).scheme == "https"
+            and urlsplit(endpoint).hostname
+            and settings.effective_deepseek_api_key
+            and settings.effective_deepseek_api_key.get_secret_value().strip()
+        )
+        if not settings.database_url or not (legacy_ready or settings.models.bindings):
+            raise ValueError("Evaluation requires provider bindings and database")
         async with httpx.AsyncClient(follow_redirects=False, trust_env=False) as client:
             yield EvaluationWorker(
                 transactions,
-                DeepSeekResponses(client, endpoint, settings.model_api_key.get_secret_value()),
+                ModelGatewayRouter(client, settings),
                 routes,
                 schemas,
                 "evaluation:" + str(uuid4()),

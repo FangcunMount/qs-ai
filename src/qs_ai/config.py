@@ -8,6 +8,8 @@ from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator, m
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 from sqlalchemy.engine import make_url
 
+from qs_ai.model_configuration import ModelConfiguration
+
 
 class Options(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -114,7 +116,16 @@ def read_yaml(path: Path) -> dict[str, Any]:
     if not isinstance(data, dict) or any(not isinstance(key, str) for key in data):
         raise ValueError(f"Configuration must be a mapping: {path.name}")
     # Credentials belong to environment variables or explicit test parameters only.
-    if any(key in data for key in ("database_url", "environment", "model_api_key")):
+    if any(
+        key in data
+        for key in (
+            "database_url",
+            "environment",
+            "model_api_key",
+            "deepseek_api_key",
+            "zhipu_api_key",
+        )
+    ):
         raise ValueError(f"Reserved configuration key in: {path.name}")
     return data
 
@@ -147,6 +158,9 @@ class Settings(BaseSettings):
     environment: Literal["local", "production"] = "local"
     database_url: SecretStr | None = None
     model_api_key: SecretStr | None = None
+    deepseek_api_key: SecretStr | None = None
+    zhipu_api_key: SecretStr | None = None
+    models: ModelConfiguration = Field(default_factory=ModelConfiguration)
     # Only models verified for the deployed adapter may be offered for editing.
     governance_models: tuple[str, ...] = ("deepseek-v4-pro",)
     participant_capacity: ParticipantCapacityOptions
@@ -160,6 +174,18 @@ class Settings(BaseSettings):
     evaluation: EvaluationOptions
     grpc: GRPCOptions
     delivery: DeliveryOptions
+
+    @model_validator(mode="after")
+    def validate_model_credentials(self) -> "Settings":
+        old, new = self.model_api_key, self.deepseek_api_key
+        if old is not None and new is not None and old.get_secret_value() != new.get_secret_value():
+            raise ValueError("DeepSeek credential aliases disagree")
+        return self
+
+    @property
+    def effective_deepseek_api_key(self) -> SecretStr | None:
+        # Temporary read compatibility; deployment emits only the provider-specific name.
+        return self.deepseek_api_key if self.deepseek_api_key is not None else self.model_api_key
 
     @model_validator(mode="after")
     def validate_quota_baseline(self) -> "Settings":

@@ -38,6 +38,23 @@ class RouteAsset:
             "max_output_tokens",
         }
         optional = {"reasoning_effort", "protocol", "structured_output_mode"}
+        if "format_version" in definition:
+            if definition["format_version"] != "qs-ai-model-route/v2":
+                raise ValueError("Unsupported model route version")
+            required |= {
+                "format_version",
+                "model_key",
+                "catalog_revision",
+                "binding_id",
+                "binding_revision",
+                "adapter_contract",
+                "thinking",
+                "temperature",
+                "top_p",
+                "reasoning_effort",
+                "protocol",
+                "structured_output_mode",
+            }
         if not required <= definition.keys() or definition.keys() - required - optional:
             raise ValueError("Unexpected model route fields; endpoints and secrets are external")
         for name in ("provider", "model"):

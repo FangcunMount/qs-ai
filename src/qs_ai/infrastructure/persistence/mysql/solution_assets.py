@@ -52,6 +52,7 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
 )
 from qs_ai.infrastructure.persistence.mysql.suite_contracts import read as read_suite_contracts
 from qs_ai.infrastructure.qs_server.evaluation_release import validate_release_assets
+from qs_ai.model_configuration import ModelConfiguration
 
 
 def release_from(raw: dict[str, Any]) -> EvidenceReleaseIdentity:
@@ -163,10 +164,16 @@ async def register_route(
     purpose: str,
     values: dict[str, Any],
     models: tuple[str, ...],
+    configuration: ModelConfiguration | None = None,
 ) -> AssetReference:
     source = executable_route(await route_for(db, getattr(release, purpose + "_route")))
     route = edited_route(
-        source, ModelSelection(**values), f"solution-{solution_id}-{purpose}", models
+        source,
+        ModelSelection(**values),
+        f"solution-{solution_id}-{purpose}",
+        models,
+        configuration,
+        purpose,
     )
     asset = RouteAsset(route.route, route.revision, route.fingerprint(), route.definition_json())
     await db.execute(
@@ -191,6 +198,7 @@ async def prepare_assets(
     command_id: UUID,
     at: datetime,
     models: tuple[str, ...],
+    configuration: ModelConfiguration | None = None,
 ) -> dict[str, Any]:
     """All writes share one transaction. No model invocation or publication happens here."""
     solution_id = UUID(state["solution_id"])
@@ -215,6 +223,7 @@ async def prepare_assets(
         "generation",
         state["generation"],
         models,
+        configuration,
     )
     semantic = await register_route(
         db,
@@ -224,6 +233,7 @@ async def prepare_assets(
         "semantic",
         state["semantic"],
         models,
+        configuration,
     )
     definition = json.loads(profile.definition_json)
     definition["version"] = state["target_version"]

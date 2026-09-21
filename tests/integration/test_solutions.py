@@ -292,3 +292,45 @@ async def test_solution_fixed_contract_parsing_does_not_block_event_loop(workspa
     )
     assert "semantic_assets" in calls
     assert "execution_policy" in calls
+
+
+async def test_v2_prepare_freezes_zhipu_and_receipt_survives_catalog_removal(workspace):
+    from dataclasses import asdict
+
+    from qs_ai.application.governance.solution_models import selection
+    from qs_ai.application.interpretation.model_route_v2 import ModelRouteV2
+    from tests.test_model_route_v2 import route as zhipu_route
+    from tests.test_model_selection_v2 import configuration
+
+    tx, _, scope, sid, create, at = workspace
+    store = MySQLSolutions(tx, Settings(models=configuration(), zhipu_api_key="synthetic"))
+    first = await store.apply(scope, sid, create, at)
+    save = edit(
+        first,
+        generation=asdict(selection(zhipu_route())),
+        semantic=asdict(selection(zhipu_route())),
+    )
+    await store.apply(scope, sid, save, at)
+    command = PrepareSolution(command_id=uuid4(), expected_revision=2, reason="多供应商测试")
+    prepared = await store.apply(scope, sid, command, at)
+    # Original command results survive current catalog and credential removal.
+    assert await MySQLSolutions(tx, Settings()).apply(scope, sid, command, at) == prepared
+    async with tx.open() as db:
+        row = (
+            (
+                await db.execute(
+                    select(tables.evaluation_runs).where(
+                        tables.evaluation_runs.c.run_id == prepared["prepared"]["run_id"]
+                    )
+                )
+            )
+            .mappings()
+            .one()
+        )
+        creation = json.loads(row["definition_json"])
+        for semantic in (False, True):
+            frozen = await run_model_route(db, creation, semantic=semantic)
+            assert isinstance(frozen, ModelRouteV2)
+            assert frozen.provider == "zhipu" and frozen.model == "glm-5.3"
+            assert frozen.binding_revision == "v1"
+        assert len(creation["slots"]) == 35
