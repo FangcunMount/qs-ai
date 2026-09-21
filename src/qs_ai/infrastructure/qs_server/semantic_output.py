@@ -93,7 +93,7 @@ async def parse_semantic_output(
         # flatten the scope to a generic label.  When that identity is
         # unambiguous, bind it back to the frozen obligation; never guess when
         # multiple obligations share the same type and ordinal.
-        if key not in wanted:
+        if receipt.provider == "zhipu" and key not in wanted:
             candidates = [
                 candidate
                 for candidate in wanted

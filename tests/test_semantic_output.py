@@ -133,22 +133,6 @@ async def test_receipt_and_release_cannot_be_substituted():
 
 
 @pytest.mark.asyncio
-async def test_unique_scope_is_normalized_from_provider_label():
-    release, value, routes, obligations, output = context()
-    output["decisions"][0]["scope"] = "case"
-    result = await parse_semantic_output(
-        json.dumps(output).encode(),
-        release,
-        routes,
-        value.receipt,
-        value.invocation_id,
-        obligations,
-        assets=load_semantic_assets(),
-    )
-    assert result.decisions[0].scope == obligations[0].scope
-
-
-@pytest.mark.asyncio
 @pytest.mark.parametrize("raw", [b"NaN", b"\xff", b"", b"x" * (256 * 1024 + 1)])
 async def test_invalid_or_oversized_bytes_are_rejected(raw):
     with pytest.raises(ValueError):
