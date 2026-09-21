@@ -87,11 +87,20 @@ def runtime_config(environment: dict) -> dict:
             or parsed.fragment
         ):
             raise ValueError("Expected HTTPS model endpoint without embedded credentials")
-        credential = required(environment, "QS_AI_MODEL_API_KEY")
+        old = environment.get("QS_AI_MODEL_API_KEY", "")
+        new = environment.get("QS_AI_DEEPSEEK_API_KEY", "")
+        if old and new and old != new:
+            raise ValueError("DeepSeek credential aliases disagree")
+        credential = required({"QS_AI_DEEPSEEK_API_KEY": new or old}, "QS_AI_DEEPSEEK_API_KEY")
         if not credential.strip():
             raise ValueError("Missing model credential")
         values["QS_AI_GENERATION__ENDPOINT"] = endpoint.replace("$", "$$")
-        values["QS_AI_MODEL_API_KEY"] = credential.replace("$", "$$")
+        values["QS_AI_DEEPSEEK_API_KEY"] = credential.replace("$", "$$")
+        if environment.get("QS_AI_ZHIPU_API_KEY"):
+            zhipu = required(environment, "QS_AI_ZHIPU_API_KEY")
+            if not zhipu.strip():
+                raise ValueError("Missing Zhipu credential")
+            values["QS_AI_ZHIPU_API_KEY"] = zhipu.replace("$", "$$")
 
     return runtime
 

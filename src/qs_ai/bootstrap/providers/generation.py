@@ -31,8 +31,8 @@ class GenerationProvider(Provider):
         if (
             not options.endpoint
             or urlsplit(options.endpoint).scheme != "https"
-            or not settings.model_api_key
-            or not settings.model_api_key.get_secret_value().strip()
+            or not settings.effective_deepseek_api_key
+            or not settings.effective_deepseek_api_key.get_secret_value().strip()
             or not settings.grpc.access_address
         ):
             raise ValueError(
@@ -40,7 +40,7 @@ class GenerationProvider(Provider):
             )
         async with httpx.AsyncClient(follow_redirects=False, trust_env=False) as client:
             gateway = DeepSeekResponses(
-                client, options.endpoint, settings.model_api_key.get_secret_value()
+                client, options.endpoint, settings.effective_deepseek_api_key.get_secret_value()
             )
             generation = DurableGeneration(
                 MySQLExecutionStore(transactions), gateway, JSONModelCallCodec()

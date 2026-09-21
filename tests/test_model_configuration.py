@@ -67,3 +67,16 @@ def test_catalog_requires_unique_identity_and_explicit_binding():
     with pytest.raises(ValueError):
         capability(verified=True)
     assert capability(verified=True, evidence_ref="acceptance/run-1").verified
+
+
+def test_deepseek_credential_aliases_are_explicit_and_conflicts_are_redacted():
+    for values in (
+        {"model_api_key": "old-private"},
+        {"deepseek_api_key": "old-private"},
+        {"model_api_key": "old-private", "deepseek_api_key": "old-private"},
+    ):
+        assert Settings(**values).effective_deepseek_api_key.get_secret_value() == "old-private"
+    with pytest.raises(ValueError, match="aliases disagree") as error:
+        Settings(model_api_key="old-private", deepseek_api_key="new-private")
+    assert "old-private" not in str(error.value)
+    assert "new-private" not in str(error.value)

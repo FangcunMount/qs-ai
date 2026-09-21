@@ -130,6 +130,8 @@ jobs:
           QS_AI_EVALUATION_ENABLED: ${{ vars.QS_AI_EVALUATION_ENABLED || 'false' }}
           QS_AI_MODEL_ENDPOINT: ${{ vars.QS_AI_MODEL_ENDPOINT }}
           QS_AI_MODEL_API_KEY: ${{ secrets.QS_AI_MODEL_API_KEY }}
+          QS_AI_DEEPSEEK_API_KEY: ${{ secrets.QS_AI_DEEPSEEK_API_KEY }}
+          QS_AI_ZHIPU_API_KEY: ${{ secrets.QS_AI_ZHIPU_API_KEY }}
           QS_AI_QS_ADDRESS: ${{ vars.QS_AI_QS_ADDRESS || 'qs-apiserver:9090' }}
           SVRA_HOST: ${{ vars.SVRA_PUBLIC_HOST || vars.SVRA_HOST || secrets.SVRA_HOST }}
           SVRA_USERNAME: ${{ vars.SVRA_USERNAME || secrets.SVRA_USERNAME }}

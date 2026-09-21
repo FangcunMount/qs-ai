@@ -37,15 +37,17 @@ class EvaluationProvider(Provider):
             not endpoint
             or urlsplit(endpoint).scheme != "https"
             or not urlsplit(endpoint).hostname
-            or not settings.model_api_key
-            or not settings.model_api_key.get_secret_value().strip()
+            or not settings.effective_deepseek_api_key
+            or not settings.effective_deepseek_api_key.get_secret_value().strip()
             or not settings.database_url
         ):
             raise ValueError("Evaluation requires HTTPS endpoint, model credential and database")
         async with httpx.AsyncClient(follow_redirects=False, trust_env=False) as client:
             yield EvaluationWorker(
                 transactions,
-                DeepSeekResponses(client, endpoint, settings.model_api_key.get_secret_value()),
+                DeepSeekResponses(
+                    client, endpoint, settings.effective_deepseek_api_key.get_secret_value()
+                ),
                 routes,
                 schemas,
                 "evaluation:" + str(uuid4()),
