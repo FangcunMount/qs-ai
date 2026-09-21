@@ -17,7 +17,9 @@
 | DQ | deepseek-v4-pro | Responses | 生成、语义 | 旧路径已有生产证据，新路由待验收 |
 | DL | deepseek-flash | Responses | 生成 | 官方文档列出；账户及业务待验证 |
 | ZQ | glm-5.3 | Chat Completions | 生成、语义 | 官方文档列出；账户及业务待验证 |
-| ZL | glm-4.7-flash | Chat Completions | 生成 | 官方文档列出；账户及业务待验证 |
+| ZL | glm-5.3-flash（待实际 API 确认） | Chat Completions | 生成 | 用户指定 GLM-5.3-Flash；文档参数段提及该系列，但模型枚举未列出，准确 ID、账户及业务待验证 |
+
+模型选择按用户最新指定固定为 DeepSeek V4 Pro、DeepSeek Flash、GLM-5.3、GLM-5.3-Flash。不得因 Flash 不可用而自动替换为 GLM-4.7-Flash；不可用时报告阻塞。
 
 来源：[DeepSeek](https://api-docs.deepseek.com/zh-cn/api/create-response/)、[智谱](https://docs.bigmodel.cn/api-reference/模型-api/对话补全)，2026-09-21核对。
 
