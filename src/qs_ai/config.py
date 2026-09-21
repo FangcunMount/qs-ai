@@ -50,9 +50,28 @@ class LoopOptions(Options):
 
 
 class EvaluationOptions(LoopOptions):
+    candidate_mode_enabled: bool = False
+    parallel_calls: int = Field(default=1, ge=1, le=32)
+    per_run_parallel_calls: int = Field(default=1, ge=1, le=32)
     enabled: bool
     daily_provider_calls: int = Field(ge=1)
     max_active_runs: int = Field(ge=1)
+
+
+class ProviderCapacityOptions(Options):
+    total: int = Field(default=2, ge=1, le=32)
+    generation_reserved: int = Field(default=1, ge=0, le=31)
+
+    @model_validator(mode="after")
+    def reserve(self) -> "ProviderCapacityOptions":
+        if self.generation_reserved >= self.total:
+            raise ValueError("Generation reserve must be smaller than total")
+        return self
+
+
+class ModelCapacityOptions(Options):
+    deepseek: ProviderCapacityOptions = Field(default_factory=ProviderCapacityOptions)
+    zhipu: ProviderCapacityOptions = Field(default_factory=ProviderCapacityOptions)
 
 
 class WorkerOptions(LoopOptions):
@@ -172,6 +191,7 @@ class Settings(BaseSettings):
     diagnostics: DiagnosticsOptions = Field(default_factory=DiagnosticsOptions)
     worker: WorkerOptions
     evaluation: EvaluationOptions
+    model_capacity: ModelCapacityOptions = Field(default_factory=ModelCapacityOptions)
     grpc: GRPCOptions
     delivery: DeliveryOptions
 

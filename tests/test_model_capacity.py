@@ -71,3 +71,34 @@ def test_invalid_provider_limits(total, reserved):
 def test_unknown_provider_is_not_unlimited():
     with pytest.raises(ValueError, match="not configured"):
         capacity().try_acquire("unknown", evaluation=True)
+
+
+async def test_generation_waits_until_shared_capacity_is_released():
+    pool = capacity()
+    held = [pool.try_acquire("deepseek", evaluation=False) for _ in range(4)]
+    waiter = asyncio.create_task(pool.acquire_generation("deepseek"))
+    await asyncio.sleep(0)
+    assert not waiter.done()
+    held[0].release()
+    token = await asyncio.wait_for(waiter, 1)
+    assert pool.try_acquire("deepseek", evaluation=False) is None
+    token.release()
+    for item in held:
+        item.release()
+
+
+async def test_cancelled_generation_waiter_does_not_consume_capacity():
+    pool = capacity()
+    held = [pool.try_acquire("deepseek", evaluation=False) for _ in range(4)]
+    waiter = asyncio.create_task(pool.acquire_generation("deepseek"))
+    await asyncio.sleep(0)
+    waiter.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await waiter
+    for item in held:
+        item.release()
+    tokens = [pool.try_acquire("deepseek", evaluation=False) for _ in range(4)]
+    assert all(tokens)
+    assert pool.try_acquire("deepseek", evaluation=False) is None
+    for token in tokens:
+        token.release()

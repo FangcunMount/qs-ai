@@ -8,6 +8,7 @@ from sqlalchemy import func, or_, select
 
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict
 from qs_ai.application.evaluation.management import ManagementScope
+from qs_ai.application.execution.model_capacity import ModelCapacity
 from qs_ai.application.interpretation.provider import MessagesGateway
 from qs_ai.application.interpretation.route_assets import RouteAssets
 from qs_ai.application.interpretation.schema_assets import SchemaAssets
@@ -39,11 +40,13 @@ class EvaluationWorker:
         enabled: bool = False,
         recovery_cursor: RecoveryCursor | None = None,
         candidate_limit: int = 1,
+        capacity: ModelCapacity | None = None,
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:
         if type(candidate_limit) is not int or not 1 <= candidate_limit <= 32:
             raise ValueError("Invalid candidate concurrency")
         self.candidate_limit = candidate_limit
+        self.capacity = capacity
         self.transactions = transactions
         self.gateway, self.routes, self.schemas = gateway, routes, schemas
         self.owner, self.enabled, self.clock = owner, enabled, clock
@@ -131,6 +134,7 @@ class EvaluationWorker:
                         self.routes,
                         self.schemas,
                         clock=self.clock,
+                        capacity=self.capacity,
                         candidate_limit=self.candidate_limit
                         if row["execution_mode"] == "candidate_v2"
                         else None,

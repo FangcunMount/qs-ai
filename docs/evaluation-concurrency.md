@@ -78,3 +78,39 @@ MySQL 8.4 分批运行相同关键路径，其中完整新 Worker 评测完成 3
 4. 必需 CI 通过后先兼容发布；验证旧记录后仅新 Run 开启 v2，按 1→3 验收。
 
 本分支当前适合审查与 CI，不代表可直接启用生产并发；不修改已有 Run，也不替代人工审核。
+
+## Shared capacity and drain-status integration
+
+Generation and serial/candidate evaluation share one application-scoped `ModelCapacity`.
+New generation waits before creating a dispatch marker; persisted model-call evidence
+bypasses capacity admission for replay. Evaluation acquisition is nonblocking and a
+capacity miss rolls back the short preparation transaction, including candidate ownership.
+All terminal/error/cancellation paths release the local token. Limits are single-process only.
+
+New Runs select their immutable execution mode using `evaluation.candidate_mode_enabled`
+(default false). Replaying creation never converts a Run. Atomic solution preparation
+and direct Run creation both use this deployment choice without changing release fingerprints.
+
+Reads add execution mode, active ownership count, configured parallel limit and cancellation
+drain status. `cancel_request_json` is the immutable acceptance receipt and remains available
+after drain completion; `cancellation_json` retains its existing terminal-only contract.
+QS and Operating must deploy the additive read/receipt changes before enabling new Runs.
+Active ownership includes preparation/commit time, not exclusively network I/O.
+
+Actions variables (all conservative by default):
+- `QS_AI_CANDIDATE_MODE_ENABLED=false`
+- `QS_AI_EVALUATION_CONCURRENCY=1`
+- `QS_AI_EVALUATION_PARALLEL_CALLS=1`
+- `QS_AI_EVALUATION_PER_RUN_PARALLEL_CALLS=1`
+- `QS_AI_DEEPSEEK_TOTAL_CAPACITY=2`
+- `QS_AI_ZHIPU_TOTAL_CAPACITY=2`
+
+Generation reserve remains one per provider. After compatibility deployment and an
+entire candidate_v2 Run at parallel one, confirmed provider account limits permit
+setting the three evaluation concurrency values to three and provider totals to four.
+No production activation or real-provider performance result is claimed by these tests.
+
+Local evidence for this batch: MySQL 8.0 candidate/generation suite 19 passed;
+MySQL 8.4 generation/requests/solutions 24 passed and immutable-mode replay passed;
+config/deploy/container suite 75 passed; mypy 293 source files passed. Previous commit
+CI 35580376565 passed all shards; this batch requires fresh CI and production checks.

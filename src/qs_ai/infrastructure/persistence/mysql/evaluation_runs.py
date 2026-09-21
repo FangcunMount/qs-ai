@@ -10,6 +10,7 @@ from sqlalchemy import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from qs_ai.application.evaluation.checkpoints import CheckpointState
+from qs_ai.application.evaluation.execution_mode import SERIAL_EXECUTION_MODE, ExecutionMode
 from qs_ai.application.evaluation.release import validate_generation_manifest
 from qs_ai.application.interpretation.profile_assets import ProfileAssets
 from qs_ai.application.interpretation.prompt_assets import PromptAssets
@@ -35,8 +36,11 @@ async def create_run(
     created_at: datetime,
     *,
     generation_manifest: GenerationManifest | None = None,
+    execution_mode: str = "serial_v1",
 ) -> CheckpointState:
     """Caller must authorize actor and resolve every asset before entering this operation."""
+    if execution_mode not in ("serial_v1", "candidate_v2"):
+        raise ValueError("Invalid evaluation execution mode")
     if not isinstance(run_id, UUID) or run_id.int == 0:
         raise ValueError("Run id required")
     if type(organization_id) is not int or organization_id <= 0:
@@ -105,6 +109,7 @@ async def create_run(
     await db.execute(
         insert(evaluation_runs).values(
             run_id=str(run_id),
+            execution_mode=execution_mode,
             organization_id=organization_id,
             requested_by=requested_by,
             definition_json=json.dumps(definition, ensure_ascii=False, separators=(",", ":")),
@@ -126,7 +131,9 @@ class MySQLRunCreator:
         prompts: PromptAssets,
         routes: RouteAssets,
         schemas: SchemaAssets,
+        execution_mode: ExecutionMode = SERIAL_EXECUTION_MODE,
     ) -> None:
+        self.execution_mode = execution_mode
         self.transactions = transactions
         self.profiles, self.prompts, self.routes, self.schemas = profiles, prompts, routes, schemas
 
@@ -164,6 +171,7 @@ class MySQLRunCreator:
                 request_reason,
                 created_at,
                 generation_manifest=manifest,
+                execution_mode=self.execution_mode.value,
             )
             await db.commit()
         return state

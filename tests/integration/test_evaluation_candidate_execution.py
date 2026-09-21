@@ -100,7 +100,7 @@ class ConcurrentGateway:
             self.active -= 1
 
 
-async def execute(ready, gateway):
+async def execute(ready, gateway, capacity=None):
     tx, run_id, _, routes, schemas = ready
     return await execute_step(
         tx,
@@ -113,6 +113,7 @@ async def execute(ready, gateway):
         schemas,
         clock=lambda: AT,
         candidate_limit=3,
+        capacity=capacity,
     )
 
 
@@ -199,6 +200,14 @@ async def test_worker_cancellation_stops_new_dispatch_and_drains(parallel_run):
                 confirm=True,
             )
             await db.commit()
+        from qs_ai.infrastructure.persistence.mysql.evaluation_management import read_view
+        async with tx.open() as db:
+            view = await read_view(db, ManagementScope(run_id, 1, 10001))
+            assert view.execution_mode == "candidate_v2"
+            assert view.active_call_count == 3
+            assert view.cancel_draining
+            assert view.cancellation_json == ""
+            assert json.loads(view.cancel_request_json)["source_version"] == version
         assert await worker.once() is False
     finally:
         gateway.release.set()
@@ -560,3 +569,53 @@ async def test_known_failure_does_not_prevent_other_candidates_finishing(paralle
             .all()
         )
         assert sum(c is not None and c["review_ready"] for c in candidates) == 34
+
+
+async def test_capacity_exhaustion_rolls_back_claim_and_dispatch(parallel_run):
+    from qs_ai.application.evaluation.checkpoints import CheckpointConflict
+    from qs_ai.application.execution.model_capacity import ModelCapacity, ProviderCapacity
+    from qs_ai.infrastructure.persistence.mysql.schema import evaluation_checkpoints
+
+    tx, run_id, *_ = parallel_run
+    pool = ModelCapacity({"deepseek": ProviderCapacity(4, 1)}, 3)
+    held = [pool.try_acquire("deepseek", evaluation=True) for _ in range(3)]
+    gateway = ConcurrentGateway(parallel_run)
+    gateway.release.set()
+    async with tx.open() as db:
+        before = (
+            (
+                await db.execute(
+                    select(evaluation_checkpoints).where(
+                        evaluation_checkpoints.c.run_id == str(run_id)
+                    )
+                )
+            )
+            .mappings()
+            .one()
+        )
+    with pytest.raises(CheckpointConflict, match="capacity"):
+        await execute(parallel_run, gateway, pool)
+    assert gateway.calls == []
+    async with tx.open() as db:
+        after = (
+            (
+                await db.execute(
+                    select(evaluation_checkpoints).where(
+                        evaluation_checkpoints.c.run_id == str(run_id)
+                    )
+                )
+            )
+            .mappings()
+            .one()
+        )
+        assert dict(before) == dict(after)
+        assert (
+            await db.execute(
+                select(evaluation_slot_claims).where(evaluation_slot_claims.c.run_id == str(run_id))
+            )
+        ).first() is None
+    for token in held:
+        token.release()
+    await execute(parallel_run, gateway, pool)
+    assert len(gateway.calls) == 1
+    assert all(pool.try_acquire("deepseek", evaluation=True) for _ in range(3))

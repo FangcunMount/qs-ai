@@ -199,6 +199,7 @@ async def prepare_assets(
     at: datetime,
     models: tuple[str, ...],
     configuration: ModelConfiguration | None = None,
+    execution_mode: str = "serial_v1",
 ) -> dict[str, Any]:
     """All writes share one transaction. No model invocation or publication happens here."""
     solution_id = UUID(state["solution_id"])
@@ -314,6 +315,7 @@ async def prepare_assets(
         state["reason"],
         at,
         generation_manifest=suite.manifest,
+        execution_mode=execution_mode,
     )
     policy = contracts.execution
     return {

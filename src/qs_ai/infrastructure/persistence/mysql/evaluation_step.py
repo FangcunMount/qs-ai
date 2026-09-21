@@ -11,8 +11,9 @@ from uuid import UUID, uuid4
 
 from sqlalchemy import select
 
-from qs_ai.application.evaluation.checkpoints import CheckpointState
+from qs_ai.application.evaluation.checkpoints import CheckpointConflict, CheckpointState
 from qs_ai.application.evaluation.model_response import response_evidence
+from qs_ai.application.execution.model_capacity import CapacityToken, ModelCapacity
 from qs_ai.application.interpretation.prompts import PromptMessages
 from qs_ai.application.interpretation.provider import ModelResponse, ModelRoute
 from qs_ai.application.interpretation.route_assets import RouteAssets
@@ -74,6 +75,7 @@ class PreparedStep:
     schema: dict[str, Any]
     semantic: SemanticAssets | None
     claim: SlotClaim | None = None
+    capacity_token: CapacityToken | None = None
 
 
 async def prepare_step(
@@ -88,6 +90,44 @@ async def prepare_step(
     clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     candidate_limit: int | None = None,
     resume_claim: SlotClaim | None = None,
+    capacity: ModelCapacity | None = None,
+) -> PreparedStep:
+    tokens: list[CapacityToken] = []
+    try:
+        return await _prepare_step(
+            transactions,
+            run_id,
+            expected_version,
+            organization_id,
+            owner,
+            routes,
+            schemas,
+            clock=clock,
+            candidate_limit=candidate_limit,
+            resume_claim=resume_claim,
+            capacity=capacity,
+            tokens=tokens,
+        )
+    except BaseException:
+        for token in tokens:
+            token.release()
+        raise
+
+
+async def _prepare_step(
+    transactions: Transactions,
+    run_id: UUID,
+    expected_version: int,
+    organization_id: int,
+    owner: str,
+    routes: RouteAssets,
+    schemas: SchemaAssets,
+    *,
+    clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+    candidate_limit: int | None = None,
+    resume_claim: SlotClaim | None = None,
+    capacity: ModelCapacity | None = None,
+    tokens: list[CapacityToken],
 ) -> PreparedStep:
     """Run must already be collecting with passed preflight; caller supplies authorized scope."""
     at = clock()
@@ -149,6 +189,11 @@ async def prepare_step(
         suite = await stored_run_suite(db, creation)
         prepared = await prepare_run_case(db, creation, cp.case_id)
         route = await run_model_route(db, creation, semantic=cp.kind == "semantic")
+        if capacity is not None and resume_claim is None:
+            token = capacity.try_acquire(route.provider, evaluation=True)
+            if token is None:
+                raise CheckpointConflict("Model capacity unavailable; defer without dispatch")
+            tokens.append(token)
         if cp.kind == "generation":
             messages = prepared.messages
             ref = release.output_schema
@@ -236,6 +281,7 @@ async def prepare_step(
         schema,
         semantic,
         claim,
+        tokens[0] if tokens else None,
     )
 
 

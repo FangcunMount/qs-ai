@@ -61,6 +61,15 @@ class MySQLExecutionStore:
         self.quota_baseline = quota_baseline
         self.diagnostic_retention_days = diagnostic_retention_days
 
+    async def has_model_call(self, claim: Claim) -> bool:
+        async with self.transactions.open() as db:
+            await self._guard(db, claim)
+            return (
+                await db.execute(
+                    select(model_calls.c.run_id).where(model_calls.c.run_id == claim.run_id)
+                )
+            ).first() is not None
+
     async def begin_model_call(self, claim: Claim, request_json: str) -> tuple[ModelCall, bool]:
         """Commit a dispatch marker before HTTP. Only its creator may send once.
 

@@ -12,6 +12,7 @@ from langsmith import tracing_context
 
 from qs_ai.application.evaluation.checkpoints import CheckpointState
 from qs_ai.application.evaluation.provider_failure import classify_provider_failure
+from qs_ai.application.execution.model_capacity import CapacityToken, ModelCapacity
 from qs_ai.application.interpretation.provider import (
     MessagesGateway,
     ModelResponse,
@@ -53,8 +54,10 @@ async def execute_step(
     *,
     clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     candidate_limit: int | None = None,
+    capacity: ModelCapacity | None = None,
 ) -> CheckpointState:
     heartbeat: asyncio.Task[None] | None = None
+    token: CapacityToken | None = None
 
     async def renew(prepared: PreparedStep) -> None:
         assert prepared.claim is not None
@@ -67,7 +70,7 @@ async def execute_step(
                 await db.commit()
 
     async def prepare(state: EvaluationState) -> EvaluationState:
-        nonlocal heartbeat
+        nonlocal heartbeat, token
         with operation("graph.evaluation.prepare", "evaluation"):
             value = await prepare_step(
                 transactions,
@@ -79,7 +82,9 @@ async def execute_step(
                 schemas,
                 clock=clock,
                 candidate_limit=candidate_limit,
+                capacity=capacity,
             )
+            token = value.capacity_token
             if value.claim is not None:
                 heartbeat = asyncio.create_task(renew(value))
             return {"prepared": value}
@@ -148,7 +153,11 @@ async def execute_step(
             result = await graph.compile().ainvoke({})
         return result["result"]
     finally:
-        if heartbeat is not None:
-            heartbeat.cancel()
-            with suppress(asyncio.CancelledError):
-                await heartbeat
+        try:
+            if heartbeat is not None:
+                heartbeat.cancel()
+                with suppress(asyncio.CancelledError):
+                    await heartbeat
+        finally:
+            if token is not None:
+                token.release()

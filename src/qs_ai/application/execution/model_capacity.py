@@ -1,5 +1,6 @@
 """Single-event-loop capacity. Tokens are acquired before durable model dispatch."""
 
+import asyncio
 from dataclasses import dataclass
 
 
@@ -45,6 +46,7 @@ class ModelCapacity:
     def __init__(self, providers: dict[str, ProviderCapacity], evaluation_limit: int) -> None:
         if type(evaluation_limit) is not int or not 1 <= evaluation_limit <= 32:
             raise ValueError("Invalid global evaluation capacity")
+        self._changed = asyncio.Event()
         self._providers = dict(providers)
         self._limit = evaluation_limit
         self._active = {provider: 0 for provider in providers}
@@ -65,6 +67,16 @@ class ModelCapacity:
         self._evaluations[provider] += int(evaluation)
         return CapacityToken(self, provider, evaluation)
 
+    async def acquire_generation(self, provider: str) -> CapacityToken:
+        """Wait without a DB transaction or a dispatch marker; caller still renews its job lease."""
+        while True:
+            self._changed.clear()
+            token = self.try_acquire(provider, evaluation=False)
+            if token is not None:
+                return token
+            await self._changed.wait()
+
     def _release(self, provider: str, evaluation: bool) -> None:
         self._active[provider] -= 1
         self._evaluations[provider] -= int(evaluation)
+        self._changed.set()
