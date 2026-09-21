@@ -55,7 +55,7 @@ class IntegrationProvider(Provider):
 
     @provide(scope=Scope.APP)
     def editable_models(self, settings: Settings) -> EditableModelPolicy:
-        return EditableModelPolicy(settings.governance_models)
+        return EditableModelPolicy(settings.governance_models, settings.models)
 
     @provide(scope=Scope.APP)
     def evaluation_capacity_policy(self, settings: Settings) -> EvaluationCapacityPolicy:

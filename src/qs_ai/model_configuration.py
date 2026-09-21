@@ -6,6 +6,10 @@ from urllib.parse import urlsplit
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
+class ModelCatalogConflict(ValueError):
+    """The client selected a stale capability revision."""
+
+
 class Configuration(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, hide_input_in_errors=True)
 
@@ -97,3 +101,20 @@ class ModelConfiguration(Configuration):
             if (entry.binding_id, entry.binding_revision) not in identities:
                 raise ValueError("Model binding missing")
         return self
+
+    def resolve(
+        self, key: str, revision: str | None, purpose: str
+    ) -> tuple[ModelCapability, ModelBinding]:
+        entry = next((v for v in self.catalog if v.model_key == key), None)
+        if entry is None or not entry.verified or purpose not in entry.purposes:
+            raise ValueError("model_not_enabled")
+        if revision != entry.catalog_revision:
+            raise ModelCatalogConflict("model_capability_changed")
+        binding = next(
+            v
+            for v in self.bindings
+            if (v.binding_id, v.revision) == (entry.binding_id, entry.binding_revision)
+        )
+        if not binding.enabled:
+            raise ValueError("binding_unavailable")
+        return entry, binding

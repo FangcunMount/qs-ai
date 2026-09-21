@@ -15,6 +15,10 @@ from qs_ai.application.execution.capacity import (
     ParticipantCapacityPolicy,
 )
 from qs_ai.application.governance.quotas import QuotaBaseline
+from qs_ai.application.governance.solution_models import (
+    DEFAULT_EDITABLE_MODELS,
+    EditableModelPolicy,
+)
 from qs_ai.application.interpretation.input import InvalidInput
 from qs_ai.application.interpretation.ports import AdmissionRejected, NotFound, Receipt, UnitOfWork
 from qs_ai.domain.interpretation.model import (
@@ -77,9 +81,11 @@ class MySQLUnitOfWork:
         db: AsyncSession,
         capacity: ParticipantCapacityPolicy = DEFAULT_PARTICIPANT_CAPACITY,
         quota_baseline: QuotaBaseline | None = None,
+        models: EditableModelPolicy = DEFAULT_EDITABLE_MODELS,
     ) -> None:
         self.db, self.capacity = db, capacity
         self.quota_baseline = quota_baseline
+        self.models = models
 
     async def reserve(self, scope: str, key: str, request_hash: str) -> Receipt | None:
         statement = mysql_insert(idempotency).values(
@@ -123,7 +129,7 @@ class MySQLUnitOfWork:
         # Only deterministic validation failures become durable refusals. Database,
         # network and commit failures must still roll back and replay the same ID.
         try:
-            await bind_configuration(self.db, session, evidence)
+            await bind_configuration(self.db, session, evidence, self.models)
         except RuleViolation as error:
             code = (
                 "configuration_unavailable"
@@ -275,12 +281,14 @@ class MySQLUnitOfWorkFactory:
         transactions: Transactions,
         capacity: ParticipantCapacityPolicy = DEFAULT_PARTICIPANT_CAPACITY,
         quota_baseline: QuotaBaseline | None = None,
+        models: EditableModelPolicy = DEFAULT_EDITABLE_MODELS,
     ) -> None:
         self.transactions, self.capacity = transactions, capacity
         self.quota_baseline = quota_baseline
+        self.models = models
 
     @asynccontextmanager
     async def open(self) -> AsyncIterator[UnitOfWork]:
         async with self.transactions.open() as db:
             await db.connection(execution_options={"isolation_level": "REPEATABLE READ"})
-            yield MySQLUnitOfWork(db, self.capacity, self.quota_baseline)
+            yield MySQLUnitOfWork(db, self.capacity, self.quota_baseline, self.models)

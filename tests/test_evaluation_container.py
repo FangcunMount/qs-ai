@@ -57,7 +57,7 @@ async def test_request_scope_builds_worker_without_network_and_closes_client():
             assert worker.enabled
             assert worker.owner.startswith("evaluation:")
             assert await request.get(EvaluationWorker) is worker
-        assert worker.gateway._model._client.is_closed
+        assert worker.gateway._client.is_closed
         async with container() as request:
             other = await request.get(EvaluationWorker)
             assert other.owner != worker.owner
@@ -109,3 +109,24 @@ async def test_entrypoint_scopes_and_modes(mode, monkeypatch, capsys):
     assert sum(w.once.await_count for w in workers) == expected
     assert len(workers) == (0 if mode == "probe" else expected + 1)
     assert "synthetic-test-only" not in capsys.readouterr().out
+
+
+async def test_binding_only_worker_can_recover_without_legacy_credentials():
+    from tests.test_multi_provider_gateway import settings as provider_settings
+
+    value = provider_settings().model_copy(update={"zhipu_api_key": None})
+    container = create_container(
+        configured(
+            models=value.models,
+            model_api_key=None,
+            generation={"endpoint": None},
+        ),
+        EvaluationProvider(),
+    )
+    try:
+        async with container() as request:
+            worker = await request.get(EvaluationWorker)
+            assert worker.enabled
+        assert worker.gateway._client.is_closed
+    finally:
+        await container.close()

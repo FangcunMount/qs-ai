@@ -3,6 +3,7 @@
 import re
 from typing import Any
 
+from qs_ai.application.interpretation.model_route_v2 import ModelRouteV2
 from qs_ai.application.interpretation.preparation import PreparedExplanation
 from qs_ai.application.interpretation.prompts import PromptMessages
 from qs_ai.application.interpretation.provider import ModelRoute
@@ -80,7 +81,16 @@ def build_messages_request(
         or route.timeout_milliseconds < 1
     ):
         raise ValueError("Incomplete execution route")
-    if route.reasoning_effort not in {"", "none", "minimal", "low", "medium", "high", "xhigh"}:
+    if route.reasoning_effort not in {
+        "",
+        "none",
+        "minimal",
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max",
+    }:
         raise ValueError("Invalid reasoning effort")
     if route.structured_output_mode == "json_schema":
         name = re.sub(r"[^a-zA-Z0-9_-]+", "_", schema["title"].strip()).strip("_")[:64]
@@ -118,5 +128,10 @@ def build_messages_request(
     }
     if route.reasoning_effort:
         result["reasoning"] = {"effort": route.reasoning_effort}
+    if isinstance(route, ModelRouteV2):
+        for name in ("temperature", "top_p"):
+            value = getattr(route, name)
+            if value is not None:
+                result[name] = value
     # QS omits strict and store for this provider. Local full validation remains mandatory.
     return result

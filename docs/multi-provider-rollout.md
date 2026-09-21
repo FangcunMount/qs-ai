@@ -57,3 +57,17 @@ production已确认存在QS_AI_DEEPSEEK_API_KEY、QS_AI_ZHIPU_API_KEY和旧QS_AI
 智谱密钥已接入配置和部署，不代表智谱适配器或真实调用已完成。旧Secret待生产新名称调用通过后再删除。原发布目录不重写，用于回滚。
 
 本批78项配置/部署/装配回归通过；ruff与目标mypy通过。未合并、未发布，线上仍使用原版本。
+
+## M1b / M2a — selection wiring and Zhipu adapter
+
+Implemented on `codex/multi-provider` (not yet deployed):
+
+- Solution selections accept explicit `model_key`, `catalog_revision`, thinking and sampling fields. Save and atomic preparation validate current eligibility, purpose and bounds; frozen routes retain the selected binding revision. Legacy command hashes omit absent v2 fields.
+- Admission checks v2 model identity and binding against the current catalog; accepted execution resolves only its frozen binding, independently of current catalog eligibility. Catalog revision conflicts return gRPC `ABORTED`.
+- Capability responses retain legacy fields and add a redacted catalog with provider, protocol, adapter contract and availability reasons. They never expose endpoints or credentials.
+- Generation and evaluation now share `ModelGatewayRouter`. DeepSeek retains its Responses request projection; Zhipu uses a controlled async LangChain chat model with independent user data, JSON-object output, strict receipt parsing and the same bounded single-send transport. No provider fallback or implicit retry is introduced.
+- Binding-only dependency assembly permits receipt recovery without legacy credentials. A new dispatch with a missing or disabled original binding fails explicitly.
+
+Local evidence: focused selection, adapter, legacy wire, container and route tests pass; disposable MySQL 8.4 solution tests cover Zhipu generation and semantic route freezing, 35 candidate obligations, and original preparation receipt recovery after catalog removal. Interop tests requiring the Go harness must run with that harness/CI; a skipped test is not acceptance evidence.
+
+Still pending: production catalog population after account-level probes, model-specific capability/default refinement, receipt observability metadata, QS/Operating integration and real four-model evaluation/publication. GLM-5.3-Flash remains unverified. The v2 write flag remains disabled by default; this batch does not change the published v6 configuration.

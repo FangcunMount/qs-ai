@@ -17,7 +17,12 @@ from qs_ai.application.governance.prompt_drafts import (
     DraftScope,
     RevisePromptDraft,
 )
-from qs_ai.application.governance.solutions import CreateSolution, PrepareSolution, SaveSolution
+from qs_ai.application.governance.solutions import (
+    CreateSolution,
+    ModelSelection,
+    PrepareSolution,
+    SaveSolution,
+)
 from qs_ai.application.interpretation.ports import NotFound
 from qs_ai.config import Settings
 from qs_ai.domain.governance.prompt import PromptAsset
@@ -176,10 +181,45 @@ class MySQLSolutions:
         self.transactions, self.settings = transactions, settings
 
     def capabilities(self) -> dict[str, Any]:
+        catalog = []
+        for entry in self.settings.models.catalog:
+            binding = next(
+                b
+                for b in self.settings.models.bindings
+                if (b.binding_id, b.revision) == (entry.binding_id, entry.binding_revision)
+            )
+            credential = (
+                self.settings.effective_deepseek_api_key
+                if binding.provider == "deepseek"
+                else self.settings.zhipu_api_key
+            )
+            reason = (
+                "model_unverified"
+                if not entry.verified
+                else "binding_unavailable"
+                if not binding.enabled
+                else "credential_unconfigured"
+                if credential is None or not credential.get_secret_value().strip()
+                else "model_v2_writes_disabled"
+                if not self.settings.models.v2_writes_enabled
+                else None
+            )
+            catalog.append(
+                {
+                    **entry.model_dump(),
+                    "provider": binding.provider,
+                    "protocol": binding.protocol,
+                    "adapter_contract": binding.adapter_contract,
+                    "available": reason is None,
+                    "unavailable_reason": reason,
+                }
+            )
         return {
             "models": list(self.settings.governance_models),
+            "v2_writes_enabled": self.settings.models.v2_writes_enabled,
+            "catalog": catalog,
             "provider": "deepseek",
-            "credential_configured": bool(self.settings.model_api_key),
+            "credential_configured": bool(self.settings.effective_deepseek_api_key),
             "endpoint_configured": bool(self.settings.generation.endpoint),
             "max_output_tokens": {"min": 1, "max": 12000},
             "timeout_milliseconds": {"min": 1000, "max": 180000},
@@ -246,6 +286,17 @@ class MySQLSolutions:
             raise ValueError("Solution identity and server time required")
         command_payload = asdict(command)
         if isinstance(command, SaveSolution):
+            for purpose in ("generation", "semantic"):
+                values = command_payload[purpose]
+                for optional in (
+                    "model_key",
+                    "catalog_revision",
+                    "thinking",
+                    "temperature",
+                    "top_p",
+                ):
+                    if values.get(optional) is None:
+                        values.pop(optional, None)
             for key in ("evaluation_suite", "semantic_prompt", "semantic_owner_organization_id"):
                 if command_payload[key] in (None, 0):
                     command_payload.pop(key)
@@ -279,7 +330,9 @@ class MySQLSolutions:
                     if isinstance(command, SaveSolution):
                         if not command.title.strip():
                             raise ValueError("Title required")
-                        self._check_models(command.generation.model, command.semantic.model)
+                        await self._check_selections(
+                            db, state, command.generation, command.semantic
+                        )
                         selected_assets = await select_evaluation_assets(db, scope, state, command)
                         draft = await apply_draft(
                             db,
@@ -301,7 +354,12 @@ class MySQLSolutions:
                             evaluation_assets=selected_assets,
                         )
                     else:
-                        self._check_models(state["generation"]["model"], state["semantic"]["model"])
+                        await self._check_selections(
+                            db,
+                            state,
+                            ModelSelection(**state["generation"]),
+                            ModelSelection(**state["semantic"]),
+                        )
                         state["prepared"] = await prepare_assets(
                             db,
                             scope,
@@ -309,6 +367,7 @@ class MySQLSolutions:
                             command.command_id,
                             at,
                             self.settings.governance_models,
+                            self.settings.models,
                         )
                     state.update(revision=state["revision"] + 1, updated_at=at.isoformat())
                 raw = encode(state)
@@ -345,9 +404,28 @@ class MySQLSolutions:
                 return await hydrate(db, scope, previous)
         raise DraftConflict("Solution identity or immutable asset already exists")
 
-    def _check_models(self, *models: str) -> None:
-        if any(model not in self.settings.governance_models for model in models):
-            raise ValueError("Model is not enabled for this deployment")
+    async def _check_selections(
+        self,
+        db: AsyncSession,
+        state: dict[str, Any],
+        generation: ModelSelection,
+        semantic: ModelSelection,
+    ) -> None:
+        from qs_ai.application.governance.solution_models import edited_route
+        from qs_ai.application.interpretation.route_assets import executable_route
+        from qs_ai.infrastructure.persistence.mysql.solution_assets import route_for
+
+        release = release_from(state["source_release"])
+        for purpose, value in (("generation", generation), ("semantic", semantic)):
+            source = executable_route(await route_for(db, getattr(release, purpose + "_route")))
+            edited_route(
+                source,
+                value,
+                source.revision,
+                self.settings.governance_models,
+                self.settings.models,
+                purpose,
+            )
 
     async def _create(
         self,
