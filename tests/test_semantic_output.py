@@ -137,8 +137,13 @@ async def test_unique_scope_is_normalized_from_provider_label():
     release, value, routes, obligations, output = context()
     output["decisions"][0]["scope"] = "case"
     result = await parse_semantic_output(
-        json.dumps(output).encode(), release, routes, value.receipt,
-        value.invocation_id, obligations, assets=load_semantic_assets()
+        json.dumps(output).encode(),
+        release,
+        routes,
+        value.receipt,
+        value.invocation_id,
+        obligations,
+        assets=load_semantic_assets(),
     )
     assert result.decisions[0].scope == obligations[0].scope
 
