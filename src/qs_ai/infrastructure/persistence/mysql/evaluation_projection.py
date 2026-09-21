@@ -253,6 +253,14 @@ def project_candidate(
             for decision in result["decisions"]:
                 decision_key = (decision["type"], decision["scope"], decision["ordinal"])
                 raw = expected.pop(decision_key, None)
+                if raw is None:
+                    candidates = [
+                        key
+                        for key in expected
+                        if (key[0], key[2]) == (decision_key[0], decision_key[2])
+                    ]
+                    if len(candidates) == 1:
+                        raw = expected.pop(candidates[0])
                 if (
                     raw is None
                     or decision != current.get(decision_key)
