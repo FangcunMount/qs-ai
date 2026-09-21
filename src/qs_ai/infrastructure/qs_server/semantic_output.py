@@ -17,6 +17,11 @@ from qs_ai.infrastructure.qs_server.semantic_assets import SemanticAssets
 class SemanticDecisionInvalid(ValueError):
     """Provider decision evidence is invalid; not an asset, storage or caller error."""
 
+    def __init__(self, message: str, *, expected: tuple = (), received: tuple = ()) -> None:
+        super().__init__(message)
+        self.expected = expected
+        self.received = received
+
 
 @dataclass(frozen=True)
 class SemanticResult:
@@ -75,13 +80,29 @@ async def parse_semantic_output(
             raise ValueError("Duplicate semantic obligation")
         wanted[key] = obligation
     if len(output["decisions"]) != len(wanted):
-        raise SemanticDecisionInvalid("Semantic decisions do not cover obligations")
+        raise SemanticDecisionInvalid(
+            "Semantic decisions do not cover obligations",
+            expected=tuple(sorted(wanted)),
+            received=tuple(),
+        )
     seen = set()
     decisions = []
     for decision in output["decisions"]:
         key = (decision["type"], decision["scope"], decision["ordinal"])
+        # Some providers reproduce the assertion type and ordinal correctly but
+        # flatten the scope to a generic label.  When that identity is
+        # unambiguous, bind it back to the frozen obligation; never guess when
+        # multiple obligations share the same type and ordinal.
+        if key not in wanted:
+            candidates = [candidate for candidate in wanted if (candidate[0], candidate[2]) == (key[0], key[2])]
+            if len(candidates) == 1:
+                key = candidates[0]
         if key not in wanted or key in seen:
-            raise SemanticDecisionInvalid("Unknown or duplicate semantic decision")
+            raise SemanticDecisionInvalid(
+                "Unknown or duplicate semantic decision",
+                expected=tuple(sorted(wanted)),
+                received=tuple(sorted(seen | {key})),
+            )
         seen.add(key)
         detail = decision["detail"].strip()
         if not detail or len(detail.encode()) > 2000:
