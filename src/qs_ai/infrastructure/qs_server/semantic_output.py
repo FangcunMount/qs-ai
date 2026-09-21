@@ -85,7 +85,7 @@ async def parse_semantic_output(
             expected=tuple(sorted(wanted)),
             received=tuple(),
         )
-    seen = set()
+    seen: set[tuple[str, str, int]] = set()
     decisions = []
     for decision in output["decisions"]:
         key = (decision["type"], decision["scope"], decision["ordinal"])
@@ -93,8 +93,12 @@ async def parse_semantic_output(
         # flatten the scope to a generic label.  When that identity is
         # unambiguous, bind it back to the frozen obligation; never guess when
         # multiple obligations share the same type and ordinal.
-        if key not in wanted:
-            candidates = [candidate for candidate in wanted if (candidate[0], candidate[2]) == (key[0], key[2])]
+        if receipt.provider == "zhipu" and key not in wanted:
+            candidates = [
+                candidate
+                for candidate in wanted
+                if (candidate[0], candidate[2]) == (key[0], key[2])
+            ]
             if len(candidates) == 1:
                 key = candidates[0]
         if key not in wanted or key in seen:
