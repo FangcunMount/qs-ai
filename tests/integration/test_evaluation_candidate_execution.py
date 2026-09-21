@@ -201,6 +201,7 @@ async def test_worker_cancellation_stops_new_dispatch_and_drains(parallel_run):
             )
             await db.commit()
         from qs_ai.infrastructure.persistence.mysql.evaluation_management import read_view
+
         async with tx.open() as db:
             view = await read_view(db, ManagementScope(run_id, 1, 10001))
             assert view.execution_mode == "candidate_v2"
