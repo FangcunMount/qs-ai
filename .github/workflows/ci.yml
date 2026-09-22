@@ -51,7 +51,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: FangcunMount/qs-server
-          ref: 6883bcc6a0cc48eb21adfb323e014471a8449adb
+          ref: 6b34d7de68f9dcf3ddd6d8a01558fcd0e842fd0e
           path: .interop/qs-server
       - uses: actions/setup-go@v5
         with:
@@ -81,10 +81,11 @@ jobs:
                       await cursor.execute("CREATE DATABASE qs_gateway")
                       await cursor.execute("GRANT ALL ON qs_gateway.* TO 'qs_ai'@'%'")
                       await cursor.execute("USE qs_gateway")
-                      sql = Path(".interop/qs-server/internal/pkg/migration/migrations/mysql/000072_ai_bridge_delivery.up.sql").read_text()
-                      for statement in sql.split(";"):
-                          if statement.strip():
-                              await cursor.execute(statement)
+                      for migration in ("000072_ai_bridge_delivery", "000083_ai_runtime_index"):
+                          sql = Path(f".interop/qs-server/internal/pkg/migration/migrations/mysql/{migration}.up.sql").read_text()
+                          for statement in sql.split(";"):
+                              if statement.strip():
+                                  await cursor.execute(statement)
               finally:
                   connection.close()
           asyncio.run(prepare())
