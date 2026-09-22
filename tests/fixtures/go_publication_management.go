@@ -13,6 +13,9 @@ import (
 )
 
 func main() {
+	// Reserve stdout for the JSON protocol; QS diagnostics use stderr.
+	resultOutput := os.Stdout
+	os.Stdout = os.Stderr
 	var input struct {
 		Action             string
 		OrgID, UserID      int64
@@ -62,7 +65,7 @@ func main() {
 	default:
 		os.Exit(2)
 	}
-	if json.NewEncoder(os.Stdout).Encode(struct {
+	if json.NewEncoder(resultOutput).Encode(struct {
 		State                     any
 		Code                      string
 		Denied, Invalid, Conflict bool

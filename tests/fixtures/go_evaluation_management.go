@@ -13,6 +13,9 @@ import (
 )
 
 func main() {
+	// Reserve stdout for the JSON protocol; QS diagnostics use stderr.
+	resultOutput := os.Stdout
+	os.Stdout = os.Stderr
 	var input struct {
 		SemanticBody                                    json.RawMessage
 		SemanticID, SemanticOperation, SemanticRevision string
@@ -149,7 +152,7 @@ func main() {
 		Code            string
 		Denied, Invalid bool
 	}{State: result, Code: status.Code(err).String(), Denied: errors.Is(err, app.ErrGovernanceDenied), Invalid: errors.Is(err, app.ErrInvalid)}
-	if json.NewEncoder(os.Stdout).Encode(outcome) != nil {
+	if json.NewEncoder(resultOutput).Encode(outcome) != nil {
 		os.Exit(4)
 	}
 }

@@ -51,7 +51,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: FangcunMount/qs-server
-          ref: bac4d08712e72e5f140a519e139e40fbaaa303be
+          ref: 6b34d7de68f9dcf3ddd6d8a01558fcd0e842fd0e
           path: .interop/qs-server
       - uses: actions/setup-go@v5
         with:
@@ -60,6 +60,12 @@ jobs:
       - name: Verify shared result schema
         run: |
           cmp integrations/qs_server/schemas/ai-explanation-output-v1.schema.json .interop/qs-server/api/schema/interpretation/ai-explanation-output-v1.schema.json
+      - name: Export snapshots from the pinned QS projector
+        env:
+          QS_AI_SNAPSHOT_VECTOR_OUT: ${{ github.workspace }}/.interop/report-snapshots.json
+        run: |
+          cd .interop/qs-server
+          go test ./internal/apiserver/application/aibridge -run '^TestMBTISnapshotContractVector$' -count=1
       - name: Build pinned QS bridge and initialize separate test database
         run: |
           (cd .interop/qs-server && go build -o ../qs-ai-bridge ./cmd/qs-ai-bridge)
@@ -75,10 +81,11 @@ jobs:
                       await cursor.execute("CREATE DATABASE qs_gateway")
                       await cursor.execute("GRANT ALL ON qs_gateway.* TO 'qs_ai'@'%'")
                       await cursor.execute("USE qs_gateway")
-                      sql = Path(".interop/qs-server/internal/pkg/migration/migrations/mysql/000072_ai_bridge_delivery.up.sql").read_text()
-                      for statement in sql.split(";"):
-                          if statement.strip():
-                              await cursor.execute(statement)
+                      for migration in ("000072_ai_bridge_delivery", "000083_ai_runtime_index"):
+                          sql = Path(f".interop/qs-server/internal/pkg/migration/migrations/mysql/{migration}.up.sql").read_text()
+                          for statement in sql.split(";"):
+                              if statement.strip():
+                                  await cursor.execute(statement)
               finally:
                   connection.close()
           asyncio.run(prepare())
@@ -90,6 +97,7 @@ jobs:
           --mysql '${{ matrix.mysql-version }}'
           --manifest ci-results/shard-${{ matrix.mysql-version }}-${{ matrix.shard }}.json
         env:
+          QS_AI_SNAPSHOT_VECTOR_OUT: ${{ github.workspace }}/.interop/report-snapshots.json
           QS_AI_BRIDGE_BIN: ${{ github.workspace }}/.interop/qs-ai-bridge
           QS_AI_ARTIFACT_BRIDGE_BIN: ${{ github.workspace }}/.interop/qs-ai-bridge
           QS_AI_ACCESS_PROBE_BIN: ${{ github.workspace }}/.interop/qs-ai-access-probe

@@ -1,6 +1,6 @@
 {
   "schema": "qs-ai-retained-assets/v1",
-  "purpose": "Current v6 runtime and immutable verification dependencies; source manifests are unchanged full-export provenance.",
+  "purpose": "Current v6 runtime and immutable verification dependencies, plus authored MBTI v2 contracts; original source manifests remain unchanged full-export provenance.",
   "directories": {
     "prompts": {
       "manifest.json": "556f697faf9e79cbc23715e2678345590d3ad8cdd3a8c282bcc606ad21b4e07f",
@@ -25,7 +25,9 @@
     "schemas": {
       "ai-explanation-input-v1.schema.json": "b09a06cf80befdbb4a7968b8baa8865cd5afa28777c3858c6517a23609b1259a",
       "ai-explanation-output-v1.schema.json": "103cc2efc7abef6722729b30d1591f6e19ed2164f37901f7f5d789982fbb2744",
-      "manifest.json": "06236133252501995ea5380803bbfef31e732c0086f2ef1c615b7a44a5aa83da"
+      "manifest.json": "06236133252501995ea5380803bbfef31e732c0086f2ef1c615b7a44a5aa83da",
+      "ai-explanation-input-v2.schema.json": "225b89bbd64b5c45596acb4b93d77bbfe31016da111c30c89f1840530f321fd1",
+      "mbti-input-manifest.json": "8b6a6106e411616119c6bd1e13599dd2fdfd5d6ce7daba37c2b661142744bd3a"
     }
   }
 }
