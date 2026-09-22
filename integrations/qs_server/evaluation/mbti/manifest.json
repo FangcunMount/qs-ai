@@ -1,0 +1,24 @@
+{
+  "format": "qs-ai-mbti-root/v1",
+  "source_kind": "qs-ai-authored-not-qs-export",
+  "source_repository": "FangcunMount/qs-ai",
+  "files": {
+    "profile-v1.json": "2c0f1f56e971e05bf16cad89bb3d3ffedbf9b28a020e84b24ef5f1d77302d468",
+    "prompt-v1.json": "8189e9f3fec13436f5894b61f7febf7899e9a2fb19804d1f81b5d0f950b63060",
+    "prompt-v1.md": "3cf1b9281840f0f92e9d06020a238c0c0c91a23e7691b58d58f54f0f6f7f78b7",
+    "semantic-v1.md": "27d76d614228e29c39fdcbdd086b9d37edc2eba250eb3afd06582f2ef4b08006",
+    "suite-v1.json": "99069656826063b681d0d1bff0c0eabb53556fc13f4d5a20251fcf7b50ba9c31"
+  },
+  "model": {
+    "code": "MBTI_OEJTS",
+    "version": "v64-report-202608-v1"
+  },
+  "generation_route": {
+    "id": "balanced_text_v1",
+    "version": "v8"
+  },
+  "semantic_route": {
+    "id": "semantic_judge_v1",
+    "version": "v5"
+  }
+}

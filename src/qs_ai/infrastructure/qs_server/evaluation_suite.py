@@ -25,11 +25,18 @@ V6_PUBLISHED = FrozenContractRef(
     "sha256:42afcc73db6fa272ab54aa17bcb9b30dc8797a382ee9329d9453aa9c9953e382",
 )
 PUBLISHED_INPUT_VERSION = "qs-published-snapshot-v1"
+MBTI_ROOT = FrozenContractRef(
+    "participant-mbti-single",
+    "v1",
+    "sha256:99069656826063b681d0d1bff0c0eabb53556fc13f4d5a20251fcf7b50ba9c31",
+)
+MBTI_INPUT_VERSION = "qs-published-snapshot-v2"
 BASELINE_SUITE_FILES = {
     V6: "ai-explanation-prompt-evaluation-cases-v6.json",
 }
 SUITE_FILES = {
     V6_PUBLISHED: "qs-ai-published-input-cases-v1.json",
+    MBTI_ROOT: "mbti/suite-v1.json",
 }
 RETAINED_SUITE_FILES = {**BASELINE_SUITE_FILES, **SUITE_FILES}
 
@@ -84,12 +91,24 @@ def load_suite(
         raise ValueError("Frozen suite execution plan mismatch")
     construction = None
     schema = None
-    if reference == V6_PUBLISHED or manifest is not None:
-        if manifest is None and FrozenContractRef(**definition["derived_from"]) != V6:
+    if reference in SUITE_FILES or manifest is not None:
+        if reference == V6_PUBLISHED and FrozenContractRef(**definition["derived_from"]) != V6:
             raise ValueError("Derived suite source mismatch")
         contract = definition["input_contract"]
         construction = contract["construction_version"]
-        if construction != PUBLISHED_INPUT_VERSION:
+        from qs_ai.infrastructure.qs_server.profiles import (
+            MBTIDefinition,
+            decode_profile_definition,
+        )
+
+        fixture = definition["profile_fixture"]
+        profile = decode_profile_definition(
+            {k: v for k, v in fixture.items() if k not in {"status", "fingerprint"}}
+        )
+        expected = (
+            MBTI_INPUT_VERSION if isinstance(profile, MBTIDefinition) else PUBLISHED_INPUT_VERSION
+        )
+        if construction != expected:
             raise ValueError("Unsupported input construction version")
         schema = FrozenContractRef(**contract["schema"])
     return FrozenSuite(
@@ -114,7 +133,10 @@ def validate_native(
     document: dict[str, Any], raw: str, source: FrozenSuite | None
 ) -> GenerationManifest:
     """Rebind the full retained case set; changing quality obligations needs a new contract."""
-    from qs_ai.infrastructure.qs_server.profiles import Definition, canonical_definition
+    from qs_ai.infrastructure.qs_server.profiles import (
+        canonical_definition,
+        decode_profile_definition,
+    )
 
     if source is None:
         raise ValueError("Exact source suite required for native validation")
@@ -143,7 +165,7 @@ def validate_native(
         raise ValueError("Cases differ from confirmed source revisions")
     manifest = TypeAdapter(GenerationManifest).validate_python(document["manifest"])
     fixture = document["profile_fixture"]
-    definition = Definition.model_validate(
+    definition = decode_profile_definition(
         {k: v for k, v in fixture.items() if k not in {"status", "fingerprint"}}
     )
     profile_raw = canonical_definition(definition.model_dump())

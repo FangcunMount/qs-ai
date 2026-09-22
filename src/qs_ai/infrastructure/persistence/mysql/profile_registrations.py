@@ -40,8 +40,8 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
     profile_registrations as registrations,
 )
 from qs_ai.infrastructure.qs_server.profiles import (
-    Definition,
     canonical_definition,
+    decode_profile_definition,
     decode_published_profile,
 )
 
@@ -67,7 +67,7 @@ def profile_from(command: RegisterProfile) -> ProfileAsset:
             result[key] = value
         return result
 
-    definition = Definition.model_validate(
+    definition = decode_profile_definition(
         json.loads(command.definition_json, object_pairs_hook=unique)
     )
     raw = canonical_definition(definition.model_dump())
