@@ -21,10 +21,10 @@ def snapshot_selector(snapshot: dict[str, Any]) -> ReleaseSelector:
         value = decode_mbti_snapshot(snapshot)
         return ReleaseSelector(
             "participant",
-            value.model.kind,
-            value.runtime.decision_kind,
-            value.model.code,
-            value.model.version,
+            value["model"]["kind"],
+            value["runtime"]["decision_kind"],
+            value["model"]["code"],
+            value["model"]["version"],
         )
     if snapshot.get("schema_version") != "qs-report-snapshot/v1":
         raise ValueError("Unsupported report snapshot version")
