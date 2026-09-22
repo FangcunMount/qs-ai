@@ -78,6 +78,7 @@ async def test_legacy_workflow_cannot_reach_reader_or_model():
     from types import SimpleNamespace
 
     from qs_ai.application.execution.configuration import PublishedReportWorkflow
+    from tests.test_input_binding import bound_case
 
     class Forbidden:
         async def get(self, *args):
@@ -87,7 +88,6 @@ async def test_legacy_workflow_cannot_reach_reader_or_model():
             pytest.fail("legacy workflow must never call the model")
 
     workflow = PublishedReportWorkflow(Forbidden(), Forbidden(), create_report_workflow)
-    result = await workflow.execute(
-        SimpleNamespace(session=SimpleNamespace(workflow_version="qs-snapshot-v1")), None
-    )
+    session, evidence, _ = bound_case()
+    result = await workflow.execute(SimpleNamespace(session=session), evidence)
     assert result.failure_code == "configuration_invalid"

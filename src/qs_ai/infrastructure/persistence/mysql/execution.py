@@ -94,7 +94,7 @@ class MySQLExecutionStore:
                 )
                 if original_request is not None:
                     request_json = original_request
-            if session.workflow_version == "qs-published-snapshot-v1":
+            if session.uses_published_snapshot:
                 try:
                     await validate_generation(
                         db,
@@ -473,7 +473,7 @@ class MySQLExecutionStore:
                     != "sha256:" + hashlib.sha256(candidate.content_json.encode()).hexdigest()
                 ):
                     raise ValueError("Artifact does not match the durable execution")
-                if session.workflow_version == "qs-published-snapshot-v1":
+                if session.uses_published_snapshot:
                     config, frozen = await validate_generation(
                         db, session, evidence, call["request_json"]
                     )

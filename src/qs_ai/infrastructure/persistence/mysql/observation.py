@@ -14,7 +14,7 @@ SELECTED = """WITH selected AS (
  FROM interpretation_sessions s
  JOIN execution_configurations c ON c.session_id = s.id
  JOIN configuration_publications p ON p.publication_id = c.publication_id
- WHERE s.workflow_version = 'qs-published-snapshot-v1'
+ WHERE s.workflow_version IN ('qs-published-snapshot-v1', 'qs-published-snapshot-v2')
  AND JSON_UNQUOTE(JSON_EXTRACT(p.content_json,
  '$.publication.evidence.manifest.profile.fingerprint')) = :profile
 ) """

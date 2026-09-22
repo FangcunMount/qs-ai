@@ -2,7 +2,7 @@
 
 import hashlib
 import json
-from dataclasses import asdict, replace
+from dataclasses import asdict
 from uuid import UUID
 
 from jsonschema import Draft202012Validator
@@ -21,7 +21,7 @@ from qs_ai.application.governance.solution_models import (
     EditableModelPolicy,
     validate_v2_admission,
 )
-from qs_ai.application.interpretation.input import InvalidInput
+from qs_ai.application.interpretation.input import InvalidInput, MBTIInputPolicy
 from qs_ai.application.interpretation.ports import Claim, NotFound
 from qs_ai.application.interpretation.preparation import prepare_explanation
 from qs_ai.application.interpretation.prompt_assets import executable_prompt
@@ -59,7 +59,6 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
 from qs_ai.infrastructure.persistence.mysql.schema import (
     execution_configurations as bindings,
 )
-from qs_ai.infrastructure.qs_server.evaluation_suite import PUBLISHED_INPUT_VERSION
 from qs_ai.infrastructure.qs_server.output import QSOutputParser
 from qs_ai.infrastructure.qs_server.profiles import decode_published_profile
 
@@ -82,11 +81,6 @@ async def compile_configuration(
     suite = await load_registered_suite(db, proof.release.suite, organization_id=organization_id)
     if suite.manifest is not None and suite.manifest != proof.manifest:
         raise ConfigurationUnavailable("Publication differs from evaluated suite assets")
-    if (
-        suite.input_construction_version != PUBLISHED_INPUT_VERSION
-        or suite.input_schema != proof.release.input_schema
-    ):
-        raise ConfigurationUnavailable("Publication was not evaluated for this input construction")
     profile, manifest = await generation_snapshot(db, proof.release)
     if profile != proof.profile or manifest != proof.manifest:
         raise ConfigurationUnavailable("Published assets changed")
@@ -108,6 +102,16 @@ async def compile_configuration(
             "status": "published",
         }
     )
+    expected_version = "v2" if isinstance(release.input_policy, MBTIInputPolicy) else "v1"
+    if (
+        suite.input_construction_version != f"qs-published-snapshot-{expected_version}"
+        or suite.input_schema != proof.release.input_schema
+        or (manifest.input_schema.identity, manifest.input_schema.version)
+        != ("ai-explanation-input", expected_version)
+        or (manifest.output_schema.identity, manifest.output_schema.version)
+        != ("ai-explanation-output", "v1")
+    ):
+        raise ConfigurationUnavailable("Publication was not evaluated for this input construction")
     package = executable_prompt(prompt)
     model = executable_route(route)
     parser = QSOutputParser.from_schema(json.loads(output.definition_json))
@@ -139,11 +143,7 @@ async def bind_configuration(
 ) -> None:
     """Caller owns the same transaction as task acceptance and idempotency receipt."""
     query = report_selector(session, evidence)
-    selectors = {
-        query,
-        replace(query, model_version=None),
-        replace(query, model_code=None, model_version=None),
-    }
+    selectors = query.admission_candidates()
     rows = (
         (
             await db.execute(

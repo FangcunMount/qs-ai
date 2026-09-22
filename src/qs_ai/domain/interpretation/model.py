@@ -87,7 +87,11 @@ class Session:
 
     @property
     def uses_qs_snapshot(self) -> bool:
-        return self.workflow_version in {"qs-snapshot-v1", "qs-published-snapshot-v1"}
+        return self.workflow_version == "qs-snapshot-v1" or self.uses_published_snapshot
+
+    @property
+    def uses_published_snapshot(self) -> bool:
+        return self.workflow_version in {"qs-published-snapshot-v1", "qs-published-snapshot-v2"}
 
     def expect(self, version: int) -> None:
         if self.version != version:
