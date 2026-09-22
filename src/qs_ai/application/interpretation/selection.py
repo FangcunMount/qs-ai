@@ -10,11 +10,7 @@ from qs_ai.domain.interpretation.model import EvidenceSet, RuleViolation, Sessio
 
 
 def snapshot_selector(snapshot: dict[str, Any]) -> ReleaseSelector:
-    """Finite scene dispatch; v2 validation is available before production admission.
-
-    The external admission path remains v1 until QS and immutable MBTI assets
-    are ready. Existing v2 sessions can be read without choosing a latest version.
-    """
+    """Finite scene dispatch; admission still requires an exact active publication."""
     if snapshot.get("schema_version") == "qs-report-snapshot/v2":
         from qs_ai.application.interpretation.mbti_input import decode_mbti_snapshot
 

@@ -1,56 +1,64 @@
 # MBTI frozen runtime implementation status
 
-This is an implementation checkpoint inside P2, not a release or quality approval.
-The P1 compatibility release remains the production boundary until the full backend
-path, initialized roots and template-based solution workflow are verified.
+P2 now has a database-backed synthetic backend loop. It is not a production
+release, real model quality approval or a completed four-client acceptance.
+P1 compatibility deployment is verified separately in the project evidence.
 
-## Implemented runtime boundaries
+## Implemented boundaries
 
-- A `qs-published-snapshot-v2` session binds an exact MBTI v2 report and Profile.
-  Its selector has no scale or wildcard fallback. A v1 session rejects that snapshot.
-- Generation uses the same published-configuration reader, LangGraph, durable model
-  call and artifact builder. The stored request retains the MBTI input policy and
-  frozen Profile; the decoder rejects disagreement between them.
+- External admission selects the v1/v2 decoder from the bound report contract.
+  Full source validation and an exact active publication are still mandatory.
+  MBTI matches only its fixed model/version; it has no scale or wildcard fallback.
+- Generation uses the existing published-configuration reader, LangGraph, durable
+  model call and artifact builder. Stored requests retain the MBTI input policy
+  and frozen Profile; decoding rejects disagreement between them.
 - Response recovery uses the original receipt. Dispatched/unknown calls remain
-  unknown and cannot trigger a replacement model call.
-- Output remains `ai-explanation-output/v1`, with the existing evidence and safety
-  gates. The MBTI deterministic validator additionally rejects other MBTI type codes
-  (including comparisons with another type). It does not claim to detect all natural
-  language fact conflicts, strength errors or stereotypes. Independent MBTI semantic
-  evaluation and human review remain required.
-- Scale request encoding remains byte-identical. Scale deterministic validation
-  retains its original version and behavior.
+  unknown and cannot authorize a replacement model call. Scale request encoding
+  and deterministic validation retain their original version and behavior.
+- Output remains `ai-explanation-output/v1`. The MBTI deterministic validator also
+  rejects other MBTI type codes, including comparisons with another type. It does
+  not detect all natural-language fact conflicts, strength errors or stereotypes;
+  independent semantic evaluation and actual human review remain necessary.
+- Authored MBTI roots include their own Prompt, Profile v2, judge, 7 × 5 candidate
+  cases and unchanged preflight. Their manifest declares new qs-ai authorship,
+  not an old QS export. The complete template release pins existing verified
+  routes, common execution/gate policy and output schema.
+- Existing solution Create accepts a third exclusive source, `template_ref`.
+  The existing List response supplies the exact template entry after controlled
+  initialization. Preparing keeps the existing CAS/receipt/Run state machine.
+  Template creation is never approval; scene substitution is rejected.
 
-## Verification and unfinished work
+## Controlled initialization
 
-Focused synthetic tests cover preparation, exact receipt roundtrip, cross-contract
-rejection, response/unknown recovery, deterministic artifact replay and type conflicts.
-These tests do not establish database recovery, production generation, clinical or
-product quality. No new model requests or publication changes were made.
+Run `python -m qs_ai.bootstrap.import_mbti_assets` with `--source-commit` and
+`--imported-by` only after deploying the reviewed image. This is not a startup
+hook. It verifies original file hashes, source proof and fixed dependencies in
+one transaction. Identical imports preserve initial provenance; conflicts fail.
+It creates no solution, evaluation, approval or publication. Runtime reads use
+MySQL without falling back to initialization files or choosing latest assets.
 
-Before the P2 release, finish and verify: MBTI-specific root Prompt/Profile/suite/judge,
-controlled idempotent initialization, template source for the existing solution flow,
-full evaluation and stored-asset validation, MySQL frozen configuration/recovery tests,
-and the backend end-to-end loop. Do not expose an incomplete MBTI production path.
+The root package is still pre-release. Its template hash was tightened before
+production import to include every dependency reference; intermediate local
+commits are not separately deployed asset versions.
 
-## Controlled root assets (implementation checkpoint)
+## Verification and remaining gates
 
-The authored MBTI root now contains its own Prompt, Profile v2, semantic judge,
-seven groups of five candidates and the unchanged preflight obligation. Its
-manifest explicitly identifies new qs-ai authorship; it is not an old QS export.
-The suite pins the existing approved generation and semantic routes. The common
-execution policy, gate policy and output schema remain unchanged.
+Focused tests cover exact receipt roundtrips, cross-contract rejection, source
+scene isolation, original command serialization, initializer repeat/conflict/
+rollback and damaged assets. Disposable MySQL tests run the real preparation and
+candidate-v2 graph for all 35 candidates, with synthetic generation/judge replies.
+An interruption after response persistence recovers without duplicate dispatch.
 
-`python -m qs_ai.bootstrap.import_mbti_assets --source-commit <40-hex-commit>
---imported-by <operator>` is a controlled initializer, not a startup hook. It
-verifies original file hashes, source proof and existing fixed dependencies in a
-single transaction. Identical imports preserve initial provenance; conflicts
-fail. It creates no solution, evaluation, approval or publication. Runtime asset
-reads must use MySQL and cannot fall back to these initialization files.
+A disposable test additionally exercises two synthetic reviewer identities and
+the unchanged final gate/publication APIs, then external MBTI admission,
+persistent generation response, publication pause and worker recovery to a stored
+artifact and result outbox. These reviewer fixtures are not real human approvals.
+An initialized but unpublished template rejects generation with
+`configuration_unavailable`; it cannot bypass governance.
 
-Verification at this checkpoint: 127 focused unit tests passed, three disposable
-MySQL 8.4 initialization tests passed (repeat, conflict and late rollback), plus
-repository lint/format and source type checks. This is not yet a backend release:
-template-based solution creation and the complete database-backed evaluation /
-generation / recovery loop remain to be completed before P2 delivery. No live
-MBTI assets or model calls were created by these tests.
+Before P2 delivery: complete required CI and applicable MySQL/Go-Python/scale
+regressions, deploy, initialize roots in a controlled operation and verify live
+compatibility. P3/P4 still require QS capability checks, Operating/mini-program
+integration, real model evaluation, actual independent human approvals, a real
+MBTI publication and authorized participant results. No production MBTI assets,
+model calls, reviews or publication were created by the isolated tests.

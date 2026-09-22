@@ -28,7 +28,7 @@ PUBLISHED_INPUT_VERSION = "qs-published-snapshot-v1"
 MBTI_ROOT = FrozenContractRef(
     "participant-mbti-single",
     "v1",
-    "sha256:99069656826063b681d0d1bff0c0eabb53556fc13f4d5a20251fcf7b50ba9c31",
+    "sha256:3353f945b75346b869c638a1034356ac602ea7f049cb0d2a6e55262538b9cacd",
 )
 MBTI_INPUT_VERSION = "qs-published-snapshot-v2"
 BASELINE_SUITE_FILES = {

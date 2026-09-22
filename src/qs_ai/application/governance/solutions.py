@@ -39,12 +39,20 @@ class CreateSolution(Command):
     title: str
     publication_id: UUID | None = None
     source_run_id: UUID | None = None
+    template_ref: FrozenContractRef | None = None
 
     def __post_init__(self) -> None:
         super().__post_init__()
         title_required(self.title)
-        if (self.publication_id is None) == (self.source_run_id is None):
+        if (
+            sum(v is not None for v in (self.publication_id, self.source_run_id, self.template_ref))
+            != 1
+        ):
             raise ValueError("Exactly one immutable source required")
+        if self.template_ref is not None:
+            if not isinstance(self.template_ref, FrozenContractRef):
+                raise ValueError("Exact template reference required")
+            return
         ref = self.publication_id or self.source_run_id
         if not isinstance(ref, UUID) or not ref.int:
             raise ValueError("Source identity required")

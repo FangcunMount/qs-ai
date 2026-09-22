@@ -46,7 +46,7 @@ def load_mbti_root(directory: Path | None = None) -> MBTIRootAssets:
     directory = directory or evaluation_directory() / "mbti"
     manifest_bytes = (directory / "manifest.json").read_bytes()
     if hashlib.sha256(manifest_bytes).hexdigest() != (
-        "5b131f68b9a673597cec9292f35c23b10c5f5a38fa6b91ec312bcc6d089b9cfa"
+        "8be5bead7f390b5974a7131874f0de6e44b685f2d12353589abb684c5a2c2aa9"
     ):
         raise ValueError("Unregistered MBTI initialization manifest")
     manifest = json.loads(manifest_bytes)
@@ -148,6 +148,12 @@ def load_mbti_root(directory: Path | None = None) -> MBTIRootAssets:
         contracts.execution_policy,
         contracts.gate_policy,
     )
+    from dataclasses import asdict
+
+    if document["template"]["release"] != {
+        k: v for k, v in asdict(release).items() if k != "suite"
+    }:
+        raise ValueError("MBTI template differs from exact initialization assets")
     return MBTIRootAssets(
         prompt,
         profile,

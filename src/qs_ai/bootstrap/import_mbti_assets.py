@@ -1,4 +1,4 @@
-"""Atomically initialize the reviewed MBTI root bytes; never approve or publish."""
+"""Atomically initialize the pinned MBTI root bytes; never approve or publish."""
 
 import argparse
 import asyncio

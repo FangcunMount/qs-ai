@@ -84,7 +84,16 @@ async def select_evaluation_assets(
 ) -> dict[str, Any]:
     previous = selected_release(state)
     suite_ref = command.evaluation_suite or previous.suite
-    await load_registered_suite(db, suite_ref, organization_id=scope.organization_id)
+    suite = await load_registered_suite(db, suite_ref, organization_id=scope.organization_id)
+    source_suite = await load_registered_suite(
+        db, release_from(state["source_release"]).suite, organization_id=scope.organization_id
+    )
+    # A saved workspace cannot switch its source scene through optional suite selection.
+    source_profile = json.loads(source_suite.definition_json)["profile_fixture"]
+    selected_profile = json.loads(suite.definition_json)["profile_fixture"]
+    for key in ("schema_version", "scene_contract_version", "selector"):
+        if source_profile.get(key) != selected_profile.get(key):
+            raise ValueError("Solution evaluation suite cannot change source scene")
     binding = await read_suite_contracts(db, suite_ref, scope.organization_id)
     original = release_from(state["source_release"])
     if (binding.execution_policy, binding.gate_policy, binding.semantic_output_schema) != (
@@ -127,6 +136,10 @@ async def source_release(
     scope: DraftScope,
     command: CreateSolution,
 ) -> EvidenceReleaseIdentity:
+    if command.template_ref is not None:
+        from qs_ai.infrastructure.persistence.mysql.solution_templates import template_release
+
+        return await template_release(db, scope, command.template_ref)
     if command.publication_id:
         publication, _ = await load_publication(db, command.publication_id)
         release = publication.evidence.release

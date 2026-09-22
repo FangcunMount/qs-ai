@@ -62,3 +62,20 @@ def test_model_not_enabled_cannot_be_frozen():
     source = executable_route(assets[0])
     with pytest.raises(ValueError, match="not enabled"):
         edited_route(source, selection(source), "new", ())
+
+
+def test_template_source_is_exact_and_exclusive():
+    from dataclasses import asdict
+
+    from qs_ai.infrastructure.qs_server.evaluation_suite import MBTI_ROOT
+
+    body = dict(command_id=str(uuid4()), title="MBTI 首版", reason="验证模板起点")
+    command = parse_command(json.dumps({**body, "template_ref": asdict(MBTI_ROOT)}), CreateSolution)
+    assert command.template_ref == MBTI_ROOT
+    for extra in ({"publication_id": str(uuid4())}, {"source_run_id": str(uuid4())}):
+        with pytest.raises(ValueError, match="Exactly one"):
+            parse_command(
+                json.dumps({**body, "template_ref": asdict(MBTI_ROOT), **extra}), CreateSolution
+            )
+    with pytest.raises((TypeError, ValueError)):
+        parse_command(json.dumps({**body, "template_ref": {"id": "latest"}}), CreateSolution)

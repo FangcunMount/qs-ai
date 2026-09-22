@@ -30,12 +30,12 @@
       "mbti-input-manifest.json": "8b6a6106e411616119c6bd1e13599dd2fdfd5d6ce7daba37c2b661142744bd3a"
     },
     "evaluation/mbti": {
-      "manifest.json": "5b131f68b9a673597cec9292f35c23b10c5f5a38fa6b91ec312bcc6d089b9cfa",
+      "manifest.json": "8be5bead7f390b5974a7131874f0de6e44b685f2d12353589abb684c5a2c2aa9",
       "profile-v1.json": "2c0f1f56e971e05bf16cad89bb3d3ffedbf9b28a020e84b24ef5f1d77302d468",
       "prompt-v1.json": "8189e9f3fec13436f5894b61f7febf7899e9a2fb19804d1f81b5d0f950b63060",
       "prompt-v1.md": "3cf1b9281840f0f92e9d06020a238c0c0c91a23e7691b58d58f54f0f6f7f78b7",
       "semantic-v1.md": "27d76d614228e29c39fdcbdd086b9d37edc2eba250eb3afd06582f2ef4b08006",
-      "suite-v1.json": "99069656826063b681d0d1bff0c0eabb53556fc13f4d5a20251fcf7b50ba9c31"
+      "suite-v1.json": "3353f945b75346b869c638a1034356ac602ea7f049cb0d2a6e55262538b9cacd"
     }
   }
 }

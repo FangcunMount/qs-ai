@@ -195,3 +195,17 @@ def test_model_result_cannot_replace_two_dimension_references():
     }
     with pytest.raises(InvalidOutput, match="dimension_count_outside_policy"):
         validate_output(json.dumps(value), request.prepared, QSOutputParser())
+
+
+def test_external_admission_selects_only_known_snapshot_decoder():
+    from qs_ai.application.interpretation.service import published_workflow_version
+
+    _, evidence, _ = mbti_case()
+    assert published_workflow_version(evidence.items) == "qs-published-snapshot-v2"
+    _, scale, _ = bound_case()
+    assert published_workflow_version(scale.items) == "qs-published-snapshot-v1"
+    # Malformed/unsupported inputs still reach original strict source rejection;
+    # a version hint cannot turn them into a supported scene.
+    for raw in ("{", "null", "[]", '{"schema_version":"qs-report-snapshot/v3"}'):
+        bad = (replace(evidence.items[0], facts=(Fact("standard_report", raw),)),)
+        assert published_workflow_version(bad) == "qs-published-snapshot-v1"
