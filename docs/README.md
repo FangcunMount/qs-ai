@@ -40,3 +40,5 @@
 - [AI 解读管理第三版交付台账](governance-v3-delivery.md)：运行中心与流程工作区分批实施。
 
 - [V3 运行中心契约与样例](governance-v3-contracts.md)
+
+- [MBTI 接入前置基线](mbti-contract-baseline.md)：真实版本、脱敏报告及量表回执回放；新场景尚未实现。

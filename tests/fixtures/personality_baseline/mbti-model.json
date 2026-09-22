@@ -1,0 +1,502 @@
+{
+  "schema": "mbti-production-model-baseline/v1",
+  "qs_revision": "5573735ae2e7443ecd70e42703aadc4378fbe94a",
+  "questionnaire_version": "8.0.1",
+  "definition_schema_version": "2",
+  "kind": "typology",
+  "status": "published",
+  "decision_kind": "pole_composition",
+  "algorithm": "personality_typology",
+  "code": "MBTI_OEJTS",
+  "record_role": "published_snapshot",
+  "questionnaire_code": "MBTI_OEJTS",
+  "release_status": "active",
+  "release_version": "v64-report-202608-v1",
+  "definition_keys": [
+    "report_map",
+    "decision_spec",
+    "interpretation_assets",
+    "measure",
+    "calibration",
+    "execution",
+    "conclusions",
+    "outcomes"
+  ],
+  "measure": {
+    "factors": [
+      {
+        "code": "EI",
+        "title": "外向 / 内向",
+        "role": "dimension"
+      },
+      {
+        "role": "dimension",
+        "code": "JP",
+        "title": "判断 / 知觉"
+      },
+      {
+        "role": "dimension",
+        "code": "SN",
+        "title": "感觉 / 直觉"
+      },
+      {
+        "code": "TF",
+        "title": "情感 / 思考",
+        "role": "dimension"
+      }
+    ],
+    "factor_graph": {
+      "roots": [
+        "EI",
+        "SN",
+        "TF",
+        "JP"
+      ],
+      "sort_orders": {
+        "TF": 4,
+        "EI": 1,
+        "JP": 2,
+        "SN": 3
+      }
+    },
+    "scoring": [
+      {
+        "factor_code": "EI",
+        "sources": [
+          {
+            "scoring_mode": "question_score",
+            "sign": 1,
+            "weight": 1,
+            "kind": "question",
+            "code": "MBTI_Q03"
+          },
+          {
+            "sign": 1,
+            "weight": 1,
+            "kind": "question",
+            "code": "MBTI_Q07",
+            "scoring_mode": "question_score"
+          },
+          {
+            "kind": "question",
+            "code": "MBTI_Q11",
+            "scoring_mode": "question_score",
+            "sign": 1,
+            "weight": 1
+          },
+          {
+            "kind": "question",
+            "code": "MBTI_Q15",
+            "scoring_mode": "question_score",
+            "sign": 1,
+            "weight": 1
+          },
+          {
+            "sign": 1,
+            "weight": 1,
+            "kind": "question",
+            "code": "MBTI_Q19",
+            "scoring_mode": "question_score"
+          },
+          {
+            "kind": "question",
+            "code": "MBTI_Q23",
+            "scoring_mode": "question_score",
+            "sign": 1,
+            "weight": 1
+          },
+          {
+            "kind": "question",
+            "code": "MBTI_Q27",
+            "scoring_mode": "question_score",
+            "sign": 1,
+            "weight": 1
+          },
+          {
+            "kind": "question",
+            "code": "MBTI_Q31",
+            "scoring_mode": "question_score",
+            "sign": 1,
+            "weight": 1
+          }
+        ],
+        "strategy": "sum"
+      },
+      {
+        "factor_code": "JP",
+        "sources": [
+          {
+            "kind": "question",
+            "code": "MBTI_Q01",
+            "scoring_mode": "question_score",
+            "sign": 1,
+            "weight": 1
+          },
+          {
+            "kind": "question",
+            "code": "MBTI_Q05",
+            "scoring_mode": "question_score",
+            "sign": 1,
+            "weight": 1
+          },
+          {
+            "weight": 1,
+            "kind": "question",
+            "code": "MBTI_Q09",
+            "scoring_mode": "question_score",
+            "sign": 1
+          },
+          {
+            "sign": 1,
+            "weight": 1,
+            "kind": "question",
+            "code": "MBTI_Q13",
+            "scoring_mode": "question_score"
+          },
+          {
+            "kind": "question",
+            "code": "MBTI_Q17",
+            "scoring_mode": "question_score",
+            "sign": 1,
+            "weight": 1
+          },
+          {
+            "code": "MBTI_Q21",
+            "scoring_mode": "question_score",
+            "sign": 1,
+            "weight": 1,
+            "kind": "question"
+          },
+          {
+            "scoring_mode": "question_score",
+            "sign": 1,
+            "weight": 1,
+            "kind": "question",
+            "code": "MBTI_Q25"
+          },
+          {
+            "weight": 1,
+            "kind": "question",
+            "code": "MBTI_Q29",
+            "scoring_mode": "question_score",
+            "sign": 1
+          }
+        ],
+        "strategy": "sum"
+      },
+      {
+        "factor_code": "SN",
+        "sources": [
+          {
+            "kind": "question",
+            "code": "MBTI_Q04",
+            "scoring_mode": "question_score",
+            "sign": 1,
+            "weight": 1
+          },
+          {
+            "kind": "question",
+            "code": "MBTI_Q08",
+            "scoring_mode": "question_score",
+            "sign": 1,
+            "weight": 1
+          },
+          {
+            "scoring_mode": "question_score",
+            "sign": 1,
+            "weight": 1,
+            "kind": "question",
+            "code": "MBTI_Q12"
+          },
+          {
+            "kind": "question",
+            "code": "MBTI_Q16",
+            "scoring_mode": "question_score",
+            "sign": 1,
+            "weight": 1
+          },
+          {
+            "sign": 1,
+            "weight": 1,
+            "kind": "question",
+            "code": "MBTI_Q20",
+            "scoring_mode": "question_score"
+          },
+          {
+            "sign": 1,
+            "weight": 1,
+            "option_scores": {
+              "1": 1,
+              "2": 2,
+              "3": 3,
+              "4": 4,
+              "5": 5
+            },
+            "kind": "question",
+            "code": "MBTI_Q24",
+            "scoring_mode": "option_override"
+          },
+          {
+            "kind": "question",
+            "code": "MBTI_Q28",
+            "scoring_mode": "option_override",
+            "sign": 1,
+            "weight": 1,
+            "option_scores": {
+              "1": 1,
+              "2": 2,
+              "3": 3,
+              "4": 4,
+              "5": 5
+            }
+          },
+          {
+            "weight": 1,
+            "option_scores": {
+              "1": 1,
+              "2": 2,
+              "3": 3,
+              "4": 4,
+              "5": 5
+            },
+            "kind": "question",
+            "code": "MBTI_Q32",
+            "scoring_mode": "option_override",
+            "sign": 1
+          }
+        ],
+        "strategy": "sum"
+      },
+      {
+        "strategy": "sum",
+        "factor_code": "TF",
+        "sources": [
+          {
+            "kind": "question",
+            "code": "MBTI_Q02",
+            "scoring_mode": "option_override",
+            "sign": 1,
+            "weight": 1,
+            "option_scores": {
+              "1": 1,
+              "2": 2,
+              "3": 3,
+              "4": 4,
+              "5": 5
+            }
+          },
+          {
+            "sign": 1,
+            "weight": 1,
+            "option_scores": {
+              "1": 1,
+              "2": 2,
+              "3": 3,
+              "4": 4,
+              "5": 5
+            },
+            "kind": "question",
+            "code": "MBTI_Q06",
+            "scoring_mode": "option_override"
+          },
+          {
+            "kind": "question",
+            "code": "MBTI_Q10",
+            "scoring_mode": "option_override",
+            "sign": 1,
+            "weight": 1,
+            "option_scores": {
+              "1": 1,
+              "2": 2,
+              "3": 3,
+              "4": 4,
+              "5": 5
+            }
+          },
+          {
+            "kind": "question",
+            "code": "MBTI_Q14",
+            "scoring_mode": "option_override",
+            "sign": 1,
+            "weight": 1,
+            "option_scores": {
+              "1": 1,
+              "2": 2,
+              "3": 3,
+              "4": 4,
+              "5": 5
+            }
+          },
+          {
+            "sign": 1,
+            "weight": 1,
+            "option_scores": {
+              "1": 1,
+              "2": 2,
+              "3": 3,
+              "4": 4,
+              "5": 5
+            },
+            "kind": "question",
+            "code": "MBTI_Q18",
+            "scoring_mode": "option_override"
+          },
+          {
+            "kind": "question",
+            "code": "MBTI_Q22",
+            "scoring_mode": "option_override",
+            "sign": 1,
+            "weight": 1,
+            "option_scores": {
+              "1": 1,
+              "2": 2,
+              "3": 3,
+              "4": 4,
+              "5": 5
+            }
+          },
+          {
+            "kind": "question",
+            "code": "MBTI_Q26",
+            "scoring_mode": "option_override",
+            "sign": 1,
+            "weight": 1,
+            "option_scores": {
+              "1": 1,
+              "2": 2,
+              "3": 3,
+              "4": 4,
+              "5": 5
+            }
+          },
+          {
+            "code": "MBTI_Q30",
+            "scoring_mode": "option_override",
+            "sign": 1,
+            "weight": 1,
+            "option_scores": {
+              "1": 1,
+              "2": 2,
+              "3": 3,
+              "4": 4,
+              "5": 5
+            },
+            "kind": "question"
+          }
+        ]
+      }
+    ]
+  },
+  "calibration": {},
+  "decision_spec": {
+    "special_outcomes": [
+      "INTJ",
+      "INTP",
+      "ENTJ",
+      "ENTP",
+      "INFJ",
+      "INFP",
+      "ENFJ",
+      "ENFP",
+      "ISTJ",
+      "ISFJ",
+      "ESTJ",
+      "ESFJ",
+      "ISTP",
+      "ISFP",
+      "ESTP",
+      "ESFP"
+    ],
+    "type_decision": {
+      "kind": "pole_composition"
+    },
+    "outcome_refs": [
+      {
+        "code": "INTJ"
+      },
+      {
+        "code": "INTP"
+      },
+      {
+        "code": "ENTJ"
+      },
+      {
+        "code": "ENTP"
+      },
+      {
+        "code": "INFJ"
+      },
+      {
+        "code": "INFP"
+      },
+      {
+        "code": "ENFJ"
+      },
+      {
+        "code": "ENFP"
+      },
+      {
+        "code": "ISTJ"
+      },
+      {
+        "code": "ISFJ"
+      },
+      {
+        "code": "ESTJ"
+      },
+      {
+        "code": "ESFJ"
+      },
+      {
+        "code": "ISTP"
+      },
+      {
+        "code": "ISFP"
+      },
+      {
+        "code": "ESTP"
+      },
+      {
+        "code": "ESFP"
+      }
+    ]
+  },
+  "conclusion_keys": [
+    "0"
+  ],
+  "conclusions": [
+    {
+      "kind": "type",
+      "type_decision": {
+        "kind": "pole_composition",
+        "poles": [
+          {
+            "factor_code": "EI",
+            "left_pole": "I",
+            "right_pole": "E",
+            "threshold": 24
+          },
+          {
+            "right_pole": "N",
+            "threshold": 24,
+            "factor_code": "SN",
+            "left_pole": "S"
+          },
+          {
+            "factor_code": "TF",
+            "left_pole": "F",
+            "right_pole": "T",
+            "threshold": 24
+          },
+          {
+            "factor_code": "JP",
+            "left_pole": "J",
+            "right_pole": "P",
+            "threshold": 24
+          }
+        ]
+      }
+    }
+  ],
+  "definition_sha256": "a0ac9951f8d42ff5324c8c1fe56c7356e77922977b5fd106d33b5da402611e0a"
+}

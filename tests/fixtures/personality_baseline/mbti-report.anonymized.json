@@ -1,0 +1,358 @@
+{
+  "schema": "mbti-anonymized-source-observation/v1",
+  "sample_alias": "mbti-test-report-001",
+  "catalog_matches": true,
+  "report": {
+    "model": {
+      "kind": "typology",
+      "algorithm": "personality_typology",
+      "code": "MBTI_OEJTS",
+      "version": "v64-report-202608-v1",
+      "title": "16人格测评（基础版）"
+    },
+    "content_schema_version": "report-content/v1",
+    "template_version": "2026-08-v1",
+    "builder_identity": "typology",
+    "dimensions": [
+      {
+        "keys": [
+          "kind",
+          "factor_code",
+          "factor_name",
+          "raw_score",
+          "max_score",
+          "risk_level",
+          "score",
+          "description"
+        ],
+        "factor_code": "EI",
+        "factor_name": "EI",
+        "raw_score": 15,
+        "max_score": 40,
+        "risk_level": "none",
+        "description": "EI：倾向 I（原始分 15，偏好强度 56%）"
+      },
+      {
+        "keys": [
+          "kind",
+          "factor_code",
+          "factor_name",
+          "raw_score",
+          "max_score",
+          "risk_level",
+          "score",
+          "description"
+        ],
+        "factor_code": "SN",
+        "factor_name": "SN",
+        "raw_score": 23,
+        "max_score": 40,
+        "risk_level": "none",
+        "description": "SN：倾向 S（原始分 23，偏好强度 6%）"
+      },
+      {
+        "keys": [
+          "kind",
+          "factor_code",
+          "factor_name",
+          "raw_score",
+          "max_score",
+          "risk_level",
+          "score",
+          "description"
+        ],
+        "factor_code": "TF",
+        "factor_name": "TF",
+        "raw_score": 20,
+        "max_score": 40,
+        "risk_level": "none",
+        "description": "TF：倾向 F（原始分 20，偏好强度 25%）"
+      },
+      {
+        "keys": [
+          "kind",
+          "factor_code",
+          "factor_name",
+          "raw_score",
+          "max_score",
+          "risk_level",
+          "score",
+          "description"
+        ],
+        "factor_code": "JP",
+        "factor_name": "JP",
+        "raw_score": 12,
+        "max_score": 40,
+        "risk_level": "none",
+        "description": "JP：倾向 J（原始分 12，偏好强度 75%）"
+      }
+    ],
+    "model_extra": {
+      "kind": "personality_type",
+      "type_code": "ISFJ",
+      "type_name": "守卫者",
+      "match_percent": 40.625
+    }
+  },
+  "outcome": {
+    "model_kind": "typology",
+    "model_algorithm": "personality_typology",
+    "model_code": "MBTI_OEJTS",
+    "model_version": "v64-report-202608-v1",
+    "decision_kind": "pole_composition",
+    "schema_version": 2,
+    "payload_shape": {
+      "ModelRef": {
+        "kind": "str",
+        "algorithm": "str",
+        "code": "str",
+        "version": "str"
+      },
+      "Detail": {
+        "Kind": "str",
+        "Payload": {
+          "type_code": "str",
+          "match_percent": "float",
+          "similarity": "float"
+        }
+      },
+      "Primary": {
+        "Kind": "str",
+        "Value": "float",
+        "Label": "str",
+        "Max": "NoneType"
+      },
+      "Level": {
+        "Code": "str",
+        "Label": "str",
+        "Severity": "str"
+      },
+      "Profile": {
+        "Kind": "str",
+        "Code": "str",
+        "Name": "str",
+        "Traits": "NoneType"
+      },
+      "Dimensions": {
+        "count": 4,
+        "first_shape": {
+          "Code": "str",
+          "Name": "str",
+          "Kind": "str",
+          "Role": "str",
+          "ParentCode": "str",
+          "HierarchyLevel": "int",
+          "SortOrder": "int",
+          "Score": {
+            "Kind": "str",
+            "Value": "int",
+            "Label": "str",
+            "Max": "NoneType"
+          },
+          "DerivedScores": "NoneType",
+          "Level": "NoneType",
+          "NormReference": "NoneType",
+          "Preference": "str",
+          "Strength": "float",
+          "LeftPole": "str",
+          "RightPole": "str",
+          "Model": "str"
+        }
+      },
+      "Validity": {
+        "count": 0,
+        "first_shape": null
+      }
+    },
+    "report_input_shape": {
+      "schema_version": "int",
+      "InterpretationAssets": {
+        "Outcomes": {
+          "count": 16,
+          "first_shape": {
+            "OutcomeCode": "str",
+            "Title": "str",
+            "Summary": "str",
+            "Description": "str"
+          }
+        },
+        "Profiles": {
+          "count": 16,
+          "first_shape": {
+            "OutcomeCode": "str",
+            "Pattern": "str",
+            "Traits": {
+              "count": 3,
+              "first_shape": "str"
+            },
+            "Strengths": {
+              "count": 3,
+              "first_shape": "str"
+            },
+            "Weaknesses": {
+              "count": 3,
+              "first_shape": "str"
+            },
+            "Suggestions": {
+              "count": 3,
+              "first_shape": "str"
+            },
+            "ImageURL": "str",
+            "Image": "str",
+            "Rarity": {
+              "Percent": "int",
+              "Label": "str",
+              "OneInX": "int"
+            },
+            "IsSpecial": "bool",
+            "Trigger": "str",
+            "Commentary": "str"
+          }
+        },
+        "ReportSpec": {
+          "Sections": {
+            "count": 1,
+            "first_shape": {
+              "Code": "str",
+              "Title": "str",
+              "SourceRefs": "NoneType",
+              "Kind": "str",
+              "AdapterKey": "str",
+              "TemplateID": "str",
+              "TemplateVersion": "str",
+              "CategoryLabel": "str"
+            }
+          }
+        }
+      },
+      "model_ref": {
+        "Kind": "str",
+        "Algorithm": "str",
+        "Code": "str",
+        "Version": "str",
+        "Title": "str"
+      },
+      "factor_catalog": {
+        "count": 4,
+        "first_shape": {
+          "code": "str",
+          "title": "str"
+        }
+      },
+      "typology_source": {},
+      "typology_routing": {
+        "decision_kind": "str",
+        "report_kind": "str",
+        "adapter_key": "str",
+        "template_id": "str",
+        "template_version": "str"
+      }
+    },
+    "Dimensions": [
+      {
+        "Code": "EI",
+        "Name": "",
+        "Kind": "pole",
+        "Role": "",
+        "ParentCode": "",
+        "HierarchyLevel": 0,
+        "SortOrder": 0,
+        "Score": {
+          "Kind": "raw_total",
+          "Value": 15,
+          "Label": "",
+          "Max": null
+        },
+        "DerivedScores": null,
+        "Level": null,
+        "NormReference": null,
+        "Preference": "I",
+        "Strength": 56.25,
+        "LeftPole": "",
+        "RightPole": "",
+        "Model": ""
+      },
+      {
+        "Code": "SN",
+        "Name": "",
+        "Kind": "pole",
+        "Role": "",
+        "ParentCode": "",
+        "HierarchyLevel": 0,
+        "SortOrder": 0,
+        "Score": {
+          "Kind": "raw_total",
+          "Value": 23,
+          "Label": "",
+          "Max": null
+        },
+        "DerivedScores": null,
+        "Level": null,
+        "NormReference": null,
+        "Preference": "S",
+        "Strength": 6.25,
+        "LeftPole": "",
+        "RightPole": "",
+        "Model": ""
+      },
+      {
+        "Code": "TF",
+        "Name": "",
+        "Kind": "pole",
+        "Role": "",
+        "ParentCode": "",
+        "HierarchyLevel": 0,
+        "SortOrder": 0,
+        "Score": {
+          "Kind": "raw_total",
+          "Value": 20,
+          "Label": "",
+          "Max": null
+        },
+        "DerivedScores": null,
+        "Level": null,
+        "NormReference": null,
+        "Preference": "F",
+        "Strength": 25,
+        "LeftPole": "",
+        "RightPole": "",
+        "Model": ""
+      },
+      {
+        "Code": "JP",
+        "Name": "",
+        "Kind": "pole",
+        "Role": "",
+        "ParentCode": "",
+        "HierarchyLevel": 0,
+        "SortOrder": 0,
+        "Score": {
+          "Kind": "raw_total",
+          "Value": 12,
+          "Label": "",
+          "Max": null
+        },
+        "DerivedScores": null,
+        "Level": null,
+        "NormReference": null,
+        "Preference": "J",
+        "Strength": 75,
+        "LeftPole": "",
+        "RightPole": "",
+        "Model": ""
+      }
+    ],
+    "Primary": {
+      "Kind": "match_percent",
+      "Value": 40.625,
+      "Label": "",
+      "Max": null
+    },
+    "Level": {
+      "Code": "ISFJ",
+      "Label": "",
+      "Severity": "none"
+    }
+  },
+  "note": "Observed source fields, not a ready-to-execute AI input. No original business identifiers or answers are retained."
+}
