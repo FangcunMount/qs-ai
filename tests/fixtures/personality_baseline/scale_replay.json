@@ -1,0 +1,196 @@
+{
+  "schema": "qs-ai-anonymized-scale-replay/v1",
+  "sample_alias": "scale-test-report-001",
+  "not_original_fingerprint": true,
+  "snapshot": {
+    "schema_version": "qs-report-snapshot/v1",
+    "source": {
+      "builder_identity": "factor-scoring",
+      "content_schema_version": "report-content/v1",
+      "generated_at": "2000-01-01T00:00:00Z",
+      "outcome_id": "1002",
+      "report_id": "1001",
+      "report_template_version": "2026-08-v1",
+      "report_type": "standard"
+    },
+    "model": {
+      "algorithm": "scale_default",
+      "code": "3adyDE",
+      "kind": "scale",
+      "title": "SNAP-IV量表（18项）",
+      "version": "v138-report-202608-v1"
+    },
+    "runtime": {
+      "decision_kind": "score_range"
+    },
+    "primary_score": {
+      "kind": "raw_total",
+      "label": "",
+      "max": null,
+      "value": 38
+    },
+    "level": {
+      "code": "high",
+      "label": "high",
+      "severity": "high"
+    },
+    "conclusion": "相关表现较为突出",
+    "dimensions": [
+      {
+        "code": "fnDsCTWa",
+        "derived_scores": [],
+        "description": "相关表现较为突出",
+        "hierarchy_level": 0,
+        "kind": "factor",
+        "level": {
+          "code": "high",
+          "label": "",
+          "severity": ""
+        },
+        "max_score": 54,
+        "name": "总分",
+        "norm_reference": null,
+        "parent_code": "",
+        "raw_score": 38,
+        "role": "total",
+        "sort_order": 0,
+        "suggestion": "相关表现可能在多个场景中影响日常功能。建议尽快与有资质的医疗或心理专业人员沟通，综合了解发展史、功能受损和不同观察者的评价。"
+      },
+      {
+        "code": "YpUf0rtu",
+        "derived_scores": [],
+        "description": "相关表现较为突出",
+        "hierarchy_level": 0,
+        "kind": "factor",
+        "level": {
+          "code": "high",
+          "label": "",
+          "severity": ""
+        },
+        "max_score": 9,
+        "name": "注意缺陷（症状数）",
+        "norm_reference": null,
+        "parent_code": "",
+        "raw_score": 6,
+        "role": "",
+        "sort_order": 0,
+        "suggestion": "相关表现可能在多个场景中影响日常功能。建议尽快与有资质的医疗或心理专业人员沟通，综合了解发展史、功能受损和不同观察者的评价。"
+      },
+      {
+        "code": "fa-iDLyqzUzHH",
+        "derived_scores": [],
+        "description": "相关表现达到中等程度",
+        "hierarchy_level": 0,
+        "kind": "factor",
+        "level": {
+          "code": "medium",
+          "label": "",
+          "severity": ""
+        },
+        "max_score": 27,
+        "name": "注意缺陷（严重度）",
+        "norm_reference": null,
+        "parent_code": "",
+        "raw_score": 17,
+        "role": "",
+        "sort_order": 0,
+        "suggestion": "相关表现可能已影响部分学习、家庭或同伴活动。建议家长与教师交换观察，形成一致的支持目标，并根据需要进一步评估。"
+      },
+      {
+        "code": "CDknpDHy",
+        "derived_scores": [],
+        "description": "相关表现显著突出",
+        "hierarchy_level": 0,
+        "kind": "factor",
+        "level": {
+          "code": "severe",
+          "label": "",
+          "severity": ""
+        },
+        "max_score": 9,
+        "name": "多动/冲动（症状数）",
+        "norm_reference": null,
+        "parent_code": "",
+        "raw_score": 8,
+        "role": "",
+        "sort_order": 0,
+        "suggestion": "相关表现可能明显影响学习、家庭生活、同伴关系或安全。建议及时寻求专业评估与支持；量表结果用于筛查、随访和支持规划，不能单独作为诊断依据。"
+      },
+      {
+        "code": "fa-iDM0485g27",
+        "derived_scores": [],
+        "description": "相关表现较为突出",
+        "hierarchy_level": 0,
+        "kind": "factor",
+        "level": {
+          "code": "high",
+          "label": "",
+          "severity": ""
+        },
+        "max_score": 27,
+        "name": "多动/冲动（严重度）",
+        "norm_reference": null,
+        "parent_code": "",
+        "raw_score": 21,
+        "role": "",
+        "sort_order": 0,
+        "suggestion": "相关表现可能在多个场景中影响日常功能。建议尽快与有资质的医疗或心理专业人员沟通，综合了解发展史、功能受损和不同观察者的评价。"
+      }
+    ],
+    "suggestions": [
+      {
+        "category": "general",
+        "content": "相关表现可能在多个场景中影响日常功能。建议尽快与有资质的医疗或心理专业人员沟通，综合了解发展史、功能受损和不同观察者的评价。",
+        "dimension_code": null,
+        "source_index": 0
+      },
+      {
+        "category": "dimension",
+        "content": "相关表现可能在多个场景中影响日常功能。建议尽快与有资质的医疗或心理专业人员沟通，综合了解发展史、功能受损和不同观察者的评价。",
+        "dimension_code": "YpUf0rtu",
+        "source_index": 1
+      },
+      {
+        "category": "dimension",
+        "content": "相关表现可能已影响部分学习、家庭或同伴活动。建议家长与教师交换观察，形成一致的支持目标，并根据需要进一步评估。",
+        "dimension_code": "fa-iDLyqzUzHH",
+        "source_index": 2
+      },
+      {
+        "category": "dimension",
+        "content": "相关表现可能明显影响学习、家庭生活、同伴关系或安全。建议及时寻求专业评估与支持；量表结果用于筛查、随访和支持规划，不能单独作为诊断依据。",
+        "dimension_code": "CDknpDHy",
+        "source_index": 3
+      },
+      {
+        "category": "dimension",
+        "content": "相关表现可能在多个场景中影响日常功能。建议尽快与有资质的医疗或心理专业人员沟通，综合了解发展史、功能受损和不同观察者的评价。",
+        "dimension_code": "fa-iDM0485g27",
+        "source_index": 4
+      }
+    ],
+    "model_extra": null
+  },
+  "input_policy": {
+    "profile_id": "participant-scale-score-range-default",
+    "profile_version": "v6",
+    "profile_fingerprint": "sha256:cc747df0a6ae4b02b65b7447ce08845fa8c4e91b9d674f51ac25fbcbffd2a2a2",
+    "model_code": null,
+    "model_version": null,
+    "min_dimensions": 2,
+    "max_dimensions": 12,
+    "eligible_codes": [],
+    "excluded_codes": [],
+    "allowed_focus_areas": [
+      "sleep_routine"
+    ],
+    "include_norm_context": true,
+    "include_model_result": false
+  },
+  "locale": "zh-CN",
+  "focus_areas": [],
+  "expected_canonical_json": "{\"schema_version\":\"ai-explanation-input/v1\",\"source\":{\"report_id\":\"1001\",\"outcome_id\":\"1002\",\"report_type\":\"standard\",\"report_template_version\":\"2026-08-v1\",\"content_schema_version\":\"report-content/v1\",\"builder_identity\":\"factor-scoring\",\"generated_at\":\"2000-01-01T00:00:00Z\"},\"profile\":{\"profile_id\":\"participant-scale-score-range-default\",\"profile_version\":\"v6\",\"profile_fingerprint\":\"sha256:cc747df0a6ae4b02b65b7447ce08845fa8c4e91b9d674f51ac25fbcbffd2a2a2\"},\"context\":{\"scope\":\"current_assessment_only\",\"audience\":\"participant\",\"locale\":\"zh-CN\",\"personalization_scope\":\"assessment_result_only\",\"focus_areas\":[]},\"facts\":{\"runtime\":{\"decision_kind\":\"score_range\"},\"model\":{\"kind\":\"scale\",\"algorithm\":\"scale_default\",\"code\":\"3adyDE\",\"version\":\"v138-report-202608-v1\",\"title\":\"SNAP-IV量表（18项）\"},\"overall_result\":{\"primary_score\":{\"kind\":\"raw_total\",\"value\":38,\"label\":\"\",\"max\":null},\"level\":{\"code\":\"high\",\"label\":\"high\",\"severity\":\"high\"},\"standard_conclusion\":\"相关表现较为突出\"},\"dimensions\":[{\"ref\":\"dimension:CDknpDHy\",\"code\":\"CDknpDHy\",\"kind\":\"factor\",\"name\":\"多动/冲动（症状数）\",\"role\":\"\",\"parent_ref\":null,\"hierarchy_level\":0,\"sort_order\":0,\"raw_score\":{\"kind\":\"raw_score\",\"value\":8,\"label\":\"\",\"max\":9},\"derived_scores\":[],\"level\":{\"code\":\"severe\",\"label\":\"severe\",\"severity\":\"\"},\"norm_context\":null,\"standard_description\":\"相关表现显著突出\",\"standard_suggestion_refs\":[\"suggestion:report:4\"]},{\"ref\":\"dimension:YpUf0rtu\",\"code\":\"YpUf0rtu\",\"kind\":\"factor\",\"name\":\"注意缺陷（症状数）\",\"role\":\"\",\"parent_ref\":null,\"hierarchy_level\":0,\"sort_order\":0,\"raw_score\":{\"kind\":\"raw_score\",\"value\":6,\"label\":\"\",\"max\":9},\"derived_scores\":[],\"level\":{\"code\":\"high\",\"label\":\"high\",\"severity\":\"\"},\"norm_context\":null,\"standard_description\":\"相关表现较为突出\",\"standard_suggestion_refs\":[\"suggestion:report:2\"]},{\"ref\":\"dimension:fa-iDLyqzUzHH\",\"code\":\"fa-iDLyqzUzHH\",\"kind\":\"factor\",\"name\":\"注意缺陷（严重度）\",\"role\":\"\",\"parent_ref\":null,\"hierarchy_level\":0,\"sort_order\":0,\"raw_score\":{\"kind\":\"raw_score\",\"value\":17,\"label\":\"\",\"max\":27},\"derived_scores\":[],\"level\":{\"code\":\"medium\",\"label\":\"medium\",\"severity\":\"\"},\"norm_context\":null,\"standard_description\":\"相关表现达到中等程度\",\"standard_suggestion_refs\":[\"suggestion:report:3\"]},{\"ref\":\"dimension:fa-iDM0485g27\",\"code\":\"fa-iDM0485g27\",\"kind\":\"factor\",\"name\":\"多动/冲动（严重度）\",\"role\":\"\",\"parent_ref\":null,\"hierarchy_level\":0,\"sort_order\":0,\"raw_score\":{\"kind\":\"raw_score\",\"value\":21,\"label\":\"\",\"max\":27},\"derived_scores\":[],\"level\":{\"code\":\"high\",\"label\":\"high\",\"severity\":\"\"},\"norm_context\":null,\"standard_description\":\"相关表现较为突出\",\"standard_suggestion_refs\":[\"suggestion:report:5\"]},{\"ref\":\"dimension:fnDsCTWa\",\"code\":\"fnDsCTWa\",\"kind\":\"factor\",\"name\":\"总分\",\"role\":\"total\",\"parent_ref\":null,\"hierarchy_level\":0,\"sort_order\":0,\"raw_score\":{\"kind\":\"raw_score\",\"value\":38,\"label\":\"\",\"max\":54},\"derived_scores\":[],\"level\":{\"code\":\"high\",\"label\":\"high\",\"severity\":\"\"},\"norm_context\":null,\"standard_description\":\"相关表现较为突出\",\"standard_suggestion_refs\":[\"suggestion:dimension:fnDsCTWa\"]}],\"standard_suggestions\":[{\"ref\":\"suggestion:report:1\",\"category\":\"general\",\"content\":\"相关表现可能在多个场景中影响日常功能。建议尽快与有资质的医疗或心理专业人员沟通，综合了解发展史、功能受损和不同观察者的评价。\",\"dimension_refs\":[]},{\"ref\":\"suggestion:report:2\",\"category\":\"dimension\",\"content\":\"相关表现可能在多个场景中影响日常功能。建议尽快与有资质的医疗或心理专业人员沟通，综合了解发展史、功能受损和不同观察者的评价。\",\"dimension_refs\":[\"dimension:YpUf0rtu\"]},{\"ref\":\"suggestion:report:3\",\"category\":\"dimension\",\"content\":\"相关表现可能已影响部分学习、家庭或同伴活动。建议家长与教师交换观察，形成一致的支持目标，并根据需要进一步评估。\",\"dimension_refs\":[\"dimension:fa-iDLyqzUzHH\"]},{\"ref\":\"suggestion:report:4\",\"category\":\"dimension\",\"content\":\"相关表现可能明显影响学习、家庭生活、同伴关系或安全。建议及时寻求专业评估与支持；量表结果用于筛查、随访和支持规划，不能单独作为诊断依据。\",\"dimension_refs\":[\"dimension:CDknpDHy\"]},{\"ref\":\"suggestion:report:5\",\"category\":\"dimension\",\"content\":\"相关表现可能在多个场景中影响日常功能。建议尽快与有资质的医疗或心理专业人员沟通，综合了解发展史、功能受损和不同观察者的评价。\",\"dimension_refs\":[\"dimension:fa-iDM0485g27\"]},{\"ref\":\"suggestion:dimension:fnDsCTWa\",\"category\":\"dimension\",\"content\":\"相关表现可能在多个场景中影响日常功能。建议尽快与有资质的医疗或心理专业人员沟通，综合了解发展史、功能受损和不同观察者的评价。\",\"dimension_refs\":[\"dimension:fnDsCTWa\"]}],\"model_result\":null}}",
+  "expected_input_fingerprint": "sha256:942f27b820ebf2409b6f1401590f88834d71d85fba2385cbfaea93843e21776a",
+  "expected_provider_payload": "{\"context\":{\"scope\":\"current_assessment_only\",\"audience\":\"participant\",\"locale\":\"zh-CN\",\"personalization_scope\":\"assessment_result_only\",\"focus_areas\":[]},\"facts\":{\"runtime\":{\"decision_kind\":\"score_range\"},\"model\":{\"kind\":\"scale\",\"algorithm\":\"scale_default\",\"code\":\"3adyDE\",\"version\":\"v138-report-202608-v1\",\"title\":\"SNAP-IV量表（18项）\"},\"overall_result\":{\"primary_score\":{\"kind\":\"raw_total\",\"value\":38,\"label\":\"\",\"max\":null},\"level\":{\"code\":\"high\",\"label\":\"high\",\"severity\":\"high\"},\"standard_conclusion\":\"相关表现较为突出\"},\"dimensions\":[{\"ref\":\"dimension:CDknpDHy\",\"code\":\"CDknpDHy\",\"kind\":\"factor\",\"name\":\"多动/冲动（症状数）\",\"role\":\"\",\"parent_ref\":null,\"hierarchy_level\":0,\"sort_order\":0,\"raw_score\":{\"kind\":\"raw_score\",\"value\":8,\"label\":\"\",\"max\":9},\"derived_scores\":[],\"level\":{\"code\":\"severe\",\"label\":\"severe\",\"severity\":\"\"},\"norm_context\":null,\"standard_description\":\"相关表现显著突出\",\"standard_suggestion_refs\":[\"suggestion:report:4\"]},{\"ref\":\"dimension:YpUf0rtu\",\"code\":\"YpUf0rtu\",\"kind\":\"factor\",\"name\":\"注意缺陷（症状数）\",\"role\":\"\",\"parent_ref\":null,\"hierarchy_level\":0,\"sort_order\":0,\"raw_score\":{\"kind\":\"raw_score\",\"value\":6,\"label\":\"\",\"max\":9},\"derived_scores\":[],\"level\":{\"code\":\"high\",\"label\":\"high\",\"severity\":\"\"},\"norm_context\":null,\"standard_description\":\"相关表现较为突出\",\"standard_suggestion_refs\":[\"suggestion:report:2\"]},{\"ref\":\"dimension:fa-iDLyqzUzHH\",\"code\":\"fa-iDLyqzUzHH\",\"kind\":\"factor\",\"name\":\"注意缺陷（严重度）\",\"role\":\"\",\"parent_ref\":null,\"hierarchy_level\":0,\"sort_order\":0,\"raw_score\":{\"kind\":\"raw_score\",\"value\":17,\"label\":\"\",\"max\":27},\"derived_scores\":[],\"level\":{\"code\":\"medium\",\"label\":\"medium\",\"severity\":\"\"},\"norm_context\":null,\"standard_description\":\"相关表现达到中等程度\",\"standard_suggestion_refs\":[\"suggestion:report:3\"]},{\"ref\":\"dimension:fa-iDM0485g27\",\"code\":\"fa-iDM0485g27\",\"kind\":\"factor\",\"name\":\"多动/冲动（严重度）\",\"role\":\"\",\"parent_ref\":null,\"hierarchy_level\":0,\"sort_order\":0,\"raw_score\":{\"kind\":\"raw_score\",\"value\":21,\"label\":\"\",\"max\":27},\"derived_scores\":[],\"level\":{\"code\":\"high\",\"label\":\"high\",\"severity\":\"\"},\"norm_context\":null,\"standard_description\":\"相关表现较为突出\",\"standard_suggestion_refs\":[\"suggestion:report:5\"]},{\"ref\":\"dimension:fnDsCTWa\",\"code\":\"fnDsCTWa\",\"kind\":\"factor\",\"name\":\"总分\",\"role\":\"total\",\"parent_ref\":null,\"hierarchy_level\":0,\"sort_order\":0,\"raw_score\":{\"kind\":\"raw_score\",\"value\":38,\"label\":\"\",\"max\":54},\"derived_scores\":[],\"level\":{\"code\":\"high\",\"label\":\"high\",\"severity\":\"\"},\"norm_context\":null,\"standard_description\":\"相关表现较为突出\",\"standard_suggestion_refs\":[\"suggestion:dimension:fnDsCTWa\"]}],\"standard_suggestions\":[{\"ref\":\"suggestion:report:1\",\"category\":\"general\",\"content\":\"相关表现可能在多个场景中影响日常功能。建议尽快与有资质的医疗或心理专业人员沟通，综合了解发展史、功能受损和不同观察者的评价。\",\"dimension_refs\":[]},{\"ref\":\"suggestion:report:2\",\"category\":\"dimension\",\"content\":\"相关表现可能在多个场景中影响日常功能。建议尽快与有资质的医疗或心理专业人员沟通，综合了解发展史、功能受损和不同观察者的评价。\",\"dimension_refs\":[\"dimension:YpUf0rtu\"]},{\"ref\":\"suggestion:report:3\",\"category\":\"dimension\",\"content\":\"相关表现可能已影响部分学习、家庭或同伴活动。建议家长与教师交换观察，形成一致的支持目标，并根据需要进一步评估。\",\"dimension_refs\":[\"dimension:fa-iDLyqzUzHH\"]},{\"ref\":\"suggestion:report:4\",\"category\":\"dimension\",\"content\":\"相关表现可能明显影响学习、家庭生活、同伴关系或安全。建议及时寻求专业评估与支持；量表结果用于筛查、随访和支持规划，不能单独作为诊断依据。\",\"dimension_refs\":[\"dimension:CDknpDHy\"]},{\"ref\":\"suggestion:report:5\",\"category\":\"dimension\",\"content\":\"相关表现可能在多个场景中影响日常功能。建议尽快与有资质的医疗或心理专业人员沟通，综合了解发展史、功能受损和不同观察者的评价。\",\"dimension_refs\":[\"dimension:fa-iDM0485g27\"]},{\"ref\":\"suggestion:dimension:fnDsCTWa\",\"category\":\"dimension\",\"content\":\"相关表现可能在多个场景中影响日常功能。建议尽快与有资质的医疗或心理专业人员沟通，综合了解发展史、功能受损和不同观察者的评价。\",\"dimension_refs\":[\"dimension:fnDsCTWa\"]}],\"model_result\":null}}",
+  "expected_prompt_messages_sha256": "d9fe18bced41ce657376eac548f5d729def555b2e94e74cd474fdfe56a278996"
+}

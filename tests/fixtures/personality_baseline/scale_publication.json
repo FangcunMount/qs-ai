@@ -1,0 +1,203 @@
+{
+  "schema": "qs-ai-scale-baseline/v1",
+  "observed_at": "2026-09-22T05:33:00.595236+00:00",
+  "read_only": true,
+  "provider_calls": 0,
+  "database_writes": 0,
+  "migration": [
+    "0036_evaluation_slot_claims"
+  ],
+  "publications": [
+    {
+      "selector_key": "b0cf7a12b51e42f901ef32ce9f865b7057b9c3de5b503f7a13420ec588b3c885",
+      "selector_json": "{\"audience\":\"participant\",\"decision_kind\":\"score_range\",\"model_code\":null,\"model_kind\":\"scale\",\"model_version\":null}",
+      "version": 1,
+      "active_publication_id": "a9f7f8a7-e0aa-4d5b-ab23-c4af584317e4",
+      "evaluation_release": {
+        "suite": {
+          "id": "cross-dimension-participant-scale-v6-published",
+          "version": "m5-v6-20260914-01",
+          "fingerprint": "sha256:6bc404306aa555068b022e880cabbea294016c4aeae71d16b00371c73447c353"
+        },
+        "prompt": {
+          "id": "cross-dimension-participant-scale",
+          "version": "v6",
+          "fingerprint": "sha256:480f7f02de8cf75e29f5778ec1567098fb081472976f188a82cbb42fbdcc873e"
+        },
+        "profile": {
+          "id": "participant-scale-score-range-default",
+          "version": "v6",
+          "fingerprint": "sha256:cc747df0a6ae4b02b65b7447ce08845fa8c4e91b9d674f51ac25fbcbffd2a2a2"
+        },
+        "input_schema": {
+          "id": "ai-explanation-input",
+          "version": "ai-explanation-input/v1",
+          "fingerprint": "sha256:b09a06cf80befdbb4a7968b8baa8865cd5afa28777c3858c6517a23609b1259a"
+        },
+        "output_schema": {
+          "id": "ai-explanation-output",
+          "version": "ai-explanation-output/v1",
+          "fingerprint": "sha256:103cc2efc7abef6722729b30d1591f6e19ed2164f37901f7f5d789982fbb2744"
+        },
+        "generation_route": {
+          "id": "balanced_text_v1",
+          "version": "v8",
+          "fingerprint": "sha256:4f0c312b23e8d16a953395dc2a85ea365393f5bb7249db1142a073984c51ad46"
+        },
+        "semantic_prompt": {
+          "id": "ai-explanation-semantic-evaluator",
+          "version": "v2",
+          "fingerprint": "sha256:1789c53a44e1be065f5d2691faacaeb65a0a264f9fb0107138c8c8004a8ab572"
+        },
+        "semantic_output_schema": {
+          "id": "ai-explanation-semantic-output",
+          "version": "ai-explanation-semantic-evaluation-output/v1",
+          "fingerprint": "sha256:dc0f9a6376bc2f12fe3af244f33f7d42384f1885488043ce5912447f091ad8c5"
+        },
+        "semantic_route": {
+          "id": "semantic_judge_v1",
+          "version": "v5",
+          "fingerprint": "sha256:4d82880f6da39d18e433156ffc314df34fac33fe1b5e5494e07e4baaebf6b02c"
+        },
+        "execution_policy": {
+          "id": "release-evaluation-bounded-recovery",
+          "version": "v2",
+          "fingerprint": "sha256:6d2e6c27057d6297b78d1210fe5ae4342b3b2a06ae946374edf53eb5807a8e4d"
+        },
+        "gate_policy": {
+          "id": "release-gates",
+          "version": "v2",
+          "fingerprint": "sha256:bf67e46d336cca2a1095d2550a5afa9e677df0fd4356169de682f5eb6b8a7c60"
+        }
+      },
+      "semantic_route": {
+        "route": "semantic_judge_v1",
+        "revision": "v5",
+        "provider": "deepseek",
+        "model": "deepseek-v4-pro",
+        "protocol": "responses",
+        "structured_output_mode": "json_schema",
+        "timeout_milliseconds": 180000,
+        "max_output_tokens": 8000,
+        "reasoning_effort": "low",
+        "idempotent_redispatch": false,
+        "retrieve_by_invocation_id": false
+      },
+      "manifest": {
+        "profile": {
+          "identity": "participant-scale-score-range-default",
+          "version": "v6",
+          "fingerprint": "sha256:cc747df0a6ae4b02b65b7447ce08845fa8c4e91b9d674f51ac25fbcbffd2a2a2",
+          "content_sha256": "cc747df0a6ae4b02b65b7447ce08845fa8c4e91b9d674f51ac25fbcbffd2a2a2"
+        },
+        "prompt": {
+          "identity": "cross-dimension-participant-scale",
+          "version": "v6",
+          "fingerprint": "sha256:480f7f02de8cf75e29f5778ec1567098fb081472976f188a82cbb42fbdcc873e",
+          "content_sha256": "aae608db7183b9e3ed00d1cdbf39fb8ad73faaa809f312f47df52212b7991c3b"
+        },
+        "generation_route": {
+          "identity": "balanced_text_v1",
+          "version": "v8",
+          "fingerprint": "sha256:4f0c312b23e8d16a953395dc2a85ea365393f5bb7249db1142a073984c51ad46",
+          "content_sha256": "4f0c312b23e8d16a953395dc2a85ea365393f5bb7249db1142a073984c51ad46"
+        },
+        "input_schema": {
+          "identity": "ai-explanation-input",
+          "version": "v1",
+          "fingerprint": "sha256:b09a06cf80befdbb4a7968b8baa8865cd5afa28777c3858c6517a23609b1259a",
+          "content_sha256": "b09a06cf80befdbb4a7968b8baa8865cd5afa28777c3858c6517a23609b1259a"
+        },
+        "output_schema": {
+          "identity": "ai-explanation-output",
+          "version": "v1",
+          "fingerprint": "sha256:103cc2efc7abef6722729b30d1591f6e19ed2164f37901f7f5d789982fbb2744",
+          "content_sha256": "103cc2efc7abef6722729b30d1591f6e19ed2164f37901f7f5d789982fbb2744"
+        }
+      },
+      "manifest_fingerprint": "sha256:617a7b766fc69681efb5cabc6cdc03f313cb0c12665dbbb06a4a15486c2bc53a",
+      "profile_fingerprint": "sha256:cc747df0a6ae4b02b65b7447ce08845fa8c4e91b9d674f51ac25fbcbffd2a2a2",
+      "profile_version": "v6",
+      "route": {
+        "route": "balanced_text_v1",
+        "revision": "v8",
+        "provider": "deepseek",
+        "model": "deepseek-v4-pro",
+        "protocol": "responses",
+        "structured_output_mode": "json_schema",
+        "timeout_milliseconds": 120000,
+        "max_output_tokens": 12000,
+        "reasoning_effort": "none",
+        "idempotent_redispatch": false,
+        "retrieve_by_invocation_id": false
+      },
+      "profile_definition_sha256": "cc747df0a6ae4b02b65b7447ce08845fa8c4e91b9d674f51ac25fbcbffd2a2a2",
+      "publication_integrity_verified": true,
+      "compile_configuration_passed": true
+    }
+  ],
+  "replay": {
+    "status": "verified",
+    "sample_alias": "scale-test-report-001",
+    "session_source_sha256": "a79ef920d5595795b61a01e78447616e132207a4d97f18b3846282e279421eff",
+    "source_snapshot_sha256": "d9af67b656fd7304ceaac433638a9086565965c4ba82fd6bb1306eaddc7e587b",
+    "prepared_equals_original": true,
+    "artifact_equals_original": true,
+    "artifact_keys": [
+      "id",
+      "run_id",
+      "report_id",
+      "profile_id",
+      "session_id",
+      "content_json",
+      "assessment_id",
+      "invocation_id",
+      "schema_version",
+      "source_version",
+      "evidence_set_id",
+      "profile_version",
+      "input_fingerprint",
+      "route_fingerprint",
+      "prompt_fingerprint",
+      "content_fingerprint",
+      "profile_fingerprint",
+      "provider_request_id",
+      "evidence_fingerprint",
+      "output_validator_version",
+      "safety_validator_version"
+    ],
+    "recomputed_artifact_keys": [
+      "id",
+      "session_id",
+      "run_id",
+      "evidence_set_id",
+      "evidence_fingerprint",
+      "invocation_id",
+      "provider_request_id",
+      "content_json",
+      "content_fingerprint",
+      "input_fingerprint",
+      "profile_id",
+      "profile_version",
+      "profile_fingerprint",
+      "prompt_fingerprint",
+      "route_fingerprint",
+      "output_validator_version",
+      "safety_validator_version",
+      "assessment_id",
+      "report_id",
+      "source_version",
+      "schema_version"
+    ],
+    "publication_id": "a9f7f8a7-e0aa-4d5b-ab23-c4af584317e4",
+    "manifest_fingerprint": "sha256:617a7b766fc69681efb5cabc6cdc03f313cb0c12665dbbb06a4a15486c2bc53a",
+    "input_fingerprint": "sha256:95124e0892339954c0b01f6cd47c8f03dfb10adc304afe06c72909ec8f2710e9",
+    "prompt_fingerprint": "sha256:480f7f02de8cf75e29f5778ec1567098fb081472976f188a82cbb42fbdcc873e",
+    "route_fingerprint": "sha256:4f0c312b23e8d16a953395dc2a85ea365393f5bb7249db1142a073984c51ad46",
+    "saved_artifact_sha256": "034975d3db918742f35663b11215a1270f50423f506dbd8d81385334ac7a6286",
+    "recomputed_artifact_sha256": "034975d3db918742f35663b11215a1270f50423f506dbd8d81385334ac7a6286",
+    "receipt_sha256": "c0a3074a7920a3aa66ce2cbb8921b6297ce8661d74ae46819587d42aff128670",
+    "request_sha256": "c0b24a60ecaa8763d599360271b9bb59b4d055be0e20af82dbe988a089b2dab4",
+    "output_schema": "ai-explanation-output/v1"
+  }
+}
