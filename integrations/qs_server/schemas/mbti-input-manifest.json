@@ -1,0 +1,10 @@
+{
+  "schema_version": "qs-ai-mbti-input-manifest/v1",
+  "input": {
+    "id": "ai-explanation-input",
+    "version": "v2",
+    "scene_contract_version": "mbti-single-assessment/v1",
+    "sha256": "225b89bbd64b5c45596acb4b93d77bbfe31016da111c30c89f1840530f321fd1"
+  },
+  "provenance": "Additive qs-ai authored MBTI contract, not an original QS export. Existing v1 assets are unchanged."
+}

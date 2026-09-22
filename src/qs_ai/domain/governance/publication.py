@@ -18,6 +18,7 @@ from qs_ai.domain.evaluation.finalization import FinalReview
 from qs_ai.domain.evaluation.identity import EvidenceReleaseIdentity, FrozenContractRef
 from qs_ai.domain.governance.manifest import GenerationManifest
 from qs_ai.domain.governance.profile import ProfileAsset
+from qs_ai.domain.governance.scenes import is_mbti_selector
 
 
 class PublicationConflict(ValueError):
@@ -45,6 +46,8 @@ class ReleaseSelector:
             "participant",
             "scale",
             "score_range",
+        ) and not is_mbti_selector(
+            self.audience, self.model_kind, self.decision_kind, self.model_code, self.model_version
         ):
             raise ValueError("Unsupported existing Profile selector")
         if self.model_code is not None and (

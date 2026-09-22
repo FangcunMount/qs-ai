@@ -7,9 +7,10 @@ from typing import Annotated, Any, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from qs_ai.application.interpretation.input import InputPolicy
+from qs_ai.application.interpretation.input import InputPolicy, MBTIInputPolicy
 from qs_ai.application.interpretation.prompts import RenderPolicy
 from qs_ai.application.interpretation.release import ExplanationRelease, InvalidRelease
+from qs_ai.domain.governance.scenes import MBTI_AXES
 from qs_ai.infrastructure.qs_server.prompts import prompt_directory
 
 Version = Annotated[str, Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$")]
@@ -144,11 +145,10 @@ class Safety(PolicyModel):
         return self
 
 
-class Generation(PolicyModel):
+class GenerationBase(PolicyModel):
     prompt_template_id: Text
     prompt_version: Version
     provider_route: Route
-    input_schema_version: Literal["ai-explanation-input/v1"]
     output_schema_version: Literal["ai-explanation-output/v1"]
     max_output_characters: int = Field(ge=512, le=20000)
 
@@ -159,23 +159,68 @@ class Generation(PolicyModel):
         return self
 
 
-class Definition(PolicyModel):
-    schema_version: Literal["ai-explanation-profile/v1"]
+class Generation(GenerationBase):
+    input_schema_version: Literal["ai-explanation-input/v1"]
+
+
+class MBTIGeneration(GenerationBase):
+    input_schema_version: Literal["ai-explanation-input/v2"]
+
+
+class MBTISelector(PolicyModel):
+    audience: Literal["participant"]
+    model_kind: Literal["typology"]
+    decision_kind: Literal["pole_composition"]
+    model_code: Literal["MBTI_OEJTS"]
+    model_version: Literal["v64-report-202608-v1"]
+
+
+class DefinitionBase(PolicyModel):
     profile_id: Text
     version: Version
-    selector: Selector
     eligibility: Eligibility
     input_policy: Input
     insight_policy: Insight
     suggestion_policy: Suggestion
     safety_policy: Safety
-    generation_policy: Generation
 
     @model_validator(mode="after")
     def nonempty_id(self) -> Self:
         if not self.profile_id.strip():
             raise ValueError("Profile id is empty")
         return self
+
+
+class Definition(DefinitionBase):
+    schema_version: Literal["ai-explanation-profile/v1"]
+    selector: Selector
+    generation_policy: Generation
+
+
+class MBTIDefinition(DefinitionBase):
+    schema_version: Literal["ai-explanation-profile/v2"]
+    scene_contract_version: Literal["mbti-single-assessment/v1"]
+    selector: MBTISelector
+    generation_policy: MBTIGeneration
+
+    @model_validator(mode="after")
+    def complete_mbti(self) -> Self:
+        e, i = self.eligibility, self.input_policy
+        if (
+            (e.min_eligible_dimensions, e.max_input_dimensions) != (4, 4)
+            or e.eligible_dimension_codes != [axis[0] for axis in MBTI_AXES]
+            or e.excluded_dimension_codes
+            or i.include_norm_context
+            or not i.include_model_result
+        ):
+            raise ValueError("MBTI requires all four axes and model result without norms")
+        return self
+
+
+def decode_profile_definition(value: Any) -> Definition | MBTIDefinition:
+    if isinstance(value, dict) and value.get("schema_version") == "ai-explanation-profile/v2":
+        return MBTIDefinition.model_validate(value)
+    return Definition.model_validate(value)
 
 
 def canonical_definition(value: dict[str, Any]) -> str:
@@ -201,7 +246,7 @@ def decode_published_profile(envelope: dict[str, Any]) -> ExplanationRelease:
             or envelope["status"] != "published"
         ):
             raise InvalidRelease("A published Profile envelope is required")
-        definition = Definition.model_validate(envelope["definition"])
+        definition = decode_profile_definition(envelope["definition"])
         canonical = canonical_definition(definition.model_dump())
         fingerprint = "sha256:" + hashlib.sha256(canonical.encode()).hexdigest()
         if fingerprint != envelope["fingerprint"]:
@@ -216,21 +261,26 @@ def decode_published_profile(envelope: dict[str, Any]) -> ExplanationRelease:
             definition.suggestion_policy,
             definition.generation_policy,
         )
+        input_policy = InputPolicy(
+            definition.profile_id,
+            definition.version,
+            fingerprint,
+            selector.model_code,
+            selector.model_version,
+            eligibility.min_eligible_dimensions,
+            eligibility.max_input_dimensions,
+            tuple(eligibility.eligible_dimension_codes),
+            tuple(eligibility.excluded_dimension_codes),
+            tuple(inputs.allowed_focus_areas),
+            inputs.include_norm_context,
+            inputs.include_model_result,
+        )
+        if isinstance(definition, MBTIDefinition):
+            input_policy = MBTIInputPolicy(
+                **vars(input_policy), scene_contract_version=definition.scene_contract_version
+            )
         return ExplanationRelease(
-            input_policy=InputPolicy(
-                definition.profile_id,
-                definition.version,
-                fingerprint,
-                selector.model_code,
-                selector.model_version,
-                eligibility.min_eligible_dimensions,
-                eligibility.max_input_dimensions,
-                tuple(eligibility.eligible_dimension_codes),
-                tuple(eligibility.excluded_dimension_codes),
-                tuple(inputs.allowed_focus_areas),
-                inputs.include_norm_context,
-                inputs.include_model_result,
-            ),
+            input_policy=input_policy,
             render_policy=RenderPolicy(
                 generation.prompt_template_id,
                 generation.prompt_version,

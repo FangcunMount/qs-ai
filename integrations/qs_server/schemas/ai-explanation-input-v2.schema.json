@@ -1,0 +1,594 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/FangcunMount/qs-ai/main/integrations/qs_server/schemas/ai-explanation-input-v2.schema.json",
+  "title": "AIExplanationInput v2 - MBTI single assessment",
+  "description": "Frozen MBTI facts. Structural validation is followed by the pinned mbti-single-assessment/v1 coherence validator. Preference strength and match_percent are not confidence.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "source",
+    "profile",
+    "context",
+    "facts",
+    "scene_contract_version"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "ai-explanation-input/v2"
+    },
+    "source": {
+      "$ref": "#/$defs/Source"
+    },
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Exact published profile used to assemble and validate this input.",
+      "required": [
+        "profile_id",
+        "profile_version",
+        "profile_fingerprint"
+      ],
+      "properties": {
+        "profile_id": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "profile_version": {
+          "$ref": "#/$defs/versionString"
+        },
+        "profile_fingerprint": {
+          "$ref": "#/$defs/sha256Fingerprint"
+        }
+      }
+    },
+    "context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scope",
+        "audience",
+        "locale",
+        "personalization_scope",
+        "focus_areas"
+      ],
+      "properties": {
+        "scope": {
+          "const": "current_assessment_only"
+        },
+        "audience": {
+          "$ref": "#/$defs/audience"
+        },
+        "locale": {
+          "type": "string",
+          "pattern": "^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$",
+          "maxLength": 35
+        },
+        "personalization_scope": {
+          "enum": [
+            "assessment_result_only",
+            "assessment_result_and_focus_areas"
+          ]
+        },
+        "focus_areas": {
+          "type": "array",
+          "maxItems": 3,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9._-]{0,63}$"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "personalization_scope": {
+                "const": "assessment_result_only"
+              }
+            },
+            "required": [
+              "personalization_scope"
+            ]
+          },
+          "then": {
+            "properties": {
+              "focus_areas": {
+                "maxItems": 0
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "personalization_scope": {
+                "const": "assessment_result_and_focus_areas"
+              }
+            },
+            "required": [
+              "personalization_scope"
+            ]
+          },
+          "then": {
+            "properties": {
+              "focus_areas": {
+                "minItems": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+    "facts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "runtime",
+        "model",
+        "overall_result",
+        "dimensions",
+        "standard_suggestions",
+        "model_result"
+      ],
+      "properties": {
+        "runtime": {
+          "$ref": "#/$defs/Runtime"
+        },
+        "model": {
+          "$ref": "#/$defs/Model"
+        },
+        "overall_result": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "standard_conclusion"
+          ],
+          "properties": {
+            "standard_conclusion": {
+              "type": "string",
+              "maxLength": 4000,
+              "pattern": "^[^<>]*$"
+            }
+          }
+        },
+        "dimensions": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "ref",
+              "code",
+              "kind",
+              "name",
+              "parent_ref",
+              "raw_score",
+              "pole_facts",
+              "strength_semantics",
+              "standard_description",
+              "standard_suggestion_refs"
+            ],
+            "properties": {
+              "ref": {
+                "enum": [
+                  "dimension:EI",
+                  "dimension:SN",
+                  "dimension:TF",
+                  "dimension:JP"
+                ]
+              },
+              "code": {
+                "enum": [
+                  "EI",
+                  "SN",
+                  "TF",
+                  "JP"
+                ]
+              },
+              "kind": {
+                "const": "pole"
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000,
+                "pattern": "^[^<>]+$"
+              },
+              "parent_ref": {
+                "type": "null"
+              },
+              "raw_score": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "kind",
+                  "value",
+                  "label",
+                  "max"
+                ],
+                "properties": {
+                  "kind": {
+                    "const": "raw_score"
+                  },
+                  "value": {
+                    "type": "number",
+                    "minimum": 8,
+                    "maximum": 40
+                  },
+                  "label": {
+                    "const": ""
+                  },
+                  "max": {
+                    "const": 40
+                  }
+                }
+              },
+              "pole_facts": {
+                "$ref": "#/$defs/PoleFacts"
+              },
+              "strength_semantics": {
+                "const": "preference_strength_not_confidence"
+              },
+              "standard_description": {
+                "type": "string",
+                "maxLength": 4000,
+                "pattern": "^[^<>]*$"
+              },
+              "standard_suggestion_refs": {
+                "type": "array",
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "pattern": "^suggestion:"
+                }
+              }
+            }
+          }
+        },
+        "standard_suggestions": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "$ref": "#/$defs/standardSuggestion"
+          }
+        },
+        "model_result": {
+          "$ref": "#/$defs/ModelResult"
+        }
+      }
+    },
+    "scene_contract_version": {
+      "const": "mbti-single-assessment/v1"
+    }
+  },
+  "$defs": {
+    "nonEmptyString": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255
+    },
+    "versionString": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$"
+    },
+    "sha256Fingerprint": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "plainText": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2000,
+      "pattern": "^[^<>]*$"
+    },
+    "audience": {
+      "enum": [
+        "participant"
+      ]
+    },
+    "standardSuggestion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ref",
+        "category",
+        "content",
+        "dimension_refs"
+      ],
+      "properties": {
+        "ref": {
+          "type": "string",
+          "pattern": "^suggestion:[^\\s]+$",
+          "maxLength": 266
+        },
+        "category": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "content": {
+          "$ref": "#/$defs/plainText"
+        },
+        "dimension_refs": {
+          "type": "array",
+          "maxItems": 10,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^dimension:[^\\s]+$",
+            "maxLength": 265
+          }
+        }
+      }
+    },
+    "Model": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "typology",
+          "title": "Kind",
+          "type": "string"
+        },
+        "algorithm": {
+          "const": "personality_typology",
+          "title": "Algorithm",
+          "type": "string"
+        },
+        "code": {
+          "const": "MBTI_OEJTS",
+          "title": "Code",
+          "type": "string"
+        },
+        "version": {
+          "const": "v64-report-202608-v1",
+          "title": "Version",
+          "type": "string"
+        },
+        "title": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "pattern": "^[^<>]+$",
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "algorithm",
+        "code",
+        "version",
+        "title"
+      ],
+      "title": "Model",
+      "type": "object"
+    },
+    "ModelResult": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "personality_type",
+          "title": "Kind",
+          "type": "string"
+        },
+        "type_code": {
+          "pattern": "^[IE][SN][FT][JP]$",
+          "title": "Type Code",
+          "type": "string"
+        },
+        "type_name": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "pattern": "^[^<>]+$",
+          "title": "Type Name",
+          "type": "string"
+        },
+        "one_liner": {
+          "maxLength": 4000,
+          "pattern": "^[^<>]*$",
+          "title": "One Liner",
+          "type": "string"
+        },
+        "match_percent": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "ge": 0,
+          "le": 100,
+          "title": "Match Percent"
+        },
+        "commentary": {
+          "maxLength": 4000,
+          "pattern": "^[^<>]*$",
+          "title": "Commentary",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "type_code",
+        "type_name",
+        "one_liner",
+        "match_percent",
+        "commentary"
+      ],
+      "title": "ModelResult",
+      "type": "object"
+    },
+    "PoleFacts": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "mbti-pole-facts/v1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "left_pole": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "pattern": "^[^<>]+$",
+          "title": "Left Pole",
+          "type": "string"
+        },
+        "right_pole": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "pattern": "^[^<>]+$",
+          "title": "Right Pole",
+          "type": "string"
+        },
+        "preference": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "pattern": "^[^<>]+$",
+          "title": "Preference",
+          "type": "string"
+        },
+        "strength": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "ge": 0,
+          "le": 100,
+          "title": "Strength"
+        },
+        "min_score": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Min Score"
+        },
+        "max_score": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Max Score"
+        },
+        "threshold": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Threshold"
+        },
+        "composition_order": {
+          "maximum": 4,
+          "minimum": 1,
+          "title": "Composition Order",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "schema_version",
+        "left_pole",
+        "right_pole",
+        "preference",
+        "strength",
+        "min_score",
+        "max_score",
+        "threshold",
+        "composition_order"
+      ],
+      "title": "PoleFacts",
+      "type": "object"
+    },
+    "Runtime": {
+      "additionalProperties": false,
+      "properties": {
+        "decision_kind": {
+          "const": "pole_composition",
+          "title": "Decision Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "decision_kind"
+      ],
+      "title": "Runtime",
+      "type": "object"
+    },
+    "Source": {
+      "additionalProperties": false,
+      "properties": {
+        "report_id": {
+          "pattern": "^[1-9][0-9]{0,19}$",
+          "title": "Report Id",
+          "type": "string"
+        },
+        "outcome_id": {
+          "pattern": "^[1-9][0-9]{0,19}$",
+          "title": "Outcome Id",
+          "type": "string"
+        },
+        "report_type": {
+          "const": "standard",
+          "title": "Report Type",
+          "type": "string"
+        },
+        "report_template_version": {
+          "maxLength": 255,
+          "minLength": 1,
+          "pattern": "^[^<>]+$",
+          "title": "Report Template Version",
+          "type": "string"
+        },
+        "content_schema_version": {
+          "maxLength": 255,
+          "minLength": 1,
+          "pattern": "^[^<>]+$",
+          "title": "Content Schema Version",
+          "type": "string"
+        },
+        "builder_identity": {
+          "maxLength": 255,
+          "minLength": 1,
+          "pattern": "^[^<>]+$",
+          "title": "Builder Identity",
+          "type": "string"
+        },
+        "generated_at": {
+          "maxLength": 255,
+          "minLength": 1,
+          "pattern": "^[^<>]+$",
+          "title": "Generated At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "report_id",
+        "outcome_id",
+        "report_type",
+        "report_template_version",
+        "content_schema_version",
+        "builder_identity",
+        "generated_at"
+      ],
+      "title": "Source",
+      "type": "object"
+    }
+  }
+}

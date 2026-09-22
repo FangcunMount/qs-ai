@@ -38,6 +38,11 @@ class InputPolicy:
 
 
 @dataclass(frozen=True)
+class MBTIInputPolicy(InputPolicy):
+    scene_contract_version: str
+
+
+@dataclass(frozen=True)
 class AssembledInput:
     canonical_json: str
     fingerprint: str
@@ -128,6 +133,10 @@ def assemble_input(
 ) -> AssembledInput:
     try:
         snapshot = json.loads(raw_snapshot, object_pairs_hook=_object)
+        if isinstance(policy, MBTIInputPolicy):
+            from qs_ai.application.interpretation.mbti_input import assemble_mbti
+
+            return assemble_mbti(snapshot, policy, locale, focus_areas)
         return _assemble(snapshot, policy, locale, focus_areas)
     except (KeyError, TypeError, AttributeError, ValueError) as error:
         if isinstance(error, InvalidInput):
