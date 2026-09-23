@@ -15,7 +15,7 @@ from qs_ai.domain.governance.profile import ProfileAsset
 from qs_ai.infrastructure.persistence.mysql.asset_catalog import TABLES, MySQLAssetCatalog
 from qs_ai.infrastructure.persistence.mysql.profile_assets import MySQLProfileAssets
 from qs_ai.infrastructure.persistence.mysql.schema import evaluation_suites, profile_assets
-from qs_ai.infrastructure.qs_server.evaluation_suite import SUITE_FILES
+from qs_ai.infrastructure.qs_server.evaluation_suite import MBTI_ROOT, V6_PUBLISHED
 from tests.integration.test_evaluation_suites import assets as assets
 from tests.integration.test_evaluation_suites import complete_release as complete_release
 from tests.integration.test_evaluation_suites import evaluation_release as evaluation_release
@@ -69,7 +69,12 @@ async def test_discover_all_kinds_detail_matches_summary_and_shared_scope(catalo
         )
         assert not hasattr(value, "registered_by") and not hasattr(value, "receipt")
     if kind == "suite":
-        assert {(ref.id, ref.version) for ref in SUITE_FILES} < set(keys)
+        # This fixture imports the scale baseline only. A deployable initializer
+        # is not proof that its optional assets exist in this database.
+        assert {(V6_PUBLISHED.id, V6_PUBLISHED.version)} < set(keys)
+        assert (MBTI_ROOT.id, MBTI_ROOT.version) not in keys
+        with pytest.raises(NotFound):
+            await store.get(scope, kind, MBTI_ROOT.id, MBTI_ROOT.version)
         assert (receipt.suite.id, receipt.suite.version) in keys
     if kind == "profile":
         assert (receipt.manifest.profile.identity, receipt.manifest.profile.version) in keys

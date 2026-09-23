@@ -11,7 +11,11 @@ from typing import Any
 from jsonschema import Draft202012Validator
 
 from qs_ai.domain.evaluation.identity import FrozenContractRef
-from qs_ai.infrastructure.qs_server.evaluation_suite import PUBLISHED_INPUT_VERSION, FrozenSuite
+from qs_ai.infrastructure.qs_server.evaluation_suite import (
+    MBTI_INPUT_VERSION,
+    PUBLISHED_INPUT_VERSION,
+    FrozenSuite,
+)
 from qs_ai.infrastructure.qs_server.input_schema import load_input_schema
 from qs_ai.infrastructure.qs_server.output import schema_directory
 
@@ -19,19 +23,18 @@ from qs_ai.infrastructure.qs_server.output import schema_directory
 def validate_suite_input(
     suite: FrozenSuite, reference: FrozenContractRef, payload: dict[str, Any]
 ) -> None:
-    if (
-        suite.input_construction_version != PUBLISHED_INPUT_VERSION
-        or suite.input_schema != reference
-    ):
+    versions = {PUBLISHED_INPUT_VERSION: "v1", MBTI_INPUT_VERSION: "v2"}
+    version = versions.get(suite.input_construction_version or "")
+    if version is None or suite.input_schema != reference:
         raise ValueError("Evaluation input contract differs from frozen release")
-    raw = (schema_directory() / "ai-explanation-input-v1.schema.json").read_bytes()
+    raw = (schema_directory() / f"ai-explanation-input-{version}.schema.json").read_bytes()
     if (
         reference.id != "ai-explanation-input"
-        or reference.version != "ai-explanation-input/v1"
+        or reference.version != f"ai-explanation-input/{version}"
         or reference.fingerprint != "sha256:" + hashlib.sha256(raw).hexdigest()
     ):
         raise ValueError("Evaluation input schema differs from registered asset")
-    schema = load_input_schema()
+    schema = load_input_schema(version=reference.version)
     projection = {
         **schema,
         "required": ["context", "facts"],
@@ -41,6 +44,10 @@ def validate_suite_input(
     # original bytes and contract must have been frozen before Run creation.
     if not Draft202012Validator(projection).is_valid(payload):
         raise ValueError("Evaluation payload violates frozen input projection")
+    if version == "v2":
+        from qs_ai.application.interpretation.mbti_input import validate_mbti_projection
+
+        validate_mbti_projection(payload)
 
 
 def validate_suite_inputs(suite: FrozenSuite, reference: FrozenContractRef) -> None:

@@ -37,6 +37,8 @@ def parse_command(
             value[key] = UUID(original)
             if str(value[key]) != original:
                 raise ValueError("Canonical identity required")
+    if model is CreateSolution and value.get("template_ref") is not None:
+        value["template_ref"] = FrozenContractRef(**value["template_ref"])
     if model is SaveSolution:
         for key in ("evaluation_suite", "semantic_prompt"):
             if value.get(key) is not None:

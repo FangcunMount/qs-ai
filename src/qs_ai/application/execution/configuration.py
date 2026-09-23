@@ -50,7 +50,7 @@ class PublishedReportWorkflow:
         self.reader, self.generation, self.factory = reader, generation, factory
 
     async def execute(self, claim: Claim, evidence: EvidenceSet) -> WorkflowResult:
-        if claim.session.workflow_version != "qs-published-snapshot-v1":
+        if not claim.session.uses_published_snapshot:
             return WorkflowResult("", failure_code="configuration_invalid")
         try:
             config = await self.reader.get(claim, evidence)

@@ -52,6 +52,7 @@ from qs_ai.infrastructure.persistence.mysql.solution_assets import (
     selected_release,
     source_release,
 )
+from qs_ai.infrastructure.persistence.mysql.solution_templates import template_catalog
 from qs_ai.infrastructure.persistence.mysql.suite_contracts import read as read_suite_contracts
 
 
@@ -258,8 +259,11 @@ class MySQLSolutions:
                         )
                     }
                 )
+                if "scene_contract_version" in state:
+                    items[-1]["scene_contract_version"] = state["scene_contract_version"]
             return {
                 "items": items,
+                "templates": await template_catalog(db, scope),
                 "next_cursor": rows[19]["solution_id"] if len(rows) > 20 else "",
             }
 
@@ -285,6 +289,8 @@ class MySQLSolutions:
         if not solution_id.int or at.tzinfo is None:
             raise ValueError("Solution identity and server time required")
         command_payload = asdict(command)
+        if isinstance(command, CreateSolution) and command.template_ref is None:
+            command_payload.pop("template_ref")  # Preserve original command receipt bytes.
         if isinstance(command, SaveSolution):
             for purpose in ("generation", "semantic"):
                 values = command_payload[purpose]
@@ -439,7 +445,7 @@ class MySQLSolutions:
         at: datetime,
     ) -> dict[str, Any]:
         release = await source_release(db, scope, command)
-        _, manifest = await generation_snapshot(db, release)
+        profile, manifest = await generation_snapshot(db, release)
         models = await model_values(db, release)
         binding = await read_suite_contracts(db, release.suite, scope.organization_id)
         version = f"solution-{solution_id}"
@@ -497,6 +503,11 @@ class MySQLSolutions:
             "prepared": None,
             **models,
         }
+        scene = json.loads(profile.definition_json).get("scene_contract_version")
+        if scene is not None:
+            state["scene_contract_version"] = scene
+        if command.template_ref is not None:
+            state["source"]["template_ref"] = asdict(command.template_ref)
         raw = encode(state)
         await db.execute(
             insert(solutions).values(

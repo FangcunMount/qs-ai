@@ -109,26 +109,10 @@ def _validate_snapshot(value: Any) -> dict[str, Any]:
         _plain(d["name"], 2000)
         for key in ("description", "suggestion"):
             _plain(d[key], 4000, False)
-        _bounded(d["raw_score"], 8, 40)
-        p = _fields(
-            d["pole_facts"],
-            "schema_version left_pole right_pole preference strength "
-            "min_score max_score threshold composition_order",
-        )
-        order = p["composition_order"]
-        if type(order) is not int or not 1 <= order <= 4 or order in preferences:
-            raise ValueError("Duplicate or invalid axis order")
-        if (
-            d["kind"] != "pole"
-            or p["schema_version"] != "mbti-pole-facts/v1"
-            or (d["code"], p["left_pole"], p["right_pole"]) != MBTI_AXES[order - 1]
-            or p["preference"] not in (p["left_pole"], p["right_pole"])
-        ):
-            raise ValueError("Invalid axis identity")
-        for key, expected in (("min_score", 8), ("max_score", 40), ("threshold", 24)):
-            _bounded(p[key], expected, expected)
-        _bounded(p["strength"], 0, 100)
-        preferences[order] = p["preference"]
+        order, preference = _pole_preference(d, d["raw_score"])
+        if order in preferences:
+            raise ValueError("Duplicate MBTI axis")
+        preferences[order] = preference
     if "".join(preferences[i] for i in range(1, 5)) != result["type_code"]:
         raise ValueError("Type and preferences conflict")
     suggestions = s["suggestions"]
@@ -146,6 +130,70 @@ def _validate_snapshot(value: Any) -> dict[str, Any]:
         if suggestion["dimension_code"] not in (None, "EI", "SN", "TF", "JP"):
             raise ValueError("Invalid suggestion dimension")
     return deepcopy(s)
+
+
+def _pole_preference(d: dict[str, Any], score: Any) -> tuple[int, str]:
+    """Shared structural facts for source reports and synthetic evaluation projections."""
+    _bounded(score, 8, 40)
+    p = _fields(
+        d["pole_facts"],
+        "schema_version left_pole right_pole preference strength "
+        "min_score max_score threshold composition_order",
+    )
+    order = p["composition_order"]
+    if type(order) is not int or not 1 <= order <= 4:
+        raise ValueError("Invalid axis order")
+    if (
+        d["kind"] != "pole"
+        or p["schema_version"] != "mbti-pole-facts/v1"
+        or (d["code"], p["left_pole"], p["right_pole"]) != MBTI_AXES[order - 1]
+        or p["preference"] not in (p["left_pole"], p["right_pole"])
+    ):
+        raise ValueError("Invalid axis identity")
+    for key, expected in (("min_score", 8), ("max_score", 40), ("threshold", 24)):
+        _bounded(p[key], expected, expected)
+    _bounded(p["strength"], 0, 100)
+    return order, p["preference"]
+
+
+def validate_mbti_projection(payload: dict[str, Any]) -> None:
+    """Validate synthetic facts after schema validation, without inventing report provenance."""
+    facts = payload["facts"]
+    model = facts["model"]
+    if (
+        tuple(model[k] for k in ("kind", "algorithm", "code", "version"))
+        != ("typology", "personality_typology", MBTI_MODEL, MBTI_VERSION)
+        or facts["runtime"]["decision_kind"] != "pole_composition"
+    ):
+        raise InvalidInput("Invalid MBTI evaluation model")
+    preferences = {}
+    references = set()
+    for d in facts["dimensions"]:
+        order, preference = _pole_preference(d, d["raw_score"]["value"])
+        if order in preferences or d["ref"] != "dimension:" + d["code"]:
+            raise InvalidInput("Invalid MBTI evaluation axes")
+        preferences[order] = preference
+        references.add(d["ref"])
+    if (
+        len(preferences) != 4
+        or "".join(preferences[i] for i in range(1, 5)) != facts["model_result"]["type_code"]
+    ):
+        raise InvalidInput("MBTI evaluation type conflicts with axes")
+    suggestions = {s["ref"] for s in facts["standard_suggestions"]}
+    if (
+        len(suggestions) != len(facts["standard_suggestions"])
+        or any(
+            ref not in suggestions
+            for d in facts["dimensions"]
+            for ref in d["standard_suggestion_refs"]
+        )
+        or any(
+            ref not in references
+            for s in facts["standard_suggestions"]
+            for ref in s["dimension_refs"]
+        )
+    ):
+        raise InvalidInput("Invalid MBTI evaluation suggestion references")
 
 
 def assemble_mbti(

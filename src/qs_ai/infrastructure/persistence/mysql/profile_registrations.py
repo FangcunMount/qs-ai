@@ -40,8 +40,8 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
     profile_registrations as registrations,
 )
 from qs_ai.infrastructure.qs_server.profiles import (
-    Definition,
     canonical_definition,
+    decode_profile_definition,
     decode_published_profile,
 )
 
@@ -67,7 +67,7 @@ def profile_from(command: RegisterProfile) -> ProfileAsset:
             result[key] = value
         return result
 
-    definition = Definition.model_validate(
+    definition = decode_profile_definition(
         json.loads(command.definition_json, object_pairs_hook=unique)
     )
     raw = canonical_definition(definition.model_dump())
@@ -87,6 +87,14 @@ async def validate_source(db: AsyncSession, command: RegisterProfile) -> None:
     )
     if source is None or reference(source) != command.source:
         raise ValueError("Original Profile source unavailable or changed")
+    original = json.loads(source.definition_json)
+    target = json.loads(profile_from(command).definition_json)
+    if "scene_contract_version" in original or "scene_contract_version" in target:
+        if any(
+            original.get(k) != target.get(k)
+            for k in ("schema_version", "scene_contract_version", "selector")
+        ):
+            raise ValueError("Derived Profile cannot change source scene")
 
 
 async def manifest_for(

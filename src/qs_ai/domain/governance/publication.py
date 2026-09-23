@@ -9,7 +9,7 @@ loaded from retained publication records, never supplied by a client.
 import hashlib
 import json
 import re
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import datetime
 from typing import Literal
 from uuid import UUID
@@ -62,6 +62,19 @@ class ReleaseSelector:
             or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._/-]{0,127}", self.model_version)
         ):
             raise ValueError("Selector version requires a model code")
+
+    def admission_candidates(self) -> tuple["ReleaseSelector", ...]:
+        if self.model_kind == "typology":
+            return (self,)
+        return tuple(
+            dict.fromkeys(
+                (
+                    self,
+                    replace(self, model_version=None),
+                    replace(self, model_code=None, model_version=None),
+                )
+            )
+        )
 
     @property
     def specificity(self) -> int:

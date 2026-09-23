@@ -115,6 +115,13 @@ def edit(state, **changes):
 async def test_save_survives_new_store_and_receipt_loss_and_scope_boundaries(workspace):
     tx, store, scope, sid, create, at = workspace
     first = await store.apply(scope, sid, create, at)
+    async with tx.open() as db:
+        original_command = await db.scalar(
+            select(tables.solution_commands.c.request_json).where(
+                tables.solution_commands.c.command_id == str(create.command_id)
+            )
+        )
+        assert "template_ref" not in json.loads(original_command)["command"]
     command = edit(first)
     saved = await store.apply(scope, sid, command, at)
     assert saved["revision"] == 2 and saved["generation"]["max_output_tokens"] == 4000

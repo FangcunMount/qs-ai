@@ -3,7 +3,12 @@
 import json
 from dataclasses import asdict, dataclass
 
-from qs_ai.application.interpretation.input import AssembledInput, InputPolicy, assemble_input
+from qs_ai.application.interpretation.input import (
+    AssembledInput,
+    InputPolicy,
+    MBTIInputPolicy,
+    assemble_input,
+)
 from qs_ai.application.interpretation.prompts import PromptMessages, PromptPackage, render_prompt
 from qs_ai.application.interpretation.release import ExplanationRelease
 from qs_ai.application.interpretation.service import fingerprint
@@ -57,6 +62,10 @@ def prepare_report_input(
     item = evidence.items[0]
     if len(item.facts) != 1 or item.facts[0].ref != "standard_report":
         raise RuleViolation("report_fact_missing")
+    if (session.workflow_version == "qs-published-snapshot-v2") != isinstance(
+        policy, MBTIInputPolicy
+    ):
+        raise RuleViolation("input_workflow_mismatch")
     assembled = assemble_input(
         item.facts[0].value,
         policy,

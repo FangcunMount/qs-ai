@@ -27,6 +27,27 @@ def fingerprint(value: object) -> str:
     ).hexdigest()
 
 
+def published_workflow_version(evidence: tuple[EvidenceItem, ...]) -> str:
+    """Select the finite decoder; bind_configuration still validates the entire source.
+
+    Malformed/unsupported reports retain the original admission rejection path.
+    A v2 tag alone never establishes validity, eligibility or an active publication.
+    """
+    if len(evidence) == 1 and len(evidence[0].facts) == 1:
+        fact = evidence[0].facts[0]
+        if fact.ref == "standard_report":
+            try:
+                snapshot = json.loads(fact.value)
+            except (ValueError, TypeError):
+                snapshot = None
+            if (
+                isinstance(snapshot, dict)
+                and snapshot.get("schema_version") == "qs-report-snapshot/v2"
+            ):
+                return "qs-published-snapshot-v2"
+    return "qs-published-snapshot-v1"
+
+
 def external_id(value: str) -> bool:
     return (
         len(value) <= 20
@@ -163,7 +184,7 @@ class InterpretationService:
             session = Session(str(uuid4()), actor, testee_id, assessment_ids, goal)
             session.queue(str(uuid4()))
             await uow.add(session)
-            session.workflow_version = "qs-published-snapshot-v1"
+            session.workflow_version = published_workflow_version(evidence)
             await uow.bind_request(session.id, request_id)
             try:
                 try:

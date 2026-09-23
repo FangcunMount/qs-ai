@@ -1,9 +1,11 @@
 """Deterministic output gates. Semantic safety remains a required separate gate."""
 
 import json
+import re
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+from qs_ai.application.interpretation.input import MBTIInputPolicy
 from qs_ai.application.interpretation.preparation import PreparedExplanation
 
 
@@ -76,4 +78,17 @@ def validate_output(
             raise InvalidOutput("suggestion_policy_mismatch")
         if len(item["actions"]) > policy.max_actions_per_item:
             raise InvalidOutput("too_many_actions")
-    return DeterministicOutput(json.dumps(content, ensure_ascii=False, separators=(",", ":")))
+    version = "qs-ai-output-deterministic/v1"
+    if isinstance(prepared.release.input_policy, MBTIInputPolicy):
+        # This scene explains the one supplied type, never other type labels.
+        # Deliberately bounded: this cannot detect every paraphrased fact error;
+        # the independent semantic and human reviews remain mandatory.
+        expected_type = facts["model_result"]["type_code"]
+        narrative = json.dumps(content, ensure_ascii=False)
+        mentioned = re.findall(r"(?<![A-Za-z])[IE][SN][FT][JP](?![A-Za-z])", narrative, re.I)
+        if any(code.upper() != expected_type for code in mentioned):
+            raise InvalidOutput("mbti_type_conflict")
+        version = "qs-ai-output-mbti-single-assessment/v1"
+    return DeterministicOutput(
+        json.dumps(content, ensure_ascii=False, separators=(",", ":")), version
+    )
