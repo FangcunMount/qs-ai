@@ -115,9 +115,9 @@ async def test_go_discovery_pagination_exact_detail_and_shared_read(go_client, k
         for item in shared["State"]["items"]
     ]
     if kind == "suite":
-        from qs_ai.infrastructure.qs_server.evaluation_suite import SUITE_FILES
+        from qs_ai.infrastructure.qs_server.evaluation_suite import V6_PUBLISHED
 
-        assert shared_keys == sorted((ref.id, ref.version) for ref in SUITE_FILES)
+        assert shared_keys == [(V6_PUBLISHED.id, V6_PUBLISHED.version)]
         private = next(key for key in seen if key not in shared_keys)
         denied = await go_client(
             "catalog-get",
