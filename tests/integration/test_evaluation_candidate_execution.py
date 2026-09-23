@@ -9,6 +9,7 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_generation_completions,
     evaluation_response_receipts,
     evaluation_runs,
+    evaluation_semantic_completions,
     evaluation_slot_claims,
 )
 from qs_ai.infrastructure.workflows.evaluation import execute_step
@@ -412,6 +413,19 @@ async def test_unknown_blocks_new_dispatch_but_other_calls_commit(parallel_run):
     assert run["progress_json"]["status"] == "blocked"
     assert run["progress_json"]["unresolved_result_unknown_count"] == 1
     async with tx.open() as db:
+        unknown = next(
+            row
+            for row in (
+                await db.execute(
+                    select(evaluation_generation_completions).where(
+                        evaluation_generation_completions.c.run_id == str(run_id)
+                    )
+                )
+            ).mappings()
+            if row["evidence_json"]["status"] == "result_unknown"
+        )
+    assert run["progress_json"]["transitions"][-1]["evidence_refs"] == [unknown["execution_id"]]
+    async with tx.open() as db:
         assert (
             len(
                 (
@@ -424,6 +438,135 @@ async def test_unknown_blocks_new_dispatch_but_other_calls_commit(parallel_run):
             )
             == 3
         )
+
+
+async def test_later_success_blocks_on_original_semantic_failure(parallel_run):
+    from datetime import timedelta
+
+    from qs_ai.domain.evaluation.contract_recovery import ContractRecovery
+    from qs_ai.infrastructure.persistence.mysql.evaluation_contract_recovery import (
+        authorize_contract_recovery,
+    )
+    from qs_ai.infrastructure.persistence.mysql.evaluation_projection import (
+        decode_semantic_completion,
+    )
+    from tests.integration.test_evaluation_runs import rows
+
+    class StagedGateway(ConcurrentGateway):
+        def __init__(self, context):
+            super().__init__(context)
+            self.release.set()
+            self.generation_count = 0
+            self.semantic_count = 0
+            self.generations_entered = asyncio.Event()
+            self.semantics_entered = asyncio.Event()
+            self.release_generations = asyncio.Event()
+            self.release_first_semantic = asyncio.Event()
+            self.release_second_semantic = asyncio.Event()
+
+        async def generate_messages(self, messages, route, schema, invocation_id):
+            data = json.loads(messages.data_json)
+            if "candidate_output" not in data:
+                self.generation_count += 1
+                if self.generation_count == 2:
+                    self.generations_entered.set()
+                await self.release_generations.wait()
+                return await super().generate_messages(messages, route, schema, invocation_id)
+            self.semantic_count += 1
+            first = self.semantic_count == 1
+            if self.semantic_count == 2:
+                self.semantics_entered.set()
+            await (self.release_first_semantic if first else self.release_second_semantic).wait()
+            response = await super().generate_messages(messages, route, schema, invocation_id)
+            if not first:
+                return response
+            content = json.loads(response.validation_output)
+            content["decisions"] = content["decisions"][:-1]
+            invalid = json.dumps(content)
+            return ModelResponse(
+                invocation_id,
+                response.request_id,
+                route.model,
+                invalid,
+                invalid,
+                response.normalization,
+                response.input_tokens,
+                response.output_tokens,
+                response.latency_milliseconds,
+            )
+
+    tx, run_id, *_ = parallel_run
+    gateway = StagedGateway(parallel_run)
+    generations = [asyncio.create_task(execute(parallel_run, gateway)) for _ in range(2)]
+    try:
+        await asyncio.wait_for(gateway.generations_entered.wait(), 5)
+    finally:
+        gateway.release_generations.set()
+    await asyncio.gather(*generations)
+    semantics = [asyncio.create_task(execute(parallel_run, gateway)) for _ in range(2)]
+    try:
+        await asyncio.wait_for(gateway.semantics_entered.wait(), 5)
+        gateway.release_first_semantic.set()
+        done, _ = await asyncio.wait(semantics, timeout=5, return_when=asyncio.FIRST_COMPLETED)
+        assert len(done) == 1 and next(iter(done)).result()
+        assert (await rows(tx, run_id))[0]["progress_json"]["status"] == "collecting"
+    finally:
+        gateway.release_second_semantic.set()
+    await asyncio.gather(*semantics)
+    from qs_ai.infrastructure.persistence.mysql.evaluation_worker import EvaluationWorker
+
+    worker = EvaluationWorker(
+        tx,
+        gateway,
+        parallel_run[3],
+        parallel_run[4],
+        "worker:parallel",
+        enabled=True,
+        candidate_limit=3,
+        clock=lambda: AT,
+    )
+    for _ in range(40):
+        await asyncio.gather(*(worker.once() for _ in range(3)))
+        if (await rows(tx, run_id))[0]["progress_json"]["status"] != "collecting":
+            break
+    run, _, checkpoint = await rows(tx, run_id)
+    assert run["progress_json"]["status"] == "blocked"
+    async with tx.open() as db:
+        completed = (
+            (
+                await db.execute(
+                    select(evaluation_semantic_completions).where(
+                        evaluation_semantic_completions.c.run_id == str(run_id)
+                    )
+                )
+            )
+            .mappings()
+            .all()
+        )
+    failed = next(row for row in completed if row["evidence_json"]["status"] == "failed")
+    assert len(completed) == 35
+    assert sum(row["evidence_json"]["status"] == "failed" for row in completed) == 1
+    assert run["progress_json"]["transitions"][-1]["cause_code"] == "semantic_recovery_not_allowed"
+    assert run["progress_json"]["transitions"][-1]["evidence_refs"] == [failed["execution_id"]]
+    target = decode_semantic_completion(failed)
+    release = json.loads(run["definition_json"])["release_fingerprint"]
+    recovery = ContractRecovery(
+        target.execution_id,
+        target.candidate_id,
+        target.candidate_output_fingerprint,
+        target.output_fingerprint,
+        "operator:test",
+        "核对原语义输出契约失败后授权一次受限恢复",
+        AT + timedelta(seconds=1),
+        True,
+    )
+    # Preview the real transaction without committing or calling the provider.
+    async with tx.open() as db:
+        preview = await authorize_contract_recovery(
+            db, run_id, checkpoint["version"], 1, release, recovery, confirm=True
+        )
+    assert preview.version == checkpoint["version"] + 1
+    assert (await rows(tx, run_id))[0]["progress_json"]["status"] == "blocked"
 
 
 async def test_prepared_claim_releases_without_unknown_and_renewal_fences_recovery(parallel_run):

@@ -1,6 +1,7 @@
 """Fence candidate ownership, then aggregate only after durable completion is accepted."""
 
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select, update
@@ -16,7 +17,72 @@ from qs_ai.infrastructure.persistence.mysql.evaluation_slot_claims import (
     release_claim,
     require_claim,
 )
-from qs_ai.infrastructure.persistence.mysql.schema import evaluation_runs
+from qs_ai.infrastructure.persistence.mysql.schema import (
+    evaluation_generation_completions,
+    evaluation_runs,
+    evaluation_semantic_completions,
+)
+
+
+async def _blocked_execution(
+    db: AsyncSession, run_id: UUID, progress: dict, cause: str, blocked: tuple
+) -> tuple[str, datetime]:
+    """Bind a Run block to the terminal evidence that caused it, not the last draining claim."""
+    if cause == "result_unknown_requires_review":
+        resolved = {
+            value["execution_id"] for value in progress.get("result_unknown_resolutions", [])
+        }
+        rows: list[Any] = []
+        for table in (evaluation_generation_completions, evaluation_semantic_completions):
+            rows.extend(
+                (
+                    await db.execute(
+                        select(table.c.execution_id, table.c.evidence_json).where(
+                            table.c.run_id == str(run_id)
+                        )
+                    )
+                ).mappings()
+            )
+        unknowns = [
+            row
+            for row in rows
+            if row["execution_id"] not in resolved
+            and row["evidence_json"]["status"] == "result_unknown"
+        ]
+        if not unknowns:
+            raise CheckpointConflict("Unresolved unknown result lacks terminal evidence")
+        row = min(unknowns, key=lambda item: item["evidence_json"]["finished_at"])
+    else:
+        if not blocked or blocked[0].cause != cause:
+            raise CheckpointConflict("Blocked candidate differs from projected cause")
+        action = blocked[0]
+        if cause.startswith("semantic_"):
+            table = evaluation_semantic_completions
+            conditions: tuple[Any, ...] = (table.c.candidate_id == action.candidate_id,)
+        elif cause.startswith("generation_"):
+            table = evaluation_generation_completions
+            conditions = (
+                table.c.case_id == action.case_id,
+                table.c.slot_ordinal == action.slot_ordinal,
+            )
+        else:
+            raise CheckpointConflict("Unsupported candidate block cause")
+        row = (
+            (
+                await db.execute(
+                    select(table.c.execution_id, table.c.evidence_json).where(
+                        table.c.run_id == str(run_id),
+                        table.c.execution_ordinal == action.execution_ordinal - 1,
+                        *conditions,
+                    )
+                )
+            )
+            .mappings()
+            .one_or_none()
+        )
+        if row is None or row["evidence_json"]["status"] == "succeeded":
+            raise CheckpointConflict("Candidate block lacks failed terminal evidence")
+    return row["execution_id"], datetime.fromisoformat(row["evidence_json"]["finished_at"])
 
 
 async def completion_owner(
@@ -69,7 +135,13 @@ async def complete_claim(
                 target, cause = "awaiting_review", "candidate_evidence_complete"
             elif plan.blocked and not plan.ready:
                 target, cause = "blocked", plan.blocked[0].cause
-    at = max([at, *(datetime.fromisoformat(t["at"]) for t in progress["transitions"])])
+    reference = claim.checkpoint.execution_id
+    if target == "blocked":
+        reference, at = await _blocked_execution(db, run_id, progress, cause, plan.blocked)
+        if at < datetime.fromisoformat(progress["transitions"][-1]["at"]):
+            raise CheckpointConflict("Blocked evidence predates the current Run transition")
+    else:
+        at = max([at, *(datetime.fromisoformat(t["at"]) for t in progress["transitions"])])
     if target and target != progress["status"]:
         progress = {
             **progress,
@@ -82,7 +154,7 @@ async def complete_claim(
                     "cause_code": cause,
                     "actor": actor,
                     "at": at.isoformat(),
-                    "evidence_refs": [claim.checkpoint.execution_id],
+                    "evidence_refs": [reference],
                 },
             ],
         }
