@@ -8,6 +8,7 @@ from dishka import AsyncContainer
 from grpc import aio
 
 from qs_ai.application.interpretation.commands import AnswerCommand, CancelCommand
+from qs_ai.application.interpretation.eligibility import EligibilityReader
 from qs_ai.application.interpretation.ports import AccessDenied, DependencyUnavailable, Receipt
 from qs_ai.application.interpretation.service import InterpretationService
 from qs_ai.contracts.workflow import workflow_pb2 as pb
@@ -34,6 +35,38 @@ class Commands(rpc.CommandsServicer):
             b"qs-apiserver.svc"
         ]:
             await context.abort(grpc.StatusCode.PERMISSION_DENIED, "Untrusted workload")
+
+    async def CheckEligibility(
+        self, request: pb.EligibilityQuery, context: aio.ServicerContext[Any, Any]
+    ) -> pb.EligibilityStatus:
+        await self._authorize(context)
+        try:
+            actor = Actor(request.actor.org_id, request.actor.subject_id)
+            async with self.container() as operation:
+                reader = await operation.get(EligibilityReader)
+                result = await reader.check(
+                    actor,
+                    request.testee_id,
+                    tuple(request.assessment_ids),
+                    tuple(
+                        EvidenceItem(
+                            item.assessment_id,
+                            item.testee_id,
+                            item.report_id,
+                            item.source_version,
+                            tuple(Fact(f.ref, f.value) for f in item.facts),
+                        )
+                        for item in request.evidence
+                    ),
+                )
+            return pb.EligibilityStatus(status=result.status, reason_code=result.reason_code)
+        except AccessDenied:
+            await context.abort(grpc.StatusCode.PERMISSION_DENIED, "Resource access denied")
+        except (RuleViolation, ValueError):
+            await context.abort(grpc.StatusCode.INVALID_ARGUMENT, "Invalid eligibility query")
+        except Exception:
+            await context.abort(grpc.StatusCode.UNAVAILABLE, "Eligibility temporarily unavailable")
+        raise AssertionError("abort must raise")
 
     @asynccontextmanager
     async def _translate_errors(

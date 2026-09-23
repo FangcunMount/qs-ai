@@ -425,6 +425,10 @@ async def synthetic_publication_and_generation(tx, manager, scope, view, prepare
     original = publication.change.current.active
     assert original is not None
     _, evidence, _ = mbti_case()
+    from qs_ai.application.interpretation.eligibility import Eligibility
+    from tests.integration.test_eligibility import readonly_check
+
+    assert await readonly_check(tx, kit.actor, evidence.items) == Eligibility("available")
     request_id = str(uuid4())
     receipt = await kit.service.start_external(
         kit.actor, "7", ("42",), "MBTI 解读", request_id, evidence.items
@@ -482,6 +486,9 @@ async def synthetic_publication_and_generation(tx, manager, scope, view, prepare
         ),
         at + timedelta(seconds=4),
     )
+    assert await readonly_check(tx, kit.actor, evidence.items) == Eligibility(
+        "unavailable", "publication_paused"
+    )
     await expire(kit, receipt.session_id)
     assert await ExecuteNext(kit.store, kit.source, workflow(kit, model)).once()
     result = await read_session(kit.service.uows, receipt.session_id)
@@ -524,6 +531,12 @@ async def test_initialized_template_alone_cannot_admit_mbti_generation(workspace
     from tests.test_mbti_runtime import mbti_case
 
     _, evidence, _ = mbti_case()
+    from qs_ai.application.interpretation.eligibility import Eligibility
+    from tests.integration.test_eligibility import readonly_check
+
+    assert await readonly_check(workspace[0], kit.actor, evidence.items) == Eligibility(
+        "unavailable", "publication_missing"
+    )
     request_id = str(uuid4())
     receipt = await kit.service.start_external(
         kit.actor, "7", ("42",), "未发布 MBTI", request_id, evidence.items

@@ -34,6 +34,11 @@ class CommandsStub:
         Args:
             channel: A grpc.Channel.
         """
+        self.CheckEligibility = channel.unary_unary(
+                '/qsai.workflow.v1.Commands/CheckEligibility',
+                request_serializer=workflow__pb2.EligibilityQuery.SerializeToString,
+                response_deserializer=workflow__pb2.EligibilityStatus.FromString,
+                _registered_method=True)
         self.Start = channel.unary_unary(
                 '/qsai.workflow.v1.Commands/Start',
                 request_serializer=workflow__pb2.StartCommand.SerializeToString,
@@ -48,6 +53,14 @@ class CommandsStub:
 
 class CommandsServicer:
     """Missing associated documentation comment in .proto file."""
+
+    def CheckEligibility(self, request, context):
+        """QS-authorized immutable report only. No reservation, session or model call.
+        A successful preflight is not an admission grant; Start checks again.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
 
     def Start(self, request, context):
         """Missing associated documentation comment in .proto file."""
@@ -64,6 +77,11 @@ class CommandsServicer:
 
 def add_CommandsServicer_to_server(servicer, server):
     rpc_method_handlers = {
+            'CheckEligibility': grpc.unary_unary_rpc_method_handler(
+                    servicer.CheckEligibility,
+                    request_deserializer=workflow__pb2.EligibilityQuery.FromString,
+                    response_serializer=workflow__pb2.EligibilityStatus.SerializeToString,
+            ),
             'Start': grpc.unary_unary_rpc_method_handler(
                     servicer.Start,
                     request_deserializer=workflow__pb2.StartCommand.FromString,
@@ -84,6 +102,33 @@ def add_CommandsServicer_to_server(servicer, server):
  # This class is part of an EXPERIMENTAL API.
 class Commands:
     """Missing associated documentation comment in .proto file."""
+
+    @staticmethod
+    def CheckEligibility(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.Commands/CheckEligibility',
+            workflow__pb2.EligibilityQuery.SerializeToString,
+            workflow__pb2.EligibilityStatus.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
 
     @staticmethod
     def Start(request,

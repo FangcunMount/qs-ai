@@ -14,6 +14,26 @@ class Actor(_message.Message):
     subject_id: str
     def __init__(self, org_id: _Optional[str] = ..., subject_id: _Optional[str] = ...) -> None: ...
 
+class EligibilityQuery(_message.Message):
+    __slots__ = ("actor", "testee_id", "assessment_ids", "evidence")
+    ACTOR_FIELD_NUMBER: _ClassVar[int]
+    TESTEE_ID_FIELD_NUMBER: _ClassVar[int]
+    ASSESSMENT_IDS_FIELD_NUMBER: _ClassVar[int]
+    EVIDENCE_FIELD_NUMBER: _ClassVar[int]
+    actor: Actor
+    testee_id: str
+    assessment_ids: _containers.RepeatedScalarFieldContainer[str]
+    evidence: _containers.RepeatedCompositeFieldContainer[EvidenceItem]
+    def __init__(self, actor: _Optional[_Union[Actor, _Mapping]] = ..., testee_id: _Optional[str] = ..., assessment_ids: _Optional[_Iterable[str]] = ..., evidence: _Optional[_Iterable[_Union[EvidenceItem, _Mapping]]] = ...) -> None: ...
+
+class EligibilityStatus(_message.Message):
+    __slots__ = ("status", "reason_code")
+    STATUS_FIELD_NUMBER: _ClassVar[int]
+    REASON_CODE_FIELD_NUMBER: _ClassVar[int]
+    status: str
+    reason_code: str
+    def __init__(self, status: _Optional[str] = ..., reason_code: _Optional[str] = ...) -> None: ...
+
 class StartCommand(_message.Message):
     __slots__ = ("request_id", "actor", "testee_id", "assessment_ids", "goal", "evidence")
     REQUEST_ID_FIELD_NUMBER: _ClassVar[int]

@@ -10,6 +10,7 @@ from qs_ai.application.execution.retry import ParticipantRetryStore, RetryPartic
 from qs_ai.application.execution.runtime import RuntimeReader
 from qs_ai.application.execution.worker import ExecuteNext
 from qs_ai.application.governance.quotas import QuotaBaseline
+from qs_ai.application.interpretation.eligibility import EligibilityReader
 from qs_ai.application.interpretation.ports import (
     EvidenceSource,
     ExecutionStore,
@@ -21,6 +22,7 @@ from qs_ai.infrastructure.interpretation.unconfigured import (
     UnconfiguredEvidenceSource,
 )
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
+from qs_ai.infrastructure.persistence.mysql.eligibility import MySQLEligibilityReader
 from qs_ai.infrastructure.persistence.mysql.execution import MySQLExecutionStore
 from qs_ai.infrastructure.persistence.mysql.interpretation import MySQLUnitOfWorkFactory
 from qs_ai.infrastructure.persistence.mysql.participant_management import (
@@ -33,6 +35,8 @@ from qs_ai.infrastructure.qs_server.report_probe import mtls_channel
 
 
 class InterpretationProvider(Provider):
+    eligibility = provide(MySQLEligibilityReader, provides=EligibilityReader, scope=Scope.REQUEST)
+
     @provide(scope=Scope.APP)
     def participant_capacity(self, settings: Settings) -> ParticipantCapacityPolicy:
         return ParticipantCapacityPolicy(**settings.participant_capacity.model_dump())
