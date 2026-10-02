@@ -2,6 +2,7 @@
 
 import json
 import unicodedata
+from typing import Any
 
 from qs_ai.application.interpretation.output import (
     DeterministicOutput,
@@ -37,9 +38,19 @@ def evaluate_candidate_assertions(
     case_id: str,
     *,
     frozen_suite: FrozenSuite | None = None,
+    output_schema: dict[str, Any] | None = None,
 ) -> tuple[AssertionReceipt, ...]:
     inventory = assertion_inventory(suite, case_id, frozen_suite=frozen_suite)
-    parser = QSOutputParser()
+    version = json.loads(prepared.release.definition_json)["generation_policy"][
+        "output_schema_version"
+    ]
+    if output_schema is None and version != "ai-explanation-output/v1":
+        raise ValueError("Frozen output schema required for thematic evaluation")
+    parser = (
+        QSOutputParser.from_schema(output_schema) if output_schema is not None else QSOutputParser()
+    )
+    if parser.schema()["properties"]["schema_version"]["const"] != version:
+        raise ValueError("Evaluation output schema differs from frozen Profile")
     content = None
     validation = ""
     safety = "unavailable"
@@ -55,7 +66,12 @@ def evaluate_candidate_assertions(
         except InvalidOutput as error:
             validation = (
                 "reference"
-                if error.code in {"unresolved_evidence", "unresolved_standard_suggestion"}
+                if error.code
+                in {
+                    "unresolved_evidence",
+                    "unresolved_standard_suggestion",
+                    "unresolved_topic_reference",
+                }
                 else "profile"
             )
         try:
@@ -101,7 +117,25 @@ def evaluate_candidate_assertions(
             status = "failed" if safety else "pending_semantic"
         elif name in SEMANTIC_TYPES:
             status = "blocked" if safety else "pending_semantic"
+        elif name == "output_character_limit":
+            status = (
+                "passed"
+                if 0 < parameters["maximum"] and len(canonical) <= parameters["maximum"]
+                else "failed"
+            )
+        elif name == "forbid_literal_substrings":
+            normalized = unicodedata.normalize("NFC", canonical).casefold()
+            status = (
+                "passed"
+                if all(
+                    unicodedata.normalize("NFC", value).casefold() not in normalized
+                    for value in parameters["values"]
+                )
+                else "failed"
+            )
         else:
+            if version != "ai-explanation-output/v1":
+                raise ValueError("Legacy assertion incompatible with thematic output contract")
             insights, suggestions = content["integrated_insights"], content["suggestions"]
             groups = [
                 {r["ref"] for r in i["evidence_refs"] if r["kind"] == "dimension"} for i in insights
@@ -112,8 +146,6 @@ def evaluate_candidate_assertions(
                 matched = all(
                     parameters["minimum"] <= len(g) <= parameters["maximum"] for g in groups
                 )
-            elif name == "output_character_limit":
-                matched = 0 < parameters["maximum"] and len(canonical) <= parameters["maximum"]
             elif name == "insight_kind_any_of":
                 matched = any(i["kind"] in parameters["values"] for i in insights)
             elif name in ("insight_references_group", "forbid_dimension_group"):
@@ -129,12 +161,6 @@ def evaluate_candidate_assertions(
             elif name == "forbid_source_suggestion_ref":
                 matched = all(
                     parameters["ref"] not in s["source_suggestion_refs"] for s in suggestions
-                )
-            elif name == "forbid_literal_substrings":
-                normalized = unicodedata.normalize("NFC", canonical).casefold()
-                matched = all(
-                    unicodedata.normalize("NFC", value).casefold() not in normalized
-                    for value in parameters["values"]
                 )
             else:
                 raise ValueError("Unsupported frozen generation assertion")

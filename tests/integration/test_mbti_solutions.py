@@ -19,7 +19,7 @@ from qs_ai.infrastructure.persistence.mysql.solution_templates import (
     template_release,
 )
 from qs_ai.infrastructure.persistence.mysql.solutions import MySQLSolutions
-from qs_ai.infrastructure.qs_server.evaluation_suite import MBTI_ROOT
+from qs_ai.infrastructure.qs_server.evaluation_suite import MBTI_ROOT, MBTI_THEMES_ROOT
 from tests.integration.test_interpretation import kit as kit
 from tests.integration.test_mbti_initialization import (
     apply,
@@ -176,8 +176,9 @@ async def test_template_damaged_prompt_cannot_adopt_new_content(workspace):
 
 
 @pytest.mark.parametrize("recover_receipt", [False, True])
+@pytest.mark.parametrize("thematic", [False, True])
 async def test_complete_mbti_run_uses_existing_graph_and_frozen_assets(
-    workspace, monkeypatch, recover_receipt, kit
+    workspace, initialized_dependencies, monkeypatch, recover_receipt, thematic, kit
 ):
     from qs_ai.application.evaluation.management import ManagementScope
     from qs_ai.application.interpretation.provider import ModelResponse
@@ -190,6 +191,15 @@ async def test_complete_mbti_run_uses_existing_graph_and_frozen_assets(
     from tests.test_mbti_runtime import mbti_output
 
     tx, store, scope, sid, command, at = workspace
+    if thematic:
+        from qs_ai.bootstrap.import_mbti_assets import install
+        from qs_ai.infrastructure.qs_server.mbti_assets import load_mbti_themes_root
+
+        _, actor, commit = initialized_dependencies
+        async with tx.open() as db:
+            await install(db, load_mbti_themes_root(), commit, actor)
+            await db.commit()
+        command = replace(command, template_ref=MBTI_THEMES_ROOT)
     await store.apply(scope, sid, command, at)
     prepared = await store.apply(
         scope,
@@ -238,10 +248,27 @@ async def test_complete_mbti_run_uses_existing_graph_and_frozen_assets(
                 }
             else:
                 self.types.add(data["facts"]["model_result"]["type_code"])
-                output = mbti_output()
-                output["summary"] = (
-                    "本次测评呈现 " + data["facts"]["model_result"]["type_code"] + " 偏好组合。"
-                )
+                type_code = data["facts"]["model_result"]["type_code"]
+                if thematic:
+                    from tests.test_mbti_themes_output import output as thematic_output
+
+                    output = thematic_output()
+                    output["summary"]["content"] = "本次测评呈现 " + type_code + " 偏好组合。"
+                    for section in output["sections"]:
+                        reference = "reference:" + next(
+                            e["entry_id"]
+                            for e in data["reference_material"]["entries"]
+                            if e["topic"] == section["topic"] and e["axis"] == "EI"
+                        )
+                        for item in (
+                            *section["insights"],
+                            *section["reflection_questions"],
+                            *section["actions"],
+                        ):
+                            item["reference_refs"] = [reference]
+                else:
+                    output = mbti_output()
+                    output["summary"] = "本次测评呈现 " + type_code + " 偏好组合。"
             raw = json.dumps(output, ensure_ascii=False)
             return ModelResponse(
                 invocation_id, "synthetic:" + invocation_id, route.model, raw, raw, "none", 1, 2, 3
@@ -305,7 +332,7 @@ async def test_complete_mbti_run_uses_existing_graph_and_frozen_assets(
             )
         ).all()
         assert len(receipt_ids) == 70
-    if not recover_receipt:
+    if not recover_receipt and not thematic:
         await synthetic_publication_and_generation(
             tx, manager, management_scope, view, prepared, at, kit
         )

@@ -25,7 +25,7 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
     semantic_prompt_assets,
     sessions,
 )
-from qs_ai.infrastructure.qs_server.mbti_assets import load_mbti_root
+from qs_ai.infrastructure.qs_server.mbti_assets import load_mbti_root, load_mbti_themes_root
 
 pytestmark = pytest.mark.integration
 
@@ -169,6 +169,70 @@ async def test_late_dependency_failure_rolls_back_all_new_assets(initialized_dep
                 .select_from(schema_assets)
                 .where(
                     schema_assets.c.schema_id == "ai-explanation-input",
+                    schema_assets.c.version == "v2",
+                )
+            )
+            == 0
+        )
+
+
+async def test_thematic_root_import_and_template_keep_original_versions(initialized_dependencies):
+    from qs_ai.application.governance.prompt_drafts import DraftScope
+    from qs_ai.infrastructure.persistence.mysql.solution_templates import (
+        template_catalog,
+        template_release,
+    )
+
+    tx, actor, commit = initialized_dependencies
+    before = await counts(tx)
+    assert await apply(tx, actor, commit) == 5
+    root = load_mbti_themes_root()
+    async with tx.open() as db:
+        await db.connection(execution_options={"isolation_level": "SERIALIZABLE"})
+        assert await install(db, root, commit, actor) == 6
+        await db.commit()
+    async with tx.open() as db:
+        assert await install(db, root, "b" * 40, "replay-operator") == 0
+        assert (
+            await load_registered_suite(db, root.suite.reference, organization_id=1) == root.suite
+        )
+        catalog = await template_catalog(db, DraftScope(1, 42))
+        assert [entry["template_ref"]["version"] for entry in catalog] == ["v1", "three-topic-v1"]
+        assert all(entry["published"] is False for entry in catalog)
+        assert await template_release(db, DraftScope(1, 42), root.suite.reference) == root.release
+        await db.commit()
+    assert await counts(tx) == before
+
+
+async def test_thematic_root_late_validation_failure_is_atomic(
+    initialized_dependencies, monkeypatch
+):
+    from qs_ai.bootstrap import import_mbti_assets
+
+    tx, actor, commit = initialized_dependencies
+    root = load_mbti_themes_root()
+
+    async def unavailable_after_insert(*args, **kwargs):
+        raise ValueError("isolated late validation failure")
+
+    monkeypatch.setattr(import_mbti_assets, "validate_release_assets", unavailable_after_insert)
+    with pytest.raises(ValueError, match="isolated late validation failure"):
+        async with tx.open() as db:
+            await install(db, root, commit, actor)
+    async with tx.open() as db:
+        for table in (evaluation_suites, semantic_prompt_assets, profile_assets, prompt_assets):
+            assert (
+                await db.scalar(
+                    select(func.count()).select_from(table).where(table.c.imported_by == actor)
+                )
+                == 0
+            )
+        assert (
+            await db.scalar(
+                select(func.count())
+                .select_from(schema_assets)
+                .where(
+                    schema_assets.c.schema_id == "ai-explanation-output",
                     schema_assets.c.version == "v2",
                 )
             )

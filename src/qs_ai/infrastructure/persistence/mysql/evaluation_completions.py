@@ -245,6 +245,7 @@ async def complete_evaluated_generation(
 ) -> CheckpointState:
     """Compute original case assertions; callers cannot supply a passing assertion list."""
     from qs_ai.infrastructure.persistence.mysql.evaluation_assets import (
+        frozen_output_schema,
         prepare_run_case,
         stored_run_suite,
     )
@@ -274,6 +275,7 @@ async def complete_evaluated_generation(
             release.suite,
             completion.case_id,
             frozen_suite=await stored_run_suite(db, creation),
+            output_schema=await frozen_output_schema(release, schemas),
         )
     return await complete_generation(
         db,

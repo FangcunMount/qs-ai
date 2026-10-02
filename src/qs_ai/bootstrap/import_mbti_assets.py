@@ -28,7 +28,11 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
     semantic_prompt_assets,
 )
 from qs_ai.infrastructure.qs_server.evaluation_release import validate_release_assets
-from qs_ai.infrastructure.qs_server.mbti_assets import MBTIRootAssets, load_mbti_root
+from qs_ai.infrastructure.qs_server.mbti_assets import (
+    MBTIRootAssets,
+    load_mbti_root,
+    load_mbti_themes_root,
+)
 from qs_ai.infrastructure.qs_server.semantic_assets import semantic_assets
 
 
@@ -75,7 +79,7 @@ async def install(
         route = await routes.get(ref.id, ref.version)
         if route is None or route.fingerprint != ref.fingerprint:
             raise ValueError("MBTI initial model route unavailable or changed")
-    entries = (
+    entries = [
         (prompt_assets, asdict(assets.prompt)),
         (profile_assets, asdict(assets.profile)),
         (schema_assets, asdict(assets.input_schema)),
@@ -89,7 +93,9 @@ async def install(
                 "markdown": assets.semantic.markdown,
             },
         ),
-    )
+    ]
+    if assets.output_schema is not None:
+        entries.append((schema_assets, asdict(assets.output_schema)))
     inserted = 0
     for table, values in entries:
         inserted += await insert_exact(db, table, values, source, imported_by)
@@ -113,8 +119,9 @@ async def install(
     return inserted
 
 
-async def run(source_commit: str, imported_by: str) -> int:
-    assets = await asyncio.to_thread(load_mbti_root)
+async def run(source_commit: str, imported_by: str, root: str = "v1") -> int:
+    loaders = {"v1": load_mbti_root, "three-topic-v1": load_mbti_themes_root}
+    assets = await asyncio.to_thread(loaders[root])
     settings = Settings()
     if settings.database_url is None:
         raise ValueError("Database required")
@@ -133,9 +140,10 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--source-commit", required=True)
     parser.add_argument("--imported-by", required=True)
+    parser.add_argument("--root", choices=("v1", "three-topic-v1"), default="v1")
     args = parser.parse_args()
     try:
-        inserted = asyncio.run(run(args.source_commit, args.imported_by))
+        inserted = asyncio.run(run(args.source_commit, args.imported_by, args.root))
     except Exception as error:
         print(json.dumps({"import": "failed", "error_type": type(error).__name__}))
         raise SystemExit(1) from None
