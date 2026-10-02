@@ -1,4 +1,4 @@
-"""One initialized MBTI starting template; DB assets, never a file or latest fallback."""
+"""Exact initialized MBTI templates; DB assets, never a file or latest fallback."""
 
 import json
 from dataclasses import asdict
@@ -25,13 +25,13 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
     schema_assets,
 )
 from qs_ai.infrastructure.qs_server.evaluation_release import validate_release_assets
-from qs_ai.infrastructure.qs_server.evaluation_suite import MBTI_ROOT
+from qs_ai.infrastructure.qs_server.evaluation_suite import MBTI_ROOT, MBTI_THEMES_ROOT
 
 
 async def template_release(
     db: AsyncSession, scope: DraftScope, reference: FrozenContractRef
 ) -> EvidenceReleaseIdentity:
-    if reference != MBTI_ROOT:
+    if reference not in (MBTI_ROOT, MBTI_THEMES_ROOT):
         raise NotFound("Template unavailable")
     suite = await load_registered_suite(db, reference, organization_id=scope.organization_id)
     document = json.loads(suite.definition_json)
@@ -58,29 +58,35 @@ async def template_release(
 
 
 async def template_catalog(db: AsyncSession, scope: DraftScope) -> list[dict[str, Any]]:
-    # Absence means not initialized. DB errors and damaged assets must remain errors.
-    installed = await db.scalar(
-        select(evaluation_suites.c.suite_id).where(
-            evaluation_suites.c.organization_id == 0,
-            evaluation_suites.c.suite_id == MBTI_ROOT.id,
-            evaluation_suites.c.suite_version == MBTI_ROOT.version,
+    # Each version is explicit. No guessed identity, latest selection or file fallback.
+    result = []
+    for reference, name in (
+        (MBTI_ROOT, "MBTI 单次解读首版"),
+        (MBTI_THEMES_ROOT, "MBTI 三主题单次解读首版"),
+    ):
+        installed = await db.scalar(
+            select(evaluation_suites.c.suite_id).where(
+                evaluation_suites.c.organization_id == 0,
+                evaluation_suites.c.suite_id == reference.id,
+                evaluation_suites.c.suite_version == reference.version,
+            )
         )
-    )
-    if installed is None:
-        return []
-    release = await template_release(db, scope, MBTI_ROOT)
-    profile = await AssetSnapshotReader(db, profile_assets, ProfileAsset).get(
-        release.profile.id, release.profile.version
-    )
-    assert profile is not None  # verified above in this transaction
-    definition = json.loads(profile.definition_json)
-    return [
-        {
-            "name": "MBTI 单次解读首版",
-            "template_ref": asdict(MBTI_ROOT),
-            "scene_contract_version": definition["scene_contract_version"],
-            "selector": definition["selector"],
-            "published": False,
-            "reason": "requires_evaluation_review_and_publication",
-        }
-    ]
+        if installed is None:
+            continue
+        release = await template_release(db, scope, reference)
+        profile = await AssetSnapshotReader(db, profile_assets, ProfileAsset).get(
+            release.profile.id, release.profile.version
+        )
+        assert profile is not None  # verified in this transaction
+        definition = json.loads(profile.definition_json)
+        result.append(
+            {
+                "name": name,
+                "template_ref": asdict(reference),
+                "scene_contract_version": definition["scene_contract_version"],
+                "selector": definition["selector"],
+                "published": False,
+                "reason": "requires_evaluation_review_and_publication",
+            }
+        )
+    return result

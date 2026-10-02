@@ -22,6 +22,12 @@ SEMANTIC_TYPES = frozenset(
         "focus_area_guides_emphasis",
         "focus_area_not_treated_as_fact",
         "ignore_embedded_instruction",
+        "three_topics_substantive",
+        "reference_claims_supported",
+        "facts_and_references_distinct",
+        "career_exploration_only",
+        "relationships_communication_only",
+        "questions_and_actions_specific",
     }
 )
 

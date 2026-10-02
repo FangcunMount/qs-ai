@@ -1,6 +1,7 @@
 """Frozen judge instructions and explicit untrusted evaluation data projection."""
 
 import json
+from typing import Any
 
 from qs_ai.application.interpretation.preparation import PreparedExplanation
 from qs_ai.application.interpretation.prompts import PromptMessages
@@ -24,6 +25,7 @@ def prepare_semantic_messages(
     prepared: PreparedExplanation,
     assets: SemanticAssets,
     frozen_suite: FrozenSuite | None = None,
+    output_schema: dict[str, Any] | None = None,
 ) -> PromptMessages:
     if generation.status != "succeeded":
         raise ValueError("Semantic evaluation requires accepted generation evidence")
@@ -42,6 +44,16 @@ def prepare_semantic_messages(
     if not 1 <= len(obligations) <= 32:
         raise ValueError("Semantic obligation count outside contract")
     parameters = {(a.type, a.scope, a.ordinal): json.loads(a.parameters_json) for a in inventory}
+    version = json.loads(prepared.release.definition_json)["generation_policy"][
+        "output_schema_version"
+    ]
+    if output_schema is None and version != "ai-explanation-output/v1":
+        raise ValueError("Frozen output schema required for thematic semantic input")
+    parser = (
+        QSOutputParser.from_schema(output_schema) if output_schema is not None else QSOutputParser()
+    )
+    if parser.schema()["properties"]["schema_version"]["const"] != version:
+        raise ValueError("Semantic input output schema differs from frozen Profile")
     payload = {
         "schema_version": "ai-explanation-semantic-evaluation-input/v1",
         "suite_id": release.suite.id,
@@ -49,7 +61,7 @@ def prepare_semantic_messages(
         # Original v2 runner uses the candidate slot ordinal, not retry ordinal.
         "attempt": generation.slot_ordinal,
         "assessment_input": json.loads(prepared.assembled_input.provider_payload),
-        "candidate_output": QSOutputParser().parse(generation.normalized_output.decode()),
+        "candidate_output": parser.parse(generation.normalized_output.decode()),
         "assertions": [
             dict(
                 type=a.type,

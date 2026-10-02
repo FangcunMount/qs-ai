@@ -11,6 +11,7 @@ from qs_ai.application.interpretation.preparation import PreparedExplanation
 from qs_ai.application.interpretation.prompt_assets import executable_prompt
 from qs_ai.application.interpretation.provider import ModelRoute
 from qs_ai.application.interpretation.route_assets import executable_route
+from qs_ai.application.interpretation.schema_assets import SchemaAssets
 from qs_ai.domain.evaluation.identity import EvidenceReleaseIdentity, FrozenContractRef
 from qs_ai.domain.governance.prompt import PromptAsset
 from qs_ai.domain.governance.route import RouteAsset
@@ -116,3 +117,22 @@ def require_generation_manifest(creation: dict[str, Any]) -> None:
         for key in ("generation_manifest_json", "generation_manifest_fingerprint")
     ):
         raise ValueError("Frozen generation manifest is required for execution")
+
+
+async def frozen_output_schema(
+    release: EvidenceReleaseIdentity, schemas: SchemaAssets
+) -> dict[str, Any]:
+    """Original immutable output schema for generation, assertions and judge input."""
+    ref = release.output_schema
+    asset = await schemas.get(ref.id, ref.version.removeprefix(ref.id + "/"))
+    if asset is None or (
+        asset.schema_id,
+        asset.schema_id + "/" + asset.version,
+        asset.fingerprint,
+        "sha256:" + hashlib.sha256(asset.definition_json.encode()).hexdigest(),
+    ) != (ref.id, ref.version, ref.fingerprint, ref.fingerprint):
+        raise ValueError("Frozen output schema unavailable")
+    schema = json.loads(asset.definition_json)
+    if schema["properties"]["schema_version"]["const"] != ref.version:
+        raise ValueError("Frozen output schema version mismatch")
+    return schema

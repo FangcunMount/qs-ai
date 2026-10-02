@@ -30,6 +30,11 @@ MBTI_ROOT = FrozenContractRef(
     "v1",
     "sha256:3353f945b75346b869c638a1034356ac602ea7f049cb0d2a6e55262538b9cacd",
 )
+MBTI_THEMES_ROOT = FrozenContractRef(
+    "participant-mbti-single",
+    "three-topic-v1",
+    "sha256:027fbe31e18e08786390920dfc1233e76e7a54ac68198385f6391c8634ce2a4b",
+)
 MBTI_INPUT_VERSION = "qs-published-snapshot-v2"
 MBTI_THEMATIC_INPUT_VERSION = "qs-published-snapshot-v3"
 BASELINE_SUITE_FILES = {
@@ -38,6 +43,7 @@ BASELINE_SUITE_FILES = {
 SUITE_FILES = {
     V6_PUBLISHED: "qs-ai-published-input-cases-v1.json",
     MBTI_ROOT: "mbti/suite-v1.json",
+    MBTI_THEMES_ROOT: "mbti-themes/suite-v1.json",
 }
 RETAINED_SUITE_FILES = {**BASELINE_SUITE_FILES, **SUITE_FILES}
 

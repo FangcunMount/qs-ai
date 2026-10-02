@@ -39,6 +39,15 @@
       "prompt-v1.md": "3cf1b9281840f0f92e9d06020a238c0c0c91a23e7691b58d58f54f0f6f7f78b7",
       "semantic-v1.md": "27d76d614228e29c39fdcbdd086b9d37edc2eba250eb3afd06582f2ef4b08006",
       "suite-v1.json": "3353f945b75346b869c638a1034356ac602ea7f049cb0d2a6e55262538b9cacd"
+    },
+    "evaluation/mbti-themes": {
+      "manifest.json": "4c3416120c88d9020b736da2c335f6bcb20fa3eaa55d2bea405c8824faf061c3",
+      "profile-v1.json": "002f52e18c6b7aabadb8dc90c396c119b1db1fb12a18427f9150bf6fb94393d9",
+      "prompt-v1.json": "16d9a57b89340924a563acbf4f915192ca3c58b4657371c13b3851c7a54dfbba",
+      "prompt-v1.md": "3689b13dd44c3bedb1e380b1b859b5bef40cd735d4c9e076381f9581faddac52",
+      "reference-material-v1.json": "40b2f6469c25c03af9880eaa100292dbf2070ed9f27f25b4319c7ee300fdb9bb",
+      "semantic-v1.md": "a4a5348c49adb9d1f53824794df6ef0103c6d65fb6fa601e1e178a20667d7660",
+      "suite-v1.json": "027fbe31e18e08786390920dfc1233e76e7a54ac68198385f6391c8634ce2a4b"
     }
   }
 }

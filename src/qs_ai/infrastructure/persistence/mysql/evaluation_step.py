@@ -28,6 +28,7 @@ from qs_ai.domain.evaluation.preflight import AssertionReceipt
 from qs_ai.domain.evaluation.semantic_completion import SemanticCompletion
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
 from qs_ai.infrastructure.persistence.mysql.evaluation_assets import (
+    frozen_output_schema,
     prepare_run_case,
     run_model_route,
     stored_run_suite,
@@ -196,15 +197,7 @@ async def _prepare_step(
             tokens.append(token)
         if cp.kind == "generation":
             messages = prepared.messages
-            ref = release.output_schema
-            asset = await schemas.get(ref.id, ref.version.removeprefix(ref.id + "/"))
-            if asset is None or (
-                asset.schema_id,
-                asset.schema_id + "/" + asset.version,
-                asset.fingerprint,
-            ) != (ref.id, ref.version, ref.fingerprint):
-                raise ValueError("Frozen output schema unavailable")
-            schema = json.loads(asset.definition_json)
+            schema = await frozen_output_schema(release, schemas)
         else:
             semantic = await semantic_contract(db, release, organization_id, frozen=creation)
             row = (
@@ -230,6 +223,7 @@ async def _prepare_step(
                 prepared=prepared,
                 frozen_suite=suite,
                 assets=semantic,
+                output_schema=await frozen_output_schema(release, schemas),
             )
             progress = (
                 await db.execute(

@@ -20,7 +20,12 @@ from qs_ai.infrastructure.qs_server.evaluation_policies import (
     load_execution_policy,
     load_gate_policy,
 )
-from qs_ai.infrastructure.qs_server.evaluation_suite import MBTI_ROOT, FrozenSuite, load_suite
+from qs_ai.infrastructure.qs_server.evaluation_suite import (
+    MBTI_ROOT,
+    MBTI_THEMES_ROOT,
+    FrozenSuite,
+    load_suite,
+)
 from qs_ai.infrastructure.qs_server.output import schema_directory
 from qs_ai.infrastructure.qs_server.profiles import decode_published_profile
 from qs_ai.infrastructure.qs_server.semantic_assets import load_semantic_assets, semantic_assets
@@ -36,6 +41,7 @@ class MBTIRootAssets:
     contracts: SuiteContracts
     release: EvidenceReleaseIdentity
     manifest_sha256: str
+    output_schema: SchemaAsset | None = None
 
 
 def digest(raw: str) -> str:
@@ -43,11 +49,34 @@ def digest(raw: str) -> str:
 
 
 def load_mbti_root(directory: Path | None = None) -> MBTIRootAssets:
-    directory = directory or evaluation_directory() / "mbti"
+    return _load_root(
+        directory or evaluation_directory() / "mbti",
+        MBTI_ROOT,
+        "8be5bead7f390b5974a7131874f0de6e44b685f2d12353589abb684c5a2c2aa9",
+        "v2",
+        "v1",
+    )
+
+
+def load_mbti_themes_root(directory: Path | None = None) -> MBTIRootAssets:
+    return _load_root(
+        directory or evaluation_directory() / "mbti-themes",
+        MBTI_THEMES_ROOT,
+        "4c3416120c88d9020b736da2c335f6bcb20fa3eaa55d2bea405c8824faf061c3",
+        "v3",
+        "v2",
+    )
+
+
+def _load_root(
+    directory: Path,
+    reference: FrozenContractRef,
+    manifest_sha: str,
+    input_version: str,
+    output_version: str,
+) -> MBTIRootAssets:
     manifest_bytes = (directory / "manifest.json").read_bytes()
-    if hashlib.sha256(manifest_bytes).hexdigest() != (
-        "8be5bead7f390b5974a7131874f0de6e44b685f2d12353589abb684c5a2c2aa9"
-    ):
+    if hashlib.sha256(manifest_bytes).hexdigest() != manifest_sha:
         raise ValueError("Unregistered MBTI initialization manifest")
     manifest = json.loads(manifest_bytes)
     expected = {
@@ -57,13 +86,15 @@ def load_mbti_root(directory: Path | None = None) -> MBTIRootAssets:
         "semantic-v1.md",
         "suite-v1.json",
     }
+    if reference == MBTI_THEMES_ROOT:
+        expected.add("reference-material-v1.json")
     if (
         manifest.get("format") != "qs-ai-mbti-root/v1"
         or manifest.get("source_kind") != "qs-ai-authored-not-qs-export"
         or set(manifest.get("files", {})) != expected
     ):
         raise ValueError("Unsupported MBTI initialization manifest")
-    values = {}
+    values: dict[str, str] = {}
     for name in sorted(expected):
         raw = (directory / name).read_bytes()
         if hashlib.sha256(raw).hexdigest() != manifest["files"][name]:
@@ -81,18 +112,22 @@ def load_mbti_root(directory: Path | None = None) -> MBTIRootAssets:
     ):
         raise ValueError("MBTI Prompt source proof differs")
     prompt = PromptAsset(
-        "participant-mbti-single",
-        "v1",
+        reference.id,
+        reference.version,
         digest(values["prompt-v1.md"]),
         hashlib.sha256(values["prompt-v1.json"].encode()).hexdigest(),
         values["prompt-v1.json"],
     )
     profile = ProfileAsset(
-        "participant-mbti-single",
-        "v1",
+        reference.id,
+        reference.version,
         digest(values["profile-v1.json"]),
         values["profile-v1.json"],
     )
+    if reference == MBTI_THEMES_ROOT and json.loads(profile.definition_json)[
+        "reference_material"
+    ] != json.loads(values["reference-material-v1.json"]):
+        raise ValueError("MBTI reference material differs from frozen Profile")
     decoded = decode_published_profile(
         {
             "definition": json.loads(profile.definition_json),
@@ -100,9 +135,11 @@ def load_mbti_root(directory: Path | None = None) -> MBTIRootAssets:
             "status": "published",  # decoder envelope only; never creates a publication
         }
     )
-    raw_input = (schema_directory() / "ai-explanation-input-v2.schema.json").read_text()
-    input_schema = SchemaAsset("ai-explanation-input", "v2", digest(raw_input), raw_input)
-    suite = load_suite(MBTI_ROOT, definition_json=values["suite-v1.json"])
+    raw_input = (
+        schema_directory() / f"ai-explanation-input-{input_version}.schema.json"
+    ).read_text()
+    input_schema = SchemaAsset("ai-explanation-input", input_version, digest(raw_input), raw_input)
+    suite = load_suite(reference, definition_json=values["suite-v1.json"])
     if suite.input_schema is None:
         raise ValueError("MBTI root input contract missing")
     validate_suite_inputs(suite, suite.input_schema)
@@ -118,9 +155,14 @@ def load_mbti_root(directory: Path | None = None) -> MBTIRootAssets:
                 executable_prompt(prompt),
                 decoded.render_policy,
                 json.dumps(case["provider_payload"]),
+                scene_contract_version=json.loads(profile.definition_json)[
+                    "scene_contract_version"
+                ],
             )
     semantic = SemanticPromptAsset(
-        FrozenContractRef("mbti-single-semantic-evaluator", "v1", digest(values["semantic-v1.md"])),
+        FrozenContractRef(
+            "mbti-single-semantic-evaluator", reference.version, digest(values["semantic-v1.md"])
+        ),
         values["semantic-v1.md"],
     )
     shared = load_semantic_assets()
@@ -134,13 +176,17 @@ def load_mbti_root(directory: Path | None = None) -> MBTIRootAssets:
         semantic.reference,
         shared.output_schema,
     )
-    output_raw = (schema_directory() / "ai-explanation-output-v1.schema.json").read_text()
+    output_raw = (
+        schema_directory() / f"ai-explanation-output-{output_version}.schema.json"
+    ).read_text()
     release = EvidenceReleaseIdentity(
         suite.reference,
         FrozenContractRef(prompt.template_id, prompt.version, prompt.fingerprint),
         FrozenContractRef(profile.profile_id, profile.version, profile.fingerprint),
         suite.input_schema,
-        FrozenContractRef("ai-explanation-output", "ai-explanation-output/v1", digest(output_raw)),
+        FrozenContractRef(
+            "ai-explanation-output", "ai-explanation-output/" + output_version, digest(output_raw)
+        ),
         FrozenContractRef(**document["template"]["generation_route"]),
         semantic.reference,
         shared.output_schema,
@@ -163,4 +209,7 @@ def load_mbti_root(directory: Path | None = None) -> MBTIRootAssets:
         contracts,
         release,
         hashlib.sha256(manifest_bytes).hexdigest(),
+        SchemaAsset("ai-explanation-output", output_version, digest(output_raw), output_raw)
+        if reference == MBTI_THEMES_ROOT
+        else None,
     )
