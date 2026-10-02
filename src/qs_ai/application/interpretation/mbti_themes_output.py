@@ -6,7 +6,7 @@ from typing import Any
 
 from qs_ai.application.interpretation.input import InvalidInput, MBTIThematicInputPolicy
 from qs_ai.application.interpretation.mbti_themes_input import validate_mbti_themes_projection
-from qs_ai.application.interpretation.output import DeterministicOutput, InvalidOutput
+from qs_ai.application.interpretation.output_types import DeterministicOutput, InvalidOutput
 from qs_ai.application.interpretation.preparation import PreparedExplanation
 from qs_ai.domain.governance.mbti_references import InvalidMBTIReferences
 from qs_ai.domain.governance.scenes import MBTI_THEMATIC_CONTRACT

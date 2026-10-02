@@ -27,7 +27,10 @@
       "ai-explanation-output-v1.schema.json": "103cc2efc7abef6722729b30d1591f6e19ed2164f37901f7f5d789982fbb2744",
       "manifest.json": "06236133252501995ea5380803bbfef31e732c0086f2ef1c615b7a44a5aa83da",
       "ai-explanation-input-v2.schema.json": "225b89bbd64b5c45596acb4b93d77bbfe31016da111c30c89f1840530f321fd1",
-      "mbti-input-manifest.json": "8b6a6106e411616119c6bd1e13599dd2fdfd5d6ce7daba37c2b661142744bd3a"
+      "mbti-input-manifest.json": "8b6a6106e411616119c6bd1e13599dd2fdfd5d6ce7daba37c2b661142744bd3a",
+      "ai-explanation-input-v3.schema.json": "0c3ac84c075a8a9ffd22c91928034365bc28b914596f226e5ad6499ec43ff789",
+      "ai-explanation-output-v2.schema.json": "db6ba195348ea9d48cf0d321ed31efc2deb27a4d0a81a61a06fe955fb615b34b",
+      "mbti-thematic-input-manifest.json": "b34c7b37cba81ddac9808f8d2dae2548946c2f01e78fb1eebcf8ff24fff43a8e"
     },
     "evaluation/mbti": {
       "manifest.json": "8be5bead7f390b5974a7131874f0de6e44b685f2d12353589abb684c5a2c2aa9",
