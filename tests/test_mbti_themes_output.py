@@ -163,3 +163,12 @@ def test_artifact_replay_preserves_new_content_and_original_reference_binding():
     assert artifact.output_validator_version == "qs-ai-output-mbti-three-topic/v1"
     assert json.loads(artifact.content_json)["schema_version"] == "ai-explanation-output/v2"
     assert artifact.report_id == evidence.items[0].report_id
+    assert artifact.schema_version == "qs-ai-artifact/v2"
+    expected = request.prepared.release.input_policy.reference_material.select("ISFJ")
+    assert artifact.reference_material_json == expected.canonical_json
+    assert artifact.reference_material_fingerprint == expected.fingerprint
+    material = json.loads(artifact.reference_material_json)
+    assert material["model_code"] == "MBTI_OEJTS"
+    assert material["model_version"] == "v64-report-202608-v1"
+    assert len(material["entries"]) == 12
+    assert all(item["pole"] in "ISFJ" for item in material["entries"])

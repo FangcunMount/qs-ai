@@ -332,7 +332,7 @@ async def test_complete_mbti_run_uses_existing_graph_and_frozen_assets(
             )
         ).all()
         assert len(receipt_ids) == 70
-    if not recover_receipt and not thematic:
+    if not recover_receipt:
         await synthetic_publication_and_generation(
             tx, manager, management_scope, view, prepared, at, kit
         )
@@ -402,6 +402,7 @@ async def synthetic_publication_and_generation(tx, manager, scope, view, prepare
     from qs_ai.infrastructure.persistence.model_call_codec import JSONModelCallCodec
     from qs_ai.infrastructure.persistence.mysql.execution_configurations import (
         MySQLExecutionConfigurations,
+        compile_configuration,
     )
     from qs_ai.infrastructure.persistence.mysql.publications import MySQLPublications
     from qs_ai.infrastructure.persistence.mysql.solution_assets import release_from
@@ -451,6 +452,8 @@ async def synthetic_publication_and_generation(tx, manager, scope, view, prepare
     )
     original = publication.change.current.active
     assert original is not None
+    async with tx.open() as db:
+        await compile_configuration(db, original)
     _, evidence, _ = mbti_case()
     from qs_ai.application.interpretation.eligibility import Eligibility
     from tests.integration.test_eligibility import readonly_check
@@ -497,7 +500,16 @@ async def synthetic_publication_and_generation(tx, manager, scope, view, prepare
         async def generate(self, source, route, schema, invocation_id):
             self.calls += 1
             assert source.release.input_policy.profile_id == "participant-mbti-single"
-            raw = json.dumps(mbti_output(), ensure_ascii=False)
+            if (
+                getattr(source.release.input_policy, "scene_contract_version", None)
+                == "mbti-single-assessment/v2"
+            ):
+                from tests.test_mbti_themes_output import output as thematic_output
+
+                output = thematic_output()
+            else:
+                output = mbti_output()
+            raw = json.dumps(output, ensure_ascii=False)
             return ModelResponse(
                 invocation_id, "synthetic-user-result", route.model, raw, raw, "none", 1, 2, 3
             )
@@ -540,9 +552,24 @@ async def synthetic_publication_and_generation(tx, manager, scope, view, prepare
             )
         )
         assert JSONModelCallCodec().decode_request(raw) == generated.request
-        assert await db.scalar(
-            select(tables.artifacts.c.id).where(tables.artifacts.c.session_id == receipt.session_id)
+        artifact = await db.scalar(
+            select(tables.artifacts.c.payload).where(
+                tables.artifacts.c.session_id == receipt.session_id
+            )
         )
+        assert artifact
+        thematic = (
+            getattr(config.release.input_policy, "scene_contract_version", None)
+            == "mbti-single-assessment/v2"
+        )
+        if thematic:
+            selected = config.release.input_policy.reference_material.select("ISFJ")
+            assert artifact["schema_version"] == "qs-ai-artifact/v2"
+            assert artifact["reference_material_json"] == selected.canonical_json
+            assert artifact["reference_material_fingerprint"] == selected.fingerprint
+        else:
+            assert artifact["schema_version"] == "qs-ai-artifact/v1"
+            assert "reference_material_json" not in artifact
         outputs = (
             await db.scalars(
                 select(tables.result_outbox.c.payload).where(
@@ -551,6 +578,8 @@ async def synthetic_publication_and_generation(tx, manager, scope, view, prepare
             )
         ).all()
         assert any(output["status"] == "completed" for output in outputs)
+        completed = next(output for output in outputs if output["status"] == "completed")
+        assert json.loads(completed["artifact_json"]) == artifact
 
 
 async def test_initialized_template_alone_cannot_admit_mbti_generation(workspace, kit):

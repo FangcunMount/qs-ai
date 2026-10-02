@@ -2,14 +2,16 @@
 
 import hashlib
 import json
+from dataclasses import asdict
 from uuid import NAMESPACE_URL, uuid5
 
 from qs_ai.application.execution.generation import GeneratedExplanation
+from qs_ai.application.interpretation.input import MBTIThematicInputPolicy
 from qs_ai.application.interpretation.output import InvalidOutput, OutputParser, validate_output
 from qs_ai.application.interpretation.ports import Claim
 from qs_ai.application.interpretation.preparation import prepare_report_input
 from qs_ai.application.interpretation.safety import check_safety
-from qs_ai.domain.interpretation.artifact import ArtifactCandidate
+from qs_ai.domain.interpretation.artifact import ArtifactCandidate, MBTIArtifactCandidate
 from qs_ai.domain.interpretation.model import EvidenceSet, RuleViolation
 
 
@@ -43,7 +45,7 @@ def build_artifact(
     policy = prepared.release.input_policy
     # Replay of the same accepted invocation has the same artifact identity.
     identity = str(uuid5(NAMESPACE_URL, f"qs-ai:artifact:{claim.run_id}:{response.invocation_id}"))
-    return ArtifactCandidate(
+    candidate = ArtifactCandidate(
         identity,
         claim.session.id,
         claim.run_id,
@@ -64,4 +66,18 @@ def build_artifact(
         evidence.items[0].assessment_id,
         evidence.items[0].report_id,
         evidence.items[0].source_version,
+    )
+    if not isinstance(policy, MBTIThematicInputPolicy):
+        return candidate
+    # The original frozen input was checked above and by the deterministic validator.
+    # Keep URLs and reference bodies outside model output and bind their exact bytes.
+    selected = policy.reference_material.select(
+        json.loads(assembled.provider_payload)["facts"]["model_result"]["type_code"]
+    )
+    fields = asdict(candidate)
+    fields.pop("schema_version")
+    return MBTIArtifactCandidate(
+        **fields,
+        reference_material_json=selected.canonical_json,
+        reference_material_fingerprint=selected.fingerprint,
     )

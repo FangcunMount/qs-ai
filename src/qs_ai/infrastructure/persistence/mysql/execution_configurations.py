@@ -21,7 +21,11 @@ from qs_ai.application.governance.solution_models import (
     EditableModelPolicy,
     validate_v2_admission,
 )
-from qs_ai.application.interpretation.input import InvalidInput, MBTIInputPolicy
+from qs_ai.application.interpretation.input import (
+    InvalidInput,
+    MBTIInputPolicy,
+    MBTIThematicInputPolicy,
+)
 from qs_ai.application.interpretation.ports import Claim, NotFound
 from qs_ai.application.interpretation.preparation import prepare_explanation
 from qs_ai.application.interpretation.prompt_assets import executable_prompt
@@ -102,11 +106,10 @@ async def compile_configuration(
             "status": "published",
         }
     )
-    from qs_ai.application.interpretation.input import MBTIThematicInputPolicy
-
     expected_snapshot = "v2" if isinstance(release.input_policy, MBTIInputPolicy) else "v1"
     input_version, output_version = expected_snapshot, "v1"
     if isinstance(release.input_policy, MBTIThematicInputPolicy):
+        expected_snapshot = "v3"
         input_version, output_version = "v3", "v2"
     if (
         suite.input_construction_version != f"qs-published-snapshot-{expected_snapshot}"

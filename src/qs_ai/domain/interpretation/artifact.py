@@ -24,3 +24,12 @@ class ArtifactCandidate:
     report_id: str
     source_version: str
     schema_version: str = "qs-ai-artifact/v1"
+
+
+@dataclass(frozen=True)
+class MBTIArtifactCandidate(ArtifactCandidate):
+    """Original selected reference material, never model-supplied source metadata."""
+
+    schema_version: str = "qs-ai-artifact/v2"
+    reference_material_json: str = ""
+    reference_material_fingerprint: str = ""
