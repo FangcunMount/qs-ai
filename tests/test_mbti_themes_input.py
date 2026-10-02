@@ -199,3 +199,13 @@ async def test_receipt_recovery_never_loads_current_references_or_sends_again(st
     else:
         with pytest.raises(ProviderFailure, match="provider_result_unknown"):
             await execution.execute(claim, request)
+
+
+@pytest.mark.parametrize("value", [None, [], 1])
+def test_corrupt_canonical_json_shape_is_a_classified_receipt_error(value):
+    _, _, request = thematic_case()
+    codec = JSONModelCallCodec()
+    document = json.loads(codec.encode_request(request))
+    document["prepared"]["assembled_input"]["canonical_json"] = json.dumps(value)
+    with pytest.raises(ValueError):
+        codec.decode_request(json.dumps(document))

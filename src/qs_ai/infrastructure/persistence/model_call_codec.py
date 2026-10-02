@@ -76,7 +76,8 @@ class JSONModelCallCodec:
                 validate_mbti_themes_projection(payload, decoded)
                 canonical = json.loads(assembled.canonical_json)
                 if (
-                    canonical.get("schema_version") != "ai-explanation-input/v3"
+                    not isinstance(canonical, dict)
+                    or canonical.get("schema_version") != "ai-explanation-input/v3"
                     or canonical.get("scene_contract_version") != decoded.scene_contract_version
                     or any(canonical.get(key) != payload[key] for key in payload)
                     or assembled.fingerprint
