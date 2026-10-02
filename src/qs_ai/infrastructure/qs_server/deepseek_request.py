@@ -1,6 +1,7 @@
 """QS-compatible DeepSeek Responses request projection, with no network I/O."""
 
 import re
+from copy import deepcopy
 from typing import Any
 
 from qs_ai.application.interpretation.model_route_v2 import ModelRouteV2
@@ -10,6 +11,16 @@ from qs_ai.application.interpretation.provider import ModelRoute
 
 
 def compatible_schema(schema: dict[str, Any]) -> dict[str, Any]:
+    if schema.get("properties", {}).get("schema_version") == {"const": "ai-explanation-output/v2"}:
+        # Responses' schema subset has no tuple/prefixItems contract. Offer the
+        # common section shape; the full local schema enforces exact topic order
+        # and counts. Do not change the historical v1 provider projection.
+        schema = deepcopy(schema)
+        if schema["properties"].get("scene_contract_version") != {
+            "const": "mbti-single-assessment/v2"
+        } or "section" not in schema.get("$defs", {}):
+            raise ValueError("Unsupported thematic output schema")
+        schema["properties"]["sections"] = {"type": "array", "items": {"$ref": "#/$defs/section"}}
     definitions = schema.get("$defs", {})
 
     def inferred(value: Any) -> str:
@@ -46,9 +57,15 @@ def compatible_schema(schema: dict[str, Any]) -> dict[str, Any]:
                 additionalProperties=False,
             )
         if "items" in node:
+            if not isinstance(node["items"], dict):
+                raise ValueError("Unsupported array item schema")
             result.update(type="array", items=transform(node["items"], visiting))
         if "anyOf" in node:
             result["anyOf"] = [transform(value, visiting) for value in node["anyOf"]]
+        elif "oneOf" in node:
+            # The local schema still checks oneOf exclusivity; the provider
+            # supports the broader alternative form used by existing routes.
+            result["anyOf"] = [transform(value, visiting) for value in node["oneOf"]]
         if not result:
             raise ValueError("Schema has no supported constraints")
         return result

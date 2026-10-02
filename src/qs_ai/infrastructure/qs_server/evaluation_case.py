@@ -56,7 +56,12 @@ def prepare_asset_evaluation_case(
     )
     return PreparedExplanation(
         assembled,
-        render_prompt(package, profile.render_policy, payload),
+        render_prompt(
+            package,
+            profile.render_policy,
+            payload,
+            scene_contract_version=getattr(profile.input_policy, "scene_contract_version", None),
+        ),
         profile,
         package.fingerprint,
     )

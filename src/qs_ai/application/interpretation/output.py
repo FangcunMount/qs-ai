@@ -2,27 +2,18 @@
 
 import json
 import re
-from dataclasses import dataclass
-from typing import Any, Protocol
 
-from qs_ai.application.interpretation.input import MBTIInputPolicy
+from qs_ai.application.interpretation.input import MBTIInputPolicy, MBTIThematicInputPolicy
+from qs_ai.application.interpretation.output_types import (
+    DeterministicOutput as DeterministicOutput,
+)
+from qs_ai.application.interpretation.output_types import (
+    InvalidOutput as InvalidOutput,
+)
+from qs_ai.application.interpretation.output_types import (
+    OutputParser as OutputParser,
+)
 from qs_ai.application.interpretation.preparation import PreparedExplanation
-
-
-class InvalidOutput(ValueError):
-    def __init__(self, code: str) -> None:
-        self.code = code
-        super().__init__(code)
-
-
-class OutputParser(Protocol):
-    def parse(self, raw: str) -> dict[str, Any]: ...
-
-
-@dataclass(frozen=True)
-class DeterministicOutput:
-    content_json: str
-    validator_version: str = "qs-ai-output-deterministic/v1"
 
 
 def validate_output(
@@ -32,6 +23,12 @@ def validate_output(
     if len(raw) > policy.max_output_characters:
         raise InvalidOutput("output_too_long")
     content = parser.parse(raw)
+    if isinstance(prepared.release.input_policy, MBTIThematicInputPolicy):
+        from qs_ai.application.interpretation.mbti_themes_output import validate_mbti_themes_output
+
+        return validate_mbti_themes_output(content, prepared)
+    if content.get("schema_version") != "ai-explanation-output/v1":
+        raise InvalidOutput("output_contract_mismatch")
     facts = json.loads(prepared.assembled_input.provider_payload)["facts"]
     dimensions = {item["ref"]: item for item in facts["dimensions"]}
     suggestions = {item["ref"] for item in facts["standard_suggestions"]}

@@ -92,7 +92,7 @@ async def validate_source(db: AsyncSession, command: RegisterProfile) -> None:
     if "scene_contract_version" in original or "scene_contract_version" in target:
         if any(
             original.get(k) != target.get(k)
-            for k in ("schema_version", "scene_contract_version", "selector")
+            for k in ("schema_version", "scene_contract_version", "selector", "reference_material")
         ):
             raise ValueError("Derived Profile cannot change source scene")
 
@@ -131,7 +131,21 @@ async def manifest_for(
     render_prompt(
         executable_prompt(prompt),
         policy.render_policy,
-        '{"context":{"locale":"zh-CN","focus_areas":[]},"facts":{}}',
+        json.dumps(
+            {
+                "context": {"locale": "zh-CN", "focus_areas": []},
+                "facts": {},
+                **(
+                    {"reference_material": {}}
+                    if getattr(policy.input_policy, "scene_contract_version", None)
+                    == "mbti-single-assessment/v2"
+                    else {}
+                ),
+            },
+            ensure_ascii=False,
+            separators=(",", ":"),
+        ),
+        scene_contract_version=getattr(policy.input_policy, "scene_contract_version", None),
     )
     return manifest
 

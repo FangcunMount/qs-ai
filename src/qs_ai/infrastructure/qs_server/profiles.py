@@ -7,9 +7,14 @@ from typing import Annotated, Any, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from qs_ai.application.interpretation.input import InputPolicy, MBTIInputPolicy
+from qs_ai.application.interpretation.input import (
+    InputPolicy,
+    MBTIInputPolicy,
+    MBTIThematicInputPolicy,
+)
 from qs_ai.application.interpretation.prompts import RenderPolicy
 from qs_ai.application.interpretation.release import ExplanationRelease, InvalidRelease
+from qs_ai.domain.governance.mbti_references import decode_mbti_reference_material
 from qs_ai.domain.governance.scenes import MBTI_AXES
 from qs_ai.infrastructure.qs_server.prompts import prompt_directory
 
@@ -149,7 +154,7 @@ class GenerationBase(PolicyModel):
     prompt_template_id: Text
     prompt_version: Version
     provider_route: Route
-    output_schema_version: Literal["ai-explanation-output/v1"]
+    output_schema_version: Literal["ai-explanation-output/v1", "ai-explanation-output/v2"]
     max_output_characters: int = Field(ge=512, le=20000)
 
     @model_validator(mode="after")
@@ -161,10 +166,17 @@ class GenerationBase(PolicyModel):
 
 class Generation(GenerationBase):
     input_schema_version: Literal["ai-explanation-input/v1"]
+    output_schema_version: Literal["ai-explanation-output/v1"]
 
 
 class MBTIGeneration(GenerationBase):
     input_schema_version: Literal["ai-explanation-input/v2"]
+    output_schema_version: Literal["ai-explanation-output/v1"]
+
+
+class MBTIThematicGeneration(GenerationBase):
+    input_schema_version: Literal["ai-explanation-input/v3"]
+    output_schema_version: Literal["ai-explanation-output/v2"]
 
 
 class MBTISelector(PolicyModel):
@@ -197,11 +209,8 @@ class Definition(DefinitionBase):
     generation_policy: Generation
 
 
-class MBTIDefinition(DefinitionBase):
-    schema_version: Literal["ai-explanation-profile/v2"]
-    scene_contract_version: Literal["mbti-single-assessment/v1"]
+class MBTIDefinitionBase(DefinitionBase):
     selector: MBTISelector
-    generation_policy: MBTIGeneration
 
     @model_validator(mode="after")
     def complete_mbti(self) -> Self:
@@ -217,7 +226,29 @@ class MBTIDefinition(DefinitionBase):
         return self
 
 
-def decode_profile_definition(value: Any) -> Definition | MBTIDefinition:
+class MBTIDefinition(MBTIDefinitionBase):
+    schema_version: Literal["ai-explanation-profile/v2"]
+    scene_contract_version: Literal["mbti-single-assessment/v1"]
+    generation_policy: MBTIGeneration
+
+
+class MBTIThematicDefinition(MBTIDefinitionBase):
+    schema_version: Literal["ai-explanation-profile/v3"]
+    scene_contract_version: Literal["mbti-single-assessment/v2"]
+    generation_policy: MBTIThematicGeneration
+    reference_material: dict[str, Any]
+
+    @model_validator(mode="after")
+    def frozen_references(self) -> Self:
+        decode_mbti_reference_material(self.reference_material)
+        if len(canonical_definition(self.model_dump()).encode()) > 131072:
+            raise ValueError("MBTI Profile exceeds storage limit")
+        return self
+
+
+def decode_profile_definition(value: Any) -> Definition | MBTIDefinition | MBTIThematicDefinition:
+    if isinstance(value, dict) and value.get("schema_version") == "ai-explanation-profile/v3":
+        return MBTIThematicDefinition.model_validate(value)
     if isinstance(value, dict) and value.get("schema_version") == "ai-explanation-profile/v2":
         return MBTIDefinition.model_validate(value)
     return Definition.model_validate(value)
@@ -275,7 +306,13 @@ def decode_published_profile(envelope: dict[str, Any]) -> ExplanationRelease:
             inputs.include_norm_context,
             inputs.include_model_result,
         )
-        if isinstance(definition, MBTIDefinition):
+        if isinstance(definition, MBTIThematicDefinition):
+            input_policy = MBTIThematicInputPolicy(
+                **vars(input_policy),
+                scene_contract_version=definition.scene_contract_version,
+                reference_material=decode_mbti_reference_material(definition.reference_material),
+            )
+        elif isinstance(definition, MBTIDefinition):
             input_policy = MBTIInputPolicy(
                 **vars(input_policy), scene_contract_version=definition.scene_contract_version
             )

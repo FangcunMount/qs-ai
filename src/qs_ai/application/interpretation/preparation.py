@@ -35,7 +35,12 @@ def prepare_explanation(
     assembled = prepare_report_input(
         session, evidence, release.input_policy, locale=locale, focus_areas=focus_areas
     )
-    messages = render_prompt(package, release.render_policy, assembled.provider_payload)
+    messages = render_prompt(
+        package,
+        release.render_policy,
+        assembled.provider_payload,
+        scene_contract_version=getattr(release.input_policy, "scene_contract_version", None),
+    )
     return PreparedExplanation(assembled, messages, release, package.fingerprint)
 
 

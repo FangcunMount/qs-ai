@@ -21,6 +21,10 @@ def load_input_schema(
                 "ai-explanation-input-v2.schema.json",
                 "mbti-input-manifest.json",
             ),
+            "ai-explanation-input/v3": (
+                "ai-explanation-input-v3.schema.json",
+                "mbti-thematic-input-manifest.json",
+            ),
         }
         schema_file, manifest_file = sources[version]
         raw = (directory / schema_file).read_bytes()

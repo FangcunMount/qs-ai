@@ -22,6 +22,9 @@ from qs_ai.application.interpretation.input_values import (
     MBTIInputPolicy as MBTIInputPolicy,
 )
 from qs_ai.application.interpretation.input_values import (
+    MBTIThematicInputPolicy as MBTIThematicInputPolicy,
+)
+from qs_ai.application.interpretation.input_values import (
     NotApplicable as NotApplicable,
 )
 from qs_ai.application.interpretation.input_values import (
@@ -94,6 +97,10 @@ def assemble_input(
 ) -> AssembledInput:
     try:
         snapshot = json.loads(raw_snapshot, object_pairs_hook=_object)
+        if isinstance(policy, MBTIThematicInputPolicy):
+            from qs_ai.application.interpretation.mbti_themes_input import assemble_mbti_themes
+
+            return assemble_mbti_themes(snapshot, policy, locale, focus_areas)
         if isinstance(policy, MBTIInputPolicy):
             from qs_ai.application.interpretation.mbti_input import assemble_mbti
 

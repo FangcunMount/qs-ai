@@ -3,6 +3,7 @@
 MBTI_MODEL = "MBTI_OEJTS"
 MBTI_VERSION = "v64-report-202608-v1"
 MBTI_CONTRACT = "mbti-single-assessment/v1"
+MBTI_THEMATIC_CONTRACT = "mbti-single-assessment/v2"
 MBTI_AXES = (("EI", "I", "E"), ("SN", "S", "N"), ("TF", "F", "T"), ("JP", "J", "P"))
 
 
