@@ -31,6 +31,7 @@ MBTI_ROOT = FrozenContractRef(
     "sha256:3353f945b75346b869c638a1034356ac602ea7f049cb0d2a6e55262538b9cacd",
 )
 MBTI_INPUT_VERSION = "qs-published-snapshot-v2"
+MBTI_THEMATIC_INPUT_VERSION = "qs-published-snapshot-v3"
 BASELINE_SUITE_FILES = {
     V6: "ai-explanation-prompt-evaluation-cases-v6.json",
 }
@@ -98,6 +99,7 @@ def load_suite(
         construction = contract["construction_version"]
         from qs_ai.infrastructure.qs_server.profiles import (
             MBTIDefinition,
+            MBTIThematicDefinition,
             decode_profile_definition,
         )
 
@@ -105,9 +107,12 @@ def load_suite(
         profile = decode_profile_definition(
             {k: v for k, v in fixture.items() if k not in {"status", "fingerprint"}}
         )
-        expected = (
-            MBTI_INPUT_VERSION if isinstance(profile, MBTIDefinition) else PUBLISHED_INPUT_VERSION
-        )
+        if isinstance(profile, MBTIThematicDefinition):
+            expected = MBTI_THEMATIC_INPUT_VERSION
+        elif isinstance(profile, MBTIDefinition):
+            expected = MBTI_INPUT_VERSION
+        else:
+            expected = PUBLISHED_INPUT_VERSION
         if construction != expected:
             raise ValueError("Unsupported input construction version")
         schema = FrozenContractRef(**contract["schema"])
@@ -199,6 +204,9 @@ def validate_native(
     for field in ("eligibility", "input_policy"):
         if fixture[field] != baseline["profile_fixture"][field]:
             raise ValueError("New input policy requires a matching case contract")
+    for field in ("schema_version", "scene_contract_version", "reference_material"):
+        if fixture.get(field) != baseline["profile_fixture"].get(field):
+            raise ValueError("New scene or references require a matching case contract")
     if document["input_contract"]["schema"] != {
         "id": manifest.input_schema.identity,
         "version": manifest.input_schema.identity + "/" + manifest.input_schema.version,
