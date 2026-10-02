@@ -5,7 +5,7 @@ import re
 from dataclasses import dataclass
 from typing import Any, Protocol
 
-from qs_ai.application.interpretation.input import MBTIInputPolicy
+from qs_ai.application.interpretation.input import MBTIInputPolicy, MBTIThematicInputPolicy
 from qs_ai.application.interpretation.preparation import PreparedExplanation
 
 
@@ -32,6 +32,12 @@ def validate_output(
     if len(raw) > policy.max_output_characters:
         raise InvalidOutput("output_too_long")
     content = parser.parse(raw)
+    if isinstance(prepared.release.input_policy, MBTIThematicInputPolicy):
+        from qs_ai.application.interpretation.mbti_themes_output import validate_mbti_themes_output
+
+        return validate_mbti_themes_output(content, prepared)
+    if content.get("schema_version") != "ai-explanation-output/v1":
+        raise InvalidOutput("output_contract_mismatch")
     facts = json.loads(prepared.assembled_input.provider_payload)["facts"]
     dimensions = {item["ref"]: item for item in facts["dimensions"]}
     suggestions = {item["ref"] for item in facts["standard_suggestions"]}

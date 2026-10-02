@@ -8,6 +8,8 @@ import json
 import re
 from dataclasses import dataclass
 
+from qs_ai.domain.governance.scenes import MBTI_CONTRACT, MBTI_THEMATIC_CONTRACT
+
 
 class InvalidPrompt(ValueError):
     pass
@@ -75,8 +77,14 @@ def _invalid_constant(value: str) -> None:
 
 
 def render_prompt(
-    package: PromptPackage, policy: RenderPolicy, provider_payload: str
+    package: PromptPackage,
+    policy: RenderPolicy,
+    provider_payload: str,
+    *,
+    scene_contract_version: str | None = None,
 ) -> PromptMessages:
+    if scene_contract_version not in (None, MBTI_CONTRACT, MBTI_THEMATIC_CONTRACT):
+        raise InvalidPrompt("Unsupported scene contract")
     if (package.template_id, package.version) != (policy.template_id, policy.version):
         raise InvalidPrompt("Prompt and Profile identity mismatch")
     if not all(
@@ -100,8 +108,15 @@ def render_prompt(
         )
     except (ValueError, TypeError):
         raise InvalidPrompt("Invalid provider payload") from None
-    if not isinstance(data, dict) or set(data) != {"context", "facts"}:
-        raise InvalidPrompt("Provider payload must contain context and facts only")
+    expected_fields = {"context", "facts"}
+    if scene_contract_version == MBTI_THEMATIC_CONTRACT:
+        expected_fields.add("reference_material")
+    if not isinstance(data, dict) or set(data) != expected_fields:
+        raise InvalidPrompt("Provider payload differs from scene contract")
+    if scene_contract_version == MBTI_THEMATIC_CONTRACT and not isinstance(
+        data["reference_material"], dict
+    ):
+        raise InvalidPrompt("Reference material must be a frozen object")
     context = data["context"]
     if not isinstance(context, dict) or not isinstance(data["facts"], dict):
         raise InvalidPrompt("Context and facts must be objects")

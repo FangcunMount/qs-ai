@@ -102,14 +102,19 @@ async def compile_configuration(
             "status": "published",
         }
     )
-    expected_version = "v2" if isinstance(release.input_policy, MBTIInputPolicy) else "v1"
+    from qs_ai.application.interpretation.input import MBTIThematicInputPolicy
+
+    expected_snapshot = "v2" if isinstance(release.input_policy, MBTIInputPolicy) else "v1"
+    input_version, output_version = expected_snapshot, "v1"
+    if isinstance(release.input_policy, MBTIThematicInputPolicy):
+        input_version, output_version = "v3", "v2"
     if (
-        suite.input_construction_version != f"qs-published-snapshot-{expected_version}"
+        suite.input_construction_version != f"qs-published-snapshot-{expected_snapshot}"
         or suite.input_schema != proof.release.input_schema
         or (manifest.input_schema.identity, manifest.input_schema.version)
-        != ("ai-explanation-input", expected_version)
+        != ("ai-explanation-input", input_version)
         or (manifest.output_schema.identity, manifest.output_schema.version)
-        != ("ai-explanation-output", "v1")
+        != ("ai-explanation-output", output_version)
     ):
         raise ConfigurationUnavailable("Publication was not evaluated for this input construction")
     package = executable_prompt(prompt)

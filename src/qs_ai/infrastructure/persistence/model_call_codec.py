@@ -1,10 +1,15 @@
+import hashlib
 import json
 from dataclasses import asdict, fields, replace
 
 from pydantic import TypeAdapter
 
 from qs_ai.application.execution.generation import FrozenGeneration
-from qs_ai.application.interpretation.input import InputPolicy, MBTIInputPolicy
+from qs_ai.application.interpretation.input import (
+    InputPolicy,
+    MBTIInputPolicy,
+    MBTIThematicInputPolicy,
+)
 from qs_ai.application.interpretation.model_route_v2 import ModelRouteV2
 from qs_ai.application.interpretation.provider import ModelResponse, ModelRoute
 from qs_ai.infrastructure.qs_server.profiles import decode_published_profile
@@ -36,14 +41,14 @@ class JSONModelCallCodec:
         release = document["prepared"]["release"]
         policy = release["input_policy"]
         definition = json.loads(release["definition_json"])
-        policy_type = (
-            MBTIInputPolicy
-            if definition.get("schema_version") == "ai-explanation-profile/v2"
-            else InputPolicy
-        )
+        policy_type: type[InputPolicy] = InputPolicy
+        if definition.get("schema_version") == "ai-explanation-profile/v3":
+            policy_type = MBTIThematicInputPolicy
+        elif definition.get("schema_version") == "ai-explanation-profile/v2":
+            policy_type = MBTIInputPolicy
         if not isinstance(policy, dict) or set(policy) != {f.name for f in fields(policy_type)}:
             raise ValueError("Unexpected frozen input policy fields")
-        if policy_type is MBTIInputPolicy:
+        if policy_type is not InputPolicy:
             original = decode_published_profile(
                 {
                     "definition": definition,
@@ -51,7 +56,7 @@ class JSONModelCallCodec:
                     "status": "published",
                 }
             )
-            decoded = TypeAdapter(MBTIInputPolicy).validate_json(json.dumps(policy), strict=True)
+            decoded = TypeAdapter(policy_type).validate_json(json.dumps(policy), strict=True)
             if original.input_policy != decoded:
                 raise ValueError("Frozen MBTI input policy differs from Profile")
             frozen = replace(
@@ -60,6 +65,26 @@ class JSONModelCallCodec:
                     frozen.prepared, release=replace(frozen.prepared.release, input_policy=decoded)
                 ),
             )
+            if isinstance(decoded, MBTIThematicInputPolicy):
+                from qs_ai.application.interpretation.mbti_themes_input import (
+                    validate_mbti_themes_projection,
+                )
+
+                prepared = frozen.prepared
+                assembled = prepared.assembled_input
+                payload = json.loads(assembled.provider_payload)
+                validate_mbti_themes_projection(payload, decoded)
+                canonical = json.loads(assembled.canonical_json)
+                if (
+                    canonical.get("schema_version") != "ai-explanation-input/v3"
+                    or canonical.get("scene_contract_version") != decoded.scene_contract_version
+                    or any(canonical.get(key) != payload[key] for key in payload)
+                    or assembled.fingerprint
+                    != "sha256:" + hashlib.sha256(assembled.canonical_json.encode()).hexdigest()
+                    or json.loads(prepared.messages.data_json) != payload
+                    or prepared.release != original
+                ):
+                    raise ValueError("Frozen MBTI thematic input differs from accepted references")
         return frozen
 
     def encode_response(self, response: ModelResponse) -> str:

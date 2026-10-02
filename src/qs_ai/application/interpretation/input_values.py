@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from typing import Any
 from urllib.parse import quote
 
+from qs_ai.domain.governance.mbti_references import MBTIReferenceMaterial
+
 
 class InvalidInput(ValueError):
     pass
@@ -34,6 +36,11 @@ class InputPolicy:
 @dataclass(frozen=True)
 class MBTIInputPolicy(InputPolicy):
     scene_contract_version: str
+
+
+@dataclass(frozen=True)
+class MBTIThematicInputPolicy(MBTIInputPolicy):
+    reference_material: MBTIReferenceMaterial
 
 
 @dataclass(frozen=True)

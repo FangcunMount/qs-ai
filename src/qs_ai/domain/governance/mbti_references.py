@@ -92,6 +92,9 @@ class SelectedMBTIReferences:
     def fingerprint(self) -> str:
         return "sha256:" + hashlib.sha256(self.canonical_json.encode()).hexdigest()
 
+    def projection(self) -> dict[str, Any]:
+        return {**json.loads(self.canonical_json), "fingerprint": self.fingerprint}
+
     def validate_reference(self, ref: str, topic: str, evidence_refs: tuple[str, ...]) -> None:
         """Existence/applicability only; semantic support still requires review."""
         entry = next((item for item in self.entries if ref == "reference:" + item.entry_id), None)
