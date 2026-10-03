@@ -63,7 +63,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: FangcunMount/qs-server
-          ref: f0804e64d72fa4f64a15623cabdd46e17769a772
+          ref: 872d35b148b667c811d230c205a86a661593299d
           path: .interop/qs-mq
       - uses: actions/setup-go@v5
         with:
@@ -161,10 +161,14 @@ jobs:
           import os, subprocess
           from pathlib import Path
           root = Path('.interop/qs-mq-process/internal/pkg/migration/migrations/mysql')
-          for name in ('000072_ai_bridge_delivery', '000083_ai_runtime_index', '000091_ai_messaging', '000092_ai_messaging_failures', '000093_ai_messaging_legacy_commands'):
+          for name in ('000072_ai_bridge_delivery', '000083_ai_runtime_index', '000091_ai_messaging', '000092_ai_messaging_failures', '000093_ai_messaging_legacy_commands', '000094_ai_messaging_admission'):
               subprocess.run(['docker','exec','-i',os.environ['MYSQL_CONTAINER'],'mysql','-uroot','-pqs_ai_local_root','mq_dual_qs'], input=(root / (name + '.up.sql')).read_bytes(), check=True)
           PY
           (cd .interop/qs-mq-process && go build -o ../ai-mq-process ./scripts/testing/ai-mq-process)
+          (cd .interop/qs-mq-process && go build -o ../qs-ai-messaging-control ./cmd/qs-ai-messaging-control)
+          # Only this newly-created isolated fixture is opened, through the host tool.
+          QS_AI_MESSAGING_CONTROL_DSN='qs_ai:qs_ai_local@tcp(127.0.0.1:3306)/mq_dual_qs?parseTime=true' \
+            .interop/qs-ai-messaging-control -action open -expected-revision 0
       - name: Start dedicated volatile NSQ (never the shared Broker)
         run: |
           docker run -d --name rm-ai-mq-dual-nsq-ci --memory=128m --cpus=1 --tmpfs /data:rw,size=64m -p 127.0.0.1:4150:4150 -p 127.0.0.1:4151:4151 nsqio/nsq:v1.3.0 /nsqd --data-path=/data --max-msg-size=262144 --mem-queue-size=3000
