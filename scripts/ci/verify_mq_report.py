@@ -6,6 +6,7 @@ from pathlib import Path
 from xml.etree import ElementTree
 
 required = {
+    "test_mq_startup_schema_transaction_rejects_write_and_preserves_pool",
     "test_mq_duplicate_observations_share_original_commit_and_conflict_is_not_duplicate",
     "test_mq_duplicate_ack_records_only_after_exact_confirmation_and_rolls_back",
     "test_mq_payload_fetch_audit_retains_original_error_and_never_admits",
