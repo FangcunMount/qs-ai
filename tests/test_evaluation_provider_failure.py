@@ -41,6 +41,7 @@ def test_unknown_always_overrides_retryable_transport_flag(stage):
     "code",
     [
         "provider_authentication_failed",
+        "provider_insufficient_balance",
         "provider_connect_failed",
         "provider_output_cardinality_invalid",
     ],
