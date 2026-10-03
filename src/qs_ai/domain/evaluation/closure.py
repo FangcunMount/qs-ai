@@ -25,6 +25,7 @@ class ClosureTransition:
     cause: str
     at: datetime
     evidence_refs: tuple[str, ...] = ()
+    evidence_at: datetime | None = None
 
 
 def validate_closed_inventory(
@@ -69,6 +70,13 @@ def validate_closed_inventory(
         ("collecting", "awaiting_review"): "candidate_evidence_complete",
     }
     for transition in transitions[1:]:
+        if transition.evidence_at is not None and (
+            transition.cause != "semantic_recovery_not_allowed"
+            or transition.evidence_at.tzinfo is None
+            or transition.evidence_at.utcoffset() is None
+            or transition.evidence_at > transition.at
+        ):
+            raise ValueError("Invalid original block evidence time")
         if (
             transition.at.tzinfo is None
             or transition.at.utcoffset() is None
@@ -97,7 +105,7 @@ def validate_closed_inventory(
                     else not isinstance(value, SemanticCompletion)
                     or value.execution_id not in contract_decisions
                 )
-                or value.finished_at != transition.at
+                or value.finished_at != (transition.evidence_at or transition.at)
             ):
                 raise ValueError("Unknown transition differs from execution")
         elif transition.source == "blocked":

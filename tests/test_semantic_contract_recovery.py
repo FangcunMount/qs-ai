@@ -84,6 +84,30 @@ def test_closed_inventory_requires_audited_exception_and_retains_original_policy
     assert not data["policy"].allows_automatic_semantic_recovery(data["semantics"][0].failure)
 
 
+@pytest.mark.parametrize("tamper", [None, "evidence_time", "future_evidence", "non_block"])
+def test_delayed_contract_block_keeps_original_evidence_time(tamper):
+    data = recovered_inventory()
+    original = data["transitions"][2]
+    delayed = replace(
+        original,
+        at=original.at + timedelta(milliseconds=500),
+        evidence_at=original.at,
+    )
+    if tamper == "evidence_time":
+        delayed = replace(delayed, evidence_at=original.at - timedelta(milliseconds=100))
+    if tamper == "future_evidence":
+        delayed = replace(delayed, evidence_at=delayed.at + timedelta(seconds=1))
+    data["transitions"] = (*data["transitions"][:2], delayed, *data["transitions"][3:])
+    if tamper == "non_block":
+        final = replace(data["transitions"][-1], evidence_at=original.at)
+        data["transitions"] = (*data["transitions"][:-1], final)
+    if tamper is None:
+        assert validate_closed_inventory(**data) == data["semantics"][-1].finished_at
+    else:
+        with pytest.raises(ValueError):
+            validate_closed_inventory(**data)
+
+
 @pytest.mark.parametrize(
     "case",
     [

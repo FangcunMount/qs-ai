@@ -136,8 +136,16 @@ async def complete_claim(
             elif plan.blocked and not plan.ready:
                 target, cause = "blocked", plan.blocked[0].cause
     reference = claim.checkpoint.execution_id
+    evidence_time: dict[str, str] = {}
     if target == "blocked":
-        reference, at = await _blocked_execution(db, run_id, progress, cause, plan.blocked)
+        reference, failed_at = await _blocked_execution(db, run_id, progress, cause, plan.blocked)
+        if cause == "semantic_recovery_not_allowed":
+            # Another candidate may have failed before an earlier recovery was
+            # authorized. Record the new block now without changing that evidence.
+            evidence_time = {"evidence_at": failed_at.isoformat()}
+            at = max(at, failed_at, datetime.fromisoformat(progress["transitions"][-1]["at"]))
+        else:
+            at = failed_at
         if at < datetime.fromisoformat(progress["transitions"][-1]["at"]):
             raise CheckpointConflict("Blocked evidence predates the current Run transition")
     else:
@@ -155,6 +163,7 @@ async def complete_claim(
                     "actor": actor,
                     "at": at.isoformat(),
                     "evidence_refs": [reference],
+                    **evidence_time,
                 },
             ],
         }

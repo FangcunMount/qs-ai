@@ -763,3 +763,193 @@ async def test_capacity_exhaustion_rolls_back_claim_and_dispatch(parallel_run):
     await execute(parallel_run, gateway, pool)
     assert len(gateway.calls) == 1
     assert all(pool.try_acquire("deepseek", evaluation=True) for _ in range(3))
+
+
+async def test_two_contract_failures_recover_in_order_from_durable_receipt(
+    parallel_run, monkeypatch
+):
+    from datetime import timedelta
+
+    from qs_ai.application.evaluation.management import ManagementScope
+    from qs_ai.domain.evaluation.contract_recovery import ContractRecovery
+    from qs_ai.infrastructure.persistence.mysql import evaluation_step
+    from qs_ai.infrastructure.persistence.mysql.evaluation_candidate_recovery import (
+        recover_candidate,
+    )
+    from qs_ai.infrastructure.persistence.mysql.evaluation_contract_recovery import (
+        authorize_contract_recovery,
+    )
+    from qs_ai.infrastructure.persistence.mysql.evaluation_management import (
+        MySQLEvaluationManagement,
+    )
+    from qs_ai.infrastructure.persistence.mysql.evaluation_projection import (
+        decode_semantic_completion,
+    )
+    from qs_ai.infrastructure.persistence.mysql.evaluation_slot_claims import (
+        active_claims,
+        lock_run,
+    )
+    from qs_ai.infrastructure.persistence.mysql.evaluation_worker import EvaluationWorker
+    from tests.integration.test_evaluation_runs import rows
+
+    class TwoFailures(ConcurrentGateway):
+        semantic_count = 0
+
+        async def generate_messages(self, messages, route, schema, invocation_id):
+            response = await super().generate_messages(messages, route, schema, invocation_id)
+            if "candidate_output" in json.loads(messages.data_json):
+                self.semantic_count += 1
+                if self.semantic_count <= 2:
+                    content = json.loads(response.validation_output)
+                    content["decisions"].append(content["decisions"][0])
+                    raw = json.dumps(content)
+                    from dataclasses import replace
+
+                    return replace(response, raw_output=raw, validation_output=raw)
+            return response
+
+    tx, run_id, _, routes, schemas = parallel_run
+    gateway = TwoFailures(parallel_run)
+    gateway.release.set()
+    worker = EvaluationWorker(
+        tx,
+        gateway,
+        routes,
+        schemas,
+        "worker:parallel",
+        enabled=True,
+        candidate_limit=3,
+        clock=lambda: AT,
+    )
+    for _ in range(40):
+        await asyncio.gather(*(worker.once() for _ in range(3)))
+        if (await rows(tx, run_id))[0]["progress_json"]["status"] != "collecting":
+            break
+    original_run, _, cp = await rows(tx, run_id)
+    assert original_run["progress_json"]["status"] == "blocked"
+    async with tx.open() as db:
+        originals = list(
+            (
+                await db.execute(
+                    select(evaluation_generation_completions).where(
+                        evaluation_generation_completions.c.run_id == str(run_id)
+                    )
+                )
+            ).mappings()
+        )
+        failed = list(
+            (
+                await db.execute(
+                    select(evaluation_semantic_completions).where(
+                        evaluation_semantic_completions.c.run_id == str(run_id)
+                    )
+                )
+            ).mappings()
+        )
+    failed = {r["execution_id"]: r for r in failed if r["evidence_json"]["status"] == "failed"}
+    assert len(originals) == 35 and len(failed) == 2
+    release = json.loads(original_run["definition_json"])["release_fingerprint"]
+
+    async def authorize(at):
+        run, _, cp = await rows(tx, run_id)
+        transition = run["progress_json"]["transitions"][-1]
+        target = decode_semantic_completion(failed[transition["evidence_refs"][0]])
+        assert transition.get("evidence_at", transition["at"]) == target.finished_at.isoformat()
+        value = ContractRecovery(
+            target.execution_id,
+            target.candidate_id,
+            target.candidate_output_fingerprint,
+            target.output_fingerprint,
+            "operator:test",
+            "原候选一次定向契约恢复",
+            at,
+            True,
+        )
+        async with tx.open() as db:
+            await authorize_contract_recovery(
+                db, run_id, cp["version"], 1, release, value, confirm=True
+            )
+            await db.commit()
+        return target
+
+    await authorize(AT + timedelta(seconds=1))
+
+    async def crash(*args, **kwargs):
+        raise RuntimeError("projection crashed after receipt")
+
+    monkeypatch.setattr(evaluation_step, "complete_semantic", crash)
+    with pytest.raises(RuntimeError, match="projection crashed after receipt"):
+        await execute_step(
+            tx,
+            run_id,
+            cp["version"],
+            1,
+            "worker:retry",
+            gateway,
+            routes,
+            schemas,
+            clock=lambda: AT + timedelta(seconds=2),
+            candidate_limit=3,
+        )
+    monkeypatch.undo()
+    calls_after_response = len(gateway.calls)
+    async with tx.open() as db:
+        await lock_run(db, run_id, 1)
+        (claim,) = await active_claims(db, run_id)
+    await recover_candidate(tx, 1, claim, AT + timedelta(minutes=6), routes, schemas)
+    await recover_candidate(tx, 1, claim, AT + timedelta(minutes=6), routes, schemas)
+    assert len(gateway.calls) == calls_after_response
+    run, _, _ = await rows(tx, run_id)
+    transition = run["progress_json"]["transitions"][-1]
+    assert run["progress_json"]["status"] == "blocked"
+    assert transition["evidence_at"] == AT.isoformat()
+    assert transition["at"] >= run["progress_json"]["transitions"][-2]["at"]
+
+    await authorize(AT + timedelta(minutes=7))
+    await execute_step(
+        tx,
+        run_id,
+        1,
+        1,
+        "worker:retry",
+        gateway,
+        routes,
+        schemas,
+        clock=lambda: AT + timedelta(minutes=8),
+        candidate_limit=3,
+    )
+    assert len(gateway.calls) == calls_after_response + 1
+    run, _, cp = await rows(tx, run_id)
+    assert run["progress_json"]["status"] == "awaiting_review"
+    assert run["definition_json"] == original_run["definition_json"]
+    async with tx.open() as db:
+        after = list(
+            (
+                await db.execute(
+                    select(evaluation_generation_completions).where(
+                        evaluation_generation_completions.c.run_id == str(run_id)
+                    )
+                )
+            ).mappings()
+        )
+        semantic = list(
+            (
+                await db.execute(
+                    select(evaluation_semantic_completions).where(
+                        evaluation_semantic_completions.c.run_id == str(run_id)
+                    )
+                )
+            ).mappings()
+        )
+    assert [{k: v for k, v in r.items() if k != "candidate_json"} for r in after] == [
+        {k: v for k, v in r.items() if k != "candidate_json"} for r in originals
+    ]
+    assert all(
+        next(r for r in semantic if r["execution_id"] == key) == value
+        for key, value in failed.items()
+    )
+    assert len(semantic) == 37
+    preview = await MySQLEvaluationManagement(tx).preview_gates(
+        ManagementScope(run_id, 1, 42), cp["version"], AT + timedelta(minutes=9)
+    )
+    assert dict(preview.gate_passes)["G5"] is False

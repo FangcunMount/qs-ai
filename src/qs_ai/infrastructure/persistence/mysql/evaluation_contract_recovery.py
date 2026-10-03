@@ -96,7 +96,9 @@ async def authorize_contract_recovery(
     semantics = tuple(decode_semantic_completion(r) for r in evidence.semantics)
     validate_recoveries(values, semantics, evidence.policy)
     target = next(s for s in semantics if s.execution_id == value.execution_id)
-    if target.finished_at != datetime.fromisoformat(transitions[-1]["at"]):
+    block = transitions[-1]
+    evidence_at = datetime.fromisoformat(block.get("evidence_at", block["at"]))
+    if target.finished_at != evidence_at or evidence_at > datetime.fromisoformat(block["at"]):
         raise ValueError("Block transition differs from failed execution")
     if (
         any(
