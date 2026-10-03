@@ -19,12 +19,15 @@ if (
     or report.get("reference_after_restart") is not True
     or report.get("legacy_delivered") is not True
     or report.get("original_time_preserved") is not True
+    or report.get("explicit_handoff") is not True
+    or report.get("admission_closed_before_transfer") is not True
+    or report.get("repeated_handoff_retained") is not True
     or report.get("durable_effects") != 1
     or report.get("lost_channel_depth", 0) < 1
     or not 0 < report.get("recovery_seconds", 0) <= 120
     or any(
         not re.fullmatch(r"[a-f0-9]{64}", report.get(k, ""))
-        for k in ("body_sha256", "wire_sha256", "probe_sha256")
+        for k in ("body_sha256", "wire_sha256", "probe_sha256", "manifest_sha256")
     )
 ):
     raise SystemExit("Required MQ payload evidence is failed or incomplete")

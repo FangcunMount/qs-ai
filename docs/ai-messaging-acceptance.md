@@ -20,7 +20,7 @@ QS 在 Inbox、业务投影和最终 ACK 同事务提交后，AI 才能确认。
 
 `tests/probes/mq_fault_acceptance.py` 使用原 Go Runtime 与正常 AI server，验证命令、接单拒绝回执和最终 ACK 在 PUB 后丢失、两端和专属 Broker 强杀后的原身份恢复。它使用缺失 Run 的原业务拒绝，不证明成功接单/模型执行的完整业务验收。
 
-`tests/probes/mq_payload_acceptance.py` 通过原 Go 业务存储建立隔离历史请求，保存原 128 KiB Unicode artifact 结果；不创建真实模型调用。正常 AI server 移交原结果并发布受保护引用。实际 mTLS Get 验证正文/长度/hash，以及错目标、组织、身份、hash、长度和错误 workload 拒绝。专属 Broker 丢失后重启两端，原 wire/body/time 保留，QS 仅一次持久效果，新旧 Outbox 同时确认，重启后引用正文仍可读取。标准失败中转的完整编码同样不得超过 262144 字节。
+`tests/probes/mq_payload_acceptance.py` 通过原 Go 业务存储建立隔离历史请求，保存原 128 KiB Unicode artifact 结果；不创建真实模型调用。先停止两端领取并通过 QS 原持久门禁关闭准入，再使用独立移交工具审核单个原身份清单、apply 及重复 apply；运行时不自动扫描历史结果。之后启动正常 AI server 发布受保护引用。实际 mTLS Get 验证正文/长度/hash，以及错目标、组织、身份、hash、长度和错误 workload 拒绝。专属 Broker 丢失后重启两端，原 wire/body/time 保留，QS 仅一次持久效果，新旧 Outbox 同时确认，重启后引用正文仍可读取。标准失败中转的完整编码同样不得超过 262144 字节。
 
 这两个探针仅可指向明确配置的一次性独立数据库和 `rm-ai-mq-dual-nsq-*` 的 NSQ 1.3.0。不执行共享/生产故障，不修改生产开关或冻结配置。CI 覆盖 Python3.11/MySQL8.0.36、Python3.13/MySQL8.4，上传报告/日志，不上传即使是一次性的私钥或证书。
 
@@ -58,3 +58,11 @@ are excluded. The original pending-delivery count is unchanged. MQ disabled does
 not read messaging tables; MQ-enabled storage failure follows the original
 sanitized gRPC UNAVAILABLE boundary. Automatic REQUEST DI consumes the existing
 APP Settings; no bootstrap, observer task, pool, model or recovery logic is added.
+
+## R3 独立历史结果移交工具
+
+`python -m qs_ai.maintenance.messaging_handoff` 是宿主单次维护工具，不启动 Broker、Relay、worker 或常驻服务。`--action dry-run --event-id UUID` 只读一致性快照，最多20个明确原身份；输出原数据库与schema、源摘要、首次wire摘要和归属，不输出正文或密钥。apply 必须提供保存的清单、独立审核摘要、原服务签名私钥及QS接收公钥，并明确确认所有领取者已停止且QS准入门禁已关闭。该确认是操作前提；工具不跨库替代QS门禁。
+
+连接用专用环境变量 `QS_AI_MESSAGING_HANDOFF_DATABASE_URL` 指向原业务数据库，工具仅拥有其自身临时连接池。每行独立原事务重新锁定、核对来源与首次wire；摘要漂移立即停止，保留此前成功行。预算、正文、身份及原时间不得重置。提交失败报告commit_unknown，须重新核对原身份，不创建新消息。重复执行保留原wire；已delivered历史不复活。
+
+真实存储回归使用原接缝；输入测试拒绝清单歧义、符号链接、超限、未审核执行及诊断泄漏。独立CLI子进程在实际SQL未提交边界和原CLI已返回提交成功边界强杀，再以同一清单恢复，证明旧归属和新wire共同提交或回滚。后者暂停仅在测试外层，不注入生产事务钩子。这些证据不替代生产历史清单、双端停止证明或MQ兼容版本回退。

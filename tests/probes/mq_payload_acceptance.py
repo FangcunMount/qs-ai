@@ -8,6 +8,7 @@ import argparse
 import asyncio
 import hashlib
 import json
+import sys
 import time
 from datetime import datetime
 from pathlib import Path
@@ -73,6 +74,64 @@ def artifact(session_id):
 
 
 class PayloadProbe(Probe):
+    async def maintenance(self):
+        """Transfer the reviewed identity while both claimers and admission are stopped."""
+        assert not self.processes, "historical transfer requires stopped runtimes"
+        control_env = {**self.env, "QS_AI_MESSAGING_CONTROL_DSN": self.args.qs_dsn}
+
+        async def command(argv, env):
+            process = await asyncio.create_subprocess_exec(
+                *argv, env=env, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+            )
+            output, _ = await asyncio.wait_for(process.communicate(), 30)
+            assert process.returncode == 0, "explicit original host maintenance failed"
+            return json.loads(output)
+
+        gate = await command([self.args.qs_control_binary, "-action", "inspect"], control_env)
+        closed = await command(
+            [
+                self.args.qs_control_binary,
+                "-action",
+                "close",
+                "-expected-revision",
+                str(gate["state"]["revision"]),
+            ],
+            control_env,
+        )
+        assert closed["state"]["closed"] is True
+        cli = [sys.executable, "-m", "qs_ai.maintenance.messaging_handoff"]
+        env = {**self.env, "QS_AI_MESSAGING_HANDOFF_DATABASE_URL": self.args.ai_url}
+        dry_run = await command(cli + ["--action", "dry-run", "--event-id", self.event_id], env)
+        manifest = dry_run["result"]
+        path = self.root / "legacy-handoff-manifest.json"
+        path.write_text(json.dumps(manifest))
+        path.chmod(0o600)
+        apply = cli + [
+            "--action",
+            "apply",
+            "--manifest",
+            str(path),
+            "--reviewed-digest",
+            manifest["digest"],
+            "--all-claimers-stopped-and-admission-closed",
+            "--signing-key-file",
+            str(self.root / "ai.sign.private.json"),
+            "--qs-recipient-key-file",
+            str(self.root / "qs.encrypt.public.json"),
+        ]
+        first = (await command(apply, env))["result"]
+        again = (await command(apply, env))["result"]
+        assert first["complete"] is True and again["complete"] is True
+        assert first["rows"][0]["status"] == "transferred"
+        assert again["rows"][0]["status"] == "retained"
+        assert first["rows"][0]["wire_sha256"] == again["rows"][0]["wire_sha256"]
+        self.report.update(
+            explicit_handoff=True,
+            admission_closed_before_transfer=True,
+            repeated_handoff_retained=True,
+            manifest_sha256=manifest["digest"],
+        )
+
     async def seed(self):
         self.request_id, self.session_id, self.event_id = (str(uuid4()) for _ in range(3))
         self.artifact = artifact(self.session_id)
@@ -236,6 +295,7 @@ class PayloadProbe(Probe):
             self.configure()
             await self.topology()
             await self.seed()
+            await self.maintenance()
             await self.http("/channel/pause", {"topic": EVENTS, "channel": TOPICS[EVENTS]})
             await self.start("ai")
             rows, _ = await self.poll(
@@ -370,6 +430,7 @@ def main():
     for name in (
         "output",
         "qs-binary",
+        "qs-control-binary",
         "qs-dsn",
         "qs-url",
         "ai-url",

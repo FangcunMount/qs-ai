@@ -6,6 +6,15 @@ from pathlib import Path
 from xml.etree import ElementTree
 
 required = {
+    "test_handoff_manifest_rejects_ambiguous_or_unbounded_input",
+    "test_handoff_manifest_rejects_symlink",
+    "test_handoff_invalid_review_refused_before_database",
+    "test_handoff_database_diagnostics_are_redacted_and_owned_pool_closed",
+    "test_handoff_dry_run_is_storage_read_only_and_retains_host_pool",
+    "test_reviewed_source_drift_stops_before_transfer",
+    "test_apply_preserves_exhausted_budget_and_repeat_never_seals",
+    "test_partial_apply_retains_first_commit_and_stops_on_next_drift",
+    "test_manifest_digest_and_stopped_attestation_precede_apply",
     "test_ready_relay_does_not_scan_or_transfer_historical_results",
     "test_delivered_original_is_not_revived",
     "test_transfer_is_atomic_and_source_compare_is_exact",
@@ -56,6 +65,18 @@ required = {
 }
 legacy_cases = (
     {
+        f"test_native_handoff_process_kill_preserves_atomic_ownership[{boundary}]"
+        for boundary in ("before_commit", "after_commit")
+    }
+    | {
+        f"test_handoff_invalid_review_refused_before_database[{boundary}]"
+        for boundary in ("digest", "attestation", "keys", "empty_ids", "duplicate_ids")
+    }
+    | {
+        f"test_handoff_database_diagnostics_are_redacted_and_owned_pool_closed[{boundary}]"
+        for boundary in ("read", "close")
+    }
+    | {
         f"test_single_row_preserves_time_budget_and_reuses_first_wire[{unknown}-{attempts}]"
         for unknown in ("False", "True")
         for attempts in (0, 3, 8, 10)
