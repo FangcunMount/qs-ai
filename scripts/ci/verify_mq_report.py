@@ -6,6 +6,11 @@ from pathlib import Path
 from xml.etree import ElementTree
 
 required = {
+    "test_ready_relay_does_not_scan_or_transfer_historical_results",
+    "test_delivered_original_is_not_revived",
+    "test_transfer_is_atomic_and_source_compare_is_exact",
+    "test_storage_failure_rolls_back_single_row_transfer",
+    "test_bad_source_identity_is_rejected_before_sealing",
     "test_start_refusal_uses_only_original_persisted_event",
     "test_missing_or_mismatched_evidence_is_technical_unknown",
     "test_accepted_start_does_not_consult_current_state",
@@ -49,12 +54,28 @@ required = {
     "test_legacy_result_settles_only_with_atomic_original_business_ack",
     "test_legacy_handoff_and_ack_share_lock_order_without_deadlock",
 }
+legacy_cases = (
+    {
+        f"test_single_row_preserves_time_budget_and_reuses_first_wire[{unknown}-{attempts}]"
+        for unknown in ("False", "True")
+        for attempts in (0, 3, 8, 10)
+    }
+    | {
+        f"test_mismatched_first_wire_or_body_never_resealed_or_repaired[{damage}]"
+        for damage in ("wire", "wire_digest", "wire_identity", "body", "aggregate", "owned_missing")
+    }
+    | {
+        f"test_unowned_first_wire_is_reused_only_with_matching_delivery_metadata[{change}]"
+        for change in ("None", "attempts", "available_at", "exhausted_stage")
+    }
+)
 root = ElementTree.parse(Path(sys.argv[1])).getroot()
 cases = root.findall(".//testcase")
 if (
     not cases
     or any(c.find(tag) is not None for c in cases for tag in ("failure", "error", "skipped"))
     or not required.issubset({c.get("name", "").split("[")[0] for c in cases})
+    or not legacy_cases.issubset({c.get("name", "") for c in cases})
     or not all(
         root.find(f".//testcase[@name='test_go_python_messaging_interop[{kind}]']") is not None
         for kind in range(1, 10)
