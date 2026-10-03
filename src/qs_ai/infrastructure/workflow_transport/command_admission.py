@@ -21,6 +21,7 @@ from qs_ai.application.interpretation.ports import AccessDenied, EvidenceSource,
 from qs_ai.application.interpretation.service import InterpretationService
 from qs_ai.contracts.workflow import messaging_pb2 as pb
 from qs_ai.contracts.workflow import workflow_pb2 as workflow
+from qs_ai.contracts.workflow.command_mapping import receipt_message, scope_from
 from qs_ai.domain.interpretation.model import Actor, EvidenceItem, Fact, RuleViolation
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
 from qs_ai.infrastructure.persistence.mysql.evaluation_management import MySQLEvaluationManagement
@@ -29,8 +30,6 @@ from qs_ai.infrastructure.persistence.mysql.participant_retries import MySQLPart
 from qs_ai.infrastructure.persistence.mysql.schema import result_outbox
 from qs_ai.infrastructure.workflow_transport.messaging import FIELDS, valid_number
 from qs_ai.infrastructure.workflow_transport.mq_receiver import AdmissionDecision
-from qs_ai.transport.grpc.commands import receipt_message
-from qs_ai.transport.grpc.evaluation import scope_from
 
 
 async def _start_decision(

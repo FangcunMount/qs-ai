@@ -30,6 +30,7 @@ from qs_ai.infrastructure.workflow_transport.messaging import ACKS, CHANNELS, CO
 from qs_ai.infrastructure.workflow_transport.mq_failure import FailureTopology
 from qs_ai.infrastructure.workflow_transport.mq_receiver import CommandReceiver
 from qs_ai.infrastructure.workflow_transport.mq_relay import MQRelay
+from qs_ai.infrastructure.workflow_transport.payload_access import MySQLPayloadAccess
 from qs_ai.infrastructure.workflow_transport.payloads import PayloadResolver
 from qs_ai.infrastructure.workflow_transport.state_events import StateEventRecorder
 from qs_ai.transport.grpc.message_payloads import MessagePayloads
@@ -150,7 +151,7 @@ class MessagingRuntime:
                 )
             runtime.tx = tx
             runtime.relay = MQRelay(tx, store, runtime.publishers, address=next(iter(options.nsqd)))
-            runtime.payloads = MessagePayloads(tx, store)
+            runtime.payloads = MessagePayloads(MySQLPayloadAccess(tx, store))
             return runtime
         except BaseException:
             await runtime.close()

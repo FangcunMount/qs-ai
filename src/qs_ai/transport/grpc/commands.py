@@ -9,20 +9,12 @@ from grpc import aio
 
 from qs_ai.application.interpretation.commands import AnswerCommand, CancelCommand
 from qs_ai.application.interpretation.eligibility import EligibilityReader
-from qs_ai.application.interpretation.ports import AccessDenied, DependencyUnavailable, Receipt
+from qs_ai.application.interpretation.ports import AccessDenied, DependencyUnavailable
 from qs_ai.application.interpretation.service import InterpretationService
 from qs_ai.contracts.workflow import workflow_pb2 as pb
 from qs_ai.contracts.workflow import workflow_pb2_grpc as rpc
+from qs_ai.contracts.workflow.command_mapping import receipt_message as receipt_message
 from qs_ai.domain.interpretation.model import Actor, EvidenceItem, Fact, RuleViolation
-
-
-def receipt_message(result: Receipt) -> pb.Receipt:
-    return pb.Receipt(
-        session_id=result.session_id,
-        run_id=result.run_id or "",
-        status=result.status,
-        version=result.version,
-    )
 
 
 class Commands(rpc.CommandsServicer):

@@ -6,7 +6,6 @@ from contextlib import asynccontextmanager
 from dataclasses import asdict, fields
 from datetime import UTC, datetime
 from typing import Any
-from uuid import UUID
 
 import grpc
 from dishka import AsyncContainer
@@ -17,7 +16,7 @@ from qs_ai.application.evaluation.capacity import CapacityExceeded, EvaluationCa
 from qs_ai.application.evaluation.catalog import EvaluationCatalog, EvaluationCatalogQuery
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict
 from qs_ai.application.evaluation.diagnostics import EvaluationDiagnostics, ExecutionQuery
-from qs_ai.application.evaluation.management import EvaluationManagementStore, ManagementScope
+from qs_ai.application.evaluation.management import EvaluationManagementStore
 from qs_ai.application.evaluation.planning import EvaluationPlanner, EvaluationPlanQuery
 from qs_ai.application.evaluation.requests import EvaluationRequests
 from qs_ai.application.evaluation.unknowns import validate_unknown_query
@@ -25,17 +24,11 @@ from qs_ai.application.governance.prompt_drafts import DraftScope
 from qs_ai.application.interpretation.ports import NotFound
 from qs_ai.contracts.workflow import workflow_pb2 as pb
 from qs_ai.contracts.workflow import workflow_pb2_grpc as rpc
+from qs_ai.contracts.workflow.command_mapping import scope_from as scope_from
 from qs_ai.domain.evaluation.identity import EvidenceReleaseIdentity, FrozenContractRef
 from qs_ai.domain.evaluation.resolution import ResultUnknownResolution
 from qs_ai.domain.evaluation.review import CandidateHumanReview, SemanticContradictionReview
 from qs_ai.transport.grpc.identity import require_qs_workload
-
-
-def scope_from(request: pb.EvaluationQuery) -> ManagementScope:
-    run_id = UUID(request.run_id)
-    if str(run_id) != request.run_id:
-        raise ValueError("Canonical Run id required")
-    return ManagementScope(run_id, request.organization_id, request.operator_user_id)
 
 
 class EvaluationManagement(rpc.EvaluationManagementServicer):
