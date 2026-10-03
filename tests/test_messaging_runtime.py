@@ -225,3 +225,15 @@ async def test_disabled_messaging_never_checks_recording_schema(monkeypatch):
         await MessagingRuntime.create(container, Settings(), b"", b"", b"")
     require.assert_not_awaited()
     container.get.assert_not_awaited()
+
+
+async def test_ready_relay_does_not_scan_or_transfer_historical_results():
+    runtime = MessagingRuntime()
+    runtime.tx = AsyncMock()
+    runtime.recorder = AsyncMock()
+    runtime.relay = AsyncMock()
+    runtime.publisher_ready.set()
+    assert await runtime.step() == 0
+    runtime.relay.step.assert_awaited_once_with()
+    runtime.tx.open.assert_not_called()
+    runtime.recorder.handoff.assert_not_awaited()

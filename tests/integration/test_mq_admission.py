@@ -111,6 +111,18 @@ async def saved(tx, table):
         return list((await db.execute(select(table))).mappings())
 
 
+async def locked_result(db, event_id):
+    return (
+        (
+            await db.execute(
+                select(result_outbox).where(result_outbox.c.event_id == event_id).with_for_update()
+            )
+        )
+        .mappings()
+        .one()
+    )
+
+
 @pytest.mark.usefixtures("published_configuration")
 async def test_start_change_and_duplicate_preserve_first_effect_receipt_and_wire(kit, keys, mq_env):
     tx = kit.transactions
@@ -475,7 +487,9 @@ async def test_legacy_handoff_preserves_original_identity_and_never_marks_delive
     kit.transactions.database.state_events = mq_env
     async with kit.transactions.open() as db:
         await db.begin()
-        assert await mq_env.handoff(db) == 1
+        assert await mq_env.record_legacy_interpretation(
+            db, await locked_result(db, legacy["event_id"])
+        )
         await db.commit()
     event = (await saved(kit.transactions, outbox))[0]
     assert event["message_id"] == legacy["event_id"]
@@ -491,7 +505,9 @@ async def test_legacy_handoff_preserves_original_identity_and_never_marks_delive
     first = event["wire"]
     async with kit.transactions.open() as db:
         await db.begin()
-        assert await mq_env.handoff(db) == 0
+        assert not await mq_env.record_legacy_interpretation(
+            db, await locked_result(db, legacy["event_id"])
+        )
         await db.commit()
     assert (await saved(kit.transactions, outbox))[0]["wire"] == first
     assert await MySQLResultOutbox(kit.transactions).pending(100) == []
@@ -645,7 +661,7 @@ async def test_legacy_result_settles_only_with_atomic_original_business_ack(
     kit.transactions.database.state_events = mq_env
     async with kit.transactions.open() as db:
         await db.begin()
-        await mq_env.handoff(db)
+        await mq_env.record_legacy_interpretation(db, await locked_result(db, legacy["event_id"]))
         await db.commit()
     event = next(
         r for r in await saved(kit.transactions, outbox) if r["message_id"] == legacy["event_id"]
@@ -753,7 +769,7 @@ async def test_legacy_handoff_and_ack_share_lock_order_without_deadlock(kit, key
     kit.transactions.database.state_events = mq_env
     async with kit.transactions.open() as db:
         await db.begin()
-        await mq_env.handoff(db)
+        await mq_env.record_legacy_interpretation(db, await locked_result(db, legacy["event_id"]))
         await db.commit()
     event = next(
         r for r in await saved(kit.transactions, outbox) if r["message_id"] == legacy["event_id"]
@@ -800,7 +816,7 @@ async def test_legacy_handoff_and_ack_share_lock_order_without_deadlock(kit, key
             # new row while waiting for this original row.
             await asyncio.sleep(0.2)
             assert not task.done()
-            await asyncio.wait_for(mq_env.record_interpretation(db, old), 3)
+            await asyncio.wait_for(mq_env.record_legacy_interpretation(db, old), 3)
             await db.commit()
             await asyncio.wait_for(task, 3)
         finally:

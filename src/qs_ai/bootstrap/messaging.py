@@ -219,13 +219,10 @@ class MessagingRuntime:
     async def step(self) -> int:
         if not self.publisher_ready.is_set():
             return 0  # Starting/stopping publisher cannot reject or hold durable results.
-        # Bounded handoff of original durable rows. No manufactured historical Run events.
-        async with self.tx.open() as db:
-            await db.begin()
-            count = await self.recorder.handoff(db)
-            await db.commit()
+        # Historical ownership moves only through an explicitly reviewed handoff.
+        # New state events are already staged on their original business transaction.
         await self.relay.step()
-        return count
+        return 0
 
     async def close(self) -> None:
         for subscriber in self.subscribers:
