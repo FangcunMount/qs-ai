@@ -90,7 +90,7 @@ required = {
     "test_preprovisioned_failure_topology_with_real_nsq",
     "test_five_execution_writes_cannot_bypass_mq_admission",
     "test_mq_cutover_keeps_workload_authorization_before_mode_error",
-    "test_queries_and_governance_preparation_stay_registered_in_mq_mode",
+    "test_queries_and_governance_preparation_stay_registered",
     "test_legacy_result_settles_only_with_atomic_original_business_ack",
     "test_legacy_handoff_and_ack_share_lock_order_without_deadlock",
 }
@@ -121,10 +121,49 @@ legacy_cases = (
         for change in ("None", "attempts", "available_at", "exhausted_stage")
     }
 )
+# Retirement must refuse all five writes with either legacy option value and
+# retain every query/governance method. Require exact cases rather than the old
+# MQ-enabled-only count; no missing or skipped case can satisfy this gate.
+write_methods = (
+    "Commands.Start",
+    "Commands.Change",
+    "ParticipantManagement.Retry",
+    "EvaluationManagement.Start",
+    "EvaluationManagement.Cancel",
+)
+retained_methods = (
+    "Commands.CheckEligibility",
+    "ParticipantManagement.GetExecution",
+    "ParticipantManagement.GetRetryReceipt",
+    "EvaluationManagement.Get",
+    "EvaluationManagement.Create",
+    "EvaluationManagement.Prepare",
+    "SolutionManagement.Get",
+    "SolutionManagement.GetModels",
+    "SolutionManagement.Prepare",
+)
+cutover_cases = (
+    {
+        f"test_five_execution_writes_cannot_bypass_mq_admission[{method}-{enabled}]"
+        for method in write_methods
+        for enabled in ("False", "True")
+    }
+    | {
+        f"test_mq_cutover_keeps_workload_authorization_before_mode_error[{method}]"
+        for method in write_methods
+    }
+    | {
+        f"test_queries_and_governance_preparation_stay_registered[{method}-{enabled}]"
+        for method in retained_methods
+        for enabled in ("False", "True")
+    }
+)
 root = ElementTree.parse(Path(sys.argv[1])).getroot()
 cases = root.findall(".//testcase")
+case_ids = [(c.get("classname", ""), c.get("name", "")) for c in cases]
 if (
     not cases
+    or len(case_ids) != len(set(case_ids))
     or any(c.find(tag) is not None for c in cases for tag in ("failure", "error", "skipped"))
     or not required.issubset({c.get("name", "").split("[")[0] for c in cases})
     or not legacy_cases.issubset({c.get("name", "") for c in cases})
@@ -132,7 +171,8 @@ if (
         root.find(f".//testcase[@name='test_go_python_messaging_interop[{kind}]']") is not None
         for kind in range(1, 10)
     )
-    or len([c for c in cases if c.get("classname", "").endswith("test_grpc_mq_cutover")]) != 24
+    or {c.get("name", "") for c in cases if c.get("classname", "").endswith("test_grpc_mq_cutover")}
+    != cutover_cases
     or not all(
         root.find(
             ".//testcase[@name='test_legacy_result_settles_only_with_atomic_original_business_ack"
