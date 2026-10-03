@@ -1,123 +1,52 @@
-"""M7: actual protobuf/gRPC and local SQL persistence, without the Go harness or models."""
+"""MQ-only result contract: original artifact, first wire and no repeat model dispatch."""
 
+import json
 from dataclasses import asdict
-from uuid import uuid4
 
-import grpc
 import pytest
-from sqlalchemy import Column, LargeBinary, MetaData, String, Table, func, select, update
-from sqlalchemy.dialects.mysql import insert
 
-from qs_ai.application.integration.events import DeliverResults
-from qs_ai.contracts.workflow import workflow_pb2 as pb
-from qs_ai.contracts.workflow import workflow_pb2_grpc as rpc
-from qs_ai.infrastructure.persistence.mysql.result_outbox import MySQLResultOutbox
+from qs_ai.application.interpretation.ports import WorkflowResult
+from qs_ai.contracts.workflow import messaging_pb2 as pb
+from qs_ai.infrastructure.persistence.mysql.messaging import outbox
+from qs_ai.infrastructure.persistence.mysql.result_outbox import stage_state
 from qs_ai.infrastructure.persistence.mysql.schema import model_calls, result_outbox
-from qs_ai.infrastructure.workflow_transport.results import GRPCResultReceiver
-from tests.integration.test_delivery import certificates
-from tests.integration.test_interpretation import kit  # noqa: F401
-from tests.test_input_binding import bound_case
+from tests.integration.test_artifact_acceptance import ready
+from tests.integration.test_interpretation import kit as kit
+from tests.integration.test_mq_admission import mq_env as mq_env
+from tests.integration.test_mq_admission import saved
+from tests.integration.test_mq_storage import keys as keys
+from tests.probes.session_inspection import read_session
 
 pytestmark = [pytest.mark.integration, pytest.mark.usefixtures("published_configuration")]
 
 
-async def test_original_grpc_id_payload_and_defaults_survive_lost_or_mismatched_receipt(
-    kit,  # noqa: F811
-    tmp_path,
-):
-    metadata = MetaData()
-    receipts = Table(
-        "m7_result_receipts",
-        metadata,
-        Column("event_id", String(128), primary_key=True),
-        Column("wire", LargeBinary),
-    )
+async def test_completed_artifact_freezes_original_event_and_first_mq_wire(kit, keys, mq_env):
+    claim, artifact = await ready(kit)
+    await kit.store.finish(claim, WorkflowResult("", artifact=artifact))
     tx = kit.transactions
-    engine = tx.database.engine
-    async with engine.begin() as connection:
-        await connection.run_sync(metadata.create_all)
-    server = grpc.aio.server()
-
-    class Receiver(rpc.ResultsServicer):
-        mode = "lost"
-        deliveries = 0
-
-        async def Accept(self, request, context):
-            self.deliveries += 1
-            wire = request.SerializeToString(deterministic=True)
-            async with tx.open() as db:
-                statement = insert(receipts).values(event_id=request.event_id, wire=wire)
-                await db.execute(statement.on_duplicate_key_update(event_id=receipts.c.event_id))
-                assert await db.scalar(select(receipts.c.wire)) == wire
-                await db.commit()
-            if self.mode == "lost":
-                await context.abort(grpc.StatusCode.UNAVAILABLE, "injected lost durable receipt")
-            return pb.Acknowledgement(
-                event_id="mismatched" if self.mode == "mismatch" else request.event_id
-            )
-
-    receiver = Receiver()
-    rpc.add_ResultsServicer_to_server(receiver, server)
-    certificates(tmp_path)
-    ca = (tmp_path / "ca.pem").read_bytes()
-    server_credentials = grpc.ssl_server_credentials(
-        [((tmp_path / "qs.key").read_bytes(), (tmp_path / "qs.pem").read_bytes())],
-        root_certificates=ca,
-        require_client_auth=True,
+    source = next(
+        row
+        for row in await saved(tx, result_outbox)
+        if row["session_id"] == claim.session.id and row["payload"]["status"] == "completed"
     )
-    client_credentials = grpc.ssl_channel_credentials(
-        root_certificates=ca,
-        private_key=(tmp_path / "ai.key").read_bytes(),
-        certificate_chain=(tmp_path / "ai.pem").read_bytes(),
+    message = next(
+        row for row in await saved(tx, outbox) if row["message_id"] == source["event_id"]
     )
-    port = server.add_secure_port("localhost:0", server_credentials)
-    await server.start()
-    try:
-        receipt = await kit.service.start_external(
-            kit.actor,
-            "7",
-            ("42",),
-            "M7 synthetic notification",
-            str(uuid4()),
-            bound_case()[1].items,
-        )
-        store = MySQLResultOutbox(tx)
-        [event] = await store.pending(20)
-        original = pb.StateEvent(**asdict(event)).SerializeToString(deterministic=True)
-        async with tx.open() as db:
-            before = (await db.execute(select(result_outbox))).mappings().one()
-            model_count = await db.scalar(select(func.count()).select_from(model_calls))
-        async with grpc.aio.secure_channel(f"localhost:{port}", client_credentials) as channel:
-            deliver = DeliverResults(store, GRPCResultReceiver(channel))
-            for mode in ("lost", "mismatch", "normal"):
-                receiver.mode = mode
-                assert await deliver.once() == (1 if mode == "normal" else 0)
-                async with tx.open() as db:
-                    row = (await db.execute(select(result_outbox))).mappings().one()
-                    assert row["event_id"] == before["event_id"] == event.event_id
-                    assert row["payload"] == before["payload"]
-                    assert row["created_at"] == before["created_at"]
-                    assert row["delivered"] == (mode == "normal")
-                    assert row["attempts"] == (1 if mode == "lost" else 2)
-                    assert await db.scalar(select(receipts.c.wire)) == original
-                    assert (
-                        await db.scalar(select(func.count()).select_from(model_calls))
-                        == model_count
-                    )
-                    # Only bring this synthetic result due; never change a task/frozen config.
-                    await db.execute(
-                        update(result_outbox)
-                        .where(result_outbox.c.event_id == event.event_id)
-                        .values(available_at=func.utc_timestamp(6))
-                    )
-                    await db.commit()
-            assert await deliver.once() == 0
-        assert receiver.deliveries == 3
-        restored = pb.StateEvent.FromString(original)
-        assert restored.request_id == event.request_id
-        assert restored.session_id == receipt.session_id
-        assert restored.question_id == "" and restored.can_skip is False
-    finally:
-        await server.stop(0)
-        async with engine.begin() as connection:
-            await connection.run_sync(metadata.drop_all)
+    event = pb.MessagingBody.FromString(message["body"]).interpretation_state
+    assert event.event_id == source["event_id"]
+    assert event.request_id == source["payload"]["request_id"]
+    assert event.session_id == claim.session.id
+    assert source["mq_owned"] and not source["delivered"]
+    assert json.loads(event.artifact_json) == asdict(artifact)
+    first, calls = await saved(tx, outbox), await saved(tx, model_calls)
+    session = (await read_session(kit.service.uows, claim.session.id)).session
+    async with tx.open() as db:
+        await db.begin()
+        await stage_state(db, session)
+        await db.commit()
+    assert await saved(tx, outbox) == first
+    assert await saved(tx, model_calls) == calls
+    assert (
+        next(row for row in await saved(tx, result_outbox) if row["event_id"] == event.event_id)
+        == source
+    )

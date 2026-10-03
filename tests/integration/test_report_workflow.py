@@ -9,11 +9,11 @@ from qs_ai.application.execution.generation import DurableGeneration
 from qs_ai.application.execution.worker import ExecuteNext
 from qs_ai.application.interpretation.provider import ProviderFailure
 from qs_ai.infrastructure.persistence.model_call_codec import JSONModelCallCodec
-from qs_ai.infrastructure.persistence.mysql.result_outbox import MySQLResultOutbox
 from qs_ai.infrastructure.persistence.mysql.schema import artifacts
 from qs_ai.infrastructure.workflows.report import create_report_workflow
 from tests.integration.test_generation import Gateway
 from tests.integration.test_interpretation import kit as kit
+from tests.probes.result_history import read_events
 from tests.probes.session_inspection import read_session
 from tests.test_input_binding import bound_case
 from tests.test_output_validation import candidate
@@ -75,7 +75,7 @@ async def test_worker_to_validated_artifact_or_visible_failure(kit, scenario, ex
         artifact = await db.scalar(
             select(artifacts.c.payload).where(artifacts.c.session_id == receipt.session_id)
         )
-    events = await MySQLResultOutbox(kit.transactions).pending(20)
+    events = await read_events(kit.transactions, receipt.session_id)
     assert any(event.status == "completed" for event in events) == (expected is None)
     if expected is None:
         assert json.loads(artifact["content_json"]) == candidate()

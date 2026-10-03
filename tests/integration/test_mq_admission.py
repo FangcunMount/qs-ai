@@ -21,7 +21,6 @@ from qs_ai.infrastructure.persistence.mysql.messaging import (
     quarantine,
 )
 from qs_ai.infrastructure.persistence.mysql.publications import MySQLPublications
-from qs_ai.infrastructure.persistence.mysql.result_outbox import MySQLResultOutbox
 from qs_ai.infrastructure.persistence.mysql.schema import (
     idempotency,
     jobs,
@@ -148,7 +147,7 @@ async def test_start_change_and_duplicate_preserve_first_effect_receipt_and_wire
     )
     state = next(r for r in first if r["kind"] == pb.INTERPRETATION_STATE)
     assert state["message_id"] == original["event_id"] and original["mq_owned"]
-    assert await MySQLResultOutbox(tx).pending(100) == []
+    assert all(r["mq_owned"] for r in await saved(tx, result_outbox))
     await transport.receive_command(received(message))
     assert await saved(tx, outbox) == first
     identity = str(uuid4())
@@ -510,7 +509,7 @@ async def test_legacy_handoff_preserves_original_identity_and_never_marks_delive
         )
         await db.commit()
     assert (await saved(kit.transactions, outbox))[0]["wire"] == first
-    assert await MySQLResultOutbox(kit.transactions).pending(100) == []
+    assert all(r["mq_owned"] for r in await saved(kit.transactions, result_outbox))
 
 
 @pytest.mark.usefixtures("published_configuration")

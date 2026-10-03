@@ -1,13 +1,10 @@
-from contextlib import asynccontextmanager
-from uuid import uuid4
+from unittest.mock import MagicMock
 
 import grpc
 import pytest
 
-from qs_ai.application.interpretation.ports import AccessDenied, DependencyUnavailable
-from qs_ai.contracts.workflow import workflow_pb2 as pb
-from qs_ai.domain.interpretation.model import RuleViolation
-from qs_ai.transport.grpc.commands import Commands
+from qs_ai.transport.grpc.mq_cutover import MQ_REQUIRED
+from tests.test_grpc_mq_cutover import WRITES
 
 
 class Aborted(Exception):
@@ -22,51 +19,19 @@ class Context:
         raise Aborted(code, detail)
 
 
-@pytest.mark.parametrize("method", ["Start", "Change"])
-@pytest.mark.parametrize(
-    "failure,code,detail",
-    [
-        (AccessDenied(), grpc.StatusCode.PERMISSION_DENIED, "Resource access denied"),
-        (RuleViolation("version_conflict"), grpc.StatusCode.ABORTED, "version_conflict"),
-        (RuleViolation("invalid_state"), grpc.StatusCode.ABORTED, "invalid_state"),
-        (RuleViolation("invalid_answer"), grpc.StatusCode.INVALID_ARGUMENT, "invalid_answer"),
-        (ValueError("private"), grpc.StatusCode.INVALID_ARGUMENT, "Invalid command"),
-        (DependencyUnavailable(), grpc.StatusCode.UNAVAILABLE, "Business dependencies unavailable"),
-        (
-            RuntimeError("secret"),
-            grpc.StatusCode.UNAVAILABLE,
-            "Command outcome unknown; replay original ID",
-        ),
-    ],
-)
-async def test_error_mapping_and_redaction(method, failure, code, detail):
-    class FailingService:
-        async def fail(self, *args):
-            raise failure
-
-        start_external = change = answer = cancel = fail
-
-    class Scope:
-        async def get(self, dependency):
-            return FailingService()
-
-    @asynccontextmanager
-    async def container():
-        yield Scope()
-
-    handler = Commands(container)
-    actor = pb.Actor(org_id="1", subject_id="parent")
-    request = (
-        pb.StartCommand(actor=actor, request_id=str(uuid4()))
-        if method == "Start"
-        else pb.ChangeCommand(
-            actor=actor,
-            command_id=str(uuid4()),
-            session_id=str(uuid4()),
-            action="cancel",
-            expected_version=1,
-        )
-    )
+@pytest.mark.parametrize("case", WRITES, ids=[f"{v[0].__name__}.{v[2]}" for v in WRITES])
+@pytest.mark.parametrize("trusted", [False, True])
+async def test_retired_execution_handlers_never_enter_business_scope(case, trusted):
+    service, _, method, request, _ = case
+    container = MagicMock(side_effect=AssertionError("No business scope permitted"))
+    context = Context()
+    if not trusted:
+        context.auth_context = lambda: {}
     with pytest.raises(Aborted) as error:
-        await getattr(handler, method)(request, Context())
-    assert error.value.args == (code, detail)
+        await getattr(service(container), method)(request(), context)
+    assert error.value.args == (
+        (grpc.StatusCode.FAILED_PRECONDITION, MQ_REQUIRED)
+        if trusted
+        else (grpc.StatusCode.PERMISSION_DENIED, "Untrusted workload")
+    )
+    container.assert_not_called()

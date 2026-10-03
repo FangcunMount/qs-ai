@@ -42,15 +42,15 @@ MQ 归属一旦转移，不得只关开关、让旧镜像接管投递。回滚�
 
 ## 启动装配与配置
 
-默认 `messaging.enabled=false`，原 gRPC 模式保持可用。启用 MQ 时不装配 `DeliveryProvider`、不预解析 `DeliverResults`、不启动旧 delivery loop；改为唯一 MQ relay。gRPC 仍保留管理接口和精确引用正文读取。
+R7 固定 MQ 后，常驻 `bootstrap.server` 必须显式配置 `messaging.enabled=true`，关闭时在创建资源前失败；维护命令不受此启动约束。原 gRPC 投递装配、历史扫描与重试适配器已退役，仅保留唯一 MQ relay。gRPC 仍保留管理接口和精确引用正文读取。
 
-MQ 启用时，统一 gRPC 装配在业务方法之前拒绝 `Commands.Start/Change`、`ParticipantManagement.Retry`、`EvaluationManagement.Start/Cancel` 五类旧运行写入口。可信 QS 收到 `FAILED_PRECONDITION` 和 `MQ admission required; gRPC execution command not accepted`，明确没有接单；不可信工作负载仍先收到 `PERMISSION_DENIED`。不会进入业务作用域、数据库事务或模型执行，也不产生替代回执。查询、治理/配置和方案/评测 `Create/Prepare` 继续使用原 gRPC 方法。MQ 关闭时不安装该边界，旧行为保留用于兼容期；这不改变已转移 MQ 归属数据的回滚限制。
+MQ 启用时，统一 gRPC 装配在业务方法之前拒绝 `Commands.Start/Change`、`ParticipantManagement.Retry`、`EvaluationManagement.Start/Cancel` 五类旧运行写入口。可信 QS 收到 `FAILED_PRECONDITION` 和 `MQ admission required; gRPC execution command not accepted`，明确没有接单；不可信工作负载仍先收到 `PERMISSION_DENIED`。不会进入业务作用域、数据库事务或模型执行，也不产生替代回执。查询、治理/配置和方案/评测 `Create/Prepare` 继续使用原 gRPC 方法。该边界始终安装，直接挂载旧 servicer 同样拒绝这五种写入；配置关闭不能恢复旧写路径。已转移 MQ 归属数据只能回滚到支持 MQ 的兼容版本。
 
 配置结构示例（只有路径与地址，正文不含密钥）：
 
 ```yaml
 messaging:
-  enabled: false
+  enabled: true
   nsqd:
     nsqd:4150: http://nsqd:4151
   signing_key_file: /run/secrets/qs-ai-sign.jwk

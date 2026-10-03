@@ -19,6 +19,13 @@ MQ_EXECUTION_METHODS = frozenset(
 MQ_REQUIRED = "MQ admission required; gRPC execution command not accepted"
 
 
+async def reject_execution(context: Any) -> Any:
+    """Compatibility refusal also applies when a servicer is mounted directly."""
+    await require_qs_workload(context)
+    await context.abort(grpc.StatusCode.FAILED_PRECONDITION, MQ_REQUIRED)
+    raise AssertionError("abort must raise")
+
+
 class MQExecutionCutover(aio.ServerInterceptor):
     async def intercept_service(self, continuation: Any, details: Any) -> Any:
         handler = await continuation(details)
@@ -26,8 +33,7 @@ class MQExecutionCutover(aio.ServerInterceptor):
             return handler
 
         async def reject(request: Any, context: Any) -> Any:
-            await require_qs_workload(context)
-            await context.abort(grpc.StatusCode.FAILED_PRECONDITION, MQ_REQUIRED)
+            return await reject_execution(context)
 
         return grpc.unary_unary_rpc_method_handler(
             reject,

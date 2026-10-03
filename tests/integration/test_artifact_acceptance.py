@@ -13,11 +13,11 @@ from qs_ai.application.interpretation.ports import WorkflowResult
 from qs_ai.application.interpretation.preparation import prepare_explanation
 from qs_ai.domain.interpretation.model import RuleViolation, Status
 from qs_ai.infrastructure.persistence.model_call_codec import JSONModelCallCodec
-from qs_ai.infrastructure.persistence.mysql.result_outbox import MySQLResultOutbox
 from qs_ai.infrastructure.persistence.mysql.schema import artifacts, sessions
 from qs_ai.infrastructure.qs_server.output import QSOutputParser
 from tests.integration.test_generation import Gateway
 from tests.integration.test_interpretation import kit as kit
+from tests.probes.result_history import read_events
 from tests.probes.session_inspection import read_session
 from tests.test_input_binding import bound_case
 from tests.test_output_validation import candidate
@@ -70,7 +70,7 @@ async def test_artifact_and_completed_event_commit_together(kit):
             await db.scalar(select(sessions.c.status).where(sessions.c.id == claim.session.id))
             == "completed"
         )
-    events = await MySQLResultOutbox(kit.transactions).pending(20)
+    events = await read_events(kit.transactions, claim.session.id)
     completed = [event for event in events if event.status == "completed"]
     assert len(completed) == 1
     assert json.loads(completed[0].artifact_json) == payload
@@ -109,7 +109,7 @@ async def test_outbox_failure_rolls_back_artifact_and_completion(kit, monkeypatc
         )
     assert all(
         event.status != "completed"
-        for event in await MySQLResultOutbox(kit.transactions).pending(20)
+        for event in await read_events(kit.transactions, claim.session.id)
     )
     await kit.store.finish(claim, WorkflowResult("", artifact=artifact))
 

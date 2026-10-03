@@ -154,17 +154,13 @@ async def test_five_execution_writes_cannot_bypass_mq_admission(endpoint, enable
     handler = endpoint.handlers[service, method]
     async with endpoint.start(enabled) as channel:
         call = getattr(stub(channel), method)
-        if enabled:
-            with pytest.raises(grpc.aio.AioRpcError) as error:
-                await call(request(), timeout=3)
-            assert error.value.code() == grpc.StatusCode.FAILED_PRECONDITION
-            assert error.value.details() == MQ_REQUIRED
-            handler.assert_not_awaited()
-            for old_service, _, old_method, *_ in WRITES:
-                endpoint.handlers[old_service, old_method].assert_not_awaited()
-        else:
-            assert await call(request(), timeout=3) == response()
-            handler.assert_awaited_once()
+        with pytest.raises(grpc.aio.AioRpcError) as error:
+            await call(request(), timeout=3)
+        assert error.value.code() == grpc.StatusCode.FAILED_PRECONDITION
+        assert error.value.details() == MQ_REQUIRED
+        handler.assert_not_awaited()
+        for old_service, _, old_method, *_ in WRITES:
+            endpoint.handlers[old_service, old_method].assert_not_awaited()
 
 
 @pytest.mark.parametrize("case", WRITES, ids=[f"{v[0].__name__}.{v[2]}" for v in WRITES])
@@ -177,10 +173,11 @@ async def test_mq_cutover_keeps_workload_authorization_before_mode_error(endpoin
     endpoint.handlers[service, method].assert_not_awaited()
 
 
+@pytest.mark.parametrize("enabled", [False, True])
 @pytest.mark.parametrize("case", RETAINED, ids=[f"{v[0].__name__}.{v[2]}" for v in RETAINED])
-async def test_queries_and_governance_preparation_stay_registered_in_mq_mode(endpoint, case):
+async def test_queries_and_governance_preparation_stay_registered(endpoint, enabled, case):
     service, stub, method, request, response = case
-    async with endpoint.start(True) as channel:
+    async with endpoint.start(enabled) as channel:
         assert await getattr(stub(channel), method)(request(), timeout=3) == response()
     endpoint.handlers[service, method].assert_awaited_once()
     for old_service, _, old_method, *_ in WRITES:

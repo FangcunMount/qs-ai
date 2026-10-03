@@ -29,6 +29,7 @@ from qs_ai.domain.evaluation.identity import EvidenceReleaseIdentity, FrozenCont
 from qs_ai.domain.evaluation.resolution import ResultUnknownResolution
 from qs_ai.domain.evaluation.review import CandidateHumanReview, SemanticContradictionReview
 from qs_ai.transport.grpc.identity import require_qs_workload
+from qs_ai.transport.grpc.mq_cutover import reject_execution
 
 
 class EvaluationManagement(rpc.EvaluationManagementServicer):
@@ -169,17 +170,7 @@ class EvaluationManagement(rpc.EvaluationManagementServicer):
     async def Start(
         self, request: pb.EvaluationStartCommand, context: aio.ServicerContext[Any, Any]
     ) -> pb.EvaluationState:
-        async with self.operation(context):
-            scope = scope_from(request.scope)
-            if request.expected_version < 1 or not request.confirm:
-                raise ValueError("Explicit version and confirmation required")
-            async with self.container() as operation:
-                store = await operation.get(EvaluationManagementStore)
-                view = await store.start(
-                    scope, request.expected_version, request.reason, datetime.now(UTC), confirm=True
-                )
-            return pb.EvaluationState(**asdict(view))
-        raise AssertionError("abort must raise")
+        return await reject_execution(context)
 
     async def Get(
         self, request: pb.EvaluationQuery, context: aio.ServicerContext[Any, Any]
@@ -195,27 +186,7 @@ class EvaluationManagement(rpc.EvaluationManagementServicer):
     async def Cancel(
         self, request: pb.EvaluationCancelCommand, context: aio.ServicerContext[Any, Any]
     ) -> pb.EvaluationState:
-        async with self.operation(context):
-            scope = scope_from(request.scope)
-            if (
-                request.ByteSize() > 8192
-                or request.expected_version < 1
-                or not request.confirm
-                or not request.HasField("discard")
-            ):
-                raise ValueError("Explicit version, discard decision and confirmation required")
-            async with self.container() as operation:
-                store = await operation.get(EvaluationManagementStore)
-                view = await store.cancel(
-                    scope,
-                    request.expected_version,
-                    request.reason,
-                    datetime.now(UTC),
-                    discard=request.discard,
-                    confirm=True,
-                )
-            return pb.EvaluationState(**asdict(view))
-        raise AssertionError("abort must raise")
+        return await reject_execution(context)
 
     async def ListCandidates(
         self, request: pb.EvaluationQuery, context: aio.ServicerContext[Any, Any]

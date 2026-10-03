@@ -200,7 +200,25 @@ async def test_go_python_governance_mtls_resolution_and_readback(
         assert (await call(OrgID=2))["Code"] == "NotFound"
         assert (await call(certificate="other", Action=action))["Code"] == "PermissionDenied"
         assert (await rows(tx, run_id))[2]["version"] == state.version
-        accepted = await call(Action=action)
+        if decision == "start":
+            assert (await call(Action=action))["Code"] == "FailedPrecondition"
+            assert (await rows(tx, run_id))[2]["version"] == state.version
+            from qs_ai.application.evaluation.management import (
+                EvaluationManagementStore,
+                ManagementScope,
+            )
+
+            async with container() as operation:
+                await (await operation.get(EvaluationManagementStore)).start(
+                    ManagementScope(run_id, 1, 42),
+                    state.version,
+                    "Historical query fixture",
+                    datetime.now(UTC),
+                    confirm=True,
+                )
+            accepted = await call()
+        else:
+            accepted = await call(Action=action)
         assert accepted["Code"] == "OK"
         assert accepted["State"]["status"] == (
             "canceled" if decision == "cancel_run" else "collecting"
@@ -212,10 +230,14 @@ async def test_go_python_governance_mtls_resolution_and_readback(
             assert persisted["transitions"][-1]["actor"] == "user:42"
             assert persisted["transitions"][-1]["cause_code"] == "evaluation_started"
             assert readback["State"]["version"] == state.version + 1
-            assert (await call(Action=action, Version=state.version + 1))["Code"] == "Aborted"
+            assert (await call(Action=action, Version=state.version + 1))[
+                "Code"
+            ] == "FailedPrecondition"
         else:
             assert readback["State"]["resolutions"][0]["actor"] == "user:42"
-        assert (await call(Action=action))["Code"] == "Aborted"
+        assert (await call(Action=action))["Code"] == (
+            "FailedPrecondition" if decision == "start" else "Aborted"
+        )
         assert (await call(Allowed=False))["Denied"]
     finally:
         await server.stop(0)

@@ -171,7 +171,24 @@ async def test_create_replay_conflicts_and_start_use_real_asset_storage(
             assert (await call(**change))["Code"] == "Aborted"
         assert await rows(tx, run_id) == before
         started = await call(Action="start")
-        assert started["Code"] == "OK" and started["State"]["status"] == "collecting"
+        assert started["Code"] == "FailedPrecondition"
+        # Only seed this synthetic fixture through the retained business service.
+        from datetime import UTC, datetime
+
+        from qs_ai.application.evaluation.management import (
+            EvaluationManagementStore,
+            ManagementScope,
+        )
+
+        async with container() as operation:
+            await (await operation.get(EvaluationManagementStore)).start(
+                ManagementScope(run_id, 1, 42),
+                1,
+                "MQ-only historical read fixture",
+                datetime.now(UTC),
+                confirm=True,
+            )
+        started = await call(Action="get")
         after = await rows(tx, run_id)
         replay = await call()
         assert replay["State"] == started["State"]

@@ -40,7 +40,7 @@ def create_grpc_server(
     server = aio.server(
         interceptors=[
             Diagnostics(),
-            *([MQExecutionCutover()] if settings.messaging.enabled else []),
+            MQExecutionCutover(),
         ],
         options=(("grpc.max_receive_message_length", settings.grpc.max_receive_bytes),),
     )

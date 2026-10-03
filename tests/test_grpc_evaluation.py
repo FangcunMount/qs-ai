@@ -126,20 +126,6 @@ def test_governance_registration_is_disabled_in_production_defaults():
     assert not Settings(environment="production").grpc.governance_enabled
 
 
-async def test_start_uses_server_time_and_trusted_actor(handler):
-    service, store = handler
-    request = pb.EvaluationStartCommand(
-        scope=command().scope, expected_version=1, reason="启动", confirm=True
-    )
-    store.start.return_value = EvaluationView(request.scope.run_id, 2, "collecting", 0, "[]")
-    reply = await service.Start(request, Context())
-    assert reply.status == "collecting" and reply.version == 2
-    scope, version, reason, at = store.start.await_args.args
-    assert scope.actor == "user:42" and version == 1 and reason == "启动"
-    assert at.utcoffset().total_seconds() == 0
-    assert store.start.await_args.kwargs == {"confirm": True}
-
-
 @pytest.mark.parametrize("invalid", ["confirm", "version", "scope", "workload"])
 async def test_start_rejected_before_store(handler, invalid):
     service, store = handler
@@ -147,7 +133,7 @@ async def test_start_rejected_before_store(handler, invalid):
         scope=command().scope, expected_version=1, reason="启动", confirm=True
     )
     context = Context()
-    expected = grpc.StatusCode.INVALID_ARGUMENT
+    expected = grpc.StatusCode.FAILED_PRECONDITION
     if invalid == "confirm":
         request.confirm = False
     elif invalid == "version":

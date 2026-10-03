@@ -61,13 +61,15 @@ jobs:
       - name: Single-process, capacity and frozen receipt regression (synthetic)
         run: >-
           uv run pytest -q --junitxml=m7-unit.xml
-          tests/test_structured_logging.py::test_delivery_retry_and_commit_are_observed_after_persistence
+          tests/test_legacy_delivery_retirement.py tests/test_grpc_mq_cutover.py
           tests/test_model_capacity.py tests/test_multi_provider_gateway.py
           tests/test_mbti_runtime.py tests/test_mbti_themes_input.py tests/test_single_server.py
-      - name: Original transaction, durable gRPC receipt and execution recovery (synthetic)
+      - name: Original transaction, durable MQ receipt and execution recovery (synthetic)
         run: >-
           uv run pytest -q --junitxml=m7-storage.xml
           tests/integration/test_m7_delivery.py tests/integration/test_result_outbox.py
+          tests/integration/test_mq_admission.py::test_legacy_result_settles_only_with_atomic_original_business_ack
+          tests/integration/test_mq_legacy_handoff.py
           tests/integration/test_execution_configurations.py tests/integration/test_evaluation_recovery.py
           tests/integration/test_evaluation_capacity_recovery.py
           tests/integration/test_interpretation.py::test_model_dispatch_is_durable_and_only_one_caller_can_send
