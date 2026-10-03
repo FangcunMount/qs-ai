@@ -45,7 +45,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.uv.sources]
-fangcun-reliable-messaging = { git = "https://github.com/FangcunMount/reliable-messaging.git", rev = "d4748ebf1eb4fa8890620323da25f3de68f02aa9", subdirectory = "python" }
+fangcun-reliable-messaging = { git = "https://github.com/FangcunMount/reliable-messaging.git", rev = "50c94db0aad89ef6d3ed9a454b1ad31861aa363d", subdirectory = "python" }
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/qs_ai"]

@@ -40,11 +40,11 @@ execution/evaluation/interpretation、ModelCapacity、冻结配置、业务恢�
 ## 依赖与受控发布
 
 候选依赖为 `fangcun-reliable-messaging==0.1.0a1`，uv.sources 和 lock 固定 SDK
-`d4748ebf1eb4fa8890620323da25f3de68f02aa9` 的 python 子目录，不使用工作树路径。
+`50c94db0aad89ef6d3ed9a454b1ad31861aa363d` 的 python 子目录，不使用工作树路径。
 这是审查/CI 用的不可变 Git pin，Python 版本尚未正式发布。原生产 Dockerfile
 没有增加 Git 工具，不宣称这份 Git 依赖候选已是可部署生产镜像。
 
-审核顺序：核对 SDK 精确源码/21 项测试/目标版本 CI/独立 wheel 摘要 → 用户授权
+审核顺序：核对 SDK 精确源码/22 项测试/目标版本 CI/独立 wheel 摘要 → 用户授权
 正式 Python 发布 → 用 approved wheel/index 版本替换临时 Git source → 核验 lock、
 正常 Docker 构建与单 PID、原配置/挂载/停止预算 → 用户审核具体部署与回退材料。
 
