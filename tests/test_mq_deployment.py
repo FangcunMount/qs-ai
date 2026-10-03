@@ -270,6 +270,7 @@ def test_enabled_compose_keeps_one_service_original_tls_and_stop_budget(tmp_path
 def test_manual_mq_rollback_checks_old_key_files_before_stopping_current(tmp_path, monkeypatch):
     remote = load("deploy/serverA/deploy.py")
     monkeypatch.setattr(remote, "ROOT", tmp_path)
+    monkeypatch.setattr(remote, "release_image_id", lambda *args, **kwargs: "sha256:" + "b" * 64)
     state = {"current": "a" * 40 + "-1-1", "previous": "b" * 40 + "-1-1"}
     for name in state.values():
         release = remote.release_path(name)

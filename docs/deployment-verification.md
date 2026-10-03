@@ -18,6 +18,36 @@
 
 当前评测依赖准备：以维护操作人身份执行 `python -m qs_ai.bootstrap.import_routes --include-evaluation --imported-by <操作人标识>`，补入 `semantic_judge_v1/v5`；生成路线 v8 已存在时不会重复插入或覆盖首次审计。v5 的 DeepSeek V4 Pro、Responses/json_schema、180 秒、8000 tokens、low 参数来自 2026-09-13 的生产只读记录，原始字节校验和与配置指纹随镜像固定。该命令不执行模型、不批准版本、不修改发布指针。管理端再从 `V6_PUBLISHED` 案例源注册绑定当前 Profile/Prompt 的原生套件，准备/启动新评测；不能拿旧 Run 的 approved 状态替代本次新输入契约的审核。无需导入旧草稿、旧结果或旧调试运行。
 
+## 镜像归档身份与实际加载 ID
+
+部署不再假定不同 Docker 存储后端的 `image inspect.Id` 相同。发布清单中的
+`image_id` 保留导出端 ID，`digest` 保留拉取的 Registry digest；新增
+`image_ref` 和 `image_identity` 记录固定归档名称、原始 Config SHA-256、
+完整运行配置的规范化摘要、Linux/amd64 平台及有序 RootFS diff_ids。配置正文和
+环境变量内容不会进入身份记录。仅 Docker 补齐的已知空默认字段被规范化；
+未知或非空字段仍必须匹配。
+
+导出端与服务器复用同一标准库校验器：单镜像归档、唯一元数据、版本标签、
+平台、Config 摘要及每个解压后 layer 的 diff_id 全部核对。服务器加载后检查
+完整 Config 和 RootFS；若实际 ID 与 Config SHA 不同，再按**实际不可变 ID**
+导出并核对原始 Config SHA 和全部层，不能仅凭少量 Config 字段相同放行。
+归档整体 SHA-256 和固定源码版本检查仍保留；不改变 MQ 密钥预检、迁移、
+停机排空、schema 回退和真实 mTLS 门槛。
+
+成功核对后新增私有 `loaded-image.json`，分别保存 `source_image_id` 与
+`loaded_image_id`、归档/Registry 摘要和资产身份；`image.env` 固定实际加载 ID。
+预检、运行镜像验证、回滚和镜像保留均使用这个实际 ID，移除原标签或成功后
+移除归档不会改变回滚选择。回滚前核对绑定和实际镜像，绑定漂移立即失败。
+已有发布目录拒绝重用；已有加载身份禁止覆盖，manifest 不被改写。
+历史无加载回执的版本继续要求原 ID 精确匹配，不享受资产等价例外；缺失新
+格式回执不得静默退回标签。
+
+本地隔离验收以 Docker 29.1.1 的 containerd 存储加载真实 R0/R1 命名归档，
+复现导出 Config ID 与加载 index ID 不同，并验证配置与全部层、固定 ID 启动、
+自动和手动回滚及实际 ID 保留参数。演练只运行无网络的等待进程，数据库迁移、
+mTLS、MQ 密钥和业务探针用显式桩隔离；此证据不代表生产部署或业务验收通过。
+部署控制回归见 `tests/test_release_image_identity.py` 和原部署/锁/MQ 预检测试。
+
 ## 基础发布记录
 
 2026-09-11：serverA 基础 API 首发已完成。自动发布与回滚演练分别记录；真实 AI 执行链路不在本批上线范围。

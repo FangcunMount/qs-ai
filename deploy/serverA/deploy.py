@@ -2,13 +2,16 @@
 
 import contextlib
 import fcntl
+import gzip
 import hashlib
 import json
 import os
 import re
 import subprocess
 import sys
+import tarfile
 import tempfile
+import time
 from pathlib import Path
 
 
@@ -18,6 +21,275 @@ class DeploymentError(RuntimeError):
 
 ROOT = Path("/opt/qs-ai")
 RETENTION_ROOT = Path("/var/lib/fangcun-image-retention")
+
+# Docker inspect expands omitted legacy Config fields. Normalize only their exact
+# empty defaults; every non-default and unknown field remains in the comparison.
+CONFIG_DEFAULTS = {
+    "Hostname": "",
+    "Domainname": "",
+    "Image": "",
+    "AttachStdin": False,
+    "AttachStdout": False,
+    "AttachStderr": False,
+    "Tty": False,
+    "OpenStdin": False,
+    "StdinOnce": False,
+    "Entrypoint": None,
+    "OnBuild": None,
+    "Volumes": None,
+}
+
+
+def json_digest(value: object) -> str:
+    return hashlib.sha256(
+        json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+
+
+def config_digest(value: dict) -> str:
+    if not isinstance(value, dict):
+        raise DeploymentError("Invalid image configuration")
+    normalized = dict(value)
+    for key, default in CONFIG_DEFAULTS.items():
+        if (
+            key in normalized
+            and type(normalized[key]) is type(default)
+            and normalized[key] == default
+        ):
+            del normalized[key]
+    return json_digest(normalized)
+
+
+def image_id(value: str) -> str:
+    if not isinstance(value, str) or not re.fullmatch(r"sha256:[0-9a-f]{64}", value):
+        raise DeploymentError("Invalid image digest identity")
+    return value
+
+
+def archive_identity(path: Path, expected_ref: str | None, revision: str) -> dict:
+    """Verify one standard docker-save image, including each uncompressed layer.
+
+    Never extract archive paths, and never return Config/Env contents. A config
+    digest and ordered diff_ids identify the original asset independently of the
+    daemon's config-vs-index choice for inspect.Id.
+    """
+    deadline = time.monotonic() + 1200
+
+    def unique_pairs(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError
+            result[key] = value
+        return result
+
+    try:
+        if not re.fullmatch(r"[0-9a-f]{40}", revision):
+            raise ValueError
+        with tarfile.open(path, "r:*") as archive:
+            members = {}
+            for member in archive:
+                if member.name in members or len(members) >= 4096:
+                    raise ValueError
+                members[member.name] = member
+                if time.monotonic() > deadline:
+                    raise ValueError
+
+            def content(name, limit):
+                member = members[name]
+                if not member.isfile() or member.size > limit:
+                    raise ValueError
+                with archive.extractfile(member) as stream:
+                    return stream.read(limit + 1)
+
+            manifest = json.loads(
+                content("manifest.json", 128 * 1024), object_pairs_hook=unique_pairs
+            )
+            if not isinstance(manifest, list) or len(manifest) != 1:
+                raise ValueError
+            entry = manifest[0]
+            if (
+                expected_ref is not None
+                and entry["RepoTags"] != [expected_ref]
+                or expected_ref is None
+                and entry["RepoTags"] not in (None, [])
+            ):
+                raise ValueError
+            raw_config = content(entry["Config"], 2 * 1024 * 1024)
+            config_sha = "sha256:" + hashlib.sha256(raw_config).hexdigest()
+            config = json.loads(raw_config, object_pairs_hook=unique_pairs)
+            if config["architecture"] != "amd64" or config["os"] != "linux":
+                raise ValueError
+            if config["config"]["Labels"]["org.opencontainers.image.revision"] != revision:
+                raise ValueError
+            diff_ids = config["rootfs"]["diff_ids"]
+            layers = entry["Layers"]
+            if (
+                config["rootfs"]["type"] != "layers"
+                or not diff_ids
+                or len(layers) != len(diff_ids)
+                or len(set(layers)) != len(layers)
+            ):
+                raise ValueError
+            for name, expected in zip(layers, diff_ids, strict=True):
+                image_id(expected)
+                member = members[name]
+                if not member.isfile() or member.size > 8 * 1024**3:
+                    raise ValueError
+                with archive.extractfile(member) as raw:
+                    prefix = raw.read(2)
+                    raw.seek(0)
+                    # Legacy archives contain plain layers; OCI docker-save may
+                    # contain gzip blobs. diff_ids always hash the decoded bytes.
+                    with contextlib.ExitStack() as stack:
+                        stream = (
+                            stack.enter_context(gzip.GzipFile(fileobj=raw))
+                            if prefix == b"\x1f\x8b"
+                            else raw
+                        )
+                        checksum = hashlib.sha256()
+                        size = 0
+                        for block in iter(lambda stream=stream: stream.read(1024 * 1024), b""):
+                            checksum.update(block)
+                            size += len(block)
+                            if size > 8 * 1024**3 or time.monotonic() > deadline:
+                                raise ValueError
+                        if "sha256:" + checksum.hexdigest() != expected:
+                            raise ValueError
+            return {
+                "config_sha256": config_sha,
+                "config_digest": config_digest(config["config"]),
+                "architecture": config["architecture"],
+                "os": config["os"],
+                "variant": config.get("variant", ""),
+                "rootfs_diff_ids": diff_ids,
+            }
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, tarfile.TarError, EOFError):
+        raise DeploymentError("Image archive identity invalid; contents withheld") from None
+
+
+def match_image(inspected: dict, identity: dict, revision: str) -> str:
+    try:
+        actual = image_id(inspected["Id"])
+        if (
+            inspected["Architecture"] != identity["architecture"]
+            or inspected["Os"] != identity["os"]
+            or inspected.get("Variant", "") != identity["variant"]
+            or inspected["RootFS"]["Type"] != "layers"
+            or inspected["RootFS"]["Layers"] != identity["rootfs_diff_ids"]
+            or config_digest(inspected["Config"]) != identity["config_digest"]
+            or inspected["Config"]["Labels"].get("org.opencontainers.image.revision") != revision
+        ):
+            raise ValueError
+        return actual
+    except (ValueError, TypeError, KeyError, AttributeError):
+        raise DeploymentError(
+            "Image identity or architecture mismatch; contents withheld"
+        ) from None
+
+
+def check_manifest_identity(manifest: dict, identity: dict) -> None:
+    image_id(manifest["image_id"])
+    if manifest.get("image_identity") is not None:
+        if manifest["image_identity"] != identity:
+            raise DeploymentError("Exported image identity mismatch")
+    elif manifest["image_id"] != identity["config_sha256"]:
+        # Old manifests recorded a config ID. An unproved index ID is not enough.
+        raise DeploymentError("Legacy source image configuration digest mismatch")
+    if "digest" in manifest:
+        image_id(manifest["digest"])
+
+
+def loaded_image_binding(release: Path) -> dict | None:
+    path = release / "loaded-image.json"
+    if not path.exists():
+        return None
+    try:
+        receipt = json.loads(path.read_text())
+        manifest = json.loads((release / "manifest.json").read_text())
+        check_manifest_identity(manifest, receipt["identity"])
+        if (
+            receipt["version"] != 1
+            or receipt["revision"] != manifest["revision"]
+            or receipt["source_image_id"] != manifest["image_id"]
+            or receipt["archive_sha256"] != manifest["archive_sha256"]
+            or receipt["registry_digest"] != manifest.get("digest")
+            or (release / "image.env").read_text()
+            != f"QS_AI_IMAGE={image_id(receipt['loaded_image_id'])}\n"
+        ):
+            raise ValueError
+        return receipt
+    except (OSError, ValueError, TypeError, KeyError):
+        raise DeploymentError("Loaded image release binding invalid; contents withheld") from None
+
+
+def release_image_id(release: Path, *, verify_identity: bool = False) -> str:
+    receipt = loaded_image_binding(release)
+    manifest = json.loads((release / "manifest.json").read_text())
+    if receipt is not None:
+        actual = receipt["loaded_image_id"]
+        if verify_identity:
+            inspected = json.loads(
+                run("pinned image identity", ["sudo", "-n", "docker", "image", "inspect", actual])
+            )[0]
+            if match_image(inspected, receipt["identity"], manifest["revision"]) != actual:
+                raise DeploymentError("Pinned image mismatch")
+        return actual
+    if manifest.get("image_identity") is not None:
+        raise DeploymentError("Loaded image receipt missing")
+    # Historical releases retain strict ID equality, never the new equivalence
+    # exception. Check a mutable legacy tag before any rollback/preflight starts.
+    expected = image_id(manifest["image_id"])
+    reference = (release / "image.env").read_text().strip()
+    if reference != f"QS_AI_IMAGE={expected}":
+        if reference != f"QS_AI_IMAGE=qs-ai:{manifest['revision']}":
+            raise DeploymentError("Historical image reference mismatch")
+        inspected = json.loads(
+            run(
+                "legacy image identity",
+                ["sudo", "-n", "docker", "image", "inspect", f"qs-ai:{manifest['revision']}"],
+            )
+        )[0]
+        if inspected["Id"] != expected:
+            raise DeploymentError("Historical image identity mismatch")
+    return expected
+
+
+def bind_loaded_image(release: Path, manifest: dict, identity: dict, actual: str) -> None:
+    receipt = {
+        "version": 1,
+        "revision": manifest["revision"],
+        "source_image_id": manifest["image_id"],
+        "loaded_image_id": actual,
+        "archive_sha256": manifest["archive_sha256"],
+        "registry_digest": manifest.get("digest"),
+        "identity": identity,
+    }
+    path = release / "loaded-image.json"
+    if path.exists():
+        if json.loads(path.read_text()) != receipt:
+            raise DeploymentError("Existing loaded image binding cannot be overwritten")
+    image_env = release / "image.env"
+    temporary = release / ".image.env.tmp"
+    temporary.write_text(f"QS_AI_IMAGE={actual}\n")
+    temporary.chmod(0o600)
+    temporary.replace(image_env)
+    if not path.exists():
+        # Publish only a complete receipt, without replacing a prior identity.
+        # If interrupted before publication, apply can reconstruct it from the
+        # still-present verified source archive; no service has started yet.
+        with tempfile.NamedTemporaryFile(
+            mode="w", dir=release, prefix=".loaded-", delete=False
+        ) as stream:
+            candidate = Path(stream.name)
+            try:
+                json.dump(receipt, stream, sort_keys=True)
+                stream.flush()
+                os.fsync(stream.fileno())
+                candidate.chmod(0o600)
+                os.link(candidate, path)
+            finally:
+                candidate.unlink(missing_ok=True)
 
 
 def secret_override(database_url: str) -> dict:
@@ -61,6 +333,7 @@ def run(phase: str, args: list[str]) -> str:
 
 
 def compose(release: Path, *args: str) -> list[str]:
+    loaded_image_binding(release)  # Fail before starting anything if the pinned binding drifted.
     return [
         "sudo",
         "-n",
@@ -115,7 +388,7 @@ def probe(release: Path, require_head: bool = False) -> dict:
 
 
 def verify(release: Path) -> dict:
-    manifest = json.loads((release / "manifest.json").read_text())
+    expected_image = release_image_id(release, verify_identity=True)
     run(
         "service readiness",
         compose(
@@ -141,7 +414,7 @@ def verify(release: Path) -> dict:
             "running image",
             ["sudo", "-n", "docker", "inspect", container, "--format", "{{.Image}}"],
         ).strip()
-        if image_id != manifest["image_id"]:
+        if image_id != expected_image:
             raise DeploymentError("Running image does not match release")
     if "qs-ai" in services:
         run(
@@ -252,6 +525,7 @@ def restore(state: dict) -> None:
         raise DeploymentError("No previous successful release")
     target = release_path(previous)
     messaging_transition(release_path(state["current"]), target)
+    release_image_id(target, verify_identity=True)
     messaging_key_preflight(target)
     # Old image must recognize the current schema and require its own exact head.
     probe(target, True)
@@ -270,6 +544,12 @@ def restore(state: dict) -> None:
 
 def apply(release: Path, state: dict) -> None:
     manifest = json.loads((release / "manifest.json").read_text())
+    verified = release / "verification.json"
+    if release.name in (state.get("current"), state.get("previous")) or (
+        verified.exists() and json.loads(verified.read_text()).get("phase") == "ready"
+    ):
+        raise DeploymentError("Existing successful release cannot be overwritten")
+    loaded_image_binding(release)
     enabled = messaging_release(release, manifest)
     if state.get("current"):
         messaging_transition(release_path(state["current"]), release)
@@ -284,16 +564,27 @@ def apply(release: Path, state: dict) -> None:
     digest = checksum.hexdigest()
     if digest != manifest["archive_sha256"]:
         raise DeploymentError("Image archive checksum mismatch")
+    reference = manifest.get("image_ref", f"qs-ai:{revision}")
+    if not isinstance(reference, str) or not re.fullmatch(
+        r"qs-ai:[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,127}", reference
+    ):
+        raise DeploymentError("Invalid release image reference")
+    identity = archive_identity(archive, reference, revision)
+    check_manifest_identity(manifest, identity)
     run("image load", ["sudo", "-n", "docker", "load", "-i", str(archive)])
     inspected = json.loads(
-        run("image identity", ["sudo", "-n", "docker", "image", "inspect", f"qs-ai:{revision}"])
+        run("image identity", ["sudo", "-n", "docker", "image", "inspect", reference])
     )[0]
-    if (
-        inspected["Id"] != manifest["image_id"]
-        or inspected["Architecture"] != "amd64"
-        or inspected["Config"]["Labels"].get("org.opencontainers.image.revision") != revision
-    ):
-        raise DeploymentError("Image identity or architecture mismatch")
+    actual = match_image(inspected, identity, revision)
+    if actual != identity["config_sha256"]:
+        # Containerd daemons may expose an index/manifest ID. Export that exact
+        # immutable ID and verify its raw config digest, not just six Config fields.
+        with tempfile.TemporaryDirectory(prefix=".loaded-image-", dir=release) as directory:
+            saved = Path(directory) / "image.tar"
+            run("loaded image archive", ["sudo", "-n", "docker", "save", "-o", str(saved), actual])
+            if archive_identity(saved, None, revision) != identity:
+                raise DeploymentError("Loaded image configuration or layer digest mismatch")
+    bind_loaded_image(release, manifest, identity, actual)
     services = run("compose services", compose(release, "config", "--services")).split()
     if enabled:
         if services != ["qs-ai"]:
@@ -353,7 +644,12 @@ def apply(release: Path, state: dict) -> None:
         raise
     write_json(
         release / "verification.json",
-        {"phase": "ready", "database": after, "image_id": manifest["image_id"]},
+        {
+            "phase": "ready",
+            "database": after,
+            "image_id": actual,
+            "source_image_id": manifest["image_id"],
+        },
     )
     write_json(ROOT / "state.json", {"current": release.name, "previous": state.get("current")})
     # Loaded images and release metadata remain available for rollback.
@@ -389,7 +685,7 @@ def global_deploy_lock():
 def retain_successful_image(release):
     # Cleanup has its own failure status; never trigger application rollback.
     try:
-        revision = json.loads((release / "manifest.json").read_text())["revision"]
+        actual = release_image_id(release)
         script = Path(__file__)
         helper = (
             script.with_name("image-retention.py")
@@ -399,8 +695,7 @@ def retain_successful_image(release):
         previous = json.loads((ROOT / "state.json").read_text()).get("previous")
         protected = []
         if previous:
-            previous_manifest = json.loads((release_path(previous) / "manifest.json").read_text())
-            protected = ["--protect-image-id", previous_manifest["image_id"]]
+            protected = ["--protect-image-id", release_image_id(release_path(previous))]
         run(
             "image retention",
             [
@@ -411,7 +706,7 @@ def retain_successful_image(release):
                 "--service",
                 "qs-ai",
                 "--image-ref",
-                f"qs-ai:{revision}",
+                actual,
                 "--apply",
                 "--deployment-locked",
                 *protected,

@@ -2,6 +2,7 @@
 
 import base64
 import hashlib
+import importlib.util
 import json
 import os
 import re
@@ -16,6 +17,27 @@ from urllib.parse import urlsplit
 from sqlalchemy import URL
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def release_identity_module():
+    # Reuse the standard-library validator shipped to the host; no second
+    # implementation of config/layer/architecture equivalence in the exporter.
+    spec = importlib.util.spec_from_file_location(
+        "qs_ai_release_identity", ROOT / "deploy/serverA/deploy.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def release_directory_command(target: str, user: str) -> str:
+    # mkdir without -p for the immutable release itself rejects reused IDs before
+    # uploading files. Parent initialization does not replace rollback materials.
+    return (
+        "sudo -n mkdir -p /opt/qs-ai/releases && "
+        f"sudo -n mkdir {target} && sudo -n chown {user} /opt/qs-ai /opt/qs-ai/releases {target} "
+        f"&& chmod 700 /opt/qs-ai {target}"
+    )
 
 
 def required(environment: dict, name: str) -> str:
@@ -485,6 +507,9 @@ def main() -> None:
             package.mkdir()
             archive = package / "image.tar.gz"
             export_image(alias, archive, docker_env)
+            validator = release_identity_module()
+            identity = validator.archive_identity(archive, alias, revision)
+            validator.match_image(inspected, identity, revision)
             checksum = hashlib.sha256()
             with archive.open("rb") as stream:
                 for block in iter(lambda: stream.read(1024 * 1024), b""):
@@ -492,6 +517,8 @@ def main() -> None:
             manifest = {
                 "revision": revision,
                 "image_id": inspected["Id"],
+                "image_ref": alias,
+                "image_identity": identity,
                 "digest": digest,
                 "archive_sha256": checksum.hexdigest(),
                 "messaging_binding_sha256": messaging_binding_digest(config),
@@ -505,8 +532,7 @@ def main() -> None:
                 "prepare release directory",
                 [
                     *ssh,
-                    f"sudo -n mkdir -p {target} && sudo -n chown -R {user} /opt/qs-ai "
-                    f"&& chmod 700 /opt/qs-ai {target}",
+                    release_directory_command(target, user),
                 ],
             )
             for path in package.iterdir():
