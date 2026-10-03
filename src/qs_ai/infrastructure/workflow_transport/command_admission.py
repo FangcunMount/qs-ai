@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from reliable_messaging.durable import MessageConflict
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from qs_ai.application.evaluation.capacity import CapacityExceeded, EvaluationCapacityPolicy
@@ -16,7 +17,7 @@ from qs_ai.application.governance.prompt_drafts import DraftScope
 from qs_ai.application.governance.quotas import QuotaBaseline
 from qs_ai.application.governance.solution_models import EditableModelPolicy
 from qs_ai.application.interpretation.commands import AnswerCommand, CancelCommand
-from qs_ai.application.interpretation.ports import AccessDenied, EvidenceSource, NotFound
+from qs_ai.application.interpretation.ports import AccessDenied, EvidenceSource, NotFound, Receipt
 from qs_ai.application.interpretation.service import InterpretationService
 from qs_ai.contracts.workflow import messaging_pb2 as pb
 from qs_ai.contracts.workflow import workflow_pb2 as workflow
@@ -25,10 +26,58 @@ from qs_ai.infrastructure.persistence.mysql.database import Transactions
 from qs_ai.infrastructure.persistence.mysql.evaluation_management import MySQLEvaluationManagement
 from qs_ai.infrastructure.persistence.mysql.interpretation import MySQLUnitOfWorkFactory
 from qs_ai.infrastructure.persistence.mysql.participant_retries import MySQLParticipantRetries
+from qs_ai.infrastructure.persistence.mysql.schema import result_outbox
 from qs_ai.infrastructure.workflow_transport.messaging import FIELDS, valid_number
 from qs_ai.infrastructure.workflow_transport.mq_receiver import AdmissionDecision
 from qs_ai.transport.grpc.commands import receipt_message
 from qs_ai.transport.grpc.evaluation import scope_from
+
+
+async def _start_decision(
+    tx: Transactions, request: workflow.StartCommand, receipt: Receipt, org: str
+) -> AdmissionDecision:
+    code, status = "", 0
+    decision = pb.ACCEPTED
+    if receipt.status == "blocked":
+        # Start persists pre-dispatch refusals rather than raising. Read its first
+        # event, not mutable Session state: replay must survive later publication
+        # or lifecycle changes, including an original request accepted before MQ.
+        async with tx.open() as db:
+            event = await db.scalar(
+                select(result_outbox.c.payload).where(
+                    result_outbox.c.session_id == receipt.session_id,
+                    result_outbox.c.version == receipt.version,
+                )
+            )
+        statuses = {
+            "configuration_unavailable": 9,
+            "admission_configuration_invalid": 9,
+            "admission_input_invalid": 3,
+            "participant_daily_capacity_exceeded": 8,
+        }
+        if (
+            not isinstance(event, dict)
+            or event.get("session_id") != receipt.session_id
+            or event.get("request_id") != request.request_id
+            or event.get("version") != receipt.version
+            or event.get("status") != "blocked"
+            or event.get("actor") != asdict(Actor(org, request.actor.subject_id))
+            or not isinstance(event.get("failure_code"), str)
+            or event["failure_code"] not in statuses
+        ):
+            # Missing/corrupt durable evidence is technical Unknown, never a new
+            # business rejection or acceptance. The receiver retains REQ/hold rules.
+            raise RuntimeError("Original admission refusal evidence unavailable")
+        code = event["failure_code"]
+        status, decision = statuses[code], pb.REJECTED
+    return AdmissionDecision(
+        org,
+        max(1, receipt.version),
+        decision,
+        code,
+        status,
+        workflow_receipt=receipt_message(receipt),
+    )
 
 
 class WorkflowCommandAdmission:
@@ -119,6 +168,7 @@ class WorkflowCommandAdmission:
                     for item in request.evidence
                 ),
             )
+            return await _start_decision(tx, request, receipt, org)
         elif envelope.kind == pb.CHANGE:
             request = body.change
             if (

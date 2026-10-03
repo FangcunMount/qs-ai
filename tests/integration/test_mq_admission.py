@@ -1,6 +1,7 @@
 """Real original admission, persistence and rollback; no real model or Broker calls."""
 
 from dataclasses import asdict
+from datetime import timedelta
 from uuid import uuid4
 
 import pytest
@@ -9,6 +10,7 @@ from sqlalchemy import delete, select
 from qs_ai.application.evaluation.capacity import EvaluationCapacityPolicy
 from qs_ai.application.evaluation.execution_mode import EvaluationRuntimeLimits
 from qs_ai.application.execution.capacity import ParticipantCapacityPolicy
+from qs_ai.application.governance.publication import MovePublication
 from qs_ai.application.governance.solution_models import DEFAULT_EDITABLE_MODELS
 from qs_ai.contracts.workflow import messaging_pb2 as pb
 from qs_ai.contracts.workflow import workflow_pb2 as workflow
@@ -18,8 +20,16 @@ from qs_ai.infrastructure.persistence.mysql.messaging import (
     outbox,
     quarantine,
 )
+from qs_ai.infrastructure.persistence.mysql.publications import MySQLPublications
 from qs_ai.infrastructure.persistence.mysql.result_outbox import MySQLResultOutbox
-from qs_ai.infrastructure.persistence.mysql.schema import idempotency, result_outbox, sessions
+from qs_ai.infrastructure.persistence.mysql.schema import (
+    idempotency,
+    jobs,
+    model_calls,
+    result_outbox,
+    runs,
+    sessions,
+)
 from qs_ai.infrastructure.workflow_transport.command_admission import WorkflowCommandAdmission
 from qs_ai.infrastructure.workflow_transport.messaging import prepare
 from qs_ai.infrastructure.workflow_transport.state_events import (
@@ -114,6 +124,12 @@ async def test_start_change_and_duplicate_preserve_first_effect_receipt_and_wire
         for r in first
         if r["kind"] == pb.COMMAND_RECEIPT
     )
+    decision = next(
+        pb.MessagingBody.FromString(r["body"]).command_receipt
+        for r in first
+        if r["kind"] == pb.COMMAND_RECEIPT
+    )
+    assert decision.decision == pb.ACCEPTED and decision.code == ""
     assert receipt.status == "queued"
     original = next(
         r for r in await saved(tx, result_outbox) if r["session_id"] == receipt.session_id
@@ -145,6 +161,116 @@ async def test_start_change_and_duplicate_preserve_first_effect_receipt_and_wire
     assert await saved(tx, outbox) == after
     assert len(after) == 4
     assert len(await saved(tx, inbox)) == 2
+
+
+async def test_unavailable_configuration_keeps_original_refusal_and_zero_dispatch(
+    kit, keys, mq_env
+):
+    tx = kit.transactions
+    transport = receiver(tx, MessagingStore(), keys, admission(kit.source))
+    message = start_message(kit, keys)
+    before_jobs, before_calls = await saved(tx, jobs), await saved(tx, model_calls)
+    await transport.receive_command(received(message))
+    first = await saved(tx, outbox)
+    decision = next(
+        pb.MessagingBody.FromString(row["body"]).command_receipt
+        for row in first
+        if row["kind"] == pb.COMMAND_RECEIPT
+    )
+    assert (decision.decision, decision.code, decision.grpc_status_code) == (
+        pb.REJECTED,
+        "configuration_unavailable",
+        9,
+    )
+    receipt = decision.workflow_receipt
+    assert receipt.status == "blocked"
+    original = next(
+        row for row in await saved(tx, result_outbox) if row["session_id"] == receipt.session_id
+    )
+    assert original["payload"]["failure_code"] == decision.code and original["mq_owned"]
+    assert len([r for r in await saved(tx, runs) if r["session_id"] == receipt.session_id]) == 1
+    before = [await saved(tx, table) for table in (sessions, runs, idempotency, result_outbox)]
+    await transport.receive_command(received(message))
+    assert await saved(tx, outbox) == first
+    assert [
+        await saved(tx, table) for table in (sessions, runs, idempotency, result_outbox)
+    ] == before
+    assert await saved(tx, jobs) == before_jobs and await saved(tx, model_calls) == before_calls
+    assert len(await saved(tx, inbox)) == 1
+
+
+async def test_start_refusal_replay_survives_publication_recovery(
+    published_configuration, ready, kit, keys, mq_env
+):
+    tx, scope, command_value, at = ready
+    active = published_configuration.change.current.active.publication_id
+    await MySQLPublications(tx).apply(
+        scope,
+        MovePublication(uuid4(), command_value.selector, 1, active, "隔离停用", True, None),
+        at + timedelta(seconds=1),
+    )
+    message = start_message(kit, keys)
+    transport = receiver(tx, MessagingStore(), keys, admission(kit.source))
+    await transport.receive_command(received(message))
+    first = await saved(tx, outbox)
+    rejected = next(
+        pb.MessagingBody.FromString(r["body"]).command_receipt
+        for r in first
+        if r["kind"] == pb.COMMAND_RECEIPT
+    )
+    assert rejected.decision == pb.REJECTED and rejected.code == "configuration_unavailable"
+    await MySQLPublications(tx).apply(
+        scope,
+        MovePublication(uuid4(), command_value.selector, 2, None, "隔离恢复", True, active),
+        at + timedelta(seconds=2),
+    )
+    before = [await saved(tx, table) for table in (sessions, runs, jobs, model_calls, idempotency)]
+    # Also replay the original service idempotency receipt with no transport Inbox
+    # shortcut: publication changes cannot turn its first refusal into acceptance.
+    async with tx.open() as db:
+        await db.begin()
+
+        from qs_ai.infrastructure.workflow_transport.messaging import parse_body
+
+        result = await admission(kit.source).admit(
+            db, message.envelope, parse_body(message.envelope, message.body)
+        )
+        assert result.decision == pb.REJECTED and result.code == rejected.code
+        assert result.workflow_receipt == rejected.workflow_receipt
+        await db.commit()
+    await transport.receive_command(received(message))
+    assert await saved(tx, outbox) == first
+    assert [
+        await saved(tx, table) for table in (sessions, runs, jobs, model_calls, idempotency)
+    ] == before
+    # Restored publication applies only to a new original request identity.
+    fresh = start_message(kit, keys)
+    await transport.receive_command(received(fresh))
+    accepted = next(
+        pb.MessagingBody.FromString(r["body"]).command_receipt
+        for r in await saved(tx, outbox)
+        if r["kind"] == pb.COMMAND_RECEIPT
+        and pb.MessagingBody.FromString(r["body"]).command_receipt.command_id
+        == fresh.envelope.message_id
+    )
+    assert accepted.decision == pb.ACCEPTED and accepted.workflow_receipt.status == "queued"
+    assert await saved(tx, model_calls) == before[3]
+
+
+async def test_refusal_receipt_failure_rolls_back_original_business_and_inbox(kit, keys, mq_env):
+    tx = kit.transactions
+    transport = receiver(tx, MessagingStore(), keys, admission(kit.source))
+    tables = (sessions, runs, jobs, model_calls, idempotency, result_outbox, inbox, outbox)
+    before = [await saved(tx, table) for table in tables]
+
+    async def fail(*args):
+        raise RuntimeError("injected refusal receipt persistence failure")
+
+    transport._record_decision = fail
+    with pytest.raises(RuntimeError, match="injected refusal receipt persistence failure"):
+        await transport.receive_command(received(start_message(kit, keys)))
+    assert [await saved(tx, table) for table in tables] == before
+    assert len(await saved(tx, quarantine)) == 1  # technical attempt, no false business decision
 
 
 @pytest.mark.usefixtures("published_configuration")
