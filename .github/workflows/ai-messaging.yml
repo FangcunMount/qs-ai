@@ -107,3 +107,84 @@ jobs:
         run: |
           docker run --rm --network none --read-only --tmpfs /tmp -e QS_AI_ENVIRONMENT=production qs-ai:mq-ci /app/.venv/bin/python -c 'import os; from qs_ai.config import Settings; from qs_ai.bootstrap.container import create_container; assert os.getuid() != 0; create_container(Settings())'
           python3 scripts/ci/smoke_single_process.py qs-ai:mq-ci
+  process-faults:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - python: '3.11'
+            mysql: '8.0.36'
+          - python: '3.13'
+            mysql: '8.4'
+    services:
+      mysql:
+        image: mysql:${{ matrix.mysql }}
+        env:
+          MYSQL_DATABASE: qs_ai
+          MYSQL_USER: qs_ai
+          MYSQL_PASSWORD: qs_ai_local
+          MYSQL_ROOT_PASSWORD: qs_ai_local_root
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -pqs_ai_local_root --silent"
+          --health-interval=5s --health-timeout=3s --health-retries=30
+    env:
+      QS_AI_DATABASE_URL: mysql+asyncmy://qs_ai:qs_ai_local@127.0.0.1:3306/qs_ai
+      GOWORK: 'off'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.12.13'
+          python-version: ${{ matrix.python }}
+      - run: uv sync --frozen && uv run alembic upgrade head
+      - uses: actions/checkout@v4
+        with:
+          repository: FangcunMount/qs-server
+          ref: 8b3a8f5a76dfd26a02556436eab035cf44a96351
+          path: .interop/qs-mq-process
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.12'
+          cache-dependency-path: .interop/qs-mq-process/go.sum
+      - name: Prepare independent QS schema and original host runtime probe
+        env:
+          MYSQL_CONTAINER: ${{ job.services.mysql.id }}
+        run: |
+          docker exec "$MYSQL_CONTAINER" mysql -uroot -pqs_ai_local_root -e "CREATE DATABASE mq_dual_qs; GRANT ALL ON mq_dual_qs.* TO 'qs_ai'@'%';"
+          python3 - <<'PY'
+          import os, subprocess
+          from pathlib import Path
+          root = Path('.interop/qs-mq-process/internal/pkg/migration/migrations/mysql')
+          for name in ('000072_ai_bridge_delivery', '000083_ai_runtime_index', '000091_ai_messaging', '000092_ai_messaging_failures', '000093_ai_messaging_legacy_commands'):
+              subprocess.run(['docker','exec','-i',os.environ['MYSQL_CONTAINER'],'mysql','-uroot','-pqs_ai_local_root','mq_dual_qs'], input=(root / (name + '.up.sql')).read_bytes(), check=True)
+          PY
+          (cd .interop/qs-mq-process && go build -o ../ai-mq-process ./scripts/testing/ai-mq-process)
+      - name: Start dedicated volatile NSQ (never the shared Broker)
+        run: |
+          docker run -d --name rm-ai-mq-dual-nsq-ci --memory=128m --cpus=1 --tmpfs /data:rw,size=64m -p 127.0.0.1:4150:4150 -p 127.0.0.1:4151:4151 nsqio/nsq:v1.3.0 /nsqd --data-path=/data --max-msg-size=262144 --mem-queue-size=3000
+          for attempt in $(seq 1 30); do
+            if curl --silent --fail http://127.0.0.1:4151/ping; then exit 0; fi
+            sleep 1
+          done
+          exit 1
+      - name: Kill and restart both original runtimes after command receipt and ACK loss
+        run: |
+          uv run python -m tests.probes.mq_fault_acceptance --output .mq-fault-evidence \
+            --qs-binary "$PWD/.interop/ai-mq-process" \
+            --qs-dsn 'qs_ai:qs_ai_local@tcp(127.0.0.1:3306)/mq_dual_qs?parseTime=true' \
+            --qs-url 'mysql+asyncmy://qs_ai:qs_ai_local@127.0.0.1:3306/mq_dual_qs' \
+            --ai-url 'mysql+asyncmy://qs_ai:qs_ai_local@127.0.0.1:3306/qs_ai' \
+            --nsq-container rm-ai-mq-dual-nsq-ci --nsq-tcp 127.0.0.1:4150 --nsq-http http://127.0.0.1:4151 \
+            --ai-grpc localhost:59061 --qs-payload-address localhost:59062 --ai-http-port 59063
+          uv run python scripts/ci/verify_mq_process_report.py .mq-fault-evidence/acceptance.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ai-mq-process-${{ matrix.python }}-${{ matrix.mysql }}
+          # Never upload even disposable private keys or certificates.
+          path: |
+            .mq-fault-evidence/acceptance.json
+            .mq-fault-evidence/*.log
+          if-no-files-found: error
