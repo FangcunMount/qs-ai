@@ -6,6 +6,23 @@ from pathlib import Path
 from xml.etree import ElementTree
 
 required = {
+    "test_index_id_is_verified_by_raw_config_and_pinned_for_start",
+    "test_index_metadata_match_alone_cannot_authorize_loading",
+    "test_every_runtime_config_field_is_part_of_identity",
+    "test_platform_and_all_layer_identities_are_checked",
+    "test_docker_empty_defaults_do_not_hide_nonempty_config",
+    "test_bad_asset_never_loads_or_touches_existing_service",
+    "test_retention_protects_actual_loaded_ids_not_export_ids",
+    "test_rollback_uses_pinned_actual_id_before_probe_and_restores_state",
+    "test_binding_drift_blocks_rollback_before_any_command",
+    "test_legacy_mutable_tag_must_still_match_original_id",
+    "test_existing_release_binding_and_successful_releases_are_immutable",
+    "test_client_reuses_validator_and_refuses_existing_release_directory",
+    "test_gzip_layer_blob_retains_uncompressed_diff_id",
+    "test_ambiguous_archives_fail_before_loading",
+    "test_receipt_publication_is_atomic_and_failed_publish_can_resume",
+    "test_release_reference_is_bounded_and_never_shell_code",
+    "test_older_successful_release_cannot_be_reapplied_even_outside_current_state",
     "test_dependency_direction_and_no_cycles",
     "test_binding_adds_only_existing_settings_and_individual_readonly_mounts",
     "test_bad_binding_is_rejected_without_disclosing_contents",
