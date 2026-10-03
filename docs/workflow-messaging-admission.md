@@ -4,7 +4,12 @@
 
 ## 交付边界
 
-基于 main `a0eae54`，复用外围 `31d0443`、`4b27fbc`。SDK 源码依赖与 lock 固定 `9f16fa30dc43a50a2d4492f3e95c905a8f969331`（Python 0.2.0a1 候选），不能当成正式 Release。正式发布前必须换成经审核的 wheel URL/摘要并完成相应回归。候选镜像使用独立 `deploy/candidate/Dockerfile.mq`，仅在依赖构建层安装 Git，最终运行层不携带 Git。正常生产 Dockerfile 保持不变；Git 候选依赖不能通过正常生产构建，正式 wheel 替换后再验收生产配方。
+基于 main `a0eae54`，复用外围 `31d0443`、`4b27fbc`。首批使用 SDK Git 候选 `9f16fa30dc43a50a2d4492f3e95c905a8f969331`；后续依赖收尾已改为该提交的已发布 [Python 0.2.0a1 预发布](https://github.com/FangcunMount/reliable-messaging/releases/tag/python/v0.2.0a1) wheel，并保留 `[nsq]` 扩展。预发布不是稳定版或宿主生产切换证明。
+
+- wheel URL：`https://github.com/FangcunMount/reliable-messaging/releases/download/python/v0.2.0a1/fangcun_reliable_messaging-0.2.0a1-py3-none-any.whl`
+- SHA256：`24aa04fdcc809a3d655e3f3b398f8447e1edc78d8ecb0da90f45e60dd1a0b75d`，独立下载核验后固定在 `uv.lock`。
+- `pyproject.toml` 不再引用 Git source。锁变更仅涉及本 SDK 来源及其 wheel 元数据，没有升级其他依赖。
+- 删除临时 `deploy/candidate/Dockerfile.mq`，CI 恢复正常 Dockerfile；正常 Dockerfile 本文各批次均未改动。依赖构建和运行不再需要 Git。
 
 本批维护原业务/storage 接缝、事件记录、增量迁移、统一生命周期和候选验证。MQ framing、JOSE、Inbox、Outbox、ACK、物理失败处理由另一会话维护；没有创建第二套业务重试、生成、审批或发布状态机。
 
@@ -82,4 +87,6 @@ pytest tests/test_mq_contract.py tests/test_mq_failure.py
 - 最终候选镜像 SHA `fd009035cff95a58c9165bc684b53ed217e01efb8951028a0079fa0a5b34c998`：MQ 启用、MySQL 8.4、HTTP 健康、真实 mTLS、单进程、非特权运行与正常停机通过。镜像仅在本机构建，没有推送或部署。
 - Ruff、Mypy、协议生成和文档链接检查通过。以上不是远程 CI 或生产证据。
 
-仍需独立完成：正式 SDK 发行审核、三端候选 CI、QS 联调与跨服务故障/恢复全链、生产切换授权和核证。本文件不把本地通过写成生产完成。
+wheel 收尾核证（同日）：`uv sync --frozen`、独立 wheel SHA256 校验及安装来源核对通过；全部锁定包版本保持不变。替换发行载体后，相关运行时/跨语言/失败分类 28 项、MySQL 8.4 原事务与完整假模型 Worker 9 项通过。正常 Dockerfile 的 Linux/amd64 镜像 SHA `15daa4f5325c88235a19755990fa72e53ba11e97baaffe71d5a6b41e9d44a0b0` 构建及实际启动通过：MQ 启用、单进程、非特权、健康、mTLS、运行层无 Git、正常退出 0（0.74 秒）。Dockerfile 和业务执行/恢复代码没有改变。
+
+SDK 预发布发行和 wheel 摘要核验已完成。仍需独立完成：三端候选 CI、QS 联调与跨服务故障/恢复全链、生产切换授权和核证。本文件不把本地通过写成生产完成。

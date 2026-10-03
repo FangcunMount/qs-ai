@@ -45,8 +45,8 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.uv.sources]
-# Candidate only; replace with reviewed Release wheel + digest before production.
-fangcun-reliable-messaging = { git = "https://github.com/FangcunMount/reliable-messaging.git", rev = "9f16fa30dc43a50a2d4492f3e95c905a8f969331", subdirectory = "python" }
+# Reviewed pre-release wheel; uv.lock retains the verified SHA256.
+fangcun-reliable-messaging = { url = "https://github.com/FangcunMount/reliable-messaging/releases/download/python/v0.2.0a1/fangcun_reliable_messaging-0.2.0a1-py3-none-any.whl" }
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/qs_ai"]

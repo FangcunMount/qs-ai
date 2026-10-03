@@ -193,8 +193,6 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: .
-          # Candidate Git-pinned SDK only; normal production Dockerfile stays unchanged.
-          file: deploy/candidate/Dockerfile.mq
           build-args: RELEASE_SHA=${{ github.sha }}
           load: true
           tags: qs-ai:ci
