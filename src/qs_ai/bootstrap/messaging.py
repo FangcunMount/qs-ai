@@ -22,6 +22,7 @@ from qs_ai.config import Settings
 from qs_ai.contracts.workflow import messaging_pb2_grpc as rpc
 from qs_ai.infrastructure.persistence.mysql.database import Database, Transactions
 from qs_ai.infrastructure.persistence.mysql.messaging import MessagingStore
+from qs_ai.infrastructure.persistence.mysql.messaging_observations import require_recording_schema
 from qs_ai.infrastructure.qs_server.report_probe import mtls_channel
 from qs_ai.infrastructure.workflow_transport.command_admission import WorkflowCommandAdmission
 from qs_ai.infrastructure.workflow_transport.messaging import ACKS, CHANNELS, COMMANDS
@@ -95,6 +96,11 @@ class MessagingRuntime:
             database = await container.get(Database)
             runtime.database = database
             tx, store = Transactions(database), MessagingStore()
+            # Borrow the application pool before any transport or subscription exists.
+            # The read is rolled back by Transactions; startup never installs its schema.
+            async with asyncio.timeout(5), tx.open() as db:
+                await db.begin()
+                await require_recording_schema(db)
             runtime.recorder = StateEventRecorder(store, signing, recipient)
             database.state_events = runtime.recorder
             async with container() as scope:
