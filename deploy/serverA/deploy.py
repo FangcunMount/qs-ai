@@ -165,11 +165,94 @@ def release_path(name: str) -> Path:
     return ROOT / "releases" / name
 
 
+def messaging_release(release: Path, manifest: dict | None = None) -> bool:
+    """Read the release's frozen binding; never consult current mutable deployment vars."""
+    path = release / "runtime.json"
+    if not path.exists():
+        return False  # Historical release/test fixture without MQ metadata.
+    try:
+        runtime = json.loads(path.read_text())
+        service = runtime["services"]["qs-ai"]
+        raw = service["environment"].get("QS_AI_MESSAGING")
+        if raw is None:
+            return False
+        options = json.loads(raw)
+        if options.get("enabled") is not True:
+            raise ValueError
+        if set(runtime["services"]) != {"qs-ai"}:
+            raise ValueError
+        if manifest is None:
+            manifest = json.loads((release / "manifest.json").read_text())
+        metadata = {"options": raw, "volumes": service.get("volumes", [])}
+        digest = hashlib.sha256(
+            json.dumps(metadata, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+        if digest != manifest.get("messaging_binding_sha256"):
+            raise ValueError
+        paths = {
+            options["signing_key_file"],
+            options["qs_recipient_key_file"],
+            *options["decrypt_key_files"].values(),
+            *options["qs_signer_files"].values(),
+        }
+        targets = set()
+        revisions = set()
+        for mount in service["volumes"]:
+            target = mount["target"]
+            if not target.startswith("/run/qs-ai-jose/") or target in targets:
+                raise ValueError
+            source = mount["source"]
+            match = re.fullmatch(
+                r"/data/infra/qs-ai-messaging/versions/([a-z0-9][a-z0-9-]{0,63})/([a-z0-9._-]+\.json)",
+                source,
+            )
+            if not match or target != "/run/qs-ai-jose/" + match[2]:
+                raise ValueError
+            if (
+                mount["type"] != "bind"
+                or mount["read_only"] is not True
+                or mount["bind"]["create_host_path"] is not False
+            ):
+                raise ValueError
+            targets.add(target)
+            revisions.add(match[1])
+        if targets != paths or len(revisions) != 1:
+            raise ValueError
+        return True
+    except (ValueError, TypeError, KeyError, AttributeError, OSError):
+        raise DeploymentError("Frozen MQ release binding invalid; contents withheld") from None
+
+
+def messaging_transition(current: Path, target: Path) -> None:
+    if messaging_release(current) and not messaging_release(target):
+        raise DeploymentError("MQ ownership cannot fall back to a messaging-disabled release")
+
+
+def messaging_key_preflight(release: Path) -> None:
+    if messaging_release(release):
+        run(
+            "MQ key file preflight",
+            compose(
+                release,
+                "run",
+                "--rm",
+                "--no-deps",
+                "-T",
+                "qs-ai",
+                "/app/.venv/bin/python",
+                "-m",
+                "qs_ai.maintenance.messaging_preflight",
+            ),
+        )
+
+
 def restore(state: dict) -> None:
     previous = state.get("previous")
     if not previous:
         raise DeploymentError("No previous successful release")
     target = release_path(previous)
+    messaging_transition(release_path(state["current"]), target)
+    messaging_key_preflight(target)
     # Old image must recognize the current schema and require its own exact head.
     probe(target, True)
     current = release_path(state["current"])
@@ -187,6 +270,9 @@ def restore(state: dict) -> None:
 
 def apply(release: Path, state: dict) -> None:
     manifest = json.loads((release / "manifest.json").read_text())
+    enabled = messaging_release(release, manifest)
+    if state.get("current"):
+        messaging_transition(release_path(state["current"]), release)
     revision = manifest["revision"]
     if not re.fullmatch(r"[0-9a-f]{40}", revision) or not release.name.startswith(revision + "-"):
         raise ValueError("Invalid release revision")
@@ -209,6 +295,10 @@ def apply(release: Path, state: dict) -> None:
     ):
         raise DeploymentError("Image identity or architecture mismatch")
     services = run("compose services", compose(release, "config", "--services")).split()
+    if enabled:
+        if services != ["qs-ai"]:
+            raise DeploymentError("MQ release requires one qs-ai service")
+        messaging_key_preflight(release)
     if "grpc" in services or "qs-ai" in services:
         run(
             "TLS file preflight",
@@ -251,6 +341,8 @@ def apply(release: Path, state: dict) -> None:
         if state.get("current") and before["current"] == after["current"]:
             previous = release_path(state["current"])
             stop_release(release)
+            messaging_transition(release, previous)
+            messaging_key_preflight(previous)
             probe(previous, True)
             verify(previous)
             print("Service restored to previous successful release", flush=True)

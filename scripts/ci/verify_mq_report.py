@@ -7,6 +7,15 @@ from xml.etree import ElementTree
 
 required = {
     "test_dependency_direction_and_no_cycles",
+    "test_binding_adds_only_existing_settings_and_individual_readonly_mounts",
+    "test_bad_binding_is_rejected_without_disclosing_contents",
+    "test_ambiguous_or_oversized_binding_is_rejected",
+    "test_changed_release_binding_and_disabled_rollback_are_rejected",
+    "test_key_preflight_failure_never_stops_or_replaces_old_service",
+    "test_real_key_files_are_validated_without_starting_resources",
+    "test_enabled_compose_keeps_one_service_original_tls_and_stop_budget",
+    "test_manual_mq_rollback_checks_old_key_files_before_stopping_current",
+    "test_messaging_disabled_apply_cannot_replace_confirmed_mq_owner",
     "test_messaging_inventory_is_read_only_and_borrowed_pool_survives",
     "test_messaging_inventory_missing_table_is_unavailable_not_empty",
     "test_messaging_inventory_truncation_never_claims_complete",

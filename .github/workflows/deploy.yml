@@ -140,6 +140,7 @@ jobs:
           QS_AI_DEEPSEEK_API_KEY: ${{ secrets.QS_AI_DEEPSEEK_API_KEY }}
           QS_AI_ZHIPU_API_KEY: ${{ secrets.QS_AI_ZHIPU_API_KEY }}
           QS_AI_QS_ADDRESS: ${{ vars.QS_AI_QS_ADDRESS || 'qs-apiserver:9090' }}
+          QS_AI_MESSAGING_BINDING: ${{ vars.QS_AI_MESSAGING_BINDING }}
           SVRA_HOST: ${{ vars.SVRA_PUBLIC_HOST || vars.SVRA_HOST || secrets.SVRA_HOST }}
           SVRA_USERNAME: ${{ vars.SVRA_USERNAME || secrets.SVRA_USERNAME }}
           SVRA_SSH_PORT: ${{ vars.SVRA_SSH_PORT || secrets.SVRA_SSH_PORT || '22' }}

@@ -224,3 +224,16 @@ serverB 本次发布另有非阻塞告警：deploy 账号无 sudo python3 执行
 随后执行 [恢复 34761471931](https://github.com/FangcunMount/qs-ai/actions/runs/34761471931)，恢复原管理发布 34759204722。现场治理接口和 evaluation 容器恢复、服务健康、资产与任务/调用/成果计数不变；QS 证书到管理接口的空请求探针再次取得预期 INVALID_ARGUMENT。当前生产已恢复管理开启状态。
 
 [演练记录](evidence/2026-09-13-runtime-rollback.json) 证明部署配置能够真实回退与恢复；本轮没有在执行的模型调用，不证明带流量故障恢复，也不是 Profile 发布指针的业务回退。该部分管理闭环与真实参与者验收仍待完成。
+
+
+## MQ 发布绑定（候选代码，生产验收仍独立）
+
+`QS_AI_MESSAGING_BINDING` 是非秘密、已审查 JSON；不含私钥正文，沿现有 MessagingOptions 传递 enabled、明确 NSQD TCP→HTTP 映射、四类本地 key 文件与 max_in_flight=1。额外 binding_revision 固定本次密钥目录版本。空变量保持原关闭 MQ 的部署，不要求尚未创建的 JOSE 文件；它不构成已迁入 MQ 后回退到旧写路径的许可。重复 JSON 键、超限输入、未知字段、角色/kid/路径冲突、未明确 HTTP 端点与其它并发值均在发布打包前拒绝，诊断不包含原输入。
+
+容器路径固定为 `/run/qs-ai-jose/<role>.<version>.json`，角色为 ai.sign、ai.encrypt、qs.sign、qs.encrypt。宿主源只能从 `/data/infra/qs-ai-messaging/versions/<binding_revision>/` 派生四类具体文件；不接受任意宿主目录。只在启用时向原唯一 qs-ai 服务追加逐文件只读 bind，create_host_path=false；原三项 TLS 挂载、infra-network、别名、单进程和210秒宽限不变。私钥文件须由服务非 root UID10001可读、不可世界读取或组/世界写入；公钥可世界读取。实际宿主权限须现场核对，单元测试不代替。
+
+每个发布目录的 runtime.json 固化该绑定，manifest.json 保存其安全摘要（仅 MQ 选项/挂载，不含业务数据库或供应商凭据）。部署和回退读取该目录，不读取今日可变 Vars；修改 binding_revision 内的文件、删除仍被旧消息或回退版本引用的 key 不被授权。现场保留原版本目录与旧 kid 信任映射。
+
+替换服务之前，显式一次性 `qs_ai.maintenance.messaging_preflight` 校验有限文件、实际 kid、EC/P-256、私钥/公钥角色、use/alg/key_ops 和标准库实现的真实曲线密钥材料。该工具不连接数据库/Broker、不启动生命周期、不调用模型、不输出正文或密钥；缺失/错角色/权限失败保持原服务。原 DB schema exact-head 回退限制继续有效。已启用 MQ 的发布不能部署或回退到 messaging-disabled 发布；失败回退先停止新实例，再核验原 MQ 配置与旧 key 后恢复，不能启动旧 gRPC 写路径。
+
+发布绑定代码验证、正常镜像实际 key/mTLS 路径、精确双端生产模式与 QS 持久维护门禁、自然业务 ACK 分别验收。该机制不自行关闭 QS 准入、不安装 Topic/Channel 或密钥、不修改执行/候选/容量参数，不代替 R5/R6 的现场移交。
