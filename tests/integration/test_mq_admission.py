@@ -399,7 +399,7 @@ async def test_real_nsq_bootstrap_original_admission_and_shutdown(kit, keys, tmp
         path.write_text(key.export_private() if name.startswith("ai.") else key.export_public())
         paths[name] = str(path)
     settings = Settings(
-        database_url=kit.dsn,
+        database_url=kit.dsn.replace("mysql://", "mysql+asyncmy://", 1),
         generation={"enabled": False},
         evaluation={"enabled": False},
         grpc={
