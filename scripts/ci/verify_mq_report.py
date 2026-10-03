@@ -20,6 +20,9 @@ required = {
     "test_closed_local_savepoint_preserves_root_and_refusal_receipt",
     "test_oversized_body_authorization_and_exact_acknowledgement",
     "test_preprovisioned_failure_topology_with_real_nsq",
+    "test_five_execution_writes_cannot_bypass_mq_admission",
+    "test_mq_cutover_keeps_workload_authorization_before_mode_error",
+    "test_queries_and_governance_preparation_stay_registered_in_mq_mode",
 }
 root = ElementTree.parse(Path(sys.argv[1])).getroot()
 cases = root.findall(".//testcase")
@@ -31,6 +34,7 @@ if (
         root.find(f".//testcase[@name='test_go_python_messaging_interop[{kind}]']") is not None
         for kind in range(1, 10)
     )
+    or len([c for c in cases if c.get("classname", "").endswith("test_grpc_mq_cutover")]) != 24
 ):
     raise SystemExit("Required MQ report is empty, incomplete, failed or skipped")
 print(json.dumps({"passed": len(cases), "failed": 0, "errors": 0, "skipped": 0}))
