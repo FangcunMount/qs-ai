@@ -9,7 +9,13 @@ from typing import Any, cast
 from uuid import uuid4
 
 import sqlalchemy as sa
-from reliable_messaging.durable import STAGED, Identity, MessageConflict, MySQLDurableOutbox
+from reliable_messaging.durable import (
+    CONFIRMED,
+    STAGED,
+    Identity,
+    MessageConflict,
+    MySQLDurableOutbox,
+)
 from reliable_messaging.sqlalchemy import bind
 from sqlalchemy.dialects import mysql
 from sqlalchemy.engine import CursorResult
@@ -17,6 +23,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from qs_ai.contracts.workflow import messaging_pb2 as pb
 from qs_ai.contracts.workflow import workflow_pb2 as workflow
+from qs_ai.infrastructure.persistence.mysql.messaging_observations import (
+    observations,
+    record_observation,
+)
 from qs_ai.infrastructure.persistence.mysql.schema import result_outbox
 from qs_ai.infrastructure.workflow_transport.messaging import (
     EVENTS,
@@ -26,6 +36,9 @@ from qs_ai.infrastructure.workflow_transport.messaging import (
 )
 
 metadata = sa.MetaData()
+# Isolated storage fixtures may install the separate host-owned technical table.
+# Importing this declaration never installs schema or opens a connection.
+observations.to_metadata(metadata)
 TEXT_ID = sa.String(128, collation="utf8mb4_bin")
 HASH = mysql.CHAR(64, charset="ascii", collation="ascii_bin")
 UTC = mysql.DATETIME(fsp=6)
@@ -247,6 +260,7 @@ class MessagingStore:
             return None  # original owner executes once, on this same uncommitted transaction
         if row["decision"] not in ("accepted", "rejected", "held") or not row["receipt_id"]:
             raise MessageConflict("original command has no durable decision")
+        await record_observation(db, "duplicate_command")
         return row  # duplicate BEFORE business CAS; never execute or refreeze again
 
     async def decide(
@@ -326,6 +340,8 @@ class MessagingStore:
             row is None
             or row["kind"] != value.event_kind
             or row["aggregate_key"] != envelope.aggregate_key
+            or row["body_sha256"] != value.event_body_sha256
+            or not row["requires_receipt"]
         ):
             raise MessageConflict("original event confirmation identity mismatch")
         if value.outcome == pb.MessagingEventAcknowledgement.STORED:
@@ -344,7 +360,12 @@ class MessagingStore:
                     or not same_body
                 ):
                     raise MessageConflict("original result confirmation identity mismatch")
-            await self.outbox.confirm(db, identity, value.event_body_sha256)
+            if row["stage"] == CONFIRMED:
+                # Preserve the first business-confirmation time; the exact hash
+                # and identity were validated on this same locked original row.
+                await record_observation(db, "duplicate_ack")
+            else:
+                await self.outbox.confirm(db, identity, value.event_body_sha256)
             if legacy is not None and not legacy["delivered"]:
                 await db.execute(
                     sa.update(result_outbox)

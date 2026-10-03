@@ -10,6 +10,7 @@ from qs_ai.contracts.workflow import messaging_pb2 as pb
 from qs_ai.contracts.workflow import messaging_pb2_grpc as rpc
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
 from qs_ai.infrastructure.persistence.mysql.messaging import MessagingStore
+from qs_ai.infrastructure.persistence.mysql.messaging_observations import record_payload_failure
 from qs_ai.infrastructure.workflow_transport.messaging import MAX_BODY, valid_hash, valid_id
 from qs_ai.transport.grpc.identity import require_qs_workload
 
@@ -23,13 +24,18 @@ class MessagePayloads(rpc.MessagePayloadsServicer):
         request: pb.MessagePayloadReference,
         context: aio.ServicerContext[Any, Any],
     ) -> pb.MessagePayload:
-        await require_qs_workload(context)
+        try:
+            await require_qs_workload(context)
+        except Exception:
+            await record_payload_failure(self.transactions, "payload_serve_workload_denied")
+            raise
         if (
             request.ByteSize() > 8192
             or not valid_id(request.message_id)
             or not valid_hash(request.body_sha256)
             or not 0 < request.body_length <= MAX_BODY
         ):
+            await record_payload_failure(self.transactions, "payload_serve_reference_mismatch")
             await context.abort(grpc.StatusCode.INVALID_ARGUMENT, "Invalid payload reference")
         try:
             async with self.transactions.open() as db:
@@ -37,7 +43,9 @@ class MessagePayloads(rpc.MessagePayloadsServicer):
                 body = await self.store.payload(db, request, "qs-server")
             return pb.MessagePayload(reference=request, body=body)
         except MessageConflict:
+            await record_payload_failure(self.transactions, "payload_serve_reference_mismatch")
             await context.abort(grpc.StatusCode.NOT_FOUND, "Original payload unavailable")
         except Exception:
+            await record_payload_failure(self.transactions, "payload_serve_storage_unavailable")
             await context.abort(grpc.StatusCode.UNAVAILABLE, "Payload storage unavailable")
         raise AssertionError("abort must raise")

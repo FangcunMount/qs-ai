@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Any, Protocol
 from uuid import uuid4
 
+import grpc
 from reliable_messaging.durable import MessageConflict
 from reliable_messaging.nsq import Received
 from reliable_messaging.protected import ProtectionError, TrustedSigner
@@ -14,6 +15,7 @@ from qs_ai.contracts.workflow import messaging_pb2 as pb
 from qs_ai.contracts.workflow import workflow_pb2 as workflow
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
 from qs_ai.infrastructure.persistence.mysql.messaging import MessagingStore
+from qs_ai.infrastructure.persistence.mysql.messaging_observations import record_payload_failure
 from qs_ai.infrastructure.workflow_transport.messaging import (
     ACKS,
     COMMANDS,
@@ -71,6 +73,22 @@ class CommandReceiver:
         self.decrypt_keys, self.trusted_signers = dict(decrypt_keys), dict(trusted_signers)
         self.signing_key, self.qs_recipient_key = signing_key, qs_recipient_key
 
+    async def _body(self, envelope: pb.MessagingEnvelope) -> bytes:
+        try:
+            return await self.resolver.body(envelope)
+        except Exception as error:
+            if envelope.HasField("payload_reference"):
+                kind = "payload_fetch_unavailable"
+                if isinstance(error, MessagingContractError):
+                    kind = "payload_fetch_reference_mismatch"
+                elif (
+                    isinstance(error, grpc.RpcError)
+                    and error.code() == grpc.StatusCode.PERMISSION_DENIED
+                ):
+                    kind = "payload_fetch_workload_denied"
+                await record_payload_failure(self.transactions, kind)
+            raise  # the exact original error still decides isolation/REQ; no FIN here
+
     async def isolate(self, wire: bytes, code: str) -> None:
         async with self.transactions.open() as db:
             await db.begin()
@@ -85,7 +103,7 @@ class CommandReceiver:
                 decrypt_keys=self.decrypt_keys,
                 trusted_signers=self.trusted_signers,
             )
-            raw = await self.resolver.body(envelope)
+            raw = await self._body(envelope)
             body = parse_body(envelope, raw)
         except (ProtectionError, MessagingContractError, ValueError):
             await self.isolate(received.wire, "authentication_failed")
@@ -195,7 +213,7 @@ class CommandReceiver:
                 decrypt_keys=self.decrypt_keys,
                 trusted_signers=self.trusted_signers,
             )
-            raw = await self.resolver.body(envelope)
+            raw = await self._body(envelope)
             async with self.transactions.open() as db:
                 await db.begin()
                 await self.store.confirm_event(db, envelope, raw)
@@ -220,7 +238,7 @@ class CommandReceiver:
                 decrypt_keys=self.decrypt_keys,
                 trusted_signers=self.trusted_signers,
             )
-            raw = await self.resolver.body(envelope)
+            raw = await self._body(envelope)
             body = parse_body(envelope, raw)
         except (ProtectionError, MessagingContractError, ValueError):
             await self.isolate(wire, "invalid_failure_wire")
@@ -257,7 +275,7 @@ class CommandReceiver:
                 decrypt_keys=self.decrypt_keys,
                 trusted_signers=self.trusted_signers,
             )
-            raw = await self.resolver.body(envelope)
+            raw = await self._body(envelope)
             parse_body(envelope, raw)
         except (ProtectionError, MessagingContractError, ValueError):
             await self.isolate(wire, "invalid_failure_wire")

@@ -23,6 +23,16 @@ DESCRIPTIONS = {
     "mq_oldest_awaiting_receipt_seconds": "Oldest retained event awaiting business confirmation.",
     "mq_duplicate_observations_available": "Whether durable duplicate observations exist.",
     "mq_payload_error_observations_available": "Whether durable payload error observations exist.",
+    "mq_observations_history_complete": "Recording does not reconstruct missing history.",
+    "mq_observations_recording_since_epoch_seconds": "UTC start of durable recording coverage.",
+    "mq_recorded_duplicate_command": "Committed duplicate command observations since installation.",
+    "mq_recorded_duplicate_ack": "Committed duplicate stored-ACK observations since installation.",
+    "mq_recorded_payload_fetch_unavailable": "Durably recorded unavailable reference reads.",
+    "mq_recorded_payload_fetch_reference_mismatch": "Recorded remote reference mismatches.",
+    "mq_recorded_payload_fetch_workload_denied": "Durably recorded fetch workload refusals.",
+    "mq_recorded_payload_serve_reference_mismatch": "Durably recorded local reference mismatches.",
+    "mq_recorded_payload_serve_workload_denied": "Durably recorded local workload refusals.",
+    "mq_recorded_payload_serve_storage_unavailable": "Recorded local storage read failures.",
     "mq_quarantine_identity_conflict_records": (
         "Retained identity-conflict records, not lifetime errors."
     ),

@@ -81,7 +81,7 @@ jobs:
       - name: Verify required MQ risk scenarios on final dependency
         run: |
           mkdir -p artifacts
-          uv run pytest -q tests/test_messaging_runtime.py tests/test_grpc_mq_cutover.py tests/test_mq_contract.py tests/test_mq_failure.py tests/integration/test_mq_topology.py tests/integration/test_mq_storage.py tests/integration/test_mq_admission.py tests/integration/test_mq_worker_events.py tests/test_operational_metrics.py tests/integration/test_operational_metrics.py tests/integration/test_mq_observability.py tests/integration/test_mq_health.py tests/integration/test_runtime.py tests/integration/test_runtime_time.py --junitxml=artifacts/mq.xml
+          uv run pytest -q tests/test_messaging_runtime.py tests/test_grpc_mq_cutover.py tests/test_mq_contract.py tests/test_mq_failure.py tests/integration/test_mq_topology.py tests/integration/test_mq_storage.py tests/integration/test_mq_admission.py tests/integration/test_mq_worker_events.py tests/test_operational_metrics.py tests/integration/test_operational_metrics.py tests/integration/test_mq_observability.py tests/integration/test_mq_observations.py tests/integration/test_mq_health.py tests/integration/test_runtime.py tests/integration/test_runtime_time.py --junitxml=artifacts/mq.xml
           uv run python scripts/ci/verify_mq_report.py artifacts/mq.xml
       - name: Preserve unknown-call cancellation and capacity semantics
         run: |

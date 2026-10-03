@@ -6,6 +6,12 @@ from pathlib import Path
 from xml.etree import ElementTree
 
 required = {
+    "test_mq_duplicate_observations_share_original_commit_and_conflict_is_not_duplicate",
+    "test_mq_duplicate_ack_records_only_after_exact_confirmation_and_rolls_back",
+    "test_mq_payload_fetch_audit_retains_original_error_and_never_admits",
+    "test_mq_payload_serve_audit_preserves_read_rollback_and_fixed_rpc_error",
+    "test_mq_audit_storage_failure_never_masks_payload_failure_or_fabricates_counts",
+    "test_mq_partial_technical_ledger_is_unavailable_and_kind_is_fixed",
     "test_mq_health_exposes_only_committed_organization_outbox",
     "test_mq_health_disabled_never_reads_messaging_tables",
     "test_mq_health_failure_propagates_without_partial_or_global_counts",

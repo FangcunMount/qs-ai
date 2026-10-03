@@ -9,6 +9,8 @@ from datetime import datetime
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from qs_ai.infrastructure.persistence.mysql.messaging_observations import collect_observations
+
 QUARANTINE_CODES = (
     "identity_conflict",
     "authentication_failed",
@@ -76,6 +78,5 @@ async def collect_messaging_snapshot(
         counts = {row["code"]: row["n"] for row in rows}
         for code in QUARANTINE_CODES:
             values[f"mq_quarantine_{code}_records"] = float(counts.get(code, 0))
-        values["mq_duplicate_observations_available"] = 0.0
-        values["mq_payload_error_observations_available"] = 0.0
+        values.update(await collect_observations(db))
     return values

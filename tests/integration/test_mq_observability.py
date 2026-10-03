@@ -140,8 +140,9 @@ async def test_mq_security_records_are_gauges_without_invented_duplicate_history
     assert observed["mq_quarantine_identity_conflict_records"] == (
         baseline["mq_quarantine_identity_conflict_records"] + 1
     )
-    assert observed["mq_duplicate_observations_available"] == 0
-    assert observed["mq_payload_error_observations_available"] == 0
+    assert observed["mq_duplicate_observations_available"] == 1
+    assert observed["mq_payload_error_observations_available"] == 1
+    assert observed["mq_observations_history_complete"] == 0
     text_output = render_metrics({**observed, "testee_id": float(org)})
     assert "testee_id" not in text_output
     assert "# TYPE qs_ai_mq_quarantine_identity_conflict_records gauge" in text_output
