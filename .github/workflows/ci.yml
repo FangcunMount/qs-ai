@@ -33,6 +33,7 @@ jobs:
       QS_AI_DATABASE_URL: mysql+asyncmy://qs_ai:qs_ai_local@127.0.0.1:3306/qs_ai
       QS_AI_TEST_MYSQL_DSN: mysql://qs_ai:qs_ai_local@127.0.0.1:3306/qs_ai
       QS_MQ_MYSQL_URL: mysql+asyncmy://qs_ai:qs_ai_local@127.0.0.1:3306/qs_mq
+      QS_MQ_FAULT_DDL_MYSQL_URL: mysql+asyncmy://root:qs_ai_local_root@127.0.0.1:3306/qs_ai
       QS_MQ_NSQ_TCP_ADDRESS: 127.0.0.1:4150
       QS_MQ_NSQ_HTTP_URL: http://127.0.0.1:4151
       QS_MQ_CONTRACT_PROBE: ${{ github.workspace }}/.interop/qs-mq-probe

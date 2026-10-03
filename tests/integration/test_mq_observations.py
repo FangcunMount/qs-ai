@@ -210,7 +210,9 @@ async def test_mq_payload_serve_audit_preserves_read_rollback_and_fixed_rpc_erro
         body_length=100,
     )
     with pytest.raises(Aborted) as failure:
-        await MessagePayloads(tx, store).Get(request, context)
+        from qs_ai.infrastructure.workflow_transport.payload_access import MySQLPayloadAccess
+
+        await MessagePayloads(MySQLPayloadAccess(tx, store)).Get(request, context)
     assert failure.value.args[0] == code and "private" not in str(failure.value)
     assert len(reads) == (0 if scenario == "workload" else 1)
     assert all(not db.in_transaction() for db in reads)

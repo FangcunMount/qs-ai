@@ -6,6 +6,7 @@ from pathlib import Path
 from xml.etree import ElementTree
 
 required = {
+    "test_dependency_direction_and_no_cycles",
     "test_messaging_inventory_is_read_only_and_borrowed_pool_survives",
     "test_messaging_inventory_missing_table_is_unavailable_not_empty",
     "test_messaging_inventory_truncation_never_claims_complete",

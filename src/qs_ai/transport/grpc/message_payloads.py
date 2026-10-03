@@ -6,18 +6,15 @@ import grpc
 from grpc import aio
 from reliable_messaging.durable import MessageConflict
 
+from qs_ai.application.messaging_payloads import PayloadAccess
 from qs_ai.contracts.workflow import messaging_pb2 as pb
 from qs_ai.contracts.workflow import messaging_pb2_grpc as rpc
-from qs_ai.infrastructure.persistence.mysql.database import Transactions
-from qs_ai.infrastructure.persistence.mysql.messaging import MessagingStore
-from qs_ai.infrastructure.persistence.mysql.messaging_observations import record_payload_failure
-from qs_ai.infrastructure.workflow_transport.messaging import MAX_BODY, valid_hash, valid_id
 from qs_ai.transport.grpc.identity import require_qs_workload
 
 
 class MessagePayloads(rpc.MessagePayloadsServicer):
-    def __init__(self, transactions: Transactions, store: MessagingStore) -> None:
-        self.transactions, self.store = transactions, store
+    def __init__(self, access: PayloadAccess) -> None:
+        self.access = access
 
     async def Get(
         self,
@@ -27,25 +24,18 @@ class MessagePayloads(rpc.MessagePayloadsServicer):
         try:
             await require_qs_workload(context)
         except Exception:
-            await record_payload_failure(self.transactions, "payload_serve_workload_denied")
+            await self.access.record_failure("payload_serve_workload_denied")
             raise
-        if (
-            request.ByteSize() > 8192
-            or not valid_id(request.message_id)
-            or not valid_hash(request.body_sha256)
-            or not 0 < request.body_length <= MAX_BODY
-        ):
-            await record_payload_failure(self.transactions, "payload_serve_reference_mismatch")
+        if not self.access.valid_reference(request):
+            await self.access.record_failure("payload_serve_reference_mismatch")
             await context.abort(grpc.StatusCode.INVALID_ARGUMENT, "Invalid payload reference")
         try:
-            async with self.transactions.open() as db:
-                await db.begin()
-                body = await self.store.payload(db, request, "qs-server")
+            body = await self.access.payload(request, "qs-server")
             return pb.MessagePayload(reference=request, body=body)
         except MessageConflict:
-            await record_payload_failure(self.transactions, "payload_serve_reference_mismatch")
+            await self.access.record_failure("payload_serve_reference_mismatch")
             await context.abort(grpc.StatusCode.NOT_FOUND, "Original payload unavailable")
         except Exception:
-            await record_payload_failure(self.transactions, "payload_serve_storage_unavailable")
+            await self.access.record_failure("payload_serve_storage_unavailable")
             await context.abort(grpc.StatusCode.UNAVAILABLE, "Payload storage unavailable")
         raise AssertionError("abort must raise")
