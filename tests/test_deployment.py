@@ -1,5 +1,8 @@
+import hashlib
 import importlib.util
+import io
 import json
+import tarfile
 from pathlib import Path
 
 import pytest
@@ -63,19 +66,65 @@ def test_release_paths_and_private_atomic_state(remote, tmp_path, monkeypatch):
     assert not path.with_suffix(".tmp").exists()
 
 
+def image_config(revision):
+    return {
+        "architecture": "amd64",
+        "os": "linux",
+        "config": {
+            "Labels": {"org.opencontainers.image.revision": revision},
+            "User": "10001",
+            "Cmd": ["python", "-m", "qs_ai.bootstrap.server"],
+            "Env": ["PATH=/app/.venv/bin"],
+        },
+        "rootfs": {
+            "type": "layers",
+            "diff_ids": ["sha256:" + hashlib.sha256(b"layer").hexdigest()],
+        },
+    }
+
+
+def write_image_archive(path, revision, *, tags=None, config=None, layer=b"layer"):
+    config = config or image_config(revision)
+    raw = json.dumps(config, sort_keys=True).encode()
+    config_id = "sha256:" + hashlib.sha256(raw).hexdigest()
+    entry = {"Config": config_id[7:] + ".json", "RepoTags": tags, "Layers": ["layer.tar"]}
+    with tarfile.open(path, "w:gz" if str(path).endswith(".gz") else "w") as archive:
+        for name, body in (
+            ("manifest.json", json.dumps([entry]).encode()),
+            (entry["Config"], raw),
+            ("layer.tar", layer),
+        ):
+            member = tarfile.TarInfo(name)
+            member.size = len(body)
+            archive.addfile(member, io.BytesIO(body))
+    return config_id
+
+
+def inspected_image(manifest):
+    config = image_config(manifest["revision"])
+    return {
+        "Id": manifest["image_id"],
+        "Architecture": "amd64",
+        "Os": "linux",
+        "Config": config["config"],
+        "RootFS": {"Type": "layers", "Layers": config["rootfs"]["diff_ids"]},
+    }
+
+
 def setup_release(remote, tmp_path, monkeypatch):
     monkeypatch.setattr(remote, "ROOT", tmp_path)
     revision = "a" * 40
     release = remote.release_path(revision + "-1-1")
     release.mkdir(parents=True)
     archive = release / "image.tar.gz"
-    archive.write_bytes(b"image")
+    config_id = write_image_archive(archive, revision, tags=[f"qs-ai:{revision}"])
     manifest = {
         "revision": revision,
-        "image_id": "sha256:abc",
-        "archive_sha256": remote.hashlib.sha256(b"image").hexdigest(),
+        "image_id": config_id,
+        "archive_sha256": hashlib.sha256(archive.read_bytes()).hexdigest(),
     }
     (release / "manifest.json").write_text(json.dumps(manifest))
+    (release / "image.env").write_text(f"QS_AI_IMAGE={config_id}\n")
     return release, manifest
 
 
@@ -93,17 +142,7 @@ def simulate_apply(remote, monkeypatch, manifest, fail_migration=False):
     def run(phase, args):
         calls.append(phase)
         if phase == "image identity":
-            return json.dumps(
-                [
-                    {
-                        "Id": manifest["image_id"],
-                        "Architecture": "amd64",
-                        "Config": {
-                            "Labels": {"org.opencontainers.image.revision": manifest["revision"]}
-                        },
-                    }
-                ]
-            )
+            return json.dumps([inspected_image(manifest)])
         if phase == "migration" and fail_migration:
             raise remote.DeploymentError("migration failed")
         return ""
@@ -179,6 +218,7 @@ def test_success_records_version_only_after_verification(remote, tmp_path, monke
 
 def test_manual_rollback_checks_schema_before_switch(remote, tmp_path, monkeypatch):
     monkeypatch.setattr(remote, "ROOT", tmp_path)
+    monkeypatch.setattr(remote, "release_image_id", lambda *args, **kwargs: "sha256:" + "a" * 64)
     state = {"current": "a" * 40 + "-1-1", "previous": "b" * 40 + "-1-1"}
 
     def incompatible(*args):
@@ -484,6 +524,7 @@ def test_failed_manual_rollback_restores_current_without_changing_state(
     remote, tmp_path, monkeypatch
 ):
     monkeypatch.setattr(remote, "ROOT", tmp_path)
+    monkeypatch.setattr(remote, "release_image_id", lambda *args, **kwargs: "sha256:" + "a" * 64)
     state = {"current": "a" * 40 + "-1-1", "previous": "b" * 40 + "-1-1"}
     calls = []
     monkeypatch.setattr(remote, "probe", lambda p, *args: calls.append(("probe", p.name)))

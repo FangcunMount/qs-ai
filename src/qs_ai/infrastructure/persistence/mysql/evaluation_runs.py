@@ -19,7 +19,7 @@ from qs_ai.application.interpretation.schema_assets import SchemaAssets
 from qs_ai.domain.evaluation.acceptance import rule_document
 from qs_ai.domain.evaluation.identity import EvidenceReleaseIdentity
 from qs_ai.domain.governance.manifest import GenerationManifest
-from qs_ai.infrastructure.persistence.mysql.database import Transactions
+from qs_ai.infrastructure.persistence.mysql.database import Transactions, changed_evaluation
 from qs_ai.infrastructure.persistence.mysql.evaluation_contracts import evaluation_contracts
 from qs_ai.infrastructure.persistence.mysql.evaluation_dispatches import freeze_policy
 from qs_ai.infrastructure.persistence.mysql.evaluation_suites import load_registered_suite
@@ -118,6 +118,7 @@ async def create_run(
     )
     await freeze_policy(db, run_id, policy)
     await db.execute(insert(evaluation_checkpoints).values(run_id=str(run_id), version=1))
+    changed_evaluation(db, str(run_id))
     return CheckpointState(run_id, 1, None)
 
 

@@ -67,6 +67,22 @@ async def stage_state(db: AsyncSession, session: Session) -> None:
     )
     # Evidence freezing can save the same user-visible state/version again.
     await bind(db).append(statement.on_duplicate_key_update(event_id=result_outbox.c.event_id))
+    recorder = db.info.get("state_events")
+    if recorder is not None:
+        # Read the stored first event, not the newly generated UUID/body on duplicate save.
+        row = (
+            (
+                await db.execute(
+                    select(result_outbox).where(
+                        result_outbox.c.session_id == session.id,
+                        result_outbox.c.version == session.version,
+                    )
+                )
+            )
+            .mappings()
+            .one()
+        )
+        await recorder.record_interpretation(db, row)
 
 
 class MySQLResultOutbox:
@@ -79,7 +95,22 @@ class MySQLResultOutbox:
         if not 1 <= limit <= 100:
             raise ValueError("Batch limit must be 1..100")
         async with self.transactions.open() as db:
-            rows = await self.adapter.pending(db, limit)
+            rows = (
+                (
+                    await db.execute(
+                        select(result_outbox.c.payload)
+                        .where(
+                            result_outbox.c.delivered.is_(False),
+                            result_outbox.c.mq_owned.is_(False),
+                            result_outbox.c.available_at <= func.utc_timestamp(6),
+                        )
+                        .order_by(result_outbox.c.available_at, result_outbox.c.event_id)
+                        .limit(limit)
+                    )
+                )
+                .scalars()
+                .all()
+            )
             return [StateEvent(**{**row, "actor": Actor(**row["actor"])}) for row in rows]
 
     async def delivered(self, event_id: str) -> None:

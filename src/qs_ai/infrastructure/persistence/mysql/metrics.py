@@ -4,7 +4,11 @@ import asyncio
 
 from sqlalchemy import text
 
+from qs_ai.config import Settings
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
+from qs_ai.infrastructure.persistence.mysql.messaging_observability import (
+    collect_messaging_snapshot,
+)
 
 QUERIES = (
     """SELECT COUNT(*) AS ready_jobs,
@@ -38,8 +42,9 @@ QUERIES = (
 
 
 class MySQLOperationalMetrics:
-    def __init__(self, transactions: Transactions) -> None:
+    def __init__(self, transactions: Transactions, settings: Settings) -> None:
         self.transactions = transactions
+        self.messaging_enabled = settings.messaging.enabled
 
     async def collect(self) -> dict[str, float]:
         try:
@@ -47,14 +52,26 @@ class MySQLOperationalMetrics:
                 async with self.transactions.open() as db:
                     await db.connection(execution_options={"isolation_level": "REPEATABLE READ"})
                     await db.execute(text("START TRANSACTION WITH CONSISTENT SNAPSHOT, READ ONLY"))
-                    values = {"database_up": 1.0}
+                    values = {
+                        "database_up": 1.0,
+                        "mq_enabled": float(self.messaging_enabled),
+                        "mq_observation_available": 0.0,
+                    }
                     for query in QUERIES:
                         bounded = query.replace(
                             "SELECT ", "SELECT /*+ MAX_EXECUTION_TIME(1000) */ ", 1
                         )
                         row = (await db.execute(text(bounded))).mappings().one()
                         values.update({name: float(value) for name, value in row.items()})
+                    if self.messaging_enabled:
+                        observed_at = await db.scalar(text("SELECT UTC_TIMESTAMP(6)"))
+                        values.update(await collect_messaging_snapshot(db, observed_at))
+                        values["mq_observation_available"] = 1.0
                     return values
         except Exception:
             # No partial/stale metrics and no driver details (DSN/query/body) in HTTP or logs.
-            return {"database_up": 0.0}
+            return {
+                "database_up": 0.0,
+                "mq_enabled": float(self.messaging_enabled),
+                "mq_observation_available": 0.0,
+            }

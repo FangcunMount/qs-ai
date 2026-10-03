@@ -6,6 +6,7 @@ import pytest
 from sqlalchemy import event, select, update
 
 from qs_ai.application.governance.prompt_drafts import DraftScope
+from qs_ai.config import Settings
 from qs_ai.infrastructure.persistence.mysql.runtime import MySQLRuntimeReader
 from qs_ai.infrastructure.persistence.mysql.schema import model_calls, sessions
 from tests.integration.test_runtime import bind
@@ -30,7 +31,7 @@ async def test_new_times_are_utc_even_when_database_session_is_not(kit, zone):
         claim = await kit.store.claim(30)
         call, created = await kit.store.begin_model_call(claim, "{}")
         assert created
-        result = await MySQLRuntimeReader(kit.transactions).detail(
+        result = await MySQLRuntimeReader(kit.transactions, Settings(_env_file=None)).detail(
             DraftScope(1, 42), receipt.session_id
         )
         after = datetime.now(UTC)
@@ -68,7 +69,7 @@ async def test_legacy_wall_clock_is_preserved_without_guessing_its_timezone(kit)
             .values(created_at_utc=None, updated_at_utc=None)
         )
         await db.commit()
-    result = await MySQLRuntimeReader(kit.transactions).detail(
+    result = await MySQLRuntimeReader(kit.transactions, Settings(_env_file=None)).detail(
         DraftScope(1, 42), receipt.session_id
     )
     assert result["execution"]["created_at"] is None
@@ -95,7 +96,7 @@ async def test_old_writer_update_invalidates_stale_utc_marker(kit):
             .values(updated_at=datetime(2030, 1, 1))
         )
         await db.commit()
-    result = await MySQLRuntimeReader(kit.transactions).detail(
+    result = await MySQLRuntimeReader(kit.transactions, Settings(_env_file=None)).detail(
         DraftScope(1, 42), receipt.session_id
     )
     assert result["execution"]["updated_at"] is None

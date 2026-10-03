@@ -18,6 +18,36 @@
 
 当前评测依赖准备：以维护操作人身份执行 `python -m qs_ai.bootstrap.import_routes --include-evaluation --imported-by <操作人标识>`，补入 `semantic_judge_v1/v5`；生成路线 v8 已存在时不会重复插入或覆盖首次审计。v5 的 DeepSeek V4 Pro、Responses/json_schema、180 秒、8000 tokens、low 参数来自 2026-09-13 的生产只读记录，原始字节校验和与配置指纹随镜像固定。该命令不执行模型、不批准版本、不修改发布指针。管理端再从 `V6_PUBLISHED` 案例源注册绑定当前 Profile/Prompt 的原生套件，准备/启动新评测；不能拿旧 Run 的 approved 状态替代本次新输入契约的审核。无需导入旧草稿、旧结果或旧调试运行。
 
+## 镜像归档身份与实际加载 ID
+
+部署不再假定不同 Docker 存储后端的 `image inspect.Id` 相同。发布清单中的
+`image_id` 保留导出端 ID，`digest` 保留拉取的 Registry digest；新增
+`image_ref` 和 `image_identity` 记录固定归档名称、原始 Config SHA-256、
+完整运行配置的规范化摘要、Linux/amd64 平台及有序 RootFS diff_ids。配置正文和
+环境变量内容不会进入身份记录。仅 Docker 补齐的已知空默认字段被规范化；
+未知或非空字段仍必须匹配。
+
+导出端与服务器复用同一标准库校验器：单镜像归档、唯一元数据、版本标签、
+平台、Config 摘要及每个解压后 layer 的 diff_id 全部核对。服务器加载后检查
+完整 Config 和 RootFS；若实际 ID 与 Config SHA 不同，再按**实际不可变 ID**
+导出并核对原始 Config SHA 和全部层，不能仅凭少量 Config 字段相同放行。
+归档整体 SHA-256 和固定源码版本检查仍保留；不改变 MQ 密钥预检、迁移、
+停机排空、schema 回退和真实 mTLS 门槛。
+
+成功核对后新增私有 `loaded-image.json`，分别保存 `source_image_id` 与
+`loaded_image_id`、归档/Registry 摘要和资产身份；`image.env` 固定实际加载 ID。
+预检、运行镜像验证、回滚和镜像保留均使用这个实际 ID，移除原标签或成功后
+移除归档不会改变回滚选择。回滚前核对绑定和实际镜像，绑定漂移立即失败。
+已有发布目录拒绝重用；已有加载身份禁止覆盖，manifest 不被改写。
+历史无加载回执的版本继续要求原 ID 精确匹配，不享受资产等价例外；缺失新
+格式回执不得静默退回标签。
+
+本地隔离验收以 Docker 29.1.1 的 containerd 存储加载真实 R0/R1 命名归档，
+复现导出 Config ID 与加载 index ID 不同，并验证配置与全部层、固定 ID 启动、
+自动和手动回滚及实际 ID 保留参数。演练只运行无网络的等待进程，数据库迁移、
+mTLS、MQ 密钥和业务探针用显式桩隔离；此证据不代表生产部署或业务验收通过。
+部署控制回归见 `tests/test_release_image_identity.py` 和原部署/锁/MQ 预检测试。
+
 ## 基础发布记录
 
 2026-09-11：serverA 基础 API 首发已完成。自动发布与回滚演练分别记录；真实 AI 执行链路不在本批上线范围。
@@ -224,3 +254,16 @@ serverB 本次发布另有非阻塞告警：deploy 账号无 sudo python3 执行
 随后执行 [恢复 34761471931](https://github.com/FangcunMount/qs-ai/actions/runs/34761471931)，恢复原管理发布 34759204722。现场治理接口和 evaluation 容器恢复、服务健康、资产与任务/调用/成果计数不变；QS 证书到管理接口的空请求探针再次取得预期 INVALID_ARGUMENT。当前生产已恢复管理开启状态。
 
 [演练记录](evidence/2026-09-13-runtime-rollback.json) 证明部署配置能够真实回退与恢复；本轮没有在执行的模型调用，不证明带流量故障恢复，也不是 Profile 发布指针的业务回退。该部分管理闭环与真实参与者验收仍待完成。
+
+
+## MQ 发布绑定（候选代码，生产验收仍独立）
+
+`QS_AI_MESSAGING_BINDING` 是非秘密、已审查 JSON；不含私钥正文，沿现有 MessagingOptions 传递 enabled、明确 NSQD TCP→HTTP 映射、四类本地 key 文件与 max_in_flight=1。额外 binding_revision 固定本次密钥目录版本。空变量保持原关闭 MQ 的部署，不要求尚未创建的 JOSE 文件；它不构成已迁入 MQ 后回退到旧写路径的许可。重复 JSON 键、超限输入、未知字段、角色/kid/路径冲突、未明确 HTTP 端点与其它并发值均在发布打包前拒绝，诊断不包含原输入。
+
+容器路径固定为 `/run/qs-ai-jose/<role>.<version>.json`，角色为 ai.sign、ai.encrypt、qs.sign、qs.encrypt。宿主源只能从 `/data/infra/qs-ai-messaging/versions/<binding_revision>/` 派生四类具体文件；不接受任意宿主目录。只在启用时向原唯一 qs-ai 服务追加逐文件只读 bind，create_host_path=false；原三项 TLS 挂载、infra-network、别名、单进程和210秒宽限不变。私钥文件须由服务非 root UID10001可读、不可世界读取或组/世界写入；公钥可世界读取。实际宿主权限须现场核对，单元测试不代替。
+
+每个发布目录的 runtime.json 固化该绑定，manifest.json 保存其安全摘要（仅 MQ 选项/挂载，不含业务数据库或供应商凭据）。部署和回退读取该目录，不读取今日可变 Vars；修改 binding_revision 内的文件、删除仍被旧消息或回退版本引用的 key 不被授权。现场保留原版本目录与旧 kid 信任映射。
+
+替换服务之前，显式一次性 `qs_ai.maintenance.messaging_preflight` 校验有限文件、实际 kid、EC/P-256、私钥/公钥角色、use/alg/key_ops 和标准库实现的真实曲线密钥材料。该工具不连接数据库/Broker、不启动生命周期、不调用模型、不输出正文或密钥；缺失/错角色/权限失败保持原服务。原 DB schema exact-head 回退限制继续有效。已启用 MQ 的发布不能部署或回退到 messaging-disabled 发布；失败回退先停止新实例，再核验原 MQ 配置与旧 key 后恢复，不能启动旧 gRPC 写路径。
+
+发布绑定代码验证、正常镜像实际 key/mTLS 路径、精确双端生产模式与 QS 持久维护门禁、自然业务 ACK 分别验收。该机制不自行关闭 QS 准入、不安装 Topic/Channel 或密钥、不修改执行/候选/容量参数，不代替 R5/R6 的现场移交。

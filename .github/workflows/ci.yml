@@ -32,6 +32,11 @@ jobs:
     env:
       QS_AI_DATABASE_URL: mysql+asyncmy://qs_ai:qs_ai_local@127.0.0.1:3306/qs_ai
       QS_AI_TEST_MYSQL_DSN: mysql://qs_ai:qs_ai_local@127.0.0.1:3306/qs_ai
+      QS_MQ_MYSQL_URL: mysql+asyncmy://qs_ai:qs_ai_local@127.0.0.1:3306/qs_mq
+      QS_MQ_FAULT_DDL_MYSQL_URL: mysql+asyncmy://root:qs_ai_local_root@127.0.0.1:3306/qs_ai
+      QS_MQ_NSQ_TCP_ADDRESS: 127.0.0.1:4150
+      QS_MQ_NSQ_HTTP_URL: http://127.0.0.1:4151
+      QS_MQ_CONTRACT_PROBE: ${{ github.workspace }}/.interop/qs-mq-probe
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
@@ -44,6 +49,7 @@ jobs:
       - run: uv run mypy
       - run: uv run python scripts/generate_qs_proto.py --check
       - run: uv run python scripts/generate_workflow_proto.py --check
+      - run: uv run python scripts/generate_messaging_proto.py --check
       - run: uv run python scripts/check_docs.py
       - run: uv run alembic upgrade head
       - run: uv run alembic check
@@ -57,6 +63,21 @@ jobs:
         with:
           go-version: '1.25.12'
           cache-dependency-path: .interop/qs-server/go.sum
+      - uses: actions/checkout@v4
+        with:
+          repository: FangcunMount/qs-server
+          ref: f637b29dac8537e133559f3877fb82156611e0d9
+          path: .interop/qs-mq
+      - name: Build fixed candidate MQ cross-language probe
+        run: (cd .interop/qs-mq && GOWORK=off go build -o ../qs-mq-probe ./tests/ai_messaging_probe)
+      - name: Start disposable NSQ for required MQ tests
+        run: |
+          docker run -d --name qs-mq-ci -p 127.0.0.1:4150:4150 -p 127.0.0.1:4151:4151 nsqio/nsq:v1.3.0 /nsqd --data-path=/tmp --broadcast-address=127.0.0.1 --mem-queue-size=0
+          for attempt in $(seq 1 30); do
+            if curl --silent --fail http://127.0.0.1:4151/ping; then exit 0; fi
+            sleep 1
+          done
+          exit 1
       - name: Verify shared result schema
         run: |
           cmp integrations/qs_server/schemas/ai-explanation-output-v1.schema.json .interop/qs-server/api/schema/interpretation/ai-explanation-output-v1.schema.json
@@ -79,6 +100,8 @@ jobs:
               try:
                   async with connection.cursor() as cursor:
                       await cursor.execute("CREATE DATABASE qs_gateway")
+                      await cursor.execute("CREATE DATABASE qs_mq")
+                      await cursor.execute("GRANT ALL ON qs_mq.* TO 'qs_ai'@'%'")
                       await cursor.execute("GRANT ALL ON qs_gateway.* TO 'qs_ai'@'%'")
                       await cursor.execute("USE qs_gateway")
                       for migration in ("000072_ai_bridge_delivery", "000083_ai_runtime_index"):

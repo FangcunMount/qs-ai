@@ -2,6 +2,7 @@
 
 import base64
 import hashlib
+import importlib.util
 import json
 import os
 import re
@@ -16,6 +17,27 @@ from urllib.parse import urlsplit
 from sqlalchemy import URL
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def release_identity_module():
+    # Reuse the standard-library validator shipped to the host; no second
+    # implementation of config/layer/architecture equivalence in the exporter.
+    spec = importlib.util.spec_from_file_location(
+        "qs_ai_release_identity", ROOT / "deploy/serverA/deploy.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def release_directory_command(target: str, user: str) -> str:
+    # mkdir without -p for the immutable release itself rejects reused IDs before
+    # uploading files. Parent initialization does not replace rollback materials.
+    return (
+        "sudo -n mkdir -p /opt/qs-ai/releases && "
+        f"sudo -n mkdir {target} && sudo -n chown {user} /opt/qs-ai /opt/qs-ai/releases {target} "
+        f"&& chmod 700 /opt/qs-ai {target}"
+    )
 
 
 def required(environment: dict, name: str) -> str:
@@ -117,7 +139,119 @@ def runtime_config(environment: dict) -> dict:
                 raise ValueError("Missing Zhipu credential")
             values["QS_AI_ZHIPU_API_KEY"] = zhipu.replace("$", "$$")
 
+    bind_messaging(runtime, environment.get("QS_AI_MESSAGING_BINDING", ""))
     return runtime
+
+
+def bind_messaging(runtime: dict, raw: str) -> None:
+    """Only non-secret reviewed options; derive immutable, individual read-only mounts."""
+    if not raw:
+        return  # Existing disabled deployments require no JOSE files.
+    try:
+        if len(raw.encode()) > 16384:
+            raise ValueError
+
+        def unique(pairs):
+            value = {}
+            for key, item in pairs:
+                if key in value:
+                    raise ValueError
+                value[key] = item
+            return value
+
+        binding = json.loads(raw, object_pairs_hook=unique)
+        fields = {
+            "binding_revision",
+            "enabled",
+            "nsqd",
+            "signing_key_file",
+            "decrypt_key_files",
+            "qs_signer_files",
+            "qs_recipient_key_file",
+            "max_in_flight",
+        }
+        if (
+            not isinstance(binding, dict)
+            or set(binding) != fields
+            or binding["enabled"] is not True
+        ):
+            raise ValueError
+        revision = binding.pop("binding_revision")
+        if not isinstance(revision, str) or not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,63}", revision):
+            raise ValueError
+        if type(binding["max_in_flight"]) is not int or binding["max_in_flight"] != 1:
+            raise ValueError
+        sources = binding["nsqd"]
+        if not isinstance(sources, dict) or not 1 <= len(sources) <= 8:
+            raise ValueError
+        for tcp, http in sources.items():
+            if not isinstance(tcp, str) or not isinstance(http, str):
+                raise ValueError
+            if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9.-]*:[0-9]{1,5}", tcp):
+                raise ValueError
+            host, port = tcp.rsplit(":", 1)
+            endpoint = urlsplit(http)
+            if not 1 <= int(port) <= 65535 or endpoint.scheme not in {"http", "https"}:
+                raise ValueError
+            if (
+                endpoint.hostname != host.lower()
+                or not endpoint.port
+                or endpoint.path not in {"", "/"}
+            ):
+                raise ValueError
+            if endpoint.username or endpoint.password or endpoint.query or endpoint.fragment:
+                raise ValueError
+        paths = set()
+
+        def key_path(path, role, expected=None):
+            if not isinstance(path, str) or not path.startswith("/run/qs-ai-jose/"):
+                raise ValueError
+            filename = path.removeprefix("/run/qs-ai-jose/")
+            kid = filename.removesuffix(".json")
+            if not filename.endswith(".json") or not re.fullmatch(
+                re.escape(role) + r"\.[a-z0-9][a-z0-9._-]{0,63}", kid
+            ):
+                raise ValueError
+            if expected is not None and expected != kid:
+                raise ValueError
+            paths.add(path)
+
+        key_path(binding["signing_key_file"], "ai.sign")
+        key_path(binding["qs_recipient_key_file"], "qs.encrypt")
+        for field, role in (("decrypt_key_files", "ai.encrypt"), ("qs_signer_files", "qs.sign")):
+            mapping = binding[field]
+            if not isinstance(mapping, dict) or not 1 <= len(mapping) <= 8:
+                raise ValueError
+            for kid, path in mapping.items():
+                key_path(path, role, kid)
+        service = runtime["services"]["qs-ai"]
+        service["environment"]["QS_AI_MESSAGING"] = json.dumps(binding, sort_keys=True)
+        service["volumes"] = [
+            {
+                "type": "bind",
+                "source": "/data/infra/qs-ai-messaging/versions/"
+                + revision
+                + "/"
+                + path.rsplit("/", 1)[1],
+                "target": path,
+                "read_only": True,
+                "bind": {"create_host_path": False},
+            }
+            for path in sorted(paths)
+        ]
+    except (ValueError, TypeError, KeyError, AttributeError):
+        raise ValueError("Invalid reviewed MQ deployment binding; contents withheld") from None
+
+
+def messaging_binding_digest(runtime: dict) -> str | None:
+    service = runtime["services"]["qs-ai"]
+    options = service["environment"].get("QS_AI_MESSAGING")
+    if options is None:
+        return None
+    metadata = {"options": options, "volumes": service.get("volumes", [])}
+    return hashlib.sha256(
+        json.dumps(metadata, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
 
 
 def write_registry_auth(directory: Path, environment: dict) -> None:
@@ -373,6 +507,9 @@ def main() -> None:
             package.mkdir()
             archive = package / "image.tar.gz"
             export_image(alias, archive, docker_env)
+            validator = release_identity_module()
+            identity = validator.archive_identity(archive, alias, revision)
+            validator.match_image(inspected, identity, revision)
             checksum = hashlib.sha256()
             with archive.open("rb") as stream:
                 for block in iter(lambda: stream.read(1024 * 1024), b""):
@@ -380,8 +517,11 @@ def main() -> None:
             manifest = {
                 "revision": revision,
                 "image_id": inspected["Id"],
+                "image_ref": alias,
+                "image_identity": identity,
                 "digest": digest,
                 "archive_sha256": checksum.hexdigest(),
+                "messaging_binding_sha256": messaging_binding_digest(config),
             }
             (package / "manifest.json").write_text(json.dumps(manifest))
             (package / "runtime.json").write_text(json.dumps(config))
@@ -392,8 +532,7 @@ def main() -> None:
                 "prepare release directory",
                 [
                     *ssh,
-                    f"sudo -n mkdir -p {target} && sudo -n chown -R {user} /opt/qs-ai "
-                    f"&& chmod 700 /opt/qs-ai {target}",
+                    release_directory_command(target, user),
                 ],
             )
             for path in package.iterdir():

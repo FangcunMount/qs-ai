@@ -151,6 +151,7 @@ result_outbox = sa.Table(
     sa.Column("version", sa.Integer, nullable=False),
     sa.Column("payload", sa.JSON, nullable=False),
     sa.Column("delivered", sa.Boolean, nullable=False, server_default=sa.text("0")),
+    sa.Column("mq_owned", sa.Boolean, nullable=False, server_default=sa.text("0")),
     sa.Column("attempts", sa.Integer, nullable=False, server_default=sa.text("0")),
     sa.Column("created_at", mysql.DATETIME(fsp=6)),
     sa.Column("delivered_at", mysql.DATETIME(fsp=6)),
