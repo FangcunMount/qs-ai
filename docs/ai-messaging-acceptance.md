@@ -66,3 +66,6 @@ APP Settings; no bootstrap, observer task, pool, model or recovery logic is adde
 连接用专用环境变量 `QS_AI_MESSAGING_HANDOFF_DATABASE_URL` 指向原业务数据库，工具仅拥有其自身临时连接池。每行独立原事务重新锁定、核对来源与首次wire；摘要漂移立即停止，保留此前成功行。预算、正文、身份及原时间不得重置。提交失败报告commit_unknown，须重新核对原身份，不创建新消息。重复执行保留原wire；已delivered历史不复活。
 
 真实存储回归使用原接缝；输入测试拒绝清单歧义、符号链接、超限、未审核执行及诊断泄漏。独立CLI子进程在实际SQL未提交边界和原CLI已返回提交成功边界强杀，再以同一清单恢复，证明旧归属和新wire共同提交或回滚。后者暂停仅在测试外层，不注入生产事务钩子。这些证据不替代生产历史清单、双端停止证明或MQ兼容版本回退。
+
+
+永久只读工具 `python -m qs_ai.maintenance.messaging_audit` 使用明确的 `QS_AI_MESSAGING_AUDIT_DATABASE_URL`，不提供apply参数。一次一致性READ ONLY快照分别报告表存在、schema head、行数和截断；缺表/列及超过行数限制不标完整，不输出虚假的空积压。涵盖旧结果、全部新Outbox确认/挂起、Inbox决定、原模型调用状态及持久响应是否存在、原评测dispatch/completion状态。只输出身份、长度、摘要和状态，不输出正文/原请求/响应/密钥。正文引用标志基于当前codec阈值与原持久body长度，明确不宣称JWE已被审计工具解密；原结果SQL JSON摘要与移交manifest摘要口径分别标注。未知调用仅报告原事实，不重分类、恢复或授权新调用。工具返回0表示清单完整、2表示存在缺表/截断等开放项、1表示读取失败；均不能代替业务验收。

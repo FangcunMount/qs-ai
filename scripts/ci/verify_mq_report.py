@@ -6,6 +6,10 @@ from pathlib import Path
 from xml.etree import ElementTree
 
 required = {
+    "test_messaging_inventory_is_read_only_and_borrowed_pool_survives",
+    "test_messaging_inventory_missing_table_is_unavailable_not_empty",
+    "test_messaging_inventory_truncation_never_claims_complete",
+    "test_messaging_inventory_keeps_unknown_facts_without_body_or_retry_authorization",
     "test_handoff_manifest_rejects_ambiguous_or_unbounded_input",
     "test_handoff_manifest_rejects_symlink",
     "test_handoff_invalid_review_refused_before_database",
