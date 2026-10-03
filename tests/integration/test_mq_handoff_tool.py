@@ -10,6 +10,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import select, text, update
 from sqlalchemy.exc import DBAPIError
+from sqlalchemy.ext.asyncio import create_async_engine
 
 from qs_ai.infrastructure.persistence.mysql.messaging import outbox
 from qs_ai.infrastructure.persistence.mysql.schema import result_outbox
@@ -183,6 +184,10 @@ async def test_native_handoff_process_kill_preserves_atomic_ownership(legacy, tm
     barrier, marker = ("mq_tool_" + uuid4().hex for _ in range(2))
     child = None
     trigger = False
+    ddl_url = os.environ.get("QS_MQ_FAULT_DDL_MYSQL_URL")
+    ddl_engine = (
+        create_async_engine(ddl_url, hide_parameters=True) if ddl_url else tx.database.engine
+    )
     async with tx.database.engine.connect() as control:
         try:
             if boundary == "before_commit":
@@ -192,14 +197,18 @@ async def test_native_handoff_process_kill_preserves_atomic_ownership(legacy, tm
                 # The old-row ownership UPDATE follows the new wire INSERT, both
                 # inside the same root transaction. Named locks identify the actual
                 # pending SQL, rather than relying on elapsed sleeps as evidence.
-                await control.execute(
-                    text(
-                        "CREATE TRIGGER mq_tool_kill BEFORE UPDATE ON result_outbox FOR EACH ROW "
-                        "BEGIN IF NEW.mq_owned=TRUE AND OLD.mq_owned=FALSE THEN "
-                        f"SET @mq_tool_marker=GET_LOCK('{marker}',0); "
-                        f"SET @mq_tool_barrier=GET_LOCK('{barrier}',30); END IF; END"
+                # The isolated fixture administrator installs only the fault
+                # trigger. The real maintenance CLI retains the original host user.
+                async with ddl_engine.begin() as ddl:
+                    await ddl.execute(
+                        text(
+                            "CREATE TRIGGER mq_tool_kill BEFORE UPDATE ON result_outbox "
+                            "FOR EACH ROW "
+                            "BEGIN IF NEW.mq_owned=TRUE AND OLD.mq_owned=FALSE THEN "
+                            f"SET @mq_tool_marker=GET_LOCK('{marker}',0); "
+                            f"SET @mq_tool_barrier=GET_LOCK('{barrier}',30); END IF; END"
+                        )
                     )
-                )
                 trigger = True
                 await control.commit()
                 argv = [sys.executable, "-m", "qs_ai.maintenance.messaging_handoff", *options]
@@ -254,7 +263,10 @@ async def test_native_handoff_process_kill_preserves_atomic_ownership(legacy, tm
                 await child.wait()
             await control.scalar(text("SELECT RELEASE_LOCK(:lock)"), {"lock": barrier})
             if trigger:
-                await control.execute(text("DROP TRIGGER mq_tool_kill"))
+                async with ddl_engine.begin() as ddl:
+                    await ddl.execute(text("DROP TRIGGER mq_tool_kill"))
+            if ddl_url:
+                await ddl_engine.dispose()
     # Resume the same reviewed identity after either interruption. First durable
     # wire is fixed; no model or task execution is introduced by maintenance.
     first = await service.apply(
