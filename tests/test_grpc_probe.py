@@ -13,14 +13,12 @@ async def test_real_mtls_probe_accepts_qs_and_rejects_other_identities(tmp_path)
     certificates(tmp_path)
     ca, cert, key = [(tmp_path / name).read_bytes() for name in ("ca.pem", "ai.pem", "ai.key")]
 
-    class Scope:
-        async def get(self, requested):
-            # Any attempted business method on this object fails the positive probe.
-            return object()
+    scope_entries = []
 
     @asynccontextmanager
     async def container():
-        yield Scope()
+        scope_entries.append(True)
+        yield object()
 
     server = grpc.aio.server()
     rpc.add_CommandsServicer_to_server(Commands(container), server)
@@ -36,11 +34,14 @@ async def test_real_mtls_probe_accepts_qs_and_rejects_other_identities(tmp_path)
             ca,
             (tmp_path / "qs.pem").read_bytes(),
             (tmp_path / "qs.key").read_bytes(),
-            "INVALID_ARGUMENT",
+            "FAILED_PRECONDITION",
         )
         await probe(address, ca, cert, key, "PERMISSION_DENIED")
         await probe(address, ca, None, None, "UNAVAILABLE")
-        with pytest.raises(RuntimeError, match="Expected INVALID_ARGUMENT"):
-            await probe(address, ca, cert, key, "INVALID_ARGUMENT")
+        with pytest.raises(
+            RuntimeError, match="Expected FAILED_PRECONDITION, received PERMISSION_DENIED"
+        ):
+            await probe(address, ca, cert, key, "FAILED_PRECONDITION")
+        assert not scope_entries, "Transport probe must not enter a business scope"
     finally:
         await server.stop(0)

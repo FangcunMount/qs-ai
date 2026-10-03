@@ -1,4 +1,4 @@
-"""Non-mutating TLS/workload probe: invalid Change never opens a business transaction."""
+"""Non-mutating TLS/workload probe using the retired Change execution RPC."""
 
 import argparse
 import asyncio
@@ -43,7 +43,7 @@ def main() -> None:
     parser.add_argument("--check-files", action="store_true")
     parser.add_argument(
         "--expect",
-        choices=["INVALID_ARGUMENT", "PERMISSION_DENIED", "UNAVAILABLE"],
+        choices=["INVALID_ARGUMENT", "FAILED_PRECONDITION", "PERMISSION_DENIED", "UNAVAILABLE"],
         default="PERMISSION_DENIED",
     )
     args = parser.parse_args()
