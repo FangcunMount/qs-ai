@@ -61,6 +61,11 @@ def test_index_id_is_verified_by_raw_config_and_pinned_for_start(remote, tmp_pat
         return ""
 
     monkeypatch.setattr(remote, "run", run)
+    monkeypatch.setattr(
+        remote,
+        "save_loaded_archive",
+        lambda path, value: run("loaded image archive", ["save", "-o", str(path), value]),
+    )
     monkeypatch.setattr(remote, "probe", lambda *args: {"current": ["head"]})
     remote.apply(release, {})
     receipt = remote.loaded_image_binding(release)
@@ -101,6 +106,11 @@ def test_index_metadata_match_alone_cannot_authorize_loading(remote, tmp_path, m
         return ""
 
     monkeypatch.setattr(remote, "run", run)
+    monkeypatch.setattr(
+        remote,
+        "save_loaded_archive",
+        lambda path, value: run("loaded image archive", ["save", "-o", str(path), value]),
+    )
     with pytest.raises(remote.DeploymentError, match="(digest mismatch|archive identity)"):
         remote.apply(release, {})
     assert "migration" not in calls and "TLS file preflight" not in calls
@@ -394,3 +404,47 @@ def test_older_successful_release_cannot_be_reapplied_even_outside_current_state
     with pytest.raises(remote.DeploymentError, match="cannot be overwritten"):
         remote.apply(release, {"current": "b" * 40 + "-1-1", "previous": "c" * 40 + "-1-1"})
     assert before == {p.name: p.read_bytes() for p in release.iterdir()}
+
+
+def test_loaded_archive_is_owned_by_caller_and_never_created_by_sudo(remote, tmp_path, monkeypatch):
+    import os
+    import sys
+
+    actual = "sha256:" + "a" * 64
+    saved = tmp_path / "saved.tar"
+    original = subprocess.run
+
+    def export(args, **options):
+        assert args == ["sudo", "-n", "docker", "save", actual]
+        assert saved.stat().st_uid == os.geteuid()
+        assert saved.stat().st_mode & 0o777 == 0o600
+        return original(
+            [sys.executable, "-c", "import sys; sys.stdout.buffer.write(b'image bytes')"],
+            **options,
+        )
+
+    monkeypatch.setattr(remote.subprocess, "run", export)
+    remote.save_loaded_archive(saved, actual)
+    assert saved.read_bytes() == b"image bytes"
+    assert saved.stat().st_uid == os.geteuid()
+    with pytest.raises(remote.DeploymentError):
+        remote.save_loaded_archive(saved, actual)
+    assert saved.read_bytes() == b"image bytes"
+
+
+@pytest.mark.parametrize("failure", ["exit", "os", "timeout"])
+def test_loaded_export_failure_is_redacted_before_any_identity_or_service(
+    remote, tmp_path, monkeypatch, failure
+):
+    def fail(*args, **kwargs):
+        if failure == "os":
+            raise PermissionError("private diagnostic")
+        if failure == "timeout":
+            raise subprocess.TimeoutExpired("private command", 1200)
+        return subprocess.CompletedProcess(args, 1, stderr=b"private diagnostic")
+
+    monkeypatch.setattr(remote.subprocess, "run", fail)
+    with pytest.raises(remote.DeploymentError) as rejected:
+        remote.save_loaded_archive(tmp_path / "saved.tar", "sha256:" + "a" * 64)
+    assert "private" not in str(rejected.value)
+    assert not (tmp_path / "state.json").exists()
