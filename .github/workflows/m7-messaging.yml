@@ -8,6 +8,7 @@ on:
       - 'src/qs_ai/application/integration/events.py'
       - 'src/qs_ai/infrastructure/persistence/mysql/result_outbox.py'
       - 'tests/integration/test_m7_delivery.py'
+      - 'scripts/ci/rehearse_m7_cutover.py'
       - 'docs/m7-messaging.md'
       - '.github/workflows/m7-messaging.yml'
   pull_request:
@@ -17,6 +18,7 @@ on:
       - 'src/qs_ai/application/integration/events.py'
       - 'src/qs_ai/infrastructure/persistence/mysql/result_outbox.py'
       - 'tests/integration/test_m7_delivery.py'
+      - 'scripts/ci/rehearse_m7_cutover.py'
       - 'docs/m7-messaging.md'
       - '.github/workflows/m7-messaging.yml'
 permissions:
@@ -51,8 +53,8 @@ jobs:
           version: '0.12.13'
           python-version: '3.11'
       - run: uv sync --locked
-      - run: uv run ruff check src/qs_ai/application/integration/events.py src/qs_ai/infrastructure/persistence/mysql/result_outbox.py tests/integration/test_m7_delivery.py
-      - run: uv run ruff format --check src/qs_ai/application/integration/events.py src/qs_ai/infrastructure/persistence/mysql/result_outbox.py tests/integration/test_m7_delivery.py
+      - run: uv run ruff check src/qs_ai/application/integration/events.py src/qs_ai/infrastructure/persistence/mysql/result_outbox.py tests/integration/test_m7_delivery.py scripts/ci/rehearse_m7_cutover.py
+      - run: uv run ruff format --check src/qs_ai/application/integration/events.py src/qs_ai/infrastructure/persistence/mysql/result_outbox.py tests/integration/test_m7_delivery.py scripts/ci/rehearse_m7_cutover.py
       - run: uv run mypy src/qs_ai/application/integration/events.py src/qs_ai/infrastructure/persistence/mysql/result_outbox.py
       - run: uv run python scripts/check_docs.py
       - run: uv run alembic upgrade head
