@@ -1,6 +1,7 @@
 import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from typing import Protocol
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
@@ -19,6 +20,32 @@ class Base(DeclarativeBase):
     pass
 
 
+class TransactionEvents(Protocol):
+    async def flush(self, db: AsyncSession) -> None: ...
+
+
+class EventSession(AsyncSession):
+    """Flush host state events before the explicit root commit, never after it."""
+
+    async def commit(self) -> None:
+        recorder = self.info.get("state_events")
+        if recorder is not None and self.in_transaction():
+            await recorder.flush(self)
+        await super().commit()
+        self.info.pop("evaluation_events", None)
+
+    async def rollback(self) -> None:
+        try:
+            await super().rollback()
+        finally:
+            self.info.pop("evaluation_events", None)
+
+
+def changed_evaluation(db: AsyncSession, run_id: str) -> None:
+    if db.info.get("state_events") is not None:
+        db.info.setdefault("evaluation_events", set()).add(run_id)
+
+
 class Database:
     def __init__(
         self,
@@ -30,6 +57,7 @@ class Database:
         connect_timeout: int = 3,
     ) -> None:
         self.engine: AsyncEngine | None = None
+        self.state_events: TransactionEvents | None = None
         if url is not None:
             self.engine = create_async_engine(
                 url,
@@ -68,14 +96,54 @@ class Transactions:
     def __init__(self, database: Database) -> None:
         self.database = database
 
+    async def commit(self, session: AsyncSession) -> None:
+        await session.commit()
+
+    @staticmethod
+    def borrowed(session: AsyncSession) -> "BorrowedTransactions":
+        return BorrowedTransactions(session)
+
     @asynccontextmanager
     async def open(self) -> AsyncIterator[AsyncSession]:
         if self.database.engine is None:
             raise DependencyUnavailable("Database is not configured")
-        factory = async_sessionmaker(self.database.engine, expire_on_commit=False)
+        factory = async_sessionmaker(
+            self.database.engine, class_=EventSession, expire_on_commit=False
+        )
         async with factory() as session:
+            if self.database.state_events is not None:
+                session.info["state_events"] = self.database.state_events
             try:
                 yield session
             finally:
                 # Uncommitted work is never implicitly accepted, including on cancellation.
                 await session.rollback()
+
+
+class BorrowedTransactions(Transactions):
+    """Reuse the caller's root transaction, without owning commit/rollback/close."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+        self.transaction = session.get_transaction()
+        self._validate()
+
+    def _validate(self) -> None:
+        if (
+            self.transaction is None
+            or not self.transaction.is_active
+            or self.session.get_transaction() is not self.transaction
+        ):
+            raise RuntimeError("Original active transaction required")
+
+    @asynccontextmanager
+    async def open(self) -> AsyncIterator[AsyncSession]:
+        self._validate()
+        yield self.session
+        self._validate()
+
+    async def commit(self, session: AsyncSession) -> None:
+        if session is not self.session:
+            raise RuntimeError("Cannot complete a different borrowed session")
+        self._validate()
+        # Only the transport receiver commits business + Inbox + first receipt.

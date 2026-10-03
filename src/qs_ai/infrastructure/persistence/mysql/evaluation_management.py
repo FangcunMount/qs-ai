@@ -148,7 +148,7 @@ class MySQLEvaluationManagement:
         async with self.transactions.open() as db:
             await cancel(db, scope, expected_version, reason, at, discard=discard, confirm=confirm)
             view = await read_view(db, scope, self.runtime_limits)
-            await db.commit()
+            await self.transactions.commit(db)
             return view
 
     async def list_unknowns(
@@ -170,7 +170,7 @@ class MySQLEvaluationManagement:
         async with self.transactions.open() as db:
             await reopen(db, scope, expected_version, reason, at, confirm=confirm)
             view = await read_view(db, scope, self.runtime_limits)
-            await db.commit()
+            await self.transactions.commit(db)
             return view
 
     async def finalize(
@@ -188,7 +188,7 @@ class MySQLEvaluationManagement:
                 db, scope, expected_version, expected_passed, reason, at, confirm=confirm
             )
             view = await read_view(db, scope, self.runtime_limits)
-            await db.commit()
+            await self.transactions.commit(db)
             return view
 
     async def preview_gates(
@@ -226,7 +226,7 @@ class MySQLEvaluationManagement:
             await read_view(db, scope, self.runtime_limits)
             await accept_reviews(db, scope, expected_version, values)
             view = await read_view(db, scope, self.runtime_limits)
-            await db.commit()
+            await self.transactions.commit(db)
             return view
 
     async def start(
@@ -267,7 +267,7 @@ class MySQLEvaluationManagement:
             )
             await admit(db, scope, self.capacity, at, self.quota_baseline)
             view = await read_view(db, scope, self.runtime_limits)
-            await db.commit()
+            await self.transactions.commit(db)
             return view
 
     async def resolve(
@@ -288,5 +288,5 @@ class MySQLEvaluationManagement:
             view = await read_view(db, scope, self.runtime_limits)
             if view.status == "collecting":
                 await admit(db, scope, self.capacity, value.resolved_at, self.quota_baseline)
-            await db.commit()
+            await self.transactions.commit(db)
             return view

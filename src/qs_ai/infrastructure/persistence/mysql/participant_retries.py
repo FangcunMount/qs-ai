@@ -155,7 +155,9 @@ class MySQLParticipantRetries:
 
     async def retry(self, command: ParticipantRetry) -> Receipt:
         async with self.transactions.open() as db:
-            uow = MySQLUnitOfWork(db, self.capacity, self.quota_baseline)
+            uow = MySQLUnitOfWork(
+                db, self.capacity, self.quota_baseline, commit=self.transactions.commit
+            )
             previous = await uow.reserve(
                 fingerprint(["participant-retry-v1", command.scope.organization_id]),
                 command.command_id,

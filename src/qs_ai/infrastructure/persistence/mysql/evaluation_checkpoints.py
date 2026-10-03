@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict, CheckpointState
 from qs_ai.domain.evaluation.checkpoint import ExecutionCheckpoint
-from qs_ai.infrastructure.persistence.mysql.database import Transactions
+from qs_ai.infrastructure.persistence.mysql.database import Transactions, changed_evaluation
 from qs_ai.infrastructure.persistence.mysql.schema import evaluation_checkpoints as table
 
 
@@ -81,3 +81,4 @@ async def save_checkpoint(db: AsyncSession, state: CheckpointState, expected_ver
     )
     if cast(CursorResult, result).rowcount != 1:
         raise CheckpointConflict("Checkpoint state changed concurrently")
+    changed_evaluation(db, str(state.run_id))

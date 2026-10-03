@@ -1,0 +1,29 @@
+FROM python:3.11-slim AS dependencies
+# Candidate Git-pinned SDK only; remove this build dependency after reviewed wheel release.
+RUN apt-get update && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+COPY pyproject.toml uv.lock README.md ./
+COPY src ./src
+COPY configs ./configs
+COPY integrations/qs_server/prompts ./integrations/qs_server/prompts
+COPY integrations/qs_server/schemas ./integrations/qs_server/schemas
+COPY integrations/qs_server/routes ./integrations/qs_server/routes
+COPY integrations/qs_server/evaluation ./integrations/qs_server/evaluation
+COPY --from=ghcr.io/astral-sh/uv:0.12.13 /uv /usr/local/bin/uv
+RUN uv sync --frozen --no-dev --no-editable
+
+FROM python:3.11-slim
+ARG RELEASE_SHA=unknown
+ENV QS_AI_RELEASE_SHA=$RELEASE_SHA
+WORKDIR /app
+COPY --from=dependencies /app/.venv /app/.venv
+COPY --from=dependencies /app/src /app/src
+COPY --from=dependencies /app/configs /app/configs
+COPY --from=dependencies /app/integrations /app/integrations
+COPY alembic.ini ./
+COPY migrations ./migrations
+RUN useradd --uid 10001 --create-home app
+USER app
+EXPOSE 8000
+CMD ["/app/.venv/bin/python", "-m", "qs_ai.bootstrap.server"]

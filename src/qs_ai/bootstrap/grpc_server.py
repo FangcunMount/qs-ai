@@ -7,12 +7,14 @@ from dishka import AsyncContainer
 from grpc import aio
 
 from qs_ai.config import Settings
+from qs_ai.contracts.workflow import messaging_pb2_grpc as messaging_rpc
 from qs_ai.contracts.workflow import workflow_pb2_grpc as rpc
 from qs_ai.transport.grpc.asset_catalog import AssetCatalogService
 from qs_ai.transport.grpc.commands import Commands
 from qs_ai.transport.grpc.diagnostics import Diagnostics
 from qs_ai.transport.grpc.evaluation import EvaluationManagement
 from qs_ai.transport.grpc.flow import FlowManagement
+from qs_ai.transport.grpc.message_payloads import MessagePayloads
 from qs_ai.transport.grpc.participant import ParticipantManagement
 from qs_ai.transport.grpc.profile_registration import ProfileManagement
 from qs_ai.transport.grpc.prompt_drafts import PromptDraftManagement
@@ -31,12 +33,16 @@ def create_grpc_server(
     cert: bytes,
     key: bytes,
     components: Callable[[], dict[str, str]] | None = None,
+    *,
+    payloads: MessagePayloads | None = None,
 ) -> aio.Server:
     server = aio.server(
         interceptors=[Diagnostics()],
         options=(("grpc.max_receive_message_length", settings.grpc.max_receive_bytes),),
     )
     rpc.add_CommandsServicer_to_server(Commands(container), server)
+    if payloads is not None:
+        messaging_rpc.add_MessagePayloadsServicer_to_server(payloads, server)
     if settings.grpc.governance_enabled:
         rpc.add_FlowManagementServicer_to_server(FlowManagement(container), server)
         rpc.add_SemanticPromptDraftsServicer_to_server(SemanticPromptDrafts(container), server)

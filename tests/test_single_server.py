@@ -27,15 +27,16 @@ def port():
         return sock.getsockname()[1]
 
 
+@pytest.mark.parametrize("messaging", [False, True])
 @pytest.mark.parametrize(
     "generation,evaluation", [(False, False), (True, False), (False, True), (True, True)]
 )
 async def test_shared_container_real_listeners_and_independent_loops(
-    tmp_path, monkeypatch, generation, evaluation
+    tmp_path, monkeypatch, generation, evaluation, messaging
 ):
     certificates(tmp_path)
     http_port, grpc_port = port(), port()
-    counts = dict(generation=0, evaluation=0, delivery=0)
+    counts = dict(generation=0, evaluation=0, delivery=0, mq=0)
     instances = []
     pool_events = []
 
@@ -104,6 +105,22 @@ async def test_shared_container_real_listeners_and_independent_loops(
             "key_file": str(tmp_path / "ai.key"),
         },
     )
+    if messaging:
+        from qs_ai.bootstrap.messaging import MessagingRuntime
+
+        fake = AsyncMock(spec=MessagingRuntime)
+        fake.payloads = None
+        fake.components.return_value = []
+
+        async def relay():
+            counts["mq"] += 1
+            return 0
+
+        fake.step.side_effect = relay
+        monkeypatch.setattr(MessagingRuntime, "create", AsyncMock(return_value=fake))
+        settings = settings.model_copy(
+            update={"messaging": settings.messaging.model_copy(update={"enabled": True})}
+        )
     stop = asyncio.Event()
     task = asyncio.create_task(server.serve(settings, stop))
     try:
@@ -130,7 +147,8 @@ async def test_shared_container_real_listeners_and_independent_loops(
             assert len(containers) == 1
             assert bool(counts["generation"]) == generation
             assert bool(counts["evaluation"]) == evaluation
-            assert counts["delivery"] > 0
+            assert bool(counts["delivery"]) == (not messaging)
+            assert bool(counts["mq"]) == messaging
     finally:
         stop.set()
         await asyncio.wait_for(task, 5)

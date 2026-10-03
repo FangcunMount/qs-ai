@@ -120,6 +120,31 @@ class DeliveryOptions(LoopOptions):
     max_retry_seconds: int = Field(ge=1, le=86400)
 
 
+class MessagingOptions(Options):
+    enabled: bool = False
+    # Direct, explicitly mapped NSQD sources. No guessed HTTP port or discovery loop.
+    nsqd: dict[str, str] = Field(default_factory=dict, max_length=8)
+    signing_key_file: str | None = None
+    decrypt_key_files: dict[str, str] = Field(default_factory=dict)
+    qs_signer_files: dict[str, str] = Field(default_factory=dict)
+    qs_recipient_key_file: str | None = None
+    max_in_flight: int = Field(default=1, ge=1, le=32)
+
+    @model_validator(mode="after")
+    def complete(self) -> "MessagingOptions":
+        if self.enabled and not all(
+            (
+                self.nsqd,
+                self.signing_key_file,
+                self.decrypt_key_files,
+                self.qs_signer_files,
+                self.qs_recipient_key_file,
+            )
+        ):
+            raise ValueError("Enabled messaging requires explicit sources and JOSE key files")
+        return self
+
+
 def config_directory() -> Path:
     bundled = Path(__file__).resolve().parent / "configs"
     if bundled.is_dir():
@@ -194,6 +219,7 @@ class Settings(BaseSettings):
     model_capacity: ModelCapacityOptions = Field(default_factory=ModelCapacityOptions)
     grpc: GRPCOptions
     delivery: DeliveryOptions
+    messaging: MessagingOptions = Field(default_factory=MessagingOptions)
 
     @model_validator(mode="after")
     def validate_model_credentials(self) -> "Settings":

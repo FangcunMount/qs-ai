@@ -84,7 +84,8 @@ async def preflight(container: AsyncContainer, settings: Settings) -> None:
     if sorted(heads) != sorted(scripts.get_heads()):
         raise ValueError("Database migration version does not match the image")
     async with container() as operation:
-        await operation.get(DeliverResults)
+        if not settings.messaging.enabled:
+            await operation.get(DeliverResults)
         if settings.generation.enabled:
             await operation.get(ExecuteNext)
         if settings.evaluation.enabled:
@@ -127,11 +128,20 @@ def background(
 async def serve(settings: Settings, stop: asyncio.Event) -> None:
     await asyncio.to_thread(validate_tls, settings)
     ca, cert, key = await tls_bytes(settings)
-    container = create_container(settings, DeliveryProvider(), EvaluationProvider())
+    container = create_container(
+        settings,
+        *([] if settings.messaging.enabled else [DeliveryProvider()]),
+        EvaluationProvider(),
+    )
     state = RuntimeState()
     grpc_server = None
+    messaging = None
     try:
         await preflight(container, settings)
+        if settings.messaging.enabled:
+            from qs_ai.bootstrap.messaging import MessagingRuntime
+
+            messaging = await MessagingRuntime.create(container, settings, ca, cert, key)
 
         def component_status() -> dict[str, str]:
             result = {
@@ -145,7 +155,10 @@ async def serve(settings: Settings, stop: asyncio.Event) -> None:
             result["readiness"] = "ready" if state.ready and state.healthy else "not_ready"
             return result
 
-        grpc_server = create_grpc_server(container, settings, ca, cert, key, component_status)
+        grpc_options = {"payloads": messaging.payloads} if messaging is not None else {}
+        grpc_server = create_grpc_server(
+            container, settings, ca, cert, key, component_status, **grpc_options
+        )
         grpc_started = False
 
         async def run_grpc() -> None:
@@ -195,11 +208,28 @@ async def serve(settings: Settings, stop: asyncio.Event) -> None:
                 {"enabled", "daily_provider_calls", "max_active_runs"},
                 settings.evaluation.enabled,
             ),
-            ("delivery", deliver, settings.delivery, {"batch_size", "max_retry_seconds"}, True),
+            (
+                "delivery",
+                deliver,
+                settings.delivery,
+                {"batch_size", "max_retry_seconds"},
+                not settings.messaging.enabled,
+            ),
         ):
             if enabled:
                 values = options.model_dump(exclude=excluded)
                 components.append(background(name, attempt, stop, values))
+
+        if messaging is not None:
+            # Replaces the old gRPC scanner; no dual result delivery owner.
+            values = settings.delivery.model_dump(exclude={"batch_size", "max_retry_seconds"})
+            values["concurrency"] = 1
+            components.append(background("mq_relay", messaging.step, stop, values))
+            components.extend(
+                messaging.components(
+                    state, max(component.shutdown_seconds for component in components)
+                )
+            )
 
         async def expire_diagnostics() -> int:
             try:
@@ -257,6 +287,8 @@ async def serve(settings: Settings, stop: asyncio.Event) -> None:
         if grpc_server is not None:
             await grpc_server.stop(0)
         async with asyncio.timeout(5):
+            if messaging is not None:
+                await messaging.close()
             await container.close()
 
 

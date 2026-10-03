@@ -1,4 +1,4 @@
-from collections.abc import AsyncIterator, Mapping
+from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from contextlib import asynccontextmanager
 from dataclasses import asdict
 from datetime import UTC, datetime
@@ -82,7 +82,10 @@ class MySQLUnitOfWork:
         capacity: ParticipantCapacityPolicy = DEFAULT_PARTICIPANT_CAPACITY,
         quota_baseline: QuotaBaseline | None = None,
         models: EditableModelPolicy = DEFAULT_EDITABLE_MODELS,
+        *,
+        commit: Callable[[AsyncSession], Awaitable[None]] | None = None,
     ) -> None:
+        self._commit = commit
         self.db, self.capacity = db, capacity
         self.quota_baseline = quota_baseline
         self.models = models
@@ -272,7 +275,10 @@ class MySQLUnitOfWork:
             await release_capacity(self.db, session, datetime.now(UTC))
 
     async def commit(self) -> None:
-        await self.db.commit()
+        if self._commit is None:
+            await self.db.commit()
+        else:
+            await self._commit(self.db)
 
 
 class MySQLUnitOfWorkFactory:
@@ -290,5 +296,8 @@ class MySQLUnitOfWorkFactory:
     @asynccontextmanager
     async def open(self) -> AsyncIterator[UnitOfWork]:
         async with self.transactions.open() as db:
-            await db.connection(execution_options={"isolation_level": "REPEATABLE READ"})
-            yield MySQLUnitOfWork(db, self.capacity, self.quota_baseline, self.models)
+            if not db.in_transaction():
+                await db.connection(execution_options={"isolation_level": "REPEATABLE READ"})
+            yield MySQLUnitOfWork(
+                db, self.capacity, self.quota_baseline, self.models, commit=self.transactions.commit
+            )
