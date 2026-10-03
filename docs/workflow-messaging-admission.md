@@ -4,14 +4,16 @@
 
 ## 交付边界
 
-基于 main `a0eae54`，复用外围 `31d0443`、`4b27fbc`。首批使用 SDK Git 候选 `9f16fa30dc43a50a2d4492f3e95c905a8f969331`；后续依赖收尾已改为该提交的已发布 [Python 0.2.0a1 预发布](https://github.com/FangcunMount/reliable-messaging/releases/tag/python/v0.2.0a1) wheel，并保留 `[nsq]` 扩展。预发布不是稳定版或宿主生产切换证明。
+基于 main `a0eae54`，复用外围 `31d0443`、`4b27fbc`。首批使用 SDK Git 候选 `9f16fa30dc43a50a2d4492f3e95c905a8f969331`；后续依赖收尾使用已发布 wheel；正常宿主兼容验证发现最终 ACK 成功 PUB 耗尽失败预算后，现固定为补丁提交 `8633ba585b5a1c8f95fb16b19469fbd0097611c7` 的 [Python 0.2.0a2 预发布](https://github.com/FangcunMount/reliable-messaging/releases/tag/python/v0.2.0a2) wheel，并保留 `[nsq]` 扩展。预发布不是稳定版或宿主生产切换证明。
 
-- wheel URL：`https://github.com/FangcunMount/reliable-messaging/releases/download/python/v0.2.0a1/fangcun_reliable_messaging-0.2.0a1-py3-none-any.whl`
-- SHA256：`24aa04fdcc809a3d655e3f3b398f8447e1edc78d8ecb0da90f45e60dd1a0b75d`，独立下载核验后固定在 `uv.lock`。
+- wheel URL：`https://github.com/FangcunMount/reliable-messaging/releases/download/python/v0.2.0a2/fangcun_reliable_messaging-0.2.0a2-py3-none-any.whl`
+- SHA256：`a9c424de16b1701c52d04cb51f2898fa868488f110c5772f2fd360e1c543c932`，独立下载核验后固定在 `uv.lock`。
 - `pyproject.toml` 不再引用 Git source。锁变更仅涉及本 SDK 来源及其 wheel 元数据，没有升级其他依赖。
 - 删除临时 `deploy/candidate/Dockerfile.mq`，CI 恢复正常 Dockerfile；正常 Dockerfile 本文各批次均未改动。依赖构建和运行不再需要 Git。
 
 本批维护原业务/storage 接缝、事件记录、增量迁移、统一生命周期和候选验证。MQ framing、JOSE、Inbox、Outbox、ACK、物理失败处理由另一会话维护；没有创建第二套业务重试、生成、审批或发布状态机。
+
+SDK 补丁保持原 wire/schema/接口，只保护最终 ACK 的失败预算和已有技术挂起。历史计数可能包含成功 PUB，不自动清零、解挂、重封装或授权模型重试。宿主最终依赖、正常镜像及生产证据单独记录。
 
 ## 原事务与接单回执
 
