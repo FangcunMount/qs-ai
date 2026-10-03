@@ -1,6 +1,9 @@
 import logging
 from dataclasses import dataclass
+from functools import partial
 from typing import Protocol
+
+from reliable_messaging import deliver_durable
 
 from qs_ai.application.operations.diagnostics import attempt_context, classify, emit
 from qs_ai.domain.interpretation.model import Actor
@@ -46,10 +49,11 @@ class DeliverResults:
                 delivery_event_id=event.event_id,
             ):
                 emit("delivery.started", "delivery")
-                try:
-                    await self.receiver.accept(event)
-                except Exception as error:
-                    await self.store.retry(event.event_id)
+                result = await deliver_durable(
+                    event.event_id, self.store, partial(self.receiver.accept, event)
+                )
+                if result.error is not None:
+                    error = result.error
                     emit(
                         "delivery.retry_scheduled",
                         "delivery",
@@ -58,7 +62,6 @@ class DeliverResults:
                         error_type=type(error).__name__,
                     )
                 else:
-                    await self.store.delivered(event.event_id)
                     emit("delivery.acknowledged", "delivery", status=event.status)
                     sent += 1
         return sent
