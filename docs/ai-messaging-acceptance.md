@@ -16,6 +16,8 @@ QS 在 Inbox、业务投影和最终 ACK 同事务提交后，AI 才能确认。
 
 ## 两端独立进程与正文读取
 
+现有执行规则用例单独生成 `execution.xml`，由 `verify_mq_execution_report.py` 检查必需场景及零跳过：持久响应与原配置复用、发出后未知结果不再调用、提交失败/进程中断、取消竞争、原容量与额度保留。CI 在两组 MySQL/Python 组合执行原负责人维护的五个测试文件，使用已有模型替身，不修改其源码或测试。该证据与 MQ 外围报告分别报告；它不证明生产真实模型效果或完整跨服务成功接单。
+
 `tests/probes/mq_fault_acceptance.py` 使用原 Go Runtime 与正常 AI server，验证命令、接单拒绝回执和最终 ACK 在 PUB 后丢失、两端和专属 Broker 强杀后的原身份恢复。它使用缺失 Run 的原业务拒绝，不证明成功接单/模型执行的完整业务验收。
 
 `tests/probes/mq_payload_acceptance.py` 通过原 Go 业务存储建立隔离历史请求，保存原 128 KiB Unicode artifact 结果；不创建真实模型调用。正常 AI server 移交原结果并发布受保护引用。实际 mTLS Get 验证正文/长度/hash，以及错目标、组织、身份、hash、长度和错误 workload 拒绝。专属 Broker 丢失后重启两端，原 wire/body/time 保留，QS 仅一次持久效果，新旧 Outbox 同时确认，重启后引用正文仍可读取。标准失败中转的完整编码同样不得超过 262144 字节。
