@@ -39,25 +39,26 @@ execution/evaluation/interpretation、ModelCapacity、冻结配置、业务恢�
 
 ## 依赖与受控发布
 
-候选依赖为 `fangcun-reliable-messaging==0.1.0a1`，uv.sources 和 lock 固定 SDK
-`50c94db0aad89ef6d3ed9a454b1ad31861aa363d` 的 python 子目录，不使用工作树路径。
-这是审查/CI 用的不可变 Git pin，Python 版本尚未正式发布。原生产 Dockerfile
-没有增加 Git 工具，不宣称这份 Git 依赖候选已是可部署生产镜像。
+依赖为 `fangcun-reliable-messaging==0.1.0a1`，已在用户审核后独立发布为
+[Python SDK 0.1.0a1](https://github.com/FangcunMount/reliable-messaging/releases/tag/python/v0.1.0a1)，
+源码为 `fea92389967076e3529289e80b1d96abef76dc73`。uv.sources 固定 Release wheel URL，
+lock 固定 SHA256 `5699421a213a6824cb39f13dc9b10c562693137670a071077ba5e50e687fec9e`。
+已删除临时 Git source，其它依赖版本不变；正常 Dockerfile 不增加 Git 工具。
+发布资产重新下载后与获批摘要一致；正常 amd64 镜像、隔离切换与生产接入分别验收。
 
-审核顺序：核对 SDK 精确源码/22 项测试/目标版本 CI/独立 wheel 摘要 → 用户授权
-正式 Python 发布 → 用 approved wheel/index 版本替换临时 Git source → 核验 lock、
-正常 Docker 构建与单 PID、原配置/挂载/停止预算 → 用户审核具体部署与回退材料。
+生产审核仍须绑定最终源码/CI、正常镜像、单 PID、原配置/挂载/schema/停止预算、
+旧镜像及隔离回退证据。Python 发布批准不授权主线合并或生产部署。
 
 保留原镜像与配置。停止旧单进程准入并排空后才启动新实例；借用 pool/channel
 在后台停止后由宿主关闭。旧 result_outbox schema/wire 不变，回退旧镜像继续扫描
 原未完成记录，无双 writer、无清空或重建已接单任务。已接收但本地确认未知的
-记录沿原 event_id 重投，通过持久接收端幂等恢复。正式发布和生产部署均未执行。
+记录沿原 event_id 重投，通过持久接收端幂等恢复。Python 独立预发布已执行；主线合并和生产部署未执行。
 
 ## 已确认的实施与关闭门槛
 
 本批按 M7 行为保持重构实施，不扩大为 NSQ 接入。Python 首发采用 GitHub Release
 `python/v0.1.0a1`（修正早期审核材料的 python-v 临时写法），保留独立 Python 版本。
-正式发布批准后，删除 Git source，锁定该版本的 wheel URL 和 SHA256；不得引用
+已删除 Git source，锁定该版本的 wheel URL 和 SHA256；不得引用
 latest、分支或工作树。GitHub 资产不保证技术上不可替换，因此禁止覆盖并通过
 lock hash 检测变化。包索引与新许可证不在本批。
 

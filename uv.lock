@@ -328,10 +328,16 @@ wheels = [
 [[package]]
 name = "fangcun-reliable-messaging"
 version = "0.1.0a1"
-source = { git = "https://github.com/FangcunMount/reliable-messaging.git?subdirectory=python&rev=50c94db0aad89ef6d3ed9a454b1ad31861aa363d#50c94db0aad89ef6d3ed9a454b1ad31861aa363d" }
+source = { url = "https://github.com/FangcunMount/reliable-messaging/releases/download/python/v0.1.0a1/fangcun_reliable_messaging-0.1.0a1-py3-none-any.whl" }
 dependencies = [
     { name = "sqlalchemy", extra = ["asyncio"] },
 ]
+wheels = [
+    { url = "https://github.com/FangcunMount/reliable-messaging/releases/download/python/v0.1.0a1/fangcun_reliable_messaging-0.1.0a1-py3-none-any.whl", hash = "sha256:5699421a213a6824cb39f13dc9b10c562693137670a071077ba5e50e687fec9e" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0,<2.1" }]
 
 [[package]]
 name = "fastapi"
@@ -1344,7 +1350,7 @@ requires-dist = [
     { name = "asyncmy", specifier = ">=0.2.9,<0.3" },
     { name = "cryptography", specifier = ">=44,<50" },
     { name = "dishka", specifier = ">=1.7,<2" },
-    { name = "fangcun-reliable-messaging", git = "https://github.com/FangcunMount/reliable-messaging.git?subdirectory=python&rev=50c94db0aad89ef6d3ed9a454b1ad31861aa363d" },
+    { name = "fangcun-reliable-messaging", url = "https://github.com/FangcunMount/reliable-messaging/releases/download/python/v0.1.0a1/fangcun_reliable_messaging-0.1.0a1-py3-none-any.whl" },
     { name = "fastapi", specifier = ">=0.115,<1" },
     { name = "grpcio", specifier = ">=1.83.1,<2" },
     { name = "httpx", specifier = ">=0.28,<1" },
