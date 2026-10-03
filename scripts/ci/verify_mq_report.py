@@ -6,6 +6,12 @@ from pathlib import Path
 from xml.etree import ElementTree
 
 required = {
+    "test_start_refusal_uses_only_original_persisted_event",
+    "test_missing_or_mismatched_evidence_is_technical_unknown",
+    "test_accepted_start_does_not_consult_current_state",
+    "test_unavailable_configuration_keeps_original_refusal_and_zero_dispatch",
+    "test_start_refusal_replay_survives_publication_recovery",
+    "test_refusal_receipt_failure_rolls_back_original_business_and_inbox",
     "test_mq_startup_schema_transaction_rejects_write_and_preserves_pool",
     "test_mq_duplicate_observations_share_original_commit_and_conflict_is_not_duplicate",
     "test_mq_duplicate_ack_records_only_after_exact_confirmation_and_rolls_back",
