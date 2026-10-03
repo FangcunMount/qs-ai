@@ -493,3 +493,205 @@ async def test_real_nsq_bootstrap_original_admission_and_shutdown(kit, keys, tmp
             for table in (inbox, outbox, quarantine, evaluation_sequences):
                 await db.execute(delete(table))
             await db.commit()
+
+
+@pytest.mark.usefixtures("published_configuration")
+@pytest.mark.parametrize(
+    "confirmation",
+    ["stored", "wrong_hash", "held", "rollback", "source_conflict", "unowned", "storage_error"],
+)
+async def test_legacy_result_settles_only_with_atomic_original_business_ack(
+    kit, keys, mq_env, confirmation
+):
+    from reliable_messaging.durable import MessageConflict
+    from sqlalchemy import update
+
+    kit.transactions.database.state_events = None
+    request = str(uuid4())
+    await kit.service.start_external(
+        kit.actor, "7", ("42",), "历史结果确认事务验收", request, bound_case()[1].items
+    )
+    legacy = next(
+        r
+        for r in await saved(kit.transactions, result_outbox)
+        if r["payload"]["request_id"] == request
+    )
+    kit.transactions.database.state_events = mq_env
+    async with kit.transactions.open() as db:
+        await db.begin()
+        await mq_env.handoff(db)
+        await db.commit()
+    event = next(
+        r for r in await saved(kit.transactions, outbox) if r["message_id"] == legacy["event_id"]
+    )
+    ack = prepare(
+        pb.EVENT_ACKNOWLEDGEMENT,
+        str(uuid4()),
+        request,
+        pb.MessagingBody(
+            event_acknowledgement=pb.MessagingEventAcknowledgement(
+                event_id=legacy["event_id"],
+                event_body_sha256="0" * 64
+                if confirmation == "wrong_hash"
+                else event["body_sha256"],
+                event_kind=pb.INTERPRETATION_STATE,
+                outcome=pb.MessagingEventAcknowledgement.TECHNICALLY_HELD
+                if confirmation == "held"
+                else pb.MessagingEventAcknowledgement.STORED,
+            )
+        ),
+        organization_id="1",
+        signing_key=keys["qs.sign"],
+        recipient_key=keys["ai.encrypt"],
+    )
+    if confirmation in ("source_conflict", "unowned"):
+        async with kit.transactions.open() as db:
+            await db.begin()
+            await db.execute(
+                update(result_outbox)
+                .where(result_outbox.c.event_id == legacy["event_id"])
+                .values(
+                    **(
+                        {"payload": {**legacy["payload"], "failure_code": "changed"}}
+                        if confirmation == "source_conflict"
+                        else {"mq_owned": False}
+                    )
+                )
+            )
+            await db.commit()
+    async with kit.transactions.open() as db:
+        await db.begin()
+        if confirmation in ("wrong_hash", "source_conflict", "unowned"):
+            with pytest.raises(MessageConflict):
+                await mq_env.store.confirm_event(db, ack.envelope, ack.body)
+            await db.rollback()
+        elif confirmation == "storage_error":
+            original_execute = db.execute
+
+            async def unavailable(statement, *args, **kwargs):
+                if getattr(statement, "table", None) is result_outbox:
+                    raise OSError("isolated original result storage failure")
+                return await original_execute(statement, *args, **kwargs)
+
+            db.execute = unavailable
+            with pytest.raises(OSError):
+                await mq_env.store.confirm_event(db, ack.envelope, ack.body)
+            db.execute = original_execute
+            await db.rollback()
+        else:
+            await mq_env.store.confirm_event(db, ack.envelope, ack.body)
+            if confirmation == "rollback":
+                await db.rollback()
+            else:
+                await db.commit()
+    final = next(
+        r
+        for r in await saved(kit.transactions, result_outbox)
+        if r["event_id"] == legacy["event_id"]
+    )
+    current = next(
+        r for r in await saved(kit.transactions, outbox) if r["message_id"] == legacy["event_id"]
+    )
+    assert bool(final["delivered"]) == (confirmation == "stored")
+    assert (current["stage"] == "confirmed") == (confirmation == "stored")
+    assert final["created_at"] == legacy["created_at"]
+    assert current["wire"] == event["wire"]
+    if confirmation == "stored":
+        assert final["delivered_at"] is not None
+        async with kit.transactions.open() as db:
+            await db.begin()
+            await mq_env.store.confirm_event(db, ack.envelope, ack.body)
+            await db.commit()
+        duplicate = next(
+            r
+            for r in await saved(kit.transactions, result_outbox)
+            if r["event_id"] == legacy["event_id"]
+        )
+        assert duplicate["delivered_at"] == final["delivered_at"]
+
+
+@pytest.mark.usefixtures("published_configuration")
+async def test_legacy_handoff_and_ack_share_lock_order_without_deadlock(kit, keys, mq_env):
+    import asyncio
+
+    kit.transactions.database.state_events = None
+    request = str(uuid4())
+    await kit.service.start_external(
+        kit.actor, "7", ("42",), "历史移交锁顺序验收", request, bound_case()[1].items
+    )
+    legacy = next(
+        r
+        for r in await saved(kit.transactions, result_outbox)
+        if r["payload"]["request_id"] == request
+    )
+    kit.transactions.database.state_events = mq_env
+    async with kit.transactions.open() as db:
+        await db.begin()
+        await mq_env.handoff(db)
+        await db.commit()
+    event = next(
+        r for r in await saved(kit.transactions, outbox) if r["message_id"] == legacy["event_id"]
+    )
+    ack = prepare(
+        pb.EVENT_ACKNOWLEDGEMENT,
+        str(uuid4()),
+        request,
+        pb.MessagingBody(
+            event_acknowledgement=pb.MessagingEventAcknowledgement(
+                event_id=legacy["event_id"],
+                event_body_sha256=event["body_sha256"],
+                event_kind=pb.INTERPRETATION_STATE,
+                outcome=pb.MessagingEventAcknowledgement.STORED,
+            )
+        ),
+        organization_id="1",
+        signing_key=keys["qs.sign"],
+        recipient_key=keys["ai.encrypt"],
+    )
+
+    async def confirm():
+        async with kit.transactions.open() as db:
+            await db.begin()
+            await mq_env.store.confirm_event(db, ack.envelope, ack.body)
+            await db.commit()
+
+    async with kit.transactions.open() as db:
+        await db.begin()
+        old = (
+            (
+                await db.execute(
+                    select(result_outbox)
+                    .where(result_outbox.c.event_id == legacy["event_id"])
+                    .with_for_update()
+                )
+            )
+            .mappings()
+            .one()
+        )
+        task = asyncio.create_task(confirm())
+        try:
+            # Give ACK enough time to reach its first lock. It must not hold the
+            # new row while waiting for this original row.
+            await asyncio.sleep(0.2)
+            assert not task.done()
+            await asyncio.wait_for(mq_env.record_interpretation(db, old), 3)
+            await db.commit()
+            await asyncio.wait_for(task, 3)
+        finally:
+            if not task.done():
+                task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+    final = next(
+        r
+        for r in await saved(kit.transactions, result_outbox)
+        if r["event_id"] == legacy["event_id"]
+    )
+    assert final["delivered"] and final["delivered_at"] is not None
+    assert (
+        next(
+            r
+            for r in await saved(kit.transactions, outbox)
+            if r["message_id"] == legacy["event_id"]
+        )["wire"]
+        == event["wire"]
+    )

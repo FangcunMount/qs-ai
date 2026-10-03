@@ -22,6 +22,7 @@ from qs_ai.infrastructure.persistence.mysql.messaging import (
     outbox,
     quarantine,
 )
+from qs_ai.infrastructure.persistence.mysql.schema import result_outbox, sessions
 from qs_ai.infrastructure.workflow_transport.messaging import (
     ACKS,
     CHANNELS,
@@ -61,12 +62,18 @@ async def storage():
         sa.Column("count", sa.Integer),
     )
     async with database.engine.begin() as conn:
+        await conn.run_sync(
+            lambda sync: sessions.metadata.create_all(sync, tables=[sessions, result_outbox])
+        )
         await conn.run_sync(metadata.create_all)
     try:
         yield database, Transactions(database), MessagingStore(), effects
     finally:
         async with database.engine.begin() as conn:
             await conn.run_sync(metadata.drop_all)
+            await conn.run_sync(
+                lambda sync: sessions.metadata.drop_all(sync, tables=[result_outbox, sessions])
+            )
         metadata.remove(effects)
         await database.close()
 

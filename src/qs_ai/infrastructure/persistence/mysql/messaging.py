@@ -16,6 +16,8 @@ from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from qs_ai.contracts.workflow import messaging_pb2 as pb
+from qs_ai.contracts.workflow import workflow_pb2 as workflow
+from qs_ai.infrastructure.persistence.mysql.schema import result_outbox
 from qs_ai.infrastructure.workflow_transport.messaging import (
     EVENTS,
     PreparedMessage,
@@ -290,6 +292,21 @@ class MessagingStore:
             raise MessageConflict("authenticated QS acknowledgement required")
         identity = Identity("qs-ai", "qs-server", value.event_id)
         await bind(db).validate()
+        # Handoff locks the legacy row before staging the MQ row. Keep that
+        # order here too, including duplicate ACKs, to avoid an ABBA deadlock.
+        legacy = None
+        if value.event_kind == pb.INTERPRETATION_STATE:
+            legacy = (
+                (
+                    await db.execute(
+                        sa.select(result_outbox)
+                        .where(result_outbox.c.event_id == value.event_id)
+                        .with_for_update()
+                    )
+                )
+                .mappings()
+                .one_or_none()
+            )
         row = (
             (
                 await db.execute(
@@ -312,7 +329,28 @@ class MessagingStore:
         ):
             raise MessageConflict("original event confirmation identity mismatch")
         if value.outcome == pb.MessagingEventAcknowledgement.STORED:
+            if legacy is not None:
+                original = pb.MessagingBody.FromString(row["body"]).interpretation_state
+                try:
+                    same_body = workflow.StateEvent(**legacy["payload"]) == original
+                except (TypeError, ValueError):
+                    same_body = False
+                if (
+                    not legacy["mq_owned"]
+                    or legacy["event_id"] != original.event_id
+                    or legacy["session_id"] != original.session_id
+                    or legacy["version"] != original.version
+                    or row["aggregate_key"] != original.request_id
+                    or not same_body
+                ):
+                    raise MessageConflict("original result confirmation identity mismatch")
             await self.outbox.confirm(db, identity, value.event_body_sha256)
+            if legacy is not None and not legacy["delivered"]:
+                await db.execute(
+                    sa.update(result_outbox)
+                    .where(result_outbox.c.event_id == value.event_id)
+                    .values(delivered=True, delivered_at=sa.func.utc_timestamp(6))
+                )
         else:
             await self.outbox.hold(
                 db, identity, value.event_body_sha256, error_code="receiver_held"

@@ -23,6 +23,8 @@ required = {
     "test_five_execution_writes_cannot_bypass_mq_admission",
     "test_mq_cutover_keeps_workload_authorization_before_mode_error",
     "test_queries_and_governance_preparation_stay_registered_in_mq_mode",
+    "test_legacy_result_settles_only_with_atomic_original_business_ack",
+    "test_legacy_handoff_and_ack_share_lock_order_without_deadlock",
 }
 root = ElementTree.parse(Path(sys.argv[1])).getroot()
 cases = root.findall(".//testcase")
@@ -35,6 +37,22 @@ if (
         for kind in range(1, 10)
     )
     or len([c for c in cases if c.get("classname", "").endswith("test_grpc_mq_cutover")]) != 24
+    or not all(
+        root.find(
+            ".//testcase[@name='test_legacy_result_settles_only_with_atomic_original_business_ack"
+            f"[{scenario}]']"
+        )
+        is not None
+        for scenario in (
+            "stored",
+            "wrong_hash",
+            "held",
+            "rollback",
+            "source_conflict",
+            "unowned",
+            "storage_error",
+        )
+    )
 ):
     raise SystemExit("Required MQ report is empty, incomplete, failed or skipped")
 print(json.dumps({"passed": len(cases), "failed": 0, "errors": 0, "skipped": 0}))

@@ -63,7 +63,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: FangcunMount/qs-server
-          ref: 3a5a58fdc2d4b8c52f33bc1d4abb1bc735f9ab60
+          ref: f0804e64d72fa4f64a15623cabdd46e17769a772
           path: .interop/qs-mq
       - uses: actions/setup-go@v5
         with:
@@ -142,7 +142,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: FangcunMount/qs-server
-          ref: 8b3a8f5a76dfd26a02556436eab035cf44a96351
+          ref: f0804e64d72fa4f64a15623cabdd46e17769a772
           path: .interop/qs-mq-process
       - uses: actions/setup-go@v5
         with:
@@ -179,6 +179,16 @@ jobs:
             --nsq-container rm-ai-mq-dual-nsq-ci --nsq-tcp 127.0.0.1:4150 --nsq-http http://127.0.0.1:4151 \
             --ai-grpc localhost:59061 --qs-payload-address localhost:59062 --ai-http-port 59063
           uv run python scripts/ci/verify_mq_process_report.py mq-fault-evidence/acceptance.json
+      - name: Legacy 128-KiB Unicode body through real mTLS and restart
+        run: |
+          uv run python -m tests.probes.mq_payload_acceptance --output mq-payload-evidence \
+            --qs-binary "$PWD/.interop/ai-mq-process" \
+            --qs-dsn 'qs_ai:qs_ai_local@tcp(127.0.0.1:3306)/mq_dual_qs?parseTime=true' \
+            --qs-url 'mysql+asyncmy://qs_ai:qs_ai_local@127.0.0.1:3306/mq_dual_qs' \
+            --ai-url 'mysql+asyncmy://qs_ai:qs_ai_local@127.0.0.1:3306/qs_ai' \
+            --nsq-container rm-ai-mq-dual-nsq-ci --nsq-tcp 127.0.0.1:4150 --nsq-http http://127.0.0.1:4151 \
+            --ai-grpc localhost:59061 --qs-payload-address localhost:59062 --ai-http-port 59063
+          uv run python scripts/ci/verify_mq_payload_report.py mq-payload-evidence/acceptance.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -187,4 +197,6 @@ jobs:
           path: |
             mq-fault-evidence/acceptance.json
             mq-fault-evidence/*.log
+            mq-payload-evidence/acceptance.json
+            mq-payload-evidence/*.log
           if-no-files-found: error
