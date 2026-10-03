@@ -1,9 +1,9 @@
 """Original organization Health shares only committed, trusted Outbox aggregates."""
 
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 
 import pytest
-from sqlalchemy import insert
+from sqlalchemy import insert, text
 
 from qs_ai.application.execution.runtime import RuntimeReader
 from qs_ai.application.governance.prompt_drafts import DraftScope
@@ -34,7 +34,8 @@ def settings(enabled):
 
 async def test_mq_health_exposes_only_committed_organization_outbox(observations):
     tx, org, ids = observations
-    now = datetime.now(UTC).replace(tzinfo=None)
+    async with tx.open() as db:
+        now = await db.scalar(text("SELECT UTC_TIMESTAMP(6)"))
     past = now - timedelta(seconds=30)
     reader = MySQLRuntimeReader(tx, settings(True))
     scope = DraftScope(org, 42)
