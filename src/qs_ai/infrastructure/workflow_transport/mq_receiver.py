@@ -23,6 +23,7 @@ from qs_ai.infrastructure.workflow_transport.messaging import (
     parse_body,
     prepare,
 )
+from qs_ai.infrastructure.workflow_transport.mq_failure import failed_original
 from qs_ai.infrastructure.workflow_transport.payloads import PayloadResolver
 
 
@@ -204,3 +205,61 @@ class CommandReceiver:
 
     async def invalid_wire(self, wire: bytes, code: str) -> None:
         await self.isolate(wire, code)
+
+    async def failed_command(self, wire: bytes) -> None:
+        """Archive physical failure; only a local durable budget can hold a command.
+
+        Never call admission. Claimed NSQ attempts cannot create an Inbox decision
+        or exhaust a trusted logical budget. Storage/fetch failures propagate to REQ.
+        """
+        try:
+            original = failed_original(wire, COMMANDS)
+            envelope = authenticate(
+                original,
+                COMMANDS,
+                decrypt_keys=self.decrypt_keys,
+                trusted_signers=self.trusted_signers,
+            )
+            raw = await self.resolver.body(envelope)
+            body = parse_body(envelope, raw)
+        except (ProtectionError, MessagingContractError, ValueError):
+            await self.isolate(wire, "invalid_failure_wire")
+            return
+        try:
+            async with self.transactions.open() as db:
+                await db.begin()
+                await self.store.quarantine_wire(db, wire, "handler_failed")
+                if await self.store.logical_attempts(db, envelope) >= 8:
+                    existing = await self.store.reserve_command(db, envelope, raw, original)
+                    if existing is None:
+                        value = getattr(body, FIELDS[envelope.kind])
+                        org = (
+                            value.actor.org_id
+                            if envelope.kind in (pb.START, pb.CHANGE)
+                            else str(value.scope.organization_id)
+                        )
+                        await self._record_decision(
+                            db,
+                            envelope,
+                            AdmissionDecision(org, 1, pb.HELD, "technical_budget_exhausted", 14),
+                        )
+                await db.commit()
+        except MessageConflict:
+            await self.isolate(wire, "identity_conflict")
+
+    async def failed_ack(self, wire: bytes) -> None:
+        """A failed ACK is unknown, never a substitute for stored confirmation."""
+        try:
+            original = failed_original(wire, ACKS)
+            envelope = authenticate(
+                original,
+                ACKS,
+                decrypt_keys=self.decrypt_keys,
+                trusted_signers=self.trusted_signers,
+            )
+            raw = await self.resolver.body(envelope)
+            parse_body(envelope, raw)
+        except (ProtectionError, MessagingContractError, ValueError):
+            await self.isolate(wire, "invalid_failure_wire")
+            return
+        await self.isolate(wire, "handler_failed")
