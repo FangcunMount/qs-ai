@@ -45,7 +45,7 @@ async def snapshot(kit, sid):
 async def test_runtime_projection_is_read_only_and_body_free(kit):
     receipt, request_id = await bind(kit)
     before = await snapshot(kit, receipt.session_id)
-    reader = MySQLRuntimeReader(kit.transactions)
+    reader = MySQLRuntimeReader(kit.transactions, Settings(_env_file=None))
     scope = DraftScope(1, 42)
     batch = await reader.summaries(scope, (receipt.session_id,))
     result = await reader.detail(scope, receipt.session_id)
@@ -61,7 +61,7 @@ async def test_runtime_projection_is_read_only_and_body_free(kit):
 
 async def test_foreign_and_missing_sessions_are_indistinguishable(kit):
     receipt, _ = await bind(kit)
-    reader = MySQLRuntimeReader(kit.transactions)
+    reader = MySQLRuntimeReader(kit.transactions, Settings(_env_file=None))
     ids = (receipt.session_id, str(uuid4()))
     result = await reader.summaries(DraftScope(2, 42), ids)
     assert result["items"] == []
@@ -142,7 +142,7 @@ async def test_milestones_share_commits_preserve_unknown_and_expire_only_diagnos
     )
     same, dispatched = await kit.store.begin_model_call(claim, "{}")
     assert not dispatched and same.invocation_id == call.invocation_id and same.status == "unknown"
-    reader = MySQLRuntimeReader(kit.transactions)
+    reader = MySQLRuntimeReader(kit.transactions, Settings(_env_file=None))
     detail = await reader.detail(DraftScope(1, 42), receipt.session_id)
     assert {v["kind"] for v in detail["milestones"]} == {
         "execution_claimed",
@@ -175,7 +175,7 @@ async def test_milestones_share_commits_preserve_unknown_and_expire_only_diagnos
 
 async def test_runtime_health_counts_are_organization_scoped(kit):
     await bind(kit)
-    reader = MySQLRuntimeReader(kit.transactions)
+    reader = MySQLRuntimeReader(kit.transactions, Settings(_env_file=None))
     own = await reader.health(DraftScope(1, 42))
     foreign = await reader.health(DraftScope(987654, 42))
     assert own["backlog"]["queued_jobs"] >= 1

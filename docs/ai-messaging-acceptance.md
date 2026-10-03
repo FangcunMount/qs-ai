@@ -42,3 +42,19 @@ QS 在 Inbox、业务投影和最终 ACK 同事务提交后，AI 才能确认。
 持久重复计数和payload读取失败分类账尚未实现，分别明确observations_available=0，并不输出伪造的0次计数。后续独立分类事实/迁移、原事务重复记录、只读payload技术审计和QS对应观测仍开放，不改保护0037/原业务schema或bootstrap。
 
 真实MySQL定向回归验证已提交/未提交/回滚可见性、读者不等待写者行锁/不结算记录、阶段与年龄/未来时间/组织过滤、安全保留记录为gauge及无伪造历史；存储失败不泄露部分/正文。正常create_app的既有DI构造验证Settings解析与MQon缺数据库不可用，不读密钥/不连接NSQ。这些测试不替代正常镜像现场metrics及完整R2、生产验收。
+
+### Committed observation scope
+
+The original metrics request reads a bounded consistent read-only snapshot, with
+fixed names for staged/due messages, business confirmation waits, technical holds,
+and retained quarantine records. A failed snapshot reports unavailable; it does
+not return partial values or an empty queue. Retained-record gauges do not claim
+lifetime error counts. Durable duplicate and payload-error observations remain
+unavailable until their independent technical ledger is implemented.
+
+Runtime Health adds `messaging` within the same original organization snapshot.
+Only trusted Outbox ownership is aggregated; global Inbox/quarantine/error facts
+are excluded. The original pending-delivery count is unchanged. MQ disabled does
+not read messaging tables; MQ-enabled storage failure follows the original
+sanitized gRPC UNAVAILABLE boundary. Automatic REQUEST DI consumes the existing
+APP Settings; no bootstrap, observer task, pool, model or recovery logic is added.

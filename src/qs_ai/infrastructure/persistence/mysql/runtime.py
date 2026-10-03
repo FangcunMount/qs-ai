@@ -12,7 +12,11 @@ from qs_ai.application.execution.retry import retry_available
 from qs_ai.application.execution.runtime import session_ids
 from qs_ai.application.governance.prompt_drafts import DraftScope
 from qs_ai.application.interpretation.ports import NotFound
+from qs_ai.config import Settings
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
+from qs_ai.infrastructure.persistence.mysql.messaging_observability import (
+    collect_messaging_snapshot,
+)
 from qs_ai.infrastructure.persistence.mysql.schema import (
     execution_configurations as configurations,
 )
@@ -37,8 +41,9 @@ def value(row: Mapping[Any, Any]) -> dict[str, Any]:
 
 
 class MySQLRuntimeReader:
-    def __init__(self, transactions: Transactions) -> None:
+    def __init__(self, transactions: Transactions, settings: Settings) -> None:
         self.transactions = transactions
+        self.messaging_enabled = settings.messaging.enabled
 
     async def _snapshot(self, db: AsyncSession) -> str:
         await db.connection(execution_options={"isolation_level": "REPEATABLE READ"})
@@ -236,9 +241,25 @@ class MySQLRuntimeReader:
                 )
                 for key, query in queries.items()
             }
+            messaging: dict[str, Any] = {
+                "enabled": self.messaging_enabled,
+                "availability": "disabled" if not self.messaging_enabled else "available",
+            }
+            if self.messaging_enabled:
+                observed = datetime.fromisoformat(observed_at).replace(tzinfo=None)
+                # Only trusted Outbox organization ownership reaches Health.
+                # No global quarantine/Inbox/technical counts cross this scope.
+                snapshot = await collect_messaging_snapshot(
+                    db, observed, organization_id=scope.organization_id
+                )
+                messaging["observed_at"] = observed_at
+                messaging.update(
+                    {name.removeprefix("mq_"): count for name, count in snapshot.items()}
+                )
         return {
             "observed_at": observed_at,
             "availability": "available",
             "partial": False,
             "backlog": counts,
+            "messaging": messaging,
         }

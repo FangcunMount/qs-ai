@@ -6,6 +6,11 @@ from pathlib import Path
 from xml.etree import ElementTree
 
 required = {
+    "test_mq_health_exposes_only_committed_organization_outbox",
+    "test_mq_health_disabled_never_reads_messaging_tables",
+    "test_mq_health_failure_propagates_without_partial_or_global_counts",
+    "test_mq_health_reader_uses_original_di_without_bootstrap_changes",
+    "test_runtime_health_counts_are_organization_scoped",
     "test_mq_metrics_use_existing_di_and_never_claim_missing_storage_is_empty",
     "test_mq_snapshot_distinguishes_due_confirmation_hold_and_org",
     "test_mq_snapshot_sees_only_commit_and_never_settles_or_waits_for_writer",
