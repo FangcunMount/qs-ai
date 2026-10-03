@@ -9,6 +9,7 @@ from dishka import AsyncContainer
 from jwcrypto import jwk  # type: ignore[import-untyped]
 from reliable_messaging.nsq import NSQPublisher, NSQSubscriber
 from reliable_messaging.protected import TrustedSigner
+from sqlalchemy import text
 from tornado.httpclient import AsyncHTTPClient
 
 from qs_ai.application.evaluation.capacity import EvaluationCapacityPolicy
@@ -99,7 +100,8 @@ class MessagingRuntime:
             # Borrow the application pool before any transport or subscription exists.
             # The read is rolled back by Transactions; startup never installs its schema.
             async with asyncio.timeout(5), tx.open() as db:
-                await db.begin()
+                await db.connection(execution_options={"isolation_level": "REPEATABLE READ"})
+                await db.execute(text("START TRANSACTION WITH CONSISTENT SNAPSHOT, READ ONLY"))
                 await require_recording_schema(db)
             runtime.recorder = StateEventRecorder(store, signing, recipient)
             database.state_events = runtime.recorder

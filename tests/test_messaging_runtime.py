@@ -114,13 +114,17 @@ async def test_recording_preflight_precedes_transport_and_borrows_shared_pool(mo
     result.mappings.return_value.all.return_value = [
         {"kind": kind, "recorded_count": 0, "since_epoch_seconds": 1} for kind in kinds
     ]
-    session.execute.return_value = result
-    if schema == "missing":
-        session.execute.side_effect = ProgrammingError(
-            "unredacted SQL", {}, Exception("unredacted database error")
-        )
-    elif schema == "canceled":
-        session.execute.side_effect = asyncio.CancelledError
+
+    async def execute(statement):
+        if str(statement) == "START TRANSACTION WITH CONSISTENT SNAPSHOT, READ ONLY":
+            return None
+        if schema == "missing":
+            raise ProgrammingError("unredacted SQL", {}, Exception("unredacted database error"))
+        if schema == "canceled":
+            raise asyncio.CancelledError
+        return result
+
+    session.execute.side_effect = execute
     factory = MagicMock()
     factory.return_value.__aenter__.return_value = session
     sessionmaker = MagicMock(return_value=factory)
@@ -198,7 +202,13 @@ async def test_recording_preflight_precedes_transport_and_borrows_shared_pool(mo
     container.get.assert_awaited_once_with(Database)
     sessionmaker.assert_called_once()
     assert sessionmaker.call_args.args == (database.engine,)
-    session.begin.assert_awaited_once()
+    session.begin.assert_not_awaited()
+    session.connection.assert_awaited_once_with(
+        execution_options={"isolation_level": "REPEATABLE READ"}
+    )
+    assert str(session.execute.await_args_list[0].args[0]) == (
+        "START TRANSACTION WITH CONSISTENT SNAPSHOT, READ ONLY"
+    )
     session.commit.assert_not_awaited()
     session.rollback.assert_awaited_once()
     factory.return_value.__aexit__.assert_awaited_once()
