@@ -14,13 +14,17 @@ from qs_ai.contracts.workflow import workflow_pb2_grpc as rpc
 from qs_ai.infrastructure.persistence.mysql.result_outbox import MySQLResultOutbox
 from qs_ai.infrastructure.persistence.mysql.schema import model_calls, result_outbox
 from qs_ai.infrastructure.workflow_transport.results import GRPCResultReceiver
+from tests.integration.test_delivery import certificates
 from tests.integration.test_interpretation import kit  # noqa: F401
 from tests.test_input_binding import bound_case
 
 pytestmark = [pytest.mark.integration, pytest.mark.usefixtures("published_configuration")]
 
 
-async def test_original_grpc_id_payload_and_defaults_survive_lost_or_mismatched_receipt(kit):  # noqa: F811
+async def test_original_grpc_id_payload_and_defaults_survive_lost_or_mismatched_receipt(
+    kit,  # noqa: F811
+    tmp_path,
+):
     metadata = MetaData()
     receipts = Table(
         "m7_result_receipts",
@@ -54,7 +58,19 @@ async def test_original_grpc_id_payload_and_defaults_survive_lost_or_mismatched_
 
     receiver = Receiver()
     rpc.add_ResultsServicer_to_server(receiver, server)
-    port = server.add_insecure_port("127.0.0.1:0")
+    certificates(tmp_path)
+    ca = (tmp_path / "ca.pem").read_bytes()
+    server_credentials = grpc.ssl_server_credentials(
+        [((tmp_path / "qs.key").read_bytes(), (tmp_path / "qs.pem").read_bytes())],
+        root_certificates=ca,
+        require_client_auth=True,
+    )
+    client_credentials = grpc.ssl_channel_credentials(
+        root_certificates=ca,
+        private_key=(tmp_path / "ai.key").read_bytes(),
+        certificate_chain=(tmp_path / "ai.pem").read_bytes(),
+    )
+    port = server.add_secure_port("localhost:0", server_credentials)
     await server.start()
     try:
         receipt = await kit.service.start_external(
@@ -71,7 +87,7 @@ async def test_original_grpc_id_payload_and_defaults_survive_lost_or_mismatched_
         async with tx.open() as db:
             before = (await db.execute(select(result_outbox))).mappings().one()
             model_count = await db.scalar(select(func.count()).select_from(model_calls))
-        async with grpc.aio.insecure_channel(f"127.0.0.1:{port}") as channel:
+        async with grpc.aio.secure_channel(f"localhost:{port}", client_credentials) as channel:
             deliver = DeliverResults(store, GRPCResultReceiver(channel))
             for mode in ("lost", "mismatch", "normal"):
                 receiver.mode = mode

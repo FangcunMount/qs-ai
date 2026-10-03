@@ -1,12 +1,23 @@
 name: M7 messaging perimeter
 on:
   push:
-    branches: [codex/m7-messaging-adapter]
-  pull_request:
+    branches: [main, codex/m7-messaging-adapter]
     paths:
+      - 'pyproject.toml'
+      - 'uv.lock'
       - 'src/qs_ai/application/integration/events.py'
       - 'src/qs_ai/infrastructure/persistence/mysql/result_outbox.py'
       - 'tests/integration/test_m7_delivery.py'
+      - 'docs/m7-messaging.md'
+      - '.github/workflows/m7-messaging.yml'
+  pull_request:
+    paths:
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - 'src/qs_ai/application/integration/events.py'
+      - 'src/qs_ai/infrastructure/persistence/mysql/result_outbox.py'
+      - 'tests/integration/test_m7_delivery.py'
+      - 'docs/m7-messaging.md'
       - '.github/workflows/m7-messaging.yml'
 permissions:
   contents: read
@@ -41,6 +52,7 @@ jobs:
           python-version: '3.11'
       - run: uv sync --locked
       - run: uv run ruff check src/qs_ai/application/integration/events.py src/qs_ai/infrastructure/persistence/mysql/result_outbox.py tests/integration/test_m7_delivery.py
+      - run: uv run ruff format --check src/qs_ai/application/integration/events.py src/qs_ai/infrastructure/persistence/mysql/result_outbox.py tests/integration/test_m7_delivery.py
       - run: uv run mypy src/qs_ai/application/integration/events.py src/qs_ai/infrastructure/persistence/mysql/result_outbox.py
       - run: uv run python scripts/check_docs.py
       - run: uv run alembic upgrade head
@@ -67,10 +79,15 @@ jobs:
           uv run python - <<'PY'
           import xml.etree.ElementTree as ET
           for file in ('m7-unit.xml', 'm7-storage.xml'):
-              suites = ET.parse(file).getroot().iter('testsuite')
-              assert all(int(s.get('tests', 0)) > 0 and
-                         all(int(s.get(k, 0)) == 0 for k in ('skipped', 'errors', 'failures'))
-                         for s in suites), file
+              root = ET.parse(file).getroot()
+              suites = list(root.iter('testsuite'))
+              cases = list(root.iter('testcase'))
+              if not suites or not cases or sum(int(s.get('tests', 0)) for s in suites) <= 0:
+                  raise SystemExit(f'Required acceptance report is empty: {file}')
+              if any(int(s.get(k, 0)) != 0 for s in suites for k in ('skipped', 'errors', 'failures')):
+                  raise SystemExit(f'Required acceptance contains skipped or failed cases: {file}')
+              if any(list(root.iter(k)) for k in ('skipped', 'error', 'failure')):
+                  raise SystemExit(f'Required acceptance contains unsuccessful test cases: {file}')
           PY
       - run: uv build
       - uses: actions/upload-artifact@v4
@@ -81,3 +98,4 @@ jobs:
             m7-unit.xml
             m7-storage.xml
             dist/*
+          if-no-files-found: error
