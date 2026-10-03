@@ -161,6 +161,7 @@ async def test_single_http_call_and_response_receipt() -> None:
         (429, "provider_rate_limited", False),
         (401, "provider_authentication_failed", False),
         (403, "provider_authentication_failed", False),
+        (402, "provider_insufficient_balance", False),
         (408, "provider_server_error", True),
         (500, "provider_server_error", True),
         (503, "provider_server_error", True),

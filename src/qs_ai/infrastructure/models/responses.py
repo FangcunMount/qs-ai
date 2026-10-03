@@ -93,6 +93,8 @@ class QSResponsesModel(BaseChatModel):
                             raise ProviderFailure("provider_rate_limited", retryable=True)
                         if status in {401, 403}:
                             raise ProviderFailure("provider_authentication_failed")
+                        if status == 402:
+                            raise ProviderFailure("provider_insufficient_balance")
                         if status >= 500 or status == 408:
                             raise ProviderFailure(
                                 "provider_server_error", retryable=True, result_unknown=True
