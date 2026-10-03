@@ -171,20 +171,20 @@ jobs:
           exit 1
       - name: Kill and restart both original runtimes after command receipt and ACK loss
         run: |
-          uv run python -m tests.probes.mq_fault_acceptance --output .mq-fault-evidence \
+          uv run python -m tests.probes.mq_fault_acceptance --output mq-fault-evidence \
             --qs-binary "$PWD/.interop/ai-mq-process" \
             --qs-dsn 'qs_ai:qs_ai_local@tcp(127.0.0.1:3306)/mq_dual_qs?parseTime=true' \
             --qs-url 'mysql+asyncmy://qs_ai:qs_ai_local@127.0.0.1:3306/mq_dual_qs' \
             --ai-url 'mysql+asyncmy://qs_ai:qs_ai_local@127.0.0.1:3306/qs_ai' \
             --nsq-container rm-ai-mq-dual-nsq-ci --nsq-tcp 127.0.0.1:4150 --nsq-http http://127.0.0.1:4151 \
             --ai-grpc localhost:59061 --qs-payload-address localhost:59062 --ai-http-port 59063
-          uv run python scripts/ci/verify_mq_process_report.py .mq-fault-evidence/acceptance.json
+          uv run python scripts/ci/verify_mq_process_report.py mq-fault-evidence/acceptance.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: ai-mq-process-${{ matrix.python }}-${{ matrix.mysql }}
           # Never upload even disposable private keys or certificates.
           path: |
-            .mq-fault-evidence/acceptance.json
-            .mq-fault-evidence/*.log
+            mq-fault-evidence/acceptance.json
+            mq-fault-evidence/*.log
           if-no-files-found: error
