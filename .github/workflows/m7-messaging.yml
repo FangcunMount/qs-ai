@@ -1,0 +1,83 @@
+name: M7 messaging perimeter
+on:
+  push:
+    branches: [codex/m7-messaging-adapter]
+  pull_request:
+    paths:
+      - 'src/qs_ai/application/integration/events.py'
+      - 'src/qs_ai/infrastructure/persistence/mysql/result_outbox.py'
+      - 'tests/integration/test_m7_delivery.py'
+      - '.github/workflows/m7-messaging.yml'
+permissions:
+  contents: read
+jobs:
+  m7:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        mysql: ['8.0.36', '8.4']
+    services:
+      mysql:
+        image: mysql:${{ matrix.mysql }}
+        env:
+          MYSQL_DATABASE: qs_ai
+          MYSQL_USER: m7
+          MYSQL_PASSWORD: m7_disposable_only
+          MYSQL_ROOT_PASSWORD: m7_root_disposable_only
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -pm7_root_disposable_only --silent"
+          --health-interval=5s --health-timeout=3s --health-retries=30
+    env:
+      TZ: Asia/Shanghai
+      QS_AI_DATABASE_URL: mysql+asyncmy://m7:m7_disposable_only@127.0.0.1:3306/qs_ai
+      QS_AI_TEST_MYSQL_DSN: mysql://m7:m7_disposable_only@127.0.0.1:3306/qs_ai
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.12.13'
+          python-version: '3.11'
+      - run: uv sync --locked
+      - run: uv run ruff check src/qs_ai/application/integration/events.py src/qs_ai/infrastructure/persistence/mysql/result_outbox.py tests/integration/test_m7_delivery.py
+      - run: uv run mypy src/qs_ai/application/integration/events.py src/qs_ai/infrastructure/persistence/mysql/result_outbox.py
+      - run: uv run python scripts/check_docs.py
+      - run: uv run alembic upgrade head
+      - name: Single-process, capacity and frozen receipt regression (synthetic)
+        run: >-
+          uv run pytest -q --junitxml=m7-unit.xml
+          tests/test_structured_logging.py::test_delivery_retry_and_commit_are_observed_after_persistence
+          tests/test_model_capacity.py tests/test_multi_provider_gateway.py
+          tests/test_mbti_runtime.py tests/test_mbti_themes_input.py tests/test_single_server.py
+      - name: Original transaction, durable gRPC receipt and execution recovery (synthetic)
+        run: >-
+          uv run pytest -q --junitxml=m7-storage.xml
+          tests/integration/test_m7_delivery.py tests/integration/test_result_outbox.py
+          tests/integration/test_execution_configurations.py tests/integration/test_evaluation_recovery.py
+          tests/integration/test_evaluation_capacity_recovery.py
+          tests/integration/test_interpretation.py::test_model_dispatch_is_durable_and_only_one_caller_can_send
+          tests/integration/test_interpretation.py::test_model_response_survives_reclaim_without_redispatch
+          tests/integration/test_interpretation.py::test_unacknowledged_dispatch_cannot_be_resent_or_overwritten_after_reclaim
+          tests/integration/test_interpretation.py::test_restart_between_workflow_return_and_business_commit
+          tests/integration/test_interpretation.py::test_takeover_cancel_and_stale_business_publication
+          tests/integration/test_artifact_acceptance.py::test_cancelled_task_cannot_accept_late_artifact
+      - name: Reject missing dependencies or skipped acceptance
+        run: |
+          uv run python - <<'PY'
+          import xml.etree.ElementTree as ET
+          for file in ('m7-unit.xml', 'm7-storage.xml'):
+              suites = ET.parse(file).getroot().iter('testsuite')
+              assert all(int(s.get('tests', 0)) > 0 and
+                         all(int(s.get(k, 0)) == 0 for k in ('skipped', 'errors', 'failures'))
+                         for s in suites), file
+          PY
+      - run: uv build
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: m7-qs-ai-mysql-${{ matrix.mysql }}
+          path: |
+            m7-unit.xml
+            m7-storage.xml
+            dist/*

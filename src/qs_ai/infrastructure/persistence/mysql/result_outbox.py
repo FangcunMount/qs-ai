@@ -2,7 +2,8 @@ import json
 from dataclasses import asdict
 from uuid import uuid4
 
-from sqlalchemy import func, select, update
+from reliable_messaging.sqlalchemy import MySQLPendingOutbox, bind
+from sqlalchemy import func, select
 from sqlalchemy.dialects.mysql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -65,57 +66,30 @@ async def stage_state(db: AsyncSession, session: Session) -> None:
         available_at=func.utc_timestamp(6),
     )
     # Evidence freezing can save the same user-visible state/version again.
-    await db.execute(statement.on_duplicate_key_update(event_id=result_outbox.c.event_id))
+    await bind(db).append(statement.on_duplicate_key_update(event_id=result_outbox.c.event_id))
 
 
 class MySQLResultOutbox:
     def __init__(self, transactions: Transactions, max_retry_seconds: int = 60) -> None:
         self.max_retry_seconds = max_retry_seconds
         self.transactions = transactions
+        self.adapter = MySQLPendingOutbox(result_outbox, max_retry_seconds=max_retry_seconds)
 
     async def pending(self, limit: int) -> list[StateEvent]:
         if not 1 <= limit <= 100:
             raise ValueError("Batch limit must be 1..100")
         async with self.transactions.open() as db:
-            rows = (
-                await db.execute(
-                    select(result_outbox.c.payload)
-                    .where(
-                        result_outbox.c.delivered.is_(False),
-                        result_outbox.c.available_at <= func.utc_timestamp(6),
-                    )
-                    .order_by(result_outbox.c.available_at, result_outbox.c.event_id)
-                    .limit(limit)
-                )
-            ).scalars()
+            rows = await self.adapter.pending(db, limit)
             return [StateEvent(**{**row, "actor": Actor(**row["actor"])}) for row in rows]
 
     async def delivered(self, event_id: str) -> None:
         async with self.transactions.open() as db:
-            await db.execute(
-                update(result_outbox)
-                .where(result_outbox.c.event_id == event_id, result_outbox.c.delivered.is_(False))
-                .values(delivered=True, delivered_at=func.utc_timestamp(6))
-            )
+            await db.begin()
+            await self.adapter.delivered(db, event_id)
             await db.commit()
 
     async def retry(self, event_id: str) -> None:
-        from sqlalchemy import literal_column
-
         async with self.transactions.open() as db:
-            await db.execute(
-                update(result_outbox)
-                .where(result_outbox.c.event_id == event_id, result_outbox.c.delivered.is_(False))
-                .values(
-                    attempts=result_outbox.c.attempts + 1,
-                    available_at=func.timestampadd(
-                        literal_column("SECOND"),
-                        func.least(
-                            self.max_retry_seconds,
-                            func.pow(2, func.least(result_outbox.c.attempts, 17)),
-                        ),
-                        func.utc_timestamp(6),
-                    ),
-                )
-            )
+            await db.begin()
+            await self.adapter.retry(db, event_id)
             await db.commit()
