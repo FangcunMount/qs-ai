@@ -228,6 +228,7 @@ async def load_snapshot(
             t["cause_code"],
             datetime.fromisoformat(t["at"]),
             tuple(t.get("evidence_refs", [])),
+            datetime.fromisoformat(t["evidence_at"]) if "evidence_at" in t else None,
         )
         for t in progress["transitions"][:closure_count]
     )
