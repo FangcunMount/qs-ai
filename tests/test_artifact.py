@@ -1,6 +1,6 @@
 import hashlib
 import json
-from dataclasses import replace
+from dataclasses import asdict, replace
 
 import pytest
 
@@ -49,6 +49,9 @@ def test_artifact_is_reproducible_and_traces_validated_content():
     assert json.loads(artifact.content_json) == candidate()
     assert artifact.profile_version == "v6"
     assert artifact.output_validator_version and artifact.safety_validator_version
+    assert artifact.schema_version == "qs-ai-artifact/v1"
+    assert "reference_material_json" not in asdict(artifact)
+    assert "reference_material_fingerprint" not in asdict(artifact)
 
 
 @pytest.mark.parametrize("failure", ["schema", "reference", "safety", "receipt", "evidence"])
