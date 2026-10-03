@@ -6,6 +6,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import insert, update
 
+from qs_ai.config import Settings
 from qs_ai.infrastructure.persistence.mysql.metrics import MySQLOperationalMetrics
 from qs_ai.infrastructure.persistence.mysql.schema import jobs, model_calls, result_outbox, sessions
 from tests.integration.test_interpretation import kit as kit
@@ -14,7 +15,7 @@ pytestmark = pytest.mark.integration
 
 
 async def test_backlog_unknown_call_recovery_and_full_response_metrics(kit):
-    reader = MySQLOperationalMetrics(kit.transactions)
+    reader = MySQLOperationalMetrics(kit.transactions, Settings(_env_file=None))
     baseline = await reader.collect()
     assert baseline["database_up"] == 1
     receipt = await kit.queued()

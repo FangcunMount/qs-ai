@@ -12,6 +12,24 @@ router = APIRouter(route_class=DishkaRoute)
 
 # Fixed names also prevent an adapter from accidentally exposing identifying labels.
 DESCRIPTIONS = {
+    "mq_enabled": "Whether MQ is configured; this does not prove delivery readiness.",
+    "mq_observation_available": "Whether the committed MQ snapshot is available.",
+    "mq_staged_events": "Staged MQ events, including future retry availability.",
+    "mq_due_events": "Due staged or awaiting-receipt rows; not an ordering eligibility count.",
+    "mq_awaiting_receipt_events": "Events still awaiting QS business confirmation.",
+    "mq_held_events": "Technically held MQ Outbox events, separate from business refusal.",
+    "mq_held_commands": "Technically held Inbox commands, separate from held Outbox events.",
+    "mq_oldest_staged_seconds": "Oldest retained staged creation age, clamped to zero.",
+    "mq_oldest_awaiting_receipt_seconds": "Oldest retained event awaiting business confirmation.",
+    "mq_duplicate_observations_available": "Whether durable duplicate observations exist.",
+    "mq_payload_error_observations_available": "Whether durable payload error observations exist.",
+    "mq_quarantine_identity_conflict_records": (
+        "Retained identity-conflict records, not lifetime errors."
+    ),
+    "mq_quarantine_authentication_failed_records": "Retained authentication-failure records.",
+    "mq_quarantine_invalid_wire_records": "Retained invalid-wire records.",
+    "mq_quarantine_invalid_failure_wire_records": "Retained invalid failure-wire records.",
+    "mq_quarantine_handler_failed_records": "Retained technical handler-failure records.",
     "database_up": "Whether the entire read-only metrics snapshot succeeded.",
     "ready_jobs": "Queued execution jobs whose scheduled time has arrived.",
     "oldest_ready_job_seconds": "Age of the oldest due execution job, zero when empty.",

@@ -6,6 +6,11 @@ from pathlib import Path
 from xml.etree import ElementTree
 
 required = {
+    "test_mq_metrics_use_existing_di_and_never_claim_missing_storage_is_empty",
+    "test_mq_snapshot_distinguishes_due_confirmation_hold_and_org",
+    "test_mq_snapshot_sees_only_commit_and_never_settles_or_waits_for_writer",
+    "test_mq_security_records_are_gauges_without_invented_duplicate_history",
+    "test_mq_snapshot_failure_discards_core_and_partial_mq_values",
     "test_start_change_and_duplicate_preserve_first_effect_receipt_and_wire",
     "test_failure_after_real_effect_rolls_back_business_inbox_and_state",
     "test_rejected_cas_rolls_back_local_command_reservation_but_commits_inbox",

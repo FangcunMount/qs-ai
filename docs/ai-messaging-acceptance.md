@@ -29,3 +29,16 @@ QS 在 Inbox、业务投影和最终 ACK 同事务提交后，AI 才能确认。
 代码、静态检查、真实存储、隔离进程、镜像、浏览器、生产对账分别记录在独立 MQ 进度文档。浏览器使用合成 HTTP 后端不能证明生产 IAM/QS 授权。正常镜像构建或健康不能证明实际 MQ 业务完成。
 
 生产必须先补齐两端承载/镜像/schema/停止预算、受保护正文 ACL、网络、Topic/Channel、独立密钥信任、历史移交清单和不可证明顺序的处置；完成 MQ 兼容镜像回退、最终依赖/正常镜像验收后，提交具体审核。旧生产镜像不认识 MQ 持久状态，不能作为首发 MQ 自动回退目标。未取得各消息族自然业务样本时，业务验收保持开放。
+
+
+## R2-04 持久状态观测（首批，尚未关闭整个观测项）
+
+复用 `/metrics` 的现 REQUEST Transactions、一致性 READ ONLY 快照与5秒总/每SQL1秒预算；不新增组件、线程、池或调度器。MySQLOperationalMetrics由既有DI注入必需Settings，MQoff不访问MQ表；MQon存储读取失败只返回database_up=0、配置enabled及observation_available=0，不输出空积压或部分/旧状态。
+
+固定全局gauge区分staged（含未来可用）、due（到期，不是按序可领取）、awaiting_receipt（等待业务确认）、Outboxheld与Inboxheld、最老创建年龄以及五种保留quarantine分类记录。attempts上限8不作为终生counter；未来创建时间clamp0，确认历史不算积压。原pending_results语义保持不变，不与新MQ待投相加。
+
+新增聚合函数仅借用caller已开始的只读快照，可按可信organization_id过滤Outbox。没有可信组织列的Inbox/quarantine不进入组织结果；renderer只认固定白名单，不输出身份、正文、hash、凭据或异常文本。当前组织 Runtime.Health 还未接该增量，不能宣称组织health已完成。
+
+持久重复计数和payload读取失败分类账尚未实现，分别明确observations_available=0，并不输出伪造的0次计数。后续独立分类事实/迁移、原事务重复记录、只读payload技术审计和QS对应观测仍开放，不改保护0037/原业务schema或bootstrap。
+
+真实MySQL定向回归验证已提交/未提交/回滚可见性、读者不等待写者行锁/不结算记录、阶段与年龄/未来时间/组织过滤、安全保留记录为gauge及无伪造历史；存储失败不泄露部分/正文。正常create_app的既有DI构造验证Settings解析与MQon缺数据库不可用，不读密钥/不连接NSQ。这些测试不替代正常镜像现场metrics及完整R2、生产验收。
