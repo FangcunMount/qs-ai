@@ -332,6 +332,24 @@ def run(phase: str, args: list[str]) -> str:
     return result.stdout
 
 
+def save_loaded_archive(path: Path, actual: str) -> None:
+    """The deploy caller owns the file; sudo only reads the exact daemon image."""
+    image_id(actual)
+    try:
+        with path.open("xb") as output:
+            path.chmod(0o600)
+            result = subprocess.run(
+                ["sudo", "-n", "docker", "save", actual],
+                stdout=output,
+                stderr=subprocess.PIPE,
+                timeout=1200,
+            )
+            if result.returncode:
+                raise DeploymentError("Loaded image export failed")
+    except (OSError, subprocess.TimeoutExpired):
+        raise DeploymentError("Loaded image export failed; details withheld") from None
+
+
 def compose(release: Path, *args: str) -> list[str]:
     loaded_image_binding(release)  # Fail before starting anything if the pinned binding drifted.
     return [
@@ -581,7 +599,7 @@ def apply(release: Path, state: dict) -> None:
         # immutable ID and verify its raw config digest, not just six Config fields.
         with tempfile.TemporaryDirectory(prefix=".loaded-image-", dir=release) as directory:
             saved = Path(directory) / "image.tar"
-            run("loaded image archive", ["sudo", "-n", "docker", "save", "-o", str(saved), actual])
+            save_loaded_archive(saved, actual)
             if archive_identity(saved, None, revision) != identity:
                 raise DeploymentError("Loaded image configuration or layer digest mismatch")
     bind_loaded_image(release, manifest, identity, actual)
