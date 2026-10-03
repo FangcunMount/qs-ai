@@ -42,6 +42,8 @@ MQ 归属一旦转移，不得只关开关、让旧镜像接管投递。回滚�
 
 默认 `messaging.enabled=false`，原 gRPC 模式保持可用。启用 MQ 时不装配 `DeliveryProvider`、不预解析 `DeliverResults`、不启动旧 delivery loop；改为唯一 MQ relay。gRPC 仍保留管理接口和精确引用正文读取。
 
+MQ 启用时，统一 gRPC 装配在业务方法之前拒绝 `Commands.Start/Change`、`ParticipantManagement.Retry`、`EvaluationManagement.Start/Cancel` 五类旧运行写入口。可信 QS 收到 `FAILED_PRECONDITION` 和 `MQ admission required; gRPC execution command not accepted`，明确没有接单；不可信工作负载仍先收到 `PERMISSION_DENIED`。不会进入业务作用域、数据库事务或模型执行，也不产生替代回执。查询、治理/配置和方案/评测 `Create/Prepare` 继续使用原 gRPC 方法。MQ 关闭时不安装该边界，旧行为保留用于兼容期；这不改变已转移 MQ 归属数据的回滚限制。
+
 配置结构示例（只有路径与地址，正文不含密钥）：
 
 ```yaml
@@ -63,6 +65,8 @@ messaging:
 运维必须事先创建 commands/acks 原 Topic/Channel 及其 SDK failed Topic/Channel；拓扑检查每次只做有界读取。统一 supervisor 管理发布器、订阅器、relay；发布器先就绪，订阅器随后启动。停机先阻止新命令并排空，保留发布器完成回执/物理失败移交，最后关闭客户连接和数据库容器。没有新进程、信号处理器或内部 `asyncio.run`。
 
 ## 隔离验收与未完成门槛
+
+五类旧写入口退役的独立回归：`pytest tests/test_grpc_mq_cutover.py`，真实 mTLS 装配覆盖五类方法开启/关闭、工作负载身份及查询/治理/准备保留，共 24 项，本地通过。相关既有 gRPC/单服务回归 57 项及 MySQL 8.4/真实 NSQ 原事务接入 8 项通过（CI 格式 `mysql://` 测试 DSN）。新边界尚待整合后的远程门禁，不作为部署证据。
 
 可复现测试入口：
 

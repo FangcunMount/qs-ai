@@ -15,6 +15,7 @@ from qs_ai.transport.grpc.diagnostics import Diagnostics
 from qs_ai.transport.grpc.evaluation import EvaluationManagement
 from qs_ai.transport.grpc.flow import FlowManagement
 from qs_ai.transport.grpc.message_payloads import MessagePayloads
+from qs_ai.transport.grpc.mq_cutover import MQExecutionCutover
 from qs_ai.transport.grpc.participant import ParticipantManagement
 from qs_ai.transport.grpc.profile_registration import ProfileManagement
 from qs_ai.transport.grpc.prompt_drafts import PromptDraftManagement
@@ -37,7 +38,10 @@ def create_grpc_server(
     payloads: MessagePayloads | None = None,
 ) -> aio.Server:
     server = aio.server(
-        interceptors=[Diagnostics()],
+        interceptors=[
+            Diagnostics(),
+            *([MQExecutionCutover()] if settings.messaging.enabled else []),
+        ],
         options=(("grpc.max_receive_message_length", settings.grpc.max_receive_bytes),),
     )
     rpc.add_CommandsServicer_to_server(Commands(container), server)
