@@ -1,11 +1,5 @@
-import logging
 from dataclasses import dataclass
-from functools import partial
-from typing import Protocol
 
-from reliable_messaging import deliver_durable
-
-from qs_ai.application.operations.diagnostics import attempt_context, classify, emit
 from qs_ai.domain.interpretation.model import Actor
 
 
@@ -23,45 +17,3 @@ class StateEvent:
     can_skip: bool = False
     failure_code: str = ""
     artifact_json: str = ""
-
-
-class EventStore(Protocol):
-    async def pending(self, limit: int) -> list[StateEvent]: ...
-    async def delivered(self, event_id: str) -> None: ...
-    async def retry(self, event_id: str) -> None: ...
-
-
-class ResultReceiver(Protocol):
-    async def accept(self, event: StateEvent) -> None: ...
-
-
-class DeliverResults:
-    def __init__(self, store: EventStore, receiver: ResultReceiver) -> None:
-        self.store = store
-        self.receiver = receiver
-
-    async def once(self, limit: int = 20) -> int:
-        sent = 0
-        for event in await self.store.pending(limit):
-            with attempt_context(
-                request_id=event.request_id,
-                session_id=event.session_id,
-                delivery_event_id=event.event_id,
-            ):
-                emit("delivery.started", "delivery")
-                result = await deliver_durable(
-                    event.event_id, self.store, partial(self.receiver.accept, event)
-                )
-                if result.error is not None:
-                    error = result.error
-                    emit(
-                        "delivery.retry_scheduled",
-                        "delivery",
-                        level=logging.WARNING,
-                        error_code=classify(error),
-                        error_type=type(error).__name__,
-                    )
-                else:
-                    emit("delivery.acknowledged", "delivery", status=event.status)
-                    sent += 1
-        return sent

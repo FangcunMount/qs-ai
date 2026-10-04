@@ -19,15 +19,9 @@ from qs_ai.application.governance.semantic_drafts import SemanticDrafts
 from qs_ai.application.governance.solution_models import EditableModelPolicy
 from qs_ai.application.governance.solutions import SolutionStore
 from qs_ai.application.governance.suite_registration import SuiteRegistrar
-from qs_ai.application.integration.events import (
-    DeliverResults,
-    EventStore,
-    ResultReceiver,
-)
 from qs_ai.config import Settings
 from qs_ai.infrastructure.persistence.mysql.asset_catalog import MySQLAssetCatalog
 from qs_ai.infrastructure.persistence.mysql.asset_references import MySQLPolicyReferences
-from qs_ai.infrastructure.persistence.mysql.database import Transactions
 from qs_ai.infrastructure.persistence.mysql.evaluation_capacity import MySQLEvaluationCapacity
 from qs_ai.infrastructure.persistence.mysql.evaluation_catalog import MySQLEvaluationCatalog
 from qs_ai.infrastructure.persistence.mysql.evaluation_diagnostics import MySQLEvaluationDiagnostics
@@ -43,10 +37,8 @@ from qs_ai.infrastructure.persistence.mysql.prompt_drafts import MySQLPromptDraf
 from qs_ai.infrastructure.persistence.mysql.prompt_freezes import MySQLPromptFreezer
 from qs_ai.infrastructure.persistence.mysql.prompt_lifecycle import MySQLPromptLifecycleReader
 from qs_ai.infrastructure.persistence.mysql.publications import MySQLPublications
-from qs_ai.infrastructure.persistence.mysql.result_outbox import MySQLResultOutbox
 from qs_ai.infrastructure.persistence.mysql.semantic_drafts import MySQLSemanticDrafts
 from qs_ai.infrastructure.persistence.mysql.solutions import MySQLSolutions
-from qs_ai.infrastructure.workflow_transport.results import UnconfiguredReceiver
 
 
 class IntegrationProvider(Provider):
@@ -100,10 +92,3 @@ class IntegrationProvider(Provider):
     evaluation_management = provide(
         MySQLEvaluationManagement, provides=EvaluationManagementStore, scope=Scope.REQUEST
     )
-
-    @provide(scope=Scope.REQUEST)
-    def store(self, transactions: Transactions, settings: Settings) -> EventStore:
-        return MySQLResultOutbox(transactions, settings.delivery.max_retry_seconds)
-
-    receiver = provide(UnconfiguredReceiver, provides=ResultReceiver, scope=Scope.APP)
-    deliver = provide(DeliverResults, scope=Scope.REQUEST)

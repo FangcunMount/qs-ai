@@ -6,7 +6,7 @@ import os
 import signal
 import ssl
 import sys
-from collections.abc import AsyncIterator, Awaitable, Callable, Iterator
+from collections.abc import Awaitable, Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from pathlib import Path
@@ -15,10 +15,9 @@ import uvicorn
 from alembic.config import Config
 from alembic.runtime.migration import MigrationContext
 from alembic.script import ScriptDirectory
-from dishka import AsyncContainer, Provider, Scope, provide
+from dishka import AsyncContainer
 
 from qs_ai.application.execution.worker import ExecuteNext
-from qs_ai.application.integration.events import DeliverResults, ResultReceiver
 from qs_ai.application.operations.diagnostics import register_log_metrics
 from qs_ai.bootstrap.api import create_app
 from qs_ai.bootstrap.container import create_container
@@ -31,21 +30,6 @@ from qs_ai.infrastructure.observability.structured import StructuredHandler
 from qs_ai.infrastructure.persistence.mysql.database import Database, Transactions
 from qs_ai.infrastructure.persistence.mysql.evaluation_worker import EvaluationWorker
 from qs_ai.infrastructure.persistence.mysql.runtime_milestones import prune
-from qs_ai.infrastructure.qs_server.report_probe import mtls_channel
-from qs_ai.infrastructure.workflow_transport.results import GRPCResultReceiver
-
-
-class DeliveryProvider(Provider):
-    @provide(scope=Scope.APP, provides=ResultReceiver, override=True)
-    async def receiver(self, settings: Settings) -> AsyncIterator[ResultReceiver]:
-        options = settings.grpc
-        if not options.result_address or not all(
-            (options.ca_file, options.cert_file, options.key_file)
-        ):
-            raise ValueError("Result address and TLS files are required")
-        ca, cert, key = await tls_bytes(settings)
-        async with mtls_channel(options.result_address, ca, key, cert) as channel:
-            yield GRPCResultReceiver(channel, options.request_timeout_seconds)
 
 
 async def tls_bytes(settings: Settings) -> tuple[bytes, bytes, bytes]:
@@ -84,8 +68,6 @@ async def preflight(container: AsyncContainer, settings: Settings) -> None:
     if sorted(heads) != sorted(scripts.get_heads()):
         raise ValueError("Database migration version does not match the image")
     async with container() as operation:
-        if not settings.messaging.enabled:
-            await operation.get(DeliverResults)
         if settings.generation.enabled:
             await operation.get(ExecuteNext)
         if settings.evaluation.enabled:
@@ -126,22 +108,19 @@ def background(
 
 
 async def serve(settings: Settings, stop: asyncio.Event) -> None:
+    if not settings.messaging.enabled:
+        raise ValueError("MQ runtime is required; legacy gRPC delivery is retired")
     await asyncio.to_thread(validate_tls, settings)
     ca, cert, key = await tls_bytes(settings)
-    container = create_container(
-        settings,
-        *([] if settings.messaging.enabled else [DeliveryProvider()]),
-        EvaluationProvider(),
-    )
+    container = create_container(settings, EvaluationProvider())
     state = RuntimeState()
     grpc_server = None
     messaging = None
     try:
         await preflight(container, settings)
-        if settings.messaging.enabled:
-            from qs_ai.bootstrap.messaging import MessagingRuntime
+        from qs_ai.bootstrap.messaging import MessagingRuntime
 
-            messaging = await MessagingRuntime.create(container, settings, ca, cert, key)
+        messaging = await MessagingRuntime.create(container, settings, ca, cert, key)
 
         def component_status() -> dict[str, str]:
             result = {
@@ -155,9 +134,8 @@ async def serve(settings: Settings, stop: asyncio.Event) -> None:
             result["readiness"] = "ready" if state.ready and state.healthy else "not_ready"
             return result
 
-        grpc_options = {"payloads": messaging.payloads} if messaging is not None else {}
         grpc_server = create_grpc_server(
-            container, settings, ca, cert, key, component_status, **grpc_options
+            container, settings, ca, cert, key, component_status, payloads=messaging.payloads
         )
         grpc_started = False
 
@@ -177,12 +155,6 @@ async def serve(settings: Settings, stop: asyncio.Event) -> None:
         async def evaluate() -> bool:
             async with container() as operation:
                 return await (await operation.get(EvaluationWorker)).once()
-
-        async def deliver() -> int:
-            async with container() as operation:
-                return await (await operation.get(DeliverResults)).once(
-                    settings.delivery.batch_size
-                )
 
         components = [
             Component(
@@ -207,13 +179,6 @@ async def serve(settings: Settings, stop: asyncio.Event) -> None:
                 settings.evaluation,
                 {"enabled", "daily_provider_calls", "max_active_runs"},
                 settings.evaluation.enabled,
-            ),
-            (
-                "delivery",
-                deliver,
-                settings.delivery,
-                {"batch_size", "max_retry_seconds"},
-                not settings.messaging.enabled,
             ),
         ):
             if enabled:

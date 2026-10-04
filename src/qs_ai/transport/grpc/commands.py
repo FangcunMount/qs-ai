@@ -1,20 +1,16 @@
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
 from typing import Any
-from uuid import UUID
 
 import grpc
 from dishka import AsyncContainer
 from grpc import aio
 
-from qs_ai.application.interpretation.commands import AnswerCommand, CancelCommand
 from qs_ai.application.interpretation.eligibility import EligibilityReader
-from qs_ai.application.interpretation.ports import AccessDenied, DependencyUnavailable
-from qs_ai.application.interpretation.service import InterpretationService
+from qs_ai.application.interpretation.ports import AccessDenied
 from qs_ai.contracts.workflow import workflow_pb2 as pb
 from qs_ai.contracts.workflow import workflow_pb2_grpc as rpc
 from qs_ai.contracts.workflow.command_mapping import receipt_message as receipt_message
 from qs_ai.domain.interpretation.model import Actor, EvidenceItem, Fact, RuleViolation
+from qs_ai.transport.grpc.mq_cutover import reject_execution
 
 
 class Commands(rpc.CommandsServicer):
@@ -60,92 +56,12 @@ class Commands(rpc.CommandsServicer):
             await context.abort(grpc.StatusCode.UNAVAILABLE, "Eligibility temporarily unavailable")
         raise AssertionError("abort must raise")
 
-    @asynccontextmanager
-    async def _translate_errors(
-        self, context: aio.ServicerContext[Any, Any]
-    ) -> AsyncIterator[None]:
-        try:
-            yield
-            return
-        except AccessDenied:
-            await context.abort(grpc.StatusCode.PERMISSION_DENIED, "Resource access denied")
-        except RuleViolation as error:
-            if error.code == "participant_daily_capacity_exceeded":
-                await context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, error.code)
-            code = (
-                grpc.StatusCode.ABORTED
-                if "conflict" in error.code or error.code == "invalid_state"
-                else grpc.StatusCode.INVALID_ARGUMENT
-            )
-            await context.abort(code, error.code)
-        except ValueError:
-            await context.abort(grpc.StatusCode.INVALID_ARGUMENT, "Invalid command")
-        except DependencyUnavailable:
-            await context.abort(grpc.StatusCode.UNAVAILABLE, "Business dependencies unavailable")
-        except Exception:
-            await context.abort(
-                grpc.StatusCode.UNAVAILABLE, "Command outcome unknown; replay original ID"
-            )
-        raise AssertionError("abort must raise")
-
     async def Start(
         self, request: pb.StartCommand, context: aio.ServicerContext[Any, Any]
     ) -> pb.Receipt:
-        await self._authorize(context)
-        async with self._translate_errors(context):
-            actor = Actor(request.actor.org_id, request.actor.subject_id)
-            async with self.container() as operation:
-                service = await operation.get(InterpretationService)
-                result = await service.start_external(
-                    actor,
-                    request.testee_id,
-                    tuple(request.assessment_ids),
-                    request.goal,
-                    request.request_id,
-                    tuple(
-                        EvidenceItem(
-                            item.assessment_id,
-                            item.testee_id,
-                            item.report_id,
-                            item.source_version,
-                            tuple(Fact(f.ref, f.value) for f in item.facts),
-                        )
-                        for item in request.evidence
-                    ),
-                )
-            return receipt_message(result)
-        raise AssertionError("abort must raise")
+        return await reject_execution(context)
 
     async def Change(
         self, request: pb.ChangeCommand, context: aio.ServicerContext[Any, Any]
     ) -> pb.Receipt:
-        await self._authorize(context)
-        async with self._translate_errors(context):
-            actor = Actor(request.actor.org_id, request.actor.subject_id)
-            async with self.container() as operation:
-                service = await operation.get(InterpretationService)
-                if (
-                    str(UUID(request.command_id)) != request.command_id
-                    or str(UUID(request.session_id)) != request.session_id
-                    or request.action not in {"answer", "cancel"}
-                ):
-                    raise ValueError("Invalid command")
-                if request.action == "answer":
-                    answer = AnswerCommand(
-                        expected_version=request.expected_version,
-                        question_id=request.question_id,
-                        answer=request.answer if request.HasField("answer") else None,
-                        skip=request.skip,
-                    )
-                    result = await service.answer(
-                        actor, request.session_id, answer, request.command_id
-                    )
-                else:
-                    result = await service.cancel(
-                        actor,
-                        request.session_id,
-                        CancelCommand(request.expected_version),
-                        request.command_id,
-                    )
-            return receipt_message(result)
-        raise AssertionError("abort must raise")
+        return await reject_execution(context)

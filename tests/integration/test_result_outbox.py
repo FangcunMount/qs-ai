@@ -1,16 +1,15 @@
 import asyncio
-from datetime import datetime
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import func, select, text, update
+from sqlalchemy import func, select, text
 
-from qs_ai.application.integration.events import DeliverResults
 from qs_ai.application.interpretation.commands import CancelCommand
 from qs_ai.domain.interpretation.model import RuleViolation
-from qs_ai.infrastructure.persistence.mysql.result_outbox import MySQLResultOutbox, stage_state
+from qs_ai.infrastructure.persistence.mysql.result_outbox import stage_state
 from qs_ai.infrastructure.persistence.mysql.schema import external_requests, jobs, result_outbox
 from tests.integration.test_interpretation import kit  # noqa: F401
+from tests.probes.result_history import read_events
 from tests.probes.session_inspection import read_session
 from tests.test_input_binding import bound_case
 
@@ -66,7 +65,7 @@ async def test_external_start_is_atomic_and_globally_idempotent(kit, monkeypatch
         )
 
 
-async def test_cancel_publishes_new_snapshot_and_failed_delivery_keeps_payload(kit):  # noqa: F811
+async def test_cancel_persists_original_snapshots_without_legacy_delivery(kit):  # noqa: F811
     receipt = await kit.service.start_external(
         kit.actor, "7", ("42",), "goal", str(uuid4()), bound_case()[1].items
     )
@@ -78,8 +77,7 @@ async def test_cancel_publishes_new_snapshot_and_failed_delivery_keeps_payload(k
         CancelCommand(expected_version=view.session.version),
         str(uuid4()),
     )
-    store = MySQLResultOutbox(kit.transactions)
-    before = sorted(await store.pending(20), key=lambda event: event.version)
+    before = await read_events(kit.transactions, receipt.session_id)
     assert [event.status for event in before] == [
         "queued",
         "running",
@@ -88,11 +86,6 @@ async def test_cancel_publishes_new_snapshot_and_failed_delivery_keeps_payload(k
     ]
     assert len({event.event_id for event in before}) == len(before)
 
-    class Unavailable:
-        async def accept(self, event):
-            raise TimeoutError("lost confirmation")
-
-    assert await DeliverResults(store, Unavailable()).once() == 0
     async with kit.transactions.open() as db:
         rows = (
             (
@@ -103,102 +96,8 @@ async def test_cancel_publishes_new_snapshot_and_failed_delivery_keeps_payload(k
             .mappings()
             .all()
         )
-        assert all(not row["delivered"] and row["attempts"] == 1 for row in rows)
+        assert all(not row["delivered"] and row["attempts"] == 0 for row in rows)
         assert {row["event_id"] for row in rows} == {event.event_id for event in before}
-
-
-async def test_delivery_timing_survives_restage_retry_and_duplicate_ack(kit):  # noqa: F811
-    receipt = await kit.service.start_external(
-        kit.actor, "7", ("42",), "goal", str(uuid4()), bound_case()[1].items
-    )
-    store = MySQLResultOutbox(kit.transactions)
-    [event] = await store.pending(20)
-    created = datetime(2026, 1, 1)
-    async with kit.transactions.open() as db:
-        row = (
-            (
-                await db.execute(
-                    select(result_outbox).where(result_outbox.c.event_id == event.event_id)
-                )
-            )
-            .mappings()
-            .one()
-        )
-        assert row["created_at"] is not None and row["delivered_at"] is None
-        await db.execute(
-            update(result_outbox)
-            .where(result_outbox.c.event_id == event.event_id)
-            .values(created_at=created)
-        )
-        await stage_state(db, (await read_session(kit.service.uows, receipt.session_id)).session)
-        await db.commit()
-    await store.retry(event.event_id)
-    async with kit.transactions.open() as db:
-        row = (
-            (
-                await db.execute(
-                    select(result_outbox).where(result_outbox.c.event_id == event.event_id)
-                )
-            )
-            .mappings()
-            .one()
-        )
-        assert row["created_at"] == created
-        assert row["delivered_at"] is None and not row["delivered"]
-        assert row["available_at"] > created and row["attempts"] == 1
-    await store.delivered(event.event_id)
-    async with kit.transactions.open() as db:
-        row = (
-            (
-                await db.execute(
-                    select(result_outbox).where(result_outbox.c.event_id == event.event_id)
-                )
-            )
-            .mappings()
-            .one()
-        )
-        acknowledged = row["delivered_at"]
-        assert acknowledged > created and row["delivered"]
-    await asyncio.gather(store.delivered(event.event_id), store.retry(event.event_id))
-    async with kit.transactions.open() as db:
-        row = (
-            (
-                await db.execute(
-                    select(result_outbox).where(result_outbox.c.event_id == event.event_id)
-                )
-            )
-            .mappings()
-            .one()
-        )
-        assert row["created_at"] == created and row["delivered_at"] == acknowledged
-        assert row["attempts"] == 1
-
-
-async def test_replayed_old_delivered_event_does_not_invent_delivery_time(kit):  # noqa: F811
-    await kit.service.start_external(
-        kit.actor, "7", ("42",), "goal", str(uuid4()), bound_case()[1].items
-    )
-    store = MySQLResultOutbox(kit.transactions)
-    [event] = await store.pending(20)
-    async with kit.transactions.open() as db:
-        await db.execute(
-            update(result_outbox)
-            .where(result_outbox.c.event_id == event.event_id)
-            .values(created_at=None, delivered_at=None, delivered=True)
-        )
-        await db.commit()
-    await store.delivered(event.event_id)
-    async with kit.transactions.open() as db:
-        row = (
-            (
-                await db.execute(
-                    select(result_outbox).where(result_outbox.c.event_id == event.event_id)
-                )
-            )
-            .mappings()
-            .one()
-        )
-        assert row["created_at"] is None and row["delivered_at"] is None
 
 
 async def test_first_result_is_due_with_non_utc_database_sessions(kit):  # noqa: F811

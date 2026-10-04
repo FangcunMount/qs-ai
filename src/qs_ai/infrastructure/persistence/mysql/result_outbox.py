@@ -2,14 +2,13 @@ import json
 from dataclasses import asdict
 from uuid import uuid4
 
-from reliable_messaging.sqlalchemy import MySQLPendingOutbox, bind
+from reliable_messaging.sqlalchemy import bind
 from sqlalchemy import func, select
 from sqlalchemy.dialects.mysql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from qs_ai.application.integration.events import StateEvent
-from qs_ai.domain.interpretation.model import Actor, Session, Status
-from qs_ai.infrastructure.persistence.mysql.database import Transactions
+from qs_ai.domain.interpretation.model import Session, Status
 from qs_ai.infrastructure.persistence.mysql.schema import (
     artifacts,
     external_requests,
@@ -83,44 +82,3 @@ async def stage_state(db: AsyncSession, session: Session) -> None:
             .one()
         )
         await recorder.record_interpretation(db, row)
-
-
-class MySQLResultOutbox:
-    def __init__(self, transactions: Transactions, max_retry_seconds: int = 60) -> None:
-        self.max_retry_seconds = max_retry_seconds
-        self.transactions = transactions
-        self.adapter = MySQLPendingOutbox(result_outbox, max_retry_seconds=max_retry_seconds)
-
-    async def pending(self, limit: int) -> list[StateEvent]:
-        if not 1 <= limit <= 100:
-            raise ValueError("Batch limit must be 1..100")
-        async with self.transactions.open() as db:
-            rows = (
-                (
-                    await db.execute(
-                        select(result_outbox.c.payload)
-                        .where(
-                            result_outbox.c.delivered.is_(False),
-                            result_outbox.c.mq_owned.is_(False),
-                            result_outbox.c.available_at <= func.utc_timestamp(6),
-                        )
-                        .order_by(result_outbox.c.available_at, result_outbox.c.event_id)
-                        .limit(limit)
-                    )
-                )
-                .scalars()
-                .all()
-            )
-            return [StateEvent(**{**row, "actor": Actor(**row["actor"])}) for row in rows]
-
-    async def delivered(self, event_id: str) -> None:
-        async with self.transactions.open() as db:
-            await db.begin()
-            await self.adapter.delivered(db, event_id)
-            await db.commit()
-
-    async def retry(self, event_id: str) -> None:
-        async with self.transactions.open() as db:
-            await db.begin()
-            await self.adapter.retry(db, event_id)
-            await db.commit()

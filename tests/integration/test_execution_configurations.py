@@ -24,7 +24,6 @@ from qs_ai.infrastructure.persistence.mysql.execution_configurations import (
 from qs_ai.infrastructure.persistence.mysql.interpretation import MySQLUnitOfWorkFactory
 from qs_ai.infrastructure.persistence.mysql.observation import observe
 from qs_ai.infrastructure.persistence.mysql.publications import MySQLPublications
-from qs_ai.infrastructure.persistence.mysql.result_outbox import MySQLResultOutbox
 from qs_ai.infrastructure.persistence.mysql.schema import (
     artifacts,
     execution_configurations,
@@ -157,10 +156,15 @@ async def test_observation_uses_bound_profile_and_acknowledged_completion(admitt
 
     assert await ExecuteNext(kit.store, kit.source, workflow(kit, Model())).once()
     assert (await read_session(service.uows, receipt.session_id)).session.status == "completed"
-    outbox = MySQLResultOutbox(tx)
-    for event in await outbox.pending(20):
-        await outbox.delivered(event.event_id)
     async with tx.open() as db:
+        # Synthetic acknowledged-history fixture; delivery itself is tested via MQ ACK.
+        await db.execute(
+            update(result_outbox)
+            .where(result_outbox.c.session_id == receipt.session_id)
+            .values(
+                delivered=True, delivered_at=(begin + timedelta(seconds=5)).replace(tzinfo=None)
+            )
+        )
         await db.execute(
             update(artifacts)
             .where(artifacts.c.session_id == receipt.session_id)
@@ -171,6 +175,7 @@ async def test_observation_uses_bound_profile_and_acknowledged_completion(admitt
             update(result_outbox)
             .where(result_outbox.c.session_id == receipt.session_id, completion)
             .values(
+                delivered=True,
                 created_at=(begin + timedelta(seconds=2)).replace(tzinfo=None),
                 delivered_at=(begin + timedelta(seconds=5)).replace(tzinfo=None),
             )

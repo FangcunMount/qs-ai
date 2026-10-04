@@ -91,11 +91,26 @@ async def verify(tx, scope, version, discard, go_management, tmp_path):
         assert (await call(UserID=-1))["Invalid"]
         assert (await call(Discard=None))["Invalid"]
         assert (await call(Confirm=False))["Invalid"]
-        assert (await call(Version=version + 10))["Code"] == "Aborted"
-        assert (await call(OrgID=2))["Code"] == "NotFound"
+        assert (await call(Version=version + 10))["Code"] == "FailedPrecondition"
+        assert (await call(OrgID=2))["Code"] == "FailedPrecondition"
         assert (await call(certificate="other"))["Code"] == "PermissionDenied"
         assert await rows(tx, scope.run_id) == before
-        reply = await call()
+        assert (await call())["Code"] == "FailedPrecondition"
+        assert await rows(tx, scope.run_id) == before
+        from datetime import UTC, datetime
+
+        from qs_ai.application.evaluation.management import EvaluationManagementStore
+
+        async with container() as operation:
+            await (await operation.get(EvaluationManagementStore)).cancel(
+                scope,
+                version,
+                "Historical cancellation query fixture",
+                datetime.now(UTC),
+                discard=discard,
+                confirm=True,
+            )
+        reply = await call(Action="get")
         assert reply["Code"] == "OK", reply
         state = reply["State"]
         receipt = state["cancellation"]
@@ -106,10 +121,10 @@ async def verify(tx, scope, version, discard, go_management, tmp_path):
         assert state["review_reopenings"] == previous["review_reopenings"]
         assert state["status"] == "canceled"
         assert (await call(Action="get", AuditOnly=True, UserID=99))["State"] == state
-        assert (await call())["Code"] == "Aborted"
+        assert (await call())["Code"] == "FailedPrecondition"
         version = state["version"]
-        assert (await call())["Code"] == "Aborted"
-        assert (await call(Action="start"))["Code"] == "Aborted"
+        assert (await call())["Code"] == "FailedPrecondition"
+        assert (await call(Action="start"))["Code"] == "FailedPrecondition"
         if candidate:
             current = await call(Action="candidate", CandidateID="candidate:1", AuditOnly=True)
             assert current["Code"] == candidate["Code"] == "OK"

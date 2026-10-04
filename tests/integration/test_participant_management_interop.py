@@ -175,23 +175,19 @@ async def test_go_participant_retry_current_authority_unknown_confirmation_and_r
         assert (await call("participant-retry", Allowed=False))["Denied"]
         assert (await call("participant-retry", AuditOnly=True))["Denied"]
         assert (await call("participant-retry", certificate="other"))["Code"] == "PermissionDenied"
-        assert (
-            await call(
-                "participant-retry",
-                ParticipantRetry={**payload, "accept_result_unknown_risk": False},
-            )
-        )["Code"] == "Aborted"
-        kit.source.revoked = True
-        assert (await call("participant-retry"))["Code"] == "PermissionDenied"
-        kit.source.revoked = False
-        accepted = await call("participant-retry")
-        assert (
-            accepted["Code"] == "OK"
-            and accepted["State"]["version"] == command.expected_version + 1
-        )
-        assert accepted["State"]["run_id"] != command.expected_run_id
-        assert (await call("participant-retry"))["State"] == accepted["State"]
-        assert (await call("participant-receipt"))["State"] == accepted["State"]
+        # Execution writes are retired even when a servicer is mounted directly.
+        assert (await call("participant-retry"))["Code"] == "FailedPrecondition"
+        assert (await call("participant-receipt"))["Code"] == "NotFound"
+        assert await calls(kit, command.session_id) == original_calls
+        assert len(await reservations(kit)) == 1
+        # Seed only the synthetic business fixture to verify the retained historical query.
+        from qs_ai.application.execution.retry import RetryParticipant
+
+        async with container() as operation:
+            accepted = await (await operation.get(RetryParticipant)).execute(command)
+        restored = (await call("participant-receipt"))["State"]
+        assert restored["version"] == accepted.version
+        assert restored["run_id"] == accepted.run_id
         assert (await call("participant-receipt", UserID=99))["Code"] == "NotFound"
         after = (await call("participant-get"))["State"]
         assert not after["can_retry"] and after["source_run_id"] == command.expected_run_id

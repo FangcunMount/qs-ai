@@ -16,7 +16,6 @@ from qs_ai.application.execution.management import (
     ParticipantCapacityReader,
 )
 from qs_ai.application.execution.retry import (
-    ParticipantRetry,
     ParticipantRetryStore,
     RetryParticipant,
 )
@@ -27,6 +26,7 @@ from qs_ai.contracts.workflow import workflow_pb2_grpc as rpc
 from qs_ai.domain.interpretation.model import RuleViolation
 from qs_ai.transport.grpc.commands import receipt_message
 from qs_ai.transport.grpc.identity import require_qs_workload
+from qs_ai.transport.grpc.mq_cutover import reject_execution
 
 
 class ParticipantManagement(rpc.ParticipantManagementServicer):
@@ -97,25 +97,7 @@ class ParticipantManagement(rpc.ParticipantManagementServicer):
     async def Retry(
         self, request: pb.ParticipantRetryCommand, context: aio.ServicerContext[Any, Any]
     ) -> pb.Receipt:
-        async with self.operation(context):
-            if request.ByteSize() > 8192:
-                raise ValueError("Retry command exceeds limit")
-            command = ParticipantRetry(
-                DraftScope(request.scope.organization_id, request.scope.operator_user_id),
-                request.session_id,
-                request.command_id,
-                request.expected_run_id,
-                request.expected_version,
-                request.reason,
-                request.confirm,
-                request.expected_provider_invocations,
-                request.accept_result_unknown_risk,
-            )
-            async with self.container() as operation:
-                service = await operation.get(RetryParticipant)
-                result = await service.execute(command)
-            return receipt_message(result)
-        raise AssertionError("abort must raise")
+        return await reject_execution(context)
 
     async def GetRetryReceipt(
         self, request: pb.ParticipantRetryReceiptQuery, context: aio.ServicerContext[Any, Any]
