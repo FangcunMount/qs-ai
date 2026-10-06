@@ -206,6 +206,7 @@
     "src/qs_ai/transport/grpc/identity.py": "3e94b010c079e87a53b77b113470a31ced79a85983d16233232089e67c706ef2",
     "src/qs_ai/transport/grpc/mq_cutover.py": "a520949d2b762d826e70cef1c01f0a65b6357529ab48e03956de873f230fdd35",
     "src/qs_ai/transport/grpc/publication.py": "bd2a2c64a439ecfdb77207941e3ae32f45ff258fcb3055dc2e24175d471aba87",
+    "src/qs_ai/transport/grpc/solution_input.py": "ca0fa032495dedf8f6ac4df7350e4b6578dce1c72d0c19f6849935576ae49f0b",
     "src/qs_ai/transport/grpc/solutions.py": "c461912935ed0ade959c8f81593978f3b90cbfd938b931ac52221cd602b394d5",
     "src/qs_ai/transport/http/health.py": "cb1f15c778a3533364d968fb178aa29548fb79f47ceb98b77f3141823a5f302c",
     "src/qs_ai/transport/http/metrics.py": "9054274b122897c96775bed04ff723fc7e2bdeb0840ca26de166b962a5a5db20",
@@ -295,6 +296,9 @@
     "tests/test_generation_container.py": "0bd42d3d55e3491c26edada7d743e5493957620b471058f70587ca507f74eca9",
     "tests/test_grpc_diagnostics.py": "f5e6160dcd118094676e1b391aacc41b67df72faa673571dec7f828d87c3e7c1",
     "tests/test_grpc_eligibility.py": "7ea9ebffc35d6dc9853b3ca8bad83ee3e9a0e9e950d079722b51b17b82351f34",
+    "tests/test_grpc_evaluation.py": "236489a9c07fc8338f89e021e1b9bc9da7dd55e24fd86e4f7028a071c9c25141",
+    "tests/test_grpc_evaluation_finalization.py": "eb4dcfe430f005524d34c4a66a173fcc3ede8053f59d1a1bb6611b53247ee156",
+    "tests/test_grpc_evaluation_review.py": "09d46a82ebd450fca8ed4ea80ac18499ce55be2b8b0e2d22d5ac0a4d31c6402b",
     "tests/test_grpc_mq_cutover.py": "6952887531b684a697819bab1883a396354736e52556c7d912a873fb4375219c",
     "tests/test_grpc_probe.py": "4dfabb6ee0985ad506d17e32f7512c38fdd36626c6816ffe8befc2de2550a24e",
     "tests/test_grpc_publication.py": "b6f9949110f87cccf78dfa2b67d0f8b46a364d1ade3a2456e54789c45cd70d2f",
@@ -1555,13 +1559,29 @@
       "runtime_status": "unknown",
       "sources": [
         "integrations/workflow/proto/workflow.proto",
-        "src/qs_ai/bootstrap/grpc_server.py"
+        "src/qs_ai/bootstrap/grpc_server.py",
+        "src/qs_ai/transport/grpc/diagnostics.py",
+        "src/qs_ai/transport/grpc/evaluation.py",
+        "src/qs_ai/transport/grpc/identity.py",
+        "src/qs_ai/transport/grpc/mq_cutover.py",
+        "src/qs_ai/transport/grpc/publication.py",
+        "src/qs_ai/transport/grpc/solution_input.py",
+        "src/qs_ai/transport/grpc/solutions.py",
+        "tests/integration/test_evaluation_requests.py",
+        "tests/integration/test_publications.py",
+        "tests/integration/test_solutions.py",
+        "tests/test_grpc_evaluation.py",
+        "tests/test_grpc_evaluation_finalization.py",
+        "tests/test_grpc_evaluation_review.py",
+        "tests/test_grpc_mq_cutover.py",
+        "tests/test_grpc_publication.py"
       ],
       "verify": [
         "python scripts/check_docs.py",
-        "pytest -q tests/test_docs.py"
+        "git diff --check",
+        "106 selected gRPC governance unit tests passed; 1 dependency-graph test deselected; existing sibling reliable-messaging source used via PYTHONPATH without install; real DB/mTLS acceptance not run"
       ],
-      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+      "review_scope": "Source-grounded rewrite against unchanged qs-ai business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. QS 2ccc2de44bbd45e26d29e7e130da518cc32426f0 and IAM c8fc1fe61a32056368148e232e96d32763c15ba5 source review: actual capability, organization scope, current synchronous governance/MQ admission, receipt versus CAS semantics, independent actors and global publication effect; independent source review."
     },
     {
       "path": "docs/04-接口与运维/04-配置与本地开发.md",
