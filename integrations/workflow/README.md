@@ -19,6 +19,8 @@ QS 按自身生成脚本生成 Go 代码；固定 QS 检出及跨语言测试由
 
 mTLS gRPC 仍承载 CheckEligibility、治理/配置读写、运行诊断以及 MessagePayloads 正文读取。治理服务受 grpc.governance_enabled 控制，服务证书只识别工作负载；QS 每次校验管理/业务权限后才能传入机构与操作者。
 
+`EvaluationManagement.CorrectReview` 是追加式治理命令，绑定原审核者、Run CAS、原签名与候选输出指纹；不启动模型或自动批准。EvaluationState 增量提供原签名、更正历史及有效签名指纹。接口和读回规则见 [治理接口](../../docs/04-接口与运维/03-治理接口与可信委托.md)；首次写入更正后，服务回滚版本必须支持此审计投影。
+
 统一常驻入口是 `python -m qs_ai.bootstrap.server`，必需 MQ、TLS、QS endpoint 与 exact Alembic heads。`bootstrap.integration` 已退役，不再 serve/deliver 或扫描历史结果；worker/evaluation 默认探测、`--once` 为单步维护，不能作为常驻替代。
 
 ## 稳定身份与业务确认

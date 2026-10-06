@@ -25,6 +25,7 @@ from qs_ai.application.governance.solution_models import (
 from qs_ai.application.interpretation.ports import NotFound
 from qs_ai.domain.evaluation.resolution import ResultUnknownResolution
 from qs_ai.domain.evaluation.review import CandidateHumanReview
+from qs_ai.domain.evaluation.review_correction import review_fingerprint
 from qs_ai.infrastructure.persistence.mysql import evaluation_candidates
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
 from qs_ai.infrastructure.persistence.mysql.editable_model_policy import check_editable_models
@@ -40,6 +41,11 @@ from qs_ai.infrastructure.persistence.mysql.evaluation_gates import preview_gate
 from qs_ai.infrastructure.persistence.mysql.evaluation_progress import transition_requested
 from qs_ai.infrastructure.persistence.mysql.evaluation_reopening import reopen
 from qs_ai.infrastructure.persistence.mysql.evaluation_resolution import accept_resolution
+from qs_ai.infrastructure.persistence.mysql.evaluation_review_codec import (
+    current_reviews,
+    encode_review,
+)
+from qs_ai.infrastructure.persistence.mysql.evaluation_review_corrections import correct_review
 from qs_ai.infrastructure.persistence.mysql.evaluation_review_history import canonical
 from qs_ai.infrastructure.persistence.mysql.evaluation_reviews import accept_reviews
 from qs_ai.infrastructure.persistence.mysql.evaluation_unknowns import list_unknowns
@@ -101,7 +107,7 @@ async def read_view(
         progress["status"],
         progress.get("unresolved_result_unknown_count", 0),
         json.dumps(progress.get("result_unknown_resolutions", []), ensure_ascii=False),
-        json.dumps(progress.get("human_reviews", []), ensure_ascii=False),
+        canonical([encode_review(r) for r in current_reviews(progress, row["version"])]),
         finalization,
         canonical(progress.get("review_reopenings", [])),
         creation_receipt(dict(row)),
@@ -114,6 +120,18 @@ async def read_view(
         runtime_limits.parallel_calls if mode == "candidate_v2" else 1,
         bool(progress.get("cancel_requested")) and progress["status"] != "canceled",
         canonical(progress["cancel_requested"]) if progress.get("cancel_requested") else "",
+        canonical(progress.get("human_reviews", [])),
+        canonical(progress.get("review_corrections", [])),
+        canonical(
+            [
+                {
+                    "candidate_id": r.candidate_id,
+                    "role": r.role,
+                    "fingerprint": review_fingerprint(r),
+                }
+                for r in current_reviews(progress, row["version"])
+            ]
+        ),
     )
 
 
@@ -225,6 +243,29 @@ class MySQLEvaluationManagement:
             await db.connection(execution_options={"isolation_level": "REPEATABLE READ"})
             await read_view(db, scope, self.runtime_limits)
             await accept_reviews(db, scope, expected_version, values)
+            view = await read_view(db, scope, self.runtime_limits)
+            await self.transactions.commit(db)
+            return view
+
+    async def correct_review(
+        self,
+        scope: ManagementScope,
+        expected_version: int,
+        command_id: str,
+        previous_review_fingerprint: str,
+        candidate_output_fingerprint: str,
+        value: CandidateHumanReview,
+    ) -> EvaluationView:
+        async with self.transactions.open() as db:
+            await correct_review(
+                db,
+                scope,
+                expected_version,
+                command_id,
+                previous_review_fingerprint,
+                candidate_output_fingerprint,
+                value,
+            )
             view = await read_view(db, scope, self.runtime_limits)
             await self.transactions.commit(db)
             return view

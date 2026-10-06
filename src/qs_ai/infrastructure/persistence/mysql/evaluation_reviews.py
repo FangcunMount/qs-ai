@@ -92,7 +92,7 @@ async def accept_reviews(
         raise ValueError("Frozen review policies unavailable")
     if progress["status"] != "awaiting_review":
         raise CheckpointConflict("Run is not awaiting review")
-    if has_review_rounds(progress):
+    if has_review_rounds(progress) or progress.get("review_corrections"):
         await evaluate_snapshot(
             db,
             scope,
@@ -100,6 +100,7 @@ async def accept_reviews(
             expected_version,
             max(v.reviewed_at for v in values),
         )
+    if has_review_rounds(progress):
         latest = progress["review_reopenings"][-1]
         if any(
             v.candidate_id in latest["candidate_ids"]

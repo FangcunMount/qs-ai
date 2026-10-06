@@ -25,6 +25,7 @@ from qs_ai.domain.evaluation.quality_gates import (
     evaluate_quality_gates,
 )
 from qs_ai.domain.evaluation.review import CandidateHumanReview, ReviewCandidate
+from qs_ai.domain.evaluation.review_correction import validate_corrections
 from qs_ai.infrastructure.persistence.mysql.evaluation_assets import stored_run_suite
 from qs_ai.infrastructure.persistence.mysql.evaluation_checkpoints import decode
 from qs_ai.infrastructure.persistence.mysql.evaluation_frozen_policies import frozen_policies
@@ -34,7 +35,10 @@ from qs_ai.infrastructure.persistence.mysql.evaluation_projection import (
     project_slots,
 )
 from qs_ai.infrastructure.persistence.mysql.evaluation_resolution_evidence import decode_resolutions
-from qs_ai.infrastructure.persistence.mysql.evaluation_review_codec import decode_reviews
+from qs_ai.infrastructure.persistence.mysql.evaluation_review_codec import (
+    decode_corrections,
+    decode_reviews,
+)
 from qs_ai.infrastructure.persistence.mysql.evaluation_review_history import validate_rounds
 from qs_ai.infrastructure.persistence.mysql.evaluation_snapshot import header
 from qs_ai.infrastructure.persistence.mysql.schema import (
@@ -279,7 +283,15 @@ async def load_snapshot(
         )
     candidates.sort(key=lambda c: (c.case_id, c.slot_ordinal))
     targets = tuple(c.evidence for c in candidates)
-    reviews = decode_reviews(progress.get("human_reviews", []))
+    reviews = validate_corrections(
+        decode_reviews(progress.get("human_reviews", [])),
+        decode_corrections(progress),
+        targets,
+        closed,
+        run["version"],
+        at,
+        gate.reference.version,
+    )
     thresholds = await asyncio.to_thread(quality_thresholds, gate)
     rule = acceptance_version(creation, progress, run["version"], at)
 

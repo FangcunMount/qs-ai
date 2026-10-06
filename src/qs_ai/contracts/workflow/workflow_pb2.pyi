@@ -425,7 +425,7 @@ class EvaluationUnknownIndex(_message.Message):
     def __init__(self, run_id: _Optional[str] = ..., version: _Optional[int] = ..., release_fingerprint: _Optional[str] = ..., status: _Optional[str] = ..., unresolved_result_unknown_count: _Optional[int] = ..., can_resolve: _Optional[bool] = ..., executions: _Optional[_Iterable[_Union[EvaluationUnknownExecution, _Mapping]]] = ...) -> None: ...
 
 class EvaluationState(_message.Message):
-    __slots__ = ("run_id", "version", "status", "unresolved_result_unknown_count", "resolutions_json", "reviews_json", "finalization_json", "reopenings_json", "creation_json", "cancellation_json", "can_reopen_review", "execution_mode", "active_call_count", "parallel_call_limit", "cancel_draining", "cancel_request_json")
+    __slots__ = ("run_id", "version", "status", "unresolved_result_unknown_count", "resolutions_json", "reviews_json", "finalization_json", "reopenings_json", "creation_json", "cancellation_json", "can_reopen_review", "execution_mode", "active_call_count", "parallel_call_limit", "cancel_draining", "cancel_request_json", "original_reviews_json", "review_corrections_json", "review_fingerprints_json")
     RUN_ID_FIELD_NUMBER: _ClassVar[int]
     VERSION_FIELD_NUMBER: _ClassVar[int]
     STATUS_FIELD_NUMBER: _ClassVar[int]
@@ -442,6 +442,9 @@ class EvaluationState(_message.Message):
     PARALLEL_CALL_LIMIT_FIELD_NUMBER: _ClassVar[int]
     CANCEL_DRAINING_FIELD_NUMBER: _ClassVar[int]
     CANCEL_REQUEST_JSON_FIELD_NUMBER: _ClassVar[int]
+    ORIGINAL_REVIEWS_JSON_FIELD_NUMBER: _ClassVar[int]
+    REVIEW_CORRECTIONS_JSON_FIELD_NUMBER: _ClassVar[int]
+    REVIEW_FINGERPRINTS_JSON_FIELD_NUMBER: _ClassVar[int]
     run_id: str
     version: int
     status: str
@@ -458,7 +461,10 @@ class EvaluationState(_message.Message):
     parallel_call_limit: int
     cancel_draining: bool
     cancel_request_json: str
-    def __init__(self, run_id: _Optional[str] = ..., version: _Optional[int] = ..., status: _Optional[str] = ..., unresolved_result_unknown_count: _Optional[int] = ..., resolutions_json: _Optional[str] = ..., reviews_json: _Optional[str] = ..., finalization_json: _Optional[str] = ..., reopenings_json: _Optional[str] = ..., creation_json: _Optional[str] = ..., cancellation_json: _Optional[str] = ..., can_reopen_review: _Optional[bool] = ..., execution_mode: _Optional[str] = ..., active_call_count: _Optional[int] = ..., parallel_call_limit: _Optional[int] = ..., cancel_draining: _Optional[bool] = ..., cancel_request_json: _Optional[str] = ...) -> None: ...
+    original_reviews_json: str
+    review_corrections_json: str
+    review_fingerprints_json: str
+    def __init__(self, run_id: _Optional[str] = ..., version: _Optional[int] = ..., status: _Optional[str] = ..., unresolved_result_unknown_count: _Optional[int] = ..., resolutions_json: _Optional[str] = ..., reviews_json: _Optional[str] = ..., finalization_json: _Optional[str] = ..., reopenings_json: _Optional[str] = ..., creation_json: _Optional[str] = ..., cancellation_json: _Optional[str] = ..., can_reopen_review: _Optional[bool] = ..., execution_mode: _Optional[str] = ..., active_call_count: _Optional[int] = ..., parallel_call_limit: _Optional[int] = ..., cancel_draining: _Optional[bool] = ..., cancel_request_json: _Optional[str] = ..., original_reviews_json: _Optional[str] = ..., review_corrections_json: _Optional[str] = ..., review_fingerprints_json: _Optional[str] = ...) -> None: ...
 
 class SemanticContradictionReview(_message.Message):
     __slots__ = ("policy_version", "execution_id", "output_fingerprint", "assertion_ordinal", "original_detail", "candidate_excerpt", "reason")
@@ -501,6 +507,30 @@ class EvaluationReviewCommand(_message.Message):
     role: str
     reviews: _containers.RepeatedCompositeFieldContainer[CandidateReviewItem]
     def __init__(self, scope: _Optional[_Union[EvaluationQuery, _Mapping]] = ..., expected_version: _Optional[int] = ..., role: _Optional[str] = ..., reviews: _Optional[_Iterable[_Union[CandidateReviewItem, _Mapping]]] = ...) -> None: ...
+
+class EvaluationReviewCorrectionCommand(_message.Message):
+    __slots__ = ("scope", "command_id", "expected_version", "role", "candidate_id", "previous_review_fingerprint", "candidate_output_fingerprint", "decision", "reason", "confirm")
+    SCOPE_FIELD_NUMBER: _ClassVar[int]
+    COMMAND_ID_FIELD_NUMBER: _ClassVar[int]
+    EXPECTED_VERSION_FIELD_NUMBER: _ClassVar[int]
+    ROLE_FIELD_NUMBER: _ClassVar[int]
+    CANDIDATE_ID_FIELD_NUMBER: _ClassVar[int]
+    PREVIOUS_REVIEW_FINGERPRINT_FIELD_NUMBER: _ClassVar[int]
+    CANDIDATE_OUTPUT_FINGERPRINT_FIELD_NUMBER: _ClassVar[int]
+    DECISION_FIELD_NUMBER: _ClassVar[int]
+    REASON_FIELD_NUMBER: _ClassVar[int]
+    CONFIRM_FIELD_NUMBER: _ClassVar[int]
+    scope: EvaluationQuery
+    command_id: str
+    expected_version: int
+    role: str
+    candidate_id: str
+    previous_review_fingerprint: str
+    candidate_output_fingerprint: str
+    decision: str
+    reason: str
+    confirm: bool
+    def __init__(self, scope: _Optional[_Union[EvaluationQuery, _Mapping]] = ..., command_id: _Optional[str] = ..., expected_version: _Optional[int] = ..., role: _Optional[str] = ..., candidate_id: _Optional[str] = ..., previous_review_fingerprint: _Optional[str] = ..., candidate_output_fingerprint: _Optional[str] = ..., decision: _Optional[str] = ..., reason: _Optional[str] = ..., confirm: _Optional[bool] = ...) -> None: ...
 
 class EvaluationStartCommand(_message.Message):
     __slots__ = ("scope", "expected_version", "reason", "confirm")

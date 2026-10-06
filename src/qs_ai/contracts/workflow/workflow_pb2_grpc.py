@@ -317,6 +317,11 @@ class EvaluationManagementStub:
                 request_serializer=workflow__pb2.EvaluationReviewCommand.SerializeToString,
                 response_deserializer=workflow__pb2.EvaluationState.FromString,
                 _registered_method=True)
+        self.CorrectReview = channel.unary_unary(
+                '/qsai.workflow.v1.EvaluationManagement/CorrectReview',
+                request_serializer=workflow__pb2.EvaluationReviewCorrectionCommand.SerializeToString,
+                response_deserializer=workflow__pb2.EvaluationState.FromString,
+                _registered_method=True)
         self.ListCandidates = channel.unary_unary(
                 '/qsai.workflow.v1.EvaluationManagement/ListCandidates',
                 request_serializer=workflow__pb2.EvaluationQuery.SerializeToString,
@@ -426,6 +431,12 @@ class EvaluationManagementServicer:
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def CorrectReview(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def ListCandidates(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
@@ -523,6 +534,11 @@ def add_EvaluationManagementServicer_to_server(servicer, server):
             'Review': grpc.unary_unary_rpc_method_handler(
                     servicer.Review,
                     request_deserializer=workflow__pb2.EvaluationReviewCommand.FromString,
+                    response_serializer=workflow__pb2.EvaluationState.SerializeToString,
+            ),
+            'CorrectReview': grpc.unary_unary_rpc_method_handler(
+                    servicer.CorrectReview,
+                    request_deserializer=workflow__pb2.EvaluationReviewCorrectionCommand.FromString,
                     response_serializer=workflow__pb2.EvaluationState.SerializeToString,
             ),
             'ListCandidates': grpc.unary_unary_rpc_method_handler(
@@ -831,6 +847,33 @@ class EvaluationManagement:
             target,
             '/qsai.workflow.v1.EvaluationManagement/Review',
             workflow__pb2.EvaluationReviewCommand.SerializeToString,
+            workflow__pb2.EvaluationState.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def CorrectReview(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qsai.workflow.v1.EvaluationManagement/CorrectReview',
+            workflow__pb2.EvaluationReviewCorrectionCommand.SerializeToString,
             workflow__pb2.EvaluationState.FromString,
             options,
             channel_credentials,
