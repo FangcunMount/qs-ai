@@ -10,6 +10,12 @@ class InvalidOutput(ValueError):
         super().__init__(code)
 
 
+def validate_output_length(raw: str, maximum: int) -> None:
+    """Count the validation text before parsing or canonicalizing JSON."""
+    if len(raw) > maximum:
+        raise InvalidOutput("output_too_long")
+
+
 class OutputParser(Protocol):
     def parse(self, raw: str) -> dict[str, Any]: ...
 

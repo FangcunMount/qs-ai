@@ -55,14 +55,16 @@ def evaluate_candidate_assertions(
     validation = ""
     safety = "unavailable"
     canonical = ""
+    validation_text = ""
     try:
-        content = parser.parse(raw.decode("utf-8"))
+        validation_text = raw.decode("utf-8")
+        content = parser.parse(validation_text)
         canonical = _canonical(content)
     except (UnicodeError, InvalidOutput):
         validation = "schema"
     if content is not None:
         try:
-            validate_output(canonical, prepared, parser)
+            validate_output(validation_text, prepared, parser)
         except InvalidOutput as error:
             validation = (
                 "reference"
@@ -120,7 +122,7 @@ def evaluate_candidate_assertions(
         elif name == "output_character_limit":
             status = (
                 "passed"
-                if 0 < parameters["maximum"] and len(canonical) <= parameters["maximum"]
+                if 0 < parameters["maximum"] and len(validation_text) <= parameters["maximum"]
                 else "failed"
             )
         elif name == "forbid_literal_substrings":

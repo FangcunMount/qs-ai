@@ -180,6 +180,41 @@ def test_generic_length_and_literal_checks_support_new_sections():
     assert any(a.type == "output_character_limit" and a.status == "failed" for a in receipts)
 
 
+def test_raw_formatting_cannot_bypass_profile_or_case_character_limits():
+    from qs_ai.application.interpretation.output import InvalidOutput, validate_output
+    from qs_ai.infrastructure.qs_server.output import QSOutputParser
+
+    root, prepared, schema = setup_case()
+    limit = prepared.release.render_policy.max_output_characters
+    compact = json.dumps(output(), ensure_ascii=False, separators=(",", ":"))
+    assert len(compact) < limit
+    raw = compact + "\n" * (limit + 1 - len(compact))
+    document = json.loads(root.suite.definition_json)
+    document["default_generation_assertions"].append(
+        {"type": "output_character_limit", "maximum": limit}
+    )
+    definition = json.dumps(document)
+    reference = replace(
+        root.suite.reference,
+        fingerprint="sha256:" + hashlib.sha256(definition.encode()).hexdigest(),
+    )
+    suite = replace(root.suite, reference=reference, definition_json=definition)
+    receipts = evaluate_candidate_assertions(
+        raw.encode(),
+        prepared,
+        reference,
+        root.suite.generation_case_ids[0],
+        frozen_suite=suite,
+        output_schema=schema,
+    )
+    statuses = {a.type: a.status for a in receipts}
+    assert statuses["output_schema_valid"] == "passed"
+    assert statuses["profile_output_policy_satisfied"] == "failed"
+    assert statuses["output_character_limit"] == "failed"
+    with pytest.raises(InvalidOutput, match="output_too_long"):
+        validate_output(raw, prepared, QSOutputParser.from_schema(schema))
+
+
 def test_semantic_input_retains_new_output_references_and_exact_obligation_identities():
     root, prepared, schema = setup_case()
     raw = json.dumps(output(), ensure_ascii=False).encode()

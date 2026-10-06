@@ -276,6 +276,61 @@ async def test_receipt_recovery_commits_without_another_provider_call(
         )
 
 
+async def test_overlong_receipt_recovery_retains_failure_without_resending(
+    parallel_run, monkeypatch
+):
+    from dataclasses import replace
+    from datetime import timedelta
+
+    from qs_ai.infrastructure.persistence.mysql import evaluation_step
+    from qs_ai.infrastructure.persistence.mysql.evaluation_candidate_recovery import (
+        recover_candidate,
+    )
+    from qs_ai.infrastructure.persistence.mysql.evaluation_slot_claims import (
+        active_claims,
+        lock_run,
+    )
+
+    class OverlongGateway(ConcurrentGateway):
+        async def generate_messages(self, *args):
+            response = await super().generate_messages(*args)
+            raw = response.validation_output
+            raw += "\n" * (8001 - len(raw))
+            return replace(response, raw_output=raw, validation_output=raw)
+
+    async def crash(*args, **kwargs):
+        raise RuntimeError("projection crashed")
+
+    tx, run_id, _, routes, schemas = parallel_run
+    gateway = OverlongGateway(parallel_run)
+    gateway.release.set()
+    monkeypatch.setattr(evaluation_step, "complete_evaluated_generation", crash)
+    with pytest.raises(RuntimeError, match="projection crashed"):
+        await execute(parallel_run, gateway)
+    monkeypatch.undo()
+    async with tx.open() as db:
+        await lock_run(db, run_id, 1)
+        (claim,) = await active_claims(db, run_id)
+    await recover_candidate(tx, 1, claim, AT + timedelta(minutes=6), routes, schemas)
+    await recover_candidate(tx, 1, claim, AT + timedelta(minutes=7), routes, schemas)
+    assert len(gateway.calls) == 1
+    async with tx.open() as db:
+        record = (
+            (
+                await db.execute(
+                    select(evaluation_generation_completions).where(
+                        evaluation_generation_completions.c.run_id == str(run_id)
+                    )
+                )
+            )
+            .mappings()
+            .one()
+        )
+        assert record["candidate_id"] is None
+        assert record["evidence_json"]["failure"]["code"] == "output_too_long"
+        assert len(record["raw_output"].decode()) == 8001
+
+
 async def test_missing_receipt_recovers_unknown_and_preserves_cancel_intent(parallel_run):
     from datetime import timedelta
 

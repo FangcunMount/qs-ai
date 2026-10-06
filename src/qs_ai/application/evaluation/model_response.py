@@ -6,6 +6,7 @@ from typing import Any
 
 from jsonschema import Draft202012Validator
 
+from qs_ai.application.interpretation.output_types import InvalidOutput, validate_output_length
 from qs_ai.application.interpretation.provider import ModelResponse, ModelRoute
 from qs_ai.domain.evaluation.completion import ProviderReceipt
 from qs_ai.domain.evaluation.failure import ClassifiedFailure
@@ -39,6 +40,8 @@ def response_evidence(
     route: ModelRoute,
     schema: dict,
     response: ModelResponse,
+    *,
+    max_output_characters: int,
 ) -> ResponseEvidence:
     if stage not in ("generation", "semantic"):
         raise ValueError("Unsupported response stage")
@@ -53,6 +56,11 @@ def response_evidence(
         code = "output_missing_or_too_large"
     elif not raw or not normalized:
         code = code or "output_missing_or_too_large"
+    elif stage == "generation":
+        try:
+            validate_output_length(response.validation_output, max_output_characters)
+        except InvalidOutput as error:
+            code = code or error.code
     receipt = None
     try:
         if response.invocation_id != invocation_id or response.model != route.model:
