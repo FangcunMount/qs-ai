@@ -1785,9 +1785,10 @@
       ],
       "verify": [
         "python scripts/check_docs.py",
-        "pytest -q tests/test_docs.py"
+        "git diff --check",
+        "Existing lifecycle/container/pool test assertions reviewed; prior targeted lifecycle/configuration tests passed; no live capacity/drain or deployment acceptance"
       ],
-      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+      "review_scope": "Source-grounded rewrite against unchanged qs-ai business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Current shared loop/pool/capacity and supervisor ownership, drain dependency and persisted Outbox distinction, shared fault-domain costs and concrete split/hot-restart conditions; independent source review; reasons inferred from present constraints, no invented historical motive."
     },
     {
       "path": "docs/05-决策记录/02-业务持久状态与LangGraph编排.md",
