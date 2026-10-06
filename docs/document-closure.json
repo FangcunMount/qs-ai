@@ -313,6 +313,7 @@
     "tests/test_evaluation_resolution.py": "a1cbfd79169259fad72a055fbf0525abb8d98867c1b0a62afe341f4f83ca96bb",
     "tests/test_evaluation_response_receipts.py": "34bd478727f4e6f2cf7f7c4f1dbf5d508868fa9aa2daf9bd3f28e1cd56173fa3",
     "tests/test_evaluation_review.py": "17123d7085c52a820bb591a27900ba0155ad07fbe873749bb077dbbe69ce3c89",
+    "tests/test_frozen_semantic_contract.py": "5a54cd6704f81e9de1ec95b19c7736c1830f58ced997c24c24ac5bf19a68e1d5",
     "tests/test_generation_container.py": "0bd42d3d55e3491c26edada7d743e5493957620b471058f70587ca507f74eca9",
     "tests/test_grpc_diagnostics.py": "f5e6160dcd118094676e1b391aacc41b67df72faa673571dec7f828d87c3e7c1",
     "tests/test_grpc_eligibility.py": "7ea9ebffc35d6dc9853b3ca8bad83ee3e9a0e9e950d079722b51b17b82351f34",
@@ -1723,14 +1724,19 @@
         "src/qs_ai/bootstrap/recover_semantic_contract.py",
         "src/qs_ai/domain/evaluation/contract_recovery.py",
         "src/qs_ai/infrastructure/persistence/mysql/evaluation_contract_recovery.py",
+        "src/qs_ai/infrastructure/persistence/mysql/evaluation_step.py",
+        "src/qs_ai/infrastructure/persistence/mysql/schema.py",
+        "tests/integration/test_evaluation_candidate_execution.py",
         "tests/integration/test_semantic_contract_recovery.py",
+        "tests/test_frozen_semantic_contract.py",
         "tests/test_semantic_contract_recovery.py"
       ],
       "verify": [
         "python scripts/check_docs.py",
-        "pytest -q tests/test_docs.py"
+        "git diff --check",
+        "18 semantic-contract unit tests passed; CLI --help and RECOVERY_INSTRUCTION_FINGERPRINT read-only checks passed; actual DB preview/apply, models and production recovery not run"
       ],
-      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+      "review_scope": "Source-grounded rewrite against unchanged qs-ai business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Actual CLI/function entrance, exact evidence/fingerprints/candidate/version/budget checks, current lack of independent active-claim/cancel-intent rejection, locking preview with rollback, bounded apply and readback; source review."
     },
     {
       "path": "docs/04-接口与运维/08-MBTI管理与验收.md",
