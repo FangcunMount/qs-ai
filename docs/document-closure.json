@@ -1765,13 +1765,22 @@
       "implementation_status": "partial",
       "runtime_status": "unknown",
       "sources": [
-        "src/qs_ai/bootstrap/import_mbti_assets.py"
+        "src/qs_ai/bootstrap/import_mbti_assets.py",
+        "tests/integration/test_mbti_initialization.py",
+        "tests/integration/test_mbti_solutions.py",
+        "tests/test_mbti_references.py",
+        "tests/test_mbti_themes_input.py",
+        "tests/test_mbti_themes_output.py",
+        "tests/test_mbti_themes_root.py"
       ],
       "verify": [
         "python scripts/check_docs.py",
-        "pytest -q tests/test_docs.py"
+        "git diff --check",
+        "158 selected MBTI contract unit tests passed with existing venv and sibling SDK source PYTHONPATH; no installs",
+        "Template fingerprint, 35-slot/70-stage budget, sample uuid5, MBTI source fixture and fixed consumer source/links independently checked",
+        "No MySQL/CLI install/model/publication/cross-service/device/production acceptance executed"
       ],
-      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+      "review_scope": "Source-grounded rewrite against unchanged qs-ai business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Independent review of exact installed template/plan/UUID examples, current MQ operations, double-actor review, global publication and participant/artifact/reference/device acceptance ladder. Fixed consumer sources verified: qs-server 2ccc2de44bbd45e26d29e7e130da518cc32426f0, IAM c8fc1fe61a32056368148e232e96d32763c15ba5, Operating 8eefb9e0660bc1ffeef6dde31805a9b8caaa5623, mini-program 681cd05f23418d028e61676e7158139078455f62. Operating catalog/reader/async-admission gaps and mini-program no-operation-poll/no-local-SHA limits explicitly documented."
     },
     {
       "path": "docs/04-接口与运维/README.md",
