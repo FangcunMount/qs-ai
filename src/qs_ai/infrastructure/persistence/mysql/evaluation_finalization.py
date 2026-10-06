@@ -5,7 +5,7 @@ from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import select, update
+from sqlalchemy import select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict, CheckpointState
@@ -180,8 +180,25 @@ async def verified_final_snapshot(
         datetime.fromisoformat(record["finalized_at"]),
     )
     expected = final_record(snapshot.preview, record["actor"], record["reason"])
-    if json.dumps(record, sort_keys=True, allow_nan=False) != json.dumps(
-        expected, sort_keys=True, allow_nan=False
-    ):
+    if not await mysql_json_record_matches(db, record, expected):
         raise ValueError("Final gate differs from original evidence")
     return snapshot
+
+
+async def mysql_json_record_matches(db: AsyncSession, record: dict, expected: dict) -> bool:
+    """Compare exact evidence after the same MySQL JSON encoding used by storage.
+
+    MySQL can round a JSON double by one ULP when decoding its decimal text.
+    Normalize only the recomputed record through the database, rather than
+    accepting a numeric tolerance or skipping any decision or audit fields.
+    This SELECT uses the caller's transaction and never commits or writes.
+    """
+    encoded = json.dumps(expected, sort_keys=True, allow_nan=False)
+    normalized = json.loads(
+        (
+            await db.execute(text("SELECT CAST(:expected AS JSON)"), {"expected": encoded})
+        ).scalar_one()
+    )
+    return json.dumps(record, sort_keys=True, allow_nan=False) == json.dumps(
+        normalized, sort_keys=True, allow_nan=False
+    )
