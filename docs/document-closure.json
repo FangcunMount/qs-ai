@@ -243,6 +243,7 @@
     "tests/integration/test_shared_runtime_pool.py": "8570e99b38348e395973ddc745239a25d99f4537a713b956f73a8f3b51ed586a",
     "tests/integration/test_solution_grpc.py": "f35cd08a4f967a6cc9dc09963400ce51e6ef69d8970dc6097703ea6d9ca15f08",
     "tests/integration/test_solutions.py": "3a6862a575b445c11b925b9ca91569af5f95c49aac8bfaf47baa7fb78bb4ad4f",
+    "tests/test_admission_rejection.py": "1588baf3f63e3cfc9d516cc542dc1057ccd2e1b2e6e6520735a35f5b42d445dc",
     "tests/test_architecture.py": "b964137a0b4db1cc2639fa3c6637f5f76624f5b7f465a2c3c5a035f1cbc80466",
     "tests/test_artifact.py": "1c5a7e16a2d18e6bbb2ed892bdccb232c8830aba470500797f003124f8a71605",
     "tests/test_candidate_completion_gates.py": "09caa1391dfd499964de7080253676607114739b07946a078fb5c5b7b3581159",
@@ -258,7 +259,9 @@
     "tests/test_generation_container.py": "0bd42d3d55e3491c26edada7d743e5493957620b471058f70587ca507f74eca9",
     "tests/test_grpc_eligibility.py": "7ea9ebffc35d6dc9853b3ca8bad83ee3e9a0e9e950d079722b51b17b82351f34",
     "tests/test_grpc_mq_cutover.py": "6952887531b684a697819bab1883a396354736e52556c7d912a873fb4375219c",
+    "tests/test_grpc_probe.py": "4dfabb6ee0985ad506d17e32f7512c38fdd36626c6816ffe8befc2de2550a24e",
     "tests/test_grpc_publication.py": "b6f9949110f87cccf78dfa2b67d0f8b46a364d1ade3a2456e54789c45cd70d2f",
+    "tests/test_grpc_report_probe.py": "88a8413cc503bfe67fa976b4f6382464aa63f12ce4f62b6baaaf6b8fe67193fb",
     "tests/test_health.py": "42d95e8d10c0c35057f9e38882014dd6d3b8a27b9ff4c542ab912c62f7fed11a",
     "tests/test_input_assembly.py": "4d6377122782934051f5c3b25cda102feb3a8cba305ce2aba53c6515313ae7b1",
     "tests/test_input_binding.py": "00a068ade41dc9329368f6ac03aa3b808628a1560cac3a76f864ef0e442de774",
@@ -1027,20 +1030,33 @@
       "implementation_status": "partial",
       "runtime_status": "unknown",
       "sources": [
+        "integrations/qs_server/report-snapshot.md",
+        "integrations/workflow/proto/workflow.proto",
         "src/qs_ai/application/interpretation/eligibility.py",
+        "src/qs_ai/application/interpretation/selection.py",
         "src/qs_ai/application/interpretation/service.py",
+        "src/qs_ai/domain/governance/publication.py",
         "src/qs_ai/infrastructure/persistence/mysql/eligibility.py",
+        "src/qs_ai/infrastructure/persistence/mysql/execution_configurations.py",
+        "src/qs_ai/infrastructure/persistence/mysql/interpretation.py",
         "src/qs_ai/transport/grpc/commands.py",
+        "src/qs_ai/transport/grpc/mq_cutover.py",
         "tests/integration/test_eligibility.py",
         "tests/integration/test_eligibility_go.py",
+        "tests/integration/test_execution_configurations.py",
+        "tests/test_admission_rejection.py",
         "tests/test_eligibility.py",
-        "tests/test_grpc_eligibility.py"
+        "tests/test_grpc_eligibility.py",
+        "tests/test_grpc_probe.py",
+        "tests/test_grpc_report_probe.py"
       ],
       "verify": [
         "python scripts/check_docs.py",
-        "pytest -q tests/test_docs.py"
+        "git diff --check",
+        "27 eligibility/admission-rejection unit tests passed with worktree source and existing sibling reliable-messaging SDK path; no install",
+        "Fixed QS source links verified; MySQL/mTLS integration and live acceptance not run"
       ],
-      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+      "review_scope": "2026-10-06 source-grounded rewrite on unchanged 766b2aa business code and QS 2ccc2de; current authorization/source resolver, no-write eligibility, scale fallback vs exact MBTI, error mapping, true MQ admission and historical binding; no current deployment or UI claim."
     },
     {
       "path": "docs/02-业务模块/interpretation/05-量表兼容与回执重建.md",
