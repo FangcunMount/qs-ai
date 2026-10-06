@@ -1,6 +1,6 @@
 {
   "schema_version": "qs-ai-document-closure/v1",
-  "source_commit": "5aa31fb43998ae111c2fc2a8dbbbb4946ed62318",
+  "source_commit": "92a55c8d51851da06dc8ba86dec9c8938b3adc00",
   "reviewed_on": "2026-10-06",
   "authority": "runtime composition > code > machine contracts/config/migrations > scoped tests > maintained prose > dated evidence/plans/archive",
   "source_catalog": {
@@ -154,7 +154,7 @@
     "src/qs_ai/infrastructure/persistence/mysql/evaluation_contract_recovery.py": "5a22a41d9ac97ec59afd5fd0070a4bd4d8896e0d0bca2d1fe42e477cbfde71ba",
     "src/qs_ai/infrastructure/persistence/mysql/evaluation_contracts.py": "d403bcbab858bce34094064aff86264554829eb0349cc0608e4c9f1f195b1503",
     "src/qs_ai/infrastructure/persistence/mysql/evaluation_diagnostics.py": "eb1a25eaf2b9a95b708761662ec3f9aadba9190a313455593b80e16b4206055c",
-    "src/qs_ai/infrastructure/persistence/mysql/evaluation_finalization.py": "7e44ad930bae85ff36d5aa556becc6902b84d781d8347cb2e610a3cdc5b07579",
+    "src/qs_ai/infrastructure/persistence/mysql/evaluation_finalization.py": "3ec94abcdbce1b27e3963910cc522a42acc0165bfe3651e111fe517a5ebd8afb",
     "src/qs_ai/infrastructure/persistence/mysql/evaluation_gates.py": "bd5d9b78387ddda1108f9b089b02f3b8fa306bc8089dd8f5b49b4ab847688bed",
     "src/qs_ai/infrastructure/persistence/mysql/evaluation_management.py": "2a44588a37ffb87e6fec1db8b19b34edc80e6ae083665bd5e14303eb647d2eed",
     "src/qs_ai/infrastructure/persistence/mysql/evaluation_recovery.py": "ec0d961d01873e37269340c1d35a11432765436db66a420a7b0270be0ccea3a4",
@@ -248,7 +248,7 @@
     "tests/integration/test_evaluation_capacity_recovery.py": "024e727ed1af27de825fb6fa05005b887bc4479699f9ef2261eb585c24b70ffe",
     "tests/integration/test_evaluation_completions.py": "b26543c3790d24d9116cb1d463bc16a9781959c2bf39992eaa5aa596d916db9d",
     "tests/integration/test_evaluation_diagnostics.py": "2ec5b9b2e634f4bf1563ee87a047600feb54862f75bef6a6e2a20fa04d644e9e",
-    "tests/integration/test_evaluation_finalization.py": "43c0170c2235f7bb9b7ea9fc2316223823a0dc5b2c73a1bd3b692c356cfd4420",
+    "tests/integration/test_evaluation_finalization.py": "29f0feece5cae375e49850b6d80bc9df0142dce894b4d45d58b9395ea40b2a6c",
     "tests/integration/test_evaluation_manifest_freeze.py": "3ad2e76d43f58cbf0f3fa7493e2a1522ada483a65e562875d4490489d87ddd27",
     "tests/integration/test_evaluation_recovery.py": "77b1630809dd117f47c43836f80256d78b374430c5b5d7fd25d83b540a676331",
     "tests/integration/test_evaluation_reopening.py": "2b66c3ad05e3527845f566bf543d89ffda3140d30f5a4da8665b5a052420c557",

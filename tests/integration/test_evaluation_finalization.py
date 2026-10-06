@@ -7,12 +7,15 @@ from dataclasses import replace
 from datetime import timedelta
 
 import pytest
-from sqlalchemy import update
+from sqlalchemy import text, update
 
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict
 from qs_ai.application.interpretation.ports import NotFound
 from qs_ai.domain.evaluation.quality_gates import SCORE_NAMES
-from qs_ai.infrastructure.persistence.mysql.evaluation_finalization import finalize
+from qs_ai.infrastructure.persistence.mysql.evaluation_finalization import (
+    finalize,
+    mysql_json_record_matches,
+)
 from qs_ai.infrastructure.persistence.mysql.evaluation_management import MySQLEvaluationManagement
 from qs_ai.infrastructure.persistence.mysql.evaluation_reviews import accept_reviews
 from qs_ai.infrastructure.persistence.mysql.schema import evaluation_runs
@@ -24,6 +27,47 @@ from tests.integration.test_evaluation_runs import setup_run as setup_run
 from tests.integration.test_semantic_completions import judge as judge
 
 pytestmark = pytest.mark.integration
+
+
+@pytest.mark.parametrize(
+    "mutation", [None, "value", "numerator", "threshold", "decision_type", "reason", "binding"]
+)
+async def test_mysql_json_roundtrip_revalidates_ratios_without_relaxing_evidence(
+    setup_run, mutation
+):
+    tx, *_ = setup_run
+    expected = {
+        "passed": True,
+        "reason": "保留原审核与发布证据",
+        "release_fingerprint": "sha256:" + "a" * 64,
+        "metrics": [
+            {"numerator": 35, "denominator": 38, "value": 35 / 38, "threshold": None},
+            {"numerator": 32, "denominator": 35, "value": 32 / 35, "threshold": None},
+        ],
+    }
+    async with tx.open() as db:
+        # Exercise the actual MySQL representation that caused finalization to
+        # roll back, rather than mocking Python's lossless in-memory JSON copy.
+        record = json.loads(
+            (
+                await db.execute(
+                    text("SELECT CAST(:value AS JSON)"), {"value": json.dumps(expected)}
+                )
+            ).scalar_one()
+        )
+        if mutation == "value":
+            record["metrics"][0]["value"] += 1e-10
+        elif mutation == "numerator":
+            record["metrics"][0]["numerator"] -= 1
+        elif mutation == "threshold":
+            record["metrics"][0]["threshold"] = 0
+        elif mutation == "decision_type":
+            record["passed"] = 1
+        elif mutation == "reason":
+            record["reason"] = "改写审核理由"
+        elif mutation == "binding":
+            record["release_fingerprint"] = "sha256:" + "b" * 64
+        assert await mysql_json_record_matches(db, record, expected) is (mutation is None)
 
 
 async def reviewed(context):
