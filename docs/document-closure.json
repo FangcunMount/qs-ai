@@ -1527,6 +1527,7 @@
       "sources": [
         "integrations/workflow/proto/messaging.proto",
         "integrations/workflow/proto/workflow.proto",
+        "src/qs_ai/application/execution/worker.py",
         "src/qs_ai/bootstrap/messaging.py",
         "src/qs_ai/infrastructure/persistence/mysql/messaging.py",
         "src/qs_ai/infrastructure/qs_server/access.py",
@@ -1541,9 +1542,10 @@
       ],
       "verify": [
         "python scripts/check_docs.py",
-        "pytest -q tests/test_docs.py"
+        "git diff --check",
+        "AI/QS/IAM source and existing test assertions reviewed; cross-service MySQL/MQ/mTLS and participant acceptance not run"
       ],
-      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+      "review_scope": "Source-grounded rewrite against unchanged qs-ai business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. QS 2ccc2de44bbd45e26d29e7e130da518cc32426f0 and IAM c8fc1fe61a32056368148e232e96d32763c15ba5 source review: current access/delegation, exact HTTP and MQ operation/projection contracts, original request replay and durable Stored; independent source review."
     },
     {
       "path": "docs/04-接口与运维/03-治理接口与可信委托.md",
