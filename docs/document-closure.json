@@ -51,6 +51,7 @@
     "scripts/cd/deploy.py": "0e59fe5cd8b0c210d3c762a74ddb955979914014f38e88dacdbdde4dc6036c4f",
     "scripts/check_docs.py": "5df5021a4fba59d6e0710eb9e6e07b15a03bd191d6a0856637f84da49a63b24d",
     "scripts/ci/run_tests.py": "64a3dc66c419be7265c10474da2dac51d6aa1955401f0657711771822c00960b",
+    "scripts/generate_messaging_proto.py": "fc1d1f705b81b12483f722fdc13ae1623f89f5af85f0fd67933a2bd94b70a2b1",
     "scripts/generate_qs_proto.py": "ac4c4b355f546745428ccbb73839f409b9b883277360ba155cd4006020027d62",
     "scripts/generate_workflow_proto.py": "f4ec46fc06239881f5bc0a223b5763ff01121b8cf9d2a7af369b46bfaa25d6b9",
     "src/qs_ai/application/evaluation/candidates.py": "f21a90cf25b7321bb79da4d2555f9f9d649071d89e1348fcca85727d0504e70a",
@@ -1489,8 +1490,10 @@
       "runtime_status": "unknown",
       "sources": [
         "integrations/qs_server/manifest.json",
+        "integrations/qs_server/schemas/manifest.json",
         "integrations/workflow/proto/messaging.proto",
         "integrations/workflow/proto/workflow.proto",
+        "scripts/generate_messaging_proto.py",
         "scripts/generate_qs_proto.py",
         "scripts/generate_workflow_proto.py",
         "src/qs_ai/bootstrap/grpc_server.py",
@@ -1498,13 +1501,22 @@
         "src/qs_ai/infrastructure/models/router.py",
         "src/qs_ai/infrastructure/qs_server/access.py",
         "src/qs_ai/infrastructure/workflow_transport/payloads.py",
-        "src/qs_ai/transport/grpc/mq_cutover.py"
+        "src/qs_ai/transport/grpc/identity.py",
+        "src/qs_ai/transport/grpc/mq_cutover.py",
+        "tests/integration/test_m7_delivery.py",
+        "tests/integration/test_mq_admission.py",
+        "tests/test_grpc_diagnostics.py",
+        "tests/test_grpc_eligibility.py",
+        "tests/test_grpc_mq_cutover.py",
+        "tests/test_legacy_delivery_retirement.py",
+        "tests/test_mq_contract.py"
       ],
       "verify": [
         "python scripts/check_docs.py",
-        "pytest -q tests/test_docs.py"
+        "git diff --check",
+        "QS/workflow/messaging generation --check all passed; fixed-source manifest and generated output byte consistency verified; no runtime/network acceptance"
       ],
-      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+      "review_scope": "Source-grounded rewrite against unchanged qs-ai business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Actual protocol owners/registration, retired execution RPCs, fixed QS vendoring versus generated artifacts, current HTTP DTOs and per-family idempotency; independent source review."
     },
     {
       "path": "docs/04-接口与运维/02-QS接入与消息契约.md",
