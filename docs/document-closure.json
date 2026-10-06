@@ -51,9 +51,11 @@
     "scripts/cd/deploy.py": "0e59fe5cd8b0c210d3c762a74ddb955979914014f38e88dacdbdde4dc6036c4f",
     "scripts/check_docs.py": "5df5021a4fba59d6e0710eb9e6e07b15a03bd191d6a0856637f84da49a63b24d",
     "scripts/ci/run_tests.py": "64a3dc66c419be7265c10474da2dac51d6aa1955401f0657711771822c00960b",
+    "scripts/ci/verify_test_shards.py": "1848d43aecaccc67f2d9c166876ff66db2f58a80b8e2c83907ebd570c057ddf7",
     "scripts/generate_messaging_proto.py": "fc1d1f705b81b12483f722fdc13ae1623f89f5af85f0fd67933a2bd94b70a2b1",
     "scripts/generate_qs_proto.py": "ac4c4b355f546745428ccbb73839f409b9b883277360ba155cd4006020027d62",
     "scripts/generate_workflow_proto.py": "f4ec46fc06239881f5bc0a223b5763ff01121b8cf9d2a7af369b46bfaa25d6b9",
+    "scripts/probe_model_bindings.py": "74234fbd7d90b67ca22b3b7464e26c3b7e01043e74f4695ba4a7693cade5ffe1",
     "src/qs_ai/application/evaluation/candidates.py": "f21a90cf25b7321bb79da4d2555f9f9d649071d89e1348fcca85727d0504e70a",
     "src/qs_ai/application/execution/artifact.py": "f5fc3fbf32bb9fefb7232082cf0a602dc1895661dcabd44673cb9b2a0594d78e",
     "src/qs_ai/application/execution/configuration.py": "285cac15f7d439535383ed3068a0297815ca2d521d5deac07b021c2460094f02",
@@ -79,8 +81,11 @@
     "src/qs_ai/application/interpretation/service.py": "fcb53017e47f971325300d87d98b0349996593a09140828623e4e4d880768ff4",
     "src/qs_ai/application/operations/diagnostics.py": "223b4fdff27fe5f7d7cfac83cb0434dcac6e33de5fb998689479eda1ac9b6ed2",
     "src/qs_ai/bootstrap/api.py": "2d4347fb29b3d56f87334ad1d1bce69be76dc4eede018cd986b1f1c35d59dbc1",
+    "src/qs_ai/bootstrap/audit_assets.py": "813646fb71befb92394de7e7f4a9a25d58ff084bfc3264b11234cf2b0b402cec",
+    "src/qs_ai/bootstrap/build_manifest.py": "fdf8ce435074ffe7466dec5844d0790908e3b7e6750042fb5ed4d5d0d0fcb851",
     "src/qs_ai/bootstrap/container.py": "346104099f4d6afac298ab141ce49b405ca8858d2d784fd587b4cab728ae6bd1",
     "src/qs_ai/bootstrap/daemon.py": "8c5fd707861f24c16a2d12c68c4440360e569e8ae827ba9ea01db6e591e721c6",
+    "src/qs_ai/bootstrap/database_check.py": "33e3c643fe03b5ba5cda627d27c387f7efb89582fc6a45ad68a0f9929e086f58",
     "src/qs_ai/bootstrap/grpc_server.py": "8d772b0278c29e205961bc1f727ec19f597e2da1ac7dab1c9f1d0c8eaeafed70",
     "src/qs_ai/bootstrap/import_evaluation_suites.py": "a89681bc78b4773496d8e72b07d4a33ebcbb486f0db6ced3029ebc260f796350",
     "src/qs_ai/bootstrap/import_mbti_assets.py": "5f2330406209d893d62547bbc14f40bd4cae101fea349eef93e6031bf80c9bd4",
@@ -276,6 +281,7 @@
     "tests/test_architecture.py": "b964137a0b4db1cc2639fa3c6637f5f76624f5b7f465a2c3c5a035f1cbc80466",
     "tests/test_artifact.py": "1c5a7e16a2d18e6bbb2ed892bdccb232c8830aba470500797f003124f8a71605",
     "tests/test_candidate_completion_gates.py": "09caa1391dfd499964de7080253676607114739b07946a078fb5c5b7b3581159",
+    "tests/test_ci_sharding.py": "c3ccd9c95777392a9f64895d4ddf0af0961d5f63af465adec4bd41886643f1f6",
     "tests/test_config.py": "916056da1b7c225f60e261e7d6edbad2e61e4cd293aaace618634e1f365b0676",
     "tests/test_container.py": "8d09dccc2a7e6f2b6a52e9063b6e4c6c9c6abf0079cc272889e7bfc757d541e1",
     "tests/test_cutover_observation.py": "eadf6680e3ea45038e5d9c5ba0228aeecf25c584eea5c23443e1c6376944b562",
@@ -1592,13 +1598,29 @@
       "sources": [
         ".github/workflows/ci.yml",
         "compose.yaml",
-        "src/qs_ai/config.py"
+        "pyproject.toml",
+        "scripts/ci/run_tests.py",
+        "scripts/ci/verify_test_shards.py",
+        "scripts/probe_model_bindings.py",
+        "src/qs_ai/bootstrap/audit_assets.py",
+        "src/qs_ai/bootstrap/build_manifest.py",
+        "src/qs_ai/bootstrap/database_check.py",
+        "src/qs_ai/bootstrap/messaging.py",
+        "src/qs_ai/bootstrap/server.py",
+        "src/qs_ai/config.py",
+        "src/qs_ai/infrastructure/workflow_transport/messaging.py",
+        "src/qs_ai/infrastructure/workflow_transport/mq_failure.py",
+        "tests/test_ci_sharding.py",
+        "tests/test_config.py",
+        "tests/test_container.py",
+        "tests/test_messaging_runtime.py"
       ],
       "verify": [
         "python scripts/check_docs.py",
-        "pytest -q tests/test_docs.py"
+        "git diff --check",
+        "37 container/configuration/CI unit tests passed using existing environment and sibling SDK source; no dependency install, Docker, migration, MQ/provider or production action"
       ],
-      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+      "review_scope": "Source-grounded rewrite against unchanged qs-ai business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Actual settings precedence/validation/defaults, offline checks, dependency prerequisites, isolated double-head database bootstrap and CI stages; independent source review."
     },
     {
       "path": "docs/04-接口与运维/05-部署迁移与兼容回滚.md",
