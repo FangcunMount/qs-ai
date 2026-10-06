@@ -22,6 +22,7 @@ from qs_ai.application.evaluation.requests import EvaluationRequests
 from qs_ai.application.evaluation.unknowns import validate_unknown_query
 from qs_ai.application.governance.prompt_drafts import DraftScope
 from qs_ai.application.interpretation.ports import NotFound
+from qs_ai.application.operations.diagnostics import operation as diagnostic_operation
 from qs_ai.contracts.workflow import workflow_pb2 as pb
 from qs_ai.contracts.workflow import workflow_pb2_grpc as rpc
 from qs_ai.contracts.workflow.command_mapping import scope_from as scope_from
@@ -340,14 +341,17 @@ class EvaluationManagement(rpc.EvaluationManagementServicer):
                 raise ValueError("Explicit version, expected outcome and confirmation required")
             async with self.container() as operation:
                 store = await operation.get(EvaluationManagementStore)
-                view = await store.finalize(
-                    scope,
-                    request.expected_version,
-                    request.expected_passed,
-                    request.reason,
-                    datetime.now(UTC),
-                    confirm=True,
-                )
+                with diagnostic_operation(
+                    "evaluation.finalization", "evaluation", run_id=str(scope.run_id)
+                ):
+                    view = await store.finalize(
+                        scope,
+                        request.expected_version,
+                        request.expected_passed,
+                        request.reason,
+                        datetime.now(UTC),
+                        confirm=True,
+                    )
             return pb.EvaluationState(**asdict(view))
         raise AssertionError("abort must raise")
 
