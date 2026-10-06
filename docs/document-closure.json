@@ -822,23 +822,39 @@
       "runtime_status": "unknown",
       "sources": [
         "src/qs_ai/application/execution/artifact.py",
+        "src/qs_ai/application/execution/configuration.py",
         "src/qs_ai/application/execution/generation.py",
         "src/qs_ai/application/execution/worker.py",
         "src/qs_ai/application/interpretation/output.py",
         "src/qs_ai/application/interpretation/preparation.py",
         "src/qs_ai/application/interpretation/service.py",
+        "src/qs_ai/domain/interpretation/artifact.py",
         "src/qs_ai/domain/interpretation/model.py",
+        "src/qs_ai/infrastructure/persistence/model_call_codec.py",
+        "src/qs_ai/infrastructure/persistence/mysql/execution.py",
+        "src/qs_ai/infrastructure/persistence/mysql/execution_configurations.py",
+        "src/qs_ai/infrastructure/persistence/mysql/interpretation.py",
+        "src/qs_ai/infrastructure/persistence/mysql/result_outbox.py",
         "src/qs_ai/infrastructure/workflow_transport/mq_receiver.py",
+        "src/qs_ai/infrastructure/workflows/report.py",
+        "tests/integration/test_artifact_acceptance.py",
+        "tests/integration/test_execution_configurations.py",
         "tests/integration/test_generation.py",
+        "tests/integration/test_mq_admission.py",
+        "tests/test_artifact.py",
         "tests/test_input_assembly.py",
+        "tests/test_input_binding.py",
         "tests/test_mbti_runtime.py",
+        "tests/test_publication.py",
+        "tests/test_qs_access.py",
         "tests/test_worker_frozen_evidence.py"
       ],
       "verify": [
         "python scripts/check_docs.py",
-        "pytest -q tests/test_docs.py"
+        "pytest -q tests/test_input_binding.py tests/test_artifact.py tests/test_worker_frozen_evidence.py tests/test_model_capacity.py",
+        "pytest -q tests/integration/test_artifact_acceptance.py tests/integration/test_execution_configurations.py tests/integration/test_generation.py (requires disposable MySQL and project dependencies)"
       ],
-      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+      "review_scope": "在 766b2aa 业务源码基线上以Testee7/Assessment42/Report99测试快照重写全局request重放、原字符串证据摘要与内外source校验、接单原事务/拒绝、canonical与provider输入区别、原Publication和历史pointer audit、两次当前授权、DurableGeneration原调用状态恢复、Artifact确定身份及finish原响应整候选重建与131072bytes限额；独立复核未把摘要/图成功/原响应恢复外推为业务接受或QS STORED。"
     },
     {
       "path": "docs/02-业务模块/interpretation/02-MBTI报告事实与版本契约.md",
