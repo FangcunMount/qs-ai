@@ -1,6 +1,6 @@
 {
   "schema_version": "qs-ai-document-closure/v1",
-  "source_commit": "766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b",
+  "source_commit": "5aa31fb43998ae111c2fc2a8dbbbb4946ed62318",
   "reviewed_on": "2026-10-06",
   "authority": "runtime composition > code > machine contracts/config/migrations > scoped tests > maintained prose > dated evidence/plans/archive",
   "source_catalog": {
@@ -218,7 +218,7 @@
     "src/qs_ai/model_configuration.py": "cc5d5a7f488080fcfe54280dc15973db70dcbd6e49a6ab4b2ad94d87bf0973ef",
     "src/qs_ai/transport/grpc/commands.py": "fd01d18dd78b43e2f4d3e7dc47545fc610ea20944939cce69df76454b5a4e9bd",
     "src/qs_ai/transport/grpc/diagnostics.py": "377e789d7b4a48811fa0fc7bfa56a7d4d59953ab47148c454a9ce0273c8a6306",
-    "src/qs_ai/transport/grpc/evaluation.py": "b56ff042f0dd0ef8cb2f06d89bb17e010029e7869d51d2e11140dc52685ab580",
+    "src/qs_ai/transport/grpc/evaluation.py": "48abeeee175d6958786bd7b9cc63857159c82bff813a5b8f329ef8916313669e",
     "src/qs_ai/transport/grpc/identity.py": "3e94b010c079e87a53b77b113470a31ced79a85983d16233232089e67c706ef2",
     "src/qs_ai/transport/grpc/mq_cutover.py": "a520949d2b762d826e70cef1c01f0a65b6357529ab48e03956de873f230fdd35",
     "src/qs_ai/transport/grpc/participant.py": "d004bc88be4815830254b6ef196c9bb8281c9b0079d6b6ae74272fbd771c0af7",
@@ -322,7 +322,7 @@
     "tests/test_grpc_diagnostics.py": "f5e6160dcd118094676e1b391aacc41b67df72faa673571dec7f828d87c3e7c1",
     "tests/test_grpc_eligibility.py": "7ea9ebffc35d6dc9853b3ca8bad83ee3e9a0e9e950d079722b51b17b82351f34",
     "tests/test_grpc_evaluation.py": "236489a9c07fc8338f89e021e1b9bc9da7dd55e24fd86e4f7028a071c9c25141",
-    "tests/test_grpc_evaluation_finalization.py": "eb4dcfe430f005524d34c4a66a173fcc3ede8053f59d1a1bb6611b53247ee156",
+    "tests/test_grpc_evaluation_finalization.py": "f54c5e9bc72e6b55740dde6b1dfd510a25e05690dcecadb55fb266bf0ffedd80",
     "tests/test_grpc_evaluation_review.py": "09d46a82ebd450fca8ed4ea80ac18499ce55be2b8b0e2d22d5ac0a4d31c6402b",
     "tests/test_grpc_mq_cutover.py": "6952887531b684a697819bab1883a396354736e52556c7d912a873fb4375219c",
     "tests/test_grpc_probe.py": "4dfabb6ee0985ad506d17e32f7512c38fdd36626c6816ffe8befc2de2550a24e",
@@ -1391,7 +1391,7 @@
         "54 targeted report-graph/resolution/semantic-contract/cancellation unit tests passed; DB/crash/MQ/live recovery not run",
         "Correction-specific unit/gRPC, MySQL 8.0/8.4 transactions and existing review/finalization/reopening regressions; scripts/check_docs.py. Environment and business acceptance separately recorded."
       ],
-      "review_scope": "2026-10-06 source-grounded rewrite on unchanged 766b2aa business code; generation original receipts and bounded claims, explicit Participant Retry, serial/candidate recovery differences, unknown decisions, internal semantic contract recovery, cancellation drain and original message acknowledgment; independent source review; no actual recovery action. 2026-10-06 scoped CorrectReview patch review: original signatures remain immutable; effective-review projection, CAS/idempotent audit, archived receipt replay and finalization reads reconciled. Existing MQ execution, participant precheck and other proto fields unchanged. No production correction or publication acceptance claimed."
+      "review_scope": "2026-10-06 source-grounded rewrite on unchanged 766b2aa business code; generation original receipts and bounded claims, explicit Participant Retry, serial/candidate recovery differences, unknown decisions, internal semantic contract recovery, cancellation drain and original message acknowledgment; independent source review; no actual recovery action. 2026-10-06 scoped CorrectReview patch review: original signatures remain immutable; effective-review projection, CAS/idempotent audit, archived receipt replay and finalization reads reconciled. Existing MQ execution, participant precheck and other proto fields unchanged. No production correction or publication acceptance claimed. Reviewed finalization safe diagnostic boundary; unchanged public errors and transaction ownership; no approval or runtime success inferred."
     },
     {
       "path": "docs/03-基础设施/messaging/README.md",
@@ -1643,7 +1643,7 @@
         "106 selected gRPC governance unit tests passed; 1 dependency-graph test deselected; existing sibling reliable-messaging source used via PYTHONPATH without install; real DB/mTLS acceptance not run",
         "Correction-specific unit/gRPC, MySQL 8.0/8.4 transactions and existing review/finalization/reopening regressions; scripts/check_docs.py. Environment and business acceptance separately recorded."
       ],
-      "review_scope": "Source-grounded rewrite against unchanged qs-ai business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. QS 2ccc2de44bbd45e26d29e7e130da518cc32426f0 and IAM c8fc1fe61a32056368148e232e96d32763c15ba5 source review: actual capability, organization scope, current synchronous governance/MQ admission, receipt versus CAS semantics, independent actors and global publication effect; independent source review. 2026-10-06 scoped CorrectReview patch review: original signatures remain immutable; effective-review projection, CAS/idempotent audit, archived receipt replay and finalization reads reconciled. Existing MQ execution, participant precheck and other proto fields unchanged. No production correction or publication acceptance claimed."
+      "review_scope": "Source-grounded rewrite against unchanged qs-ai business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. QS 2ccc2de44bbd45e26d29e7e130da518cc32426f0 and IAM c8fc1fe61a32056368148e232e96d32763c15ba5 source review: actual capability, organization scope, current synchronous governance/MQ admission, receipt versus CAS semantics, independent actors and global publication effect; independent source review. 2026-10-06 scoped CorrectReview patch review: original signatures remain immutable; effective-review projection, CAS/idempotent audit, archived receipt replay and finalization reads reconciled. Existing MQ execution, participant precheck and other proto fields unchanged. No production correction or publication acceptance claimed. Reviewed finalization safe diagnostic boundary; unchanged public errors and transaction ownership; no approval or runtime success inferred."
     },
     {
       "path": "docs/04-接口与运维/04-配置与本地开发.md",
@@ -1750,7 +1750,7 @@
         "15 runtime/metrics unit tests passed using existing sibling SDK source; MQ legacy-handoff test collection requires unavailable jwcrypto; real mTLS cutover tests blocked by sandbox port bind; DB/MQ/listener/production diagnosis not run",
         "Correction-specific unit/gRPC, MySQL 8.0/8.4 transactions and existing review/finalization/reopening regressions; scripts/check_docs.py. Environment and business acceptance separately recorded."
       ],
-      "review_scope": "Source-grounded rewrite against unchanged qs-ai business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Diagnostic identities and active_call_count/cancel_draining DTO, default isolated-read behavior, query/error limits, business versus transport states and bounded recovery actions; source and independent contract review. 2026-10-06 scoped CorrectReview patch review: original signatures remain immutable; effective-review projection, CAS/idempotent audit, archived receipt replay and finalization reads reconciled. Existing MQ execution, participant precheck and other proto fields unchanged. No production correction or publication acceptance claimed."
+      "review_scope": "Source-grounded rewrite against unchanged qs-ai business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Diagnostic identities and active_call_count/cancel_draining DTO, default isolated-read behavior, query/error limits, business versus transport states and bounded recovery actions; source and independent contract review. 2026-10-06 scoped CorrectReview patch review: original signatures remain immutable; effective-review projection, CAS/idempotent audit, archived receipt replay and finalization reads reconciled. Existing MQ execution, participant precheck and other proto fields unchanged. No production correction or publication acceptance claimed. Reviewed finalization safe diagnostic boundary; unchanged public errors and transaction ownership; no approval or runtime success inferred."
     },
     {
       "path": "docs/04-接口与运维/07-语义契约故障恢复.md",
