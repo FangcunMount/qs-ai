@@ -44,7 +44,7 @@
 Start 日预算预留：70 generation 上限 + 70 semantic 上限 = 140 次
 ```
 
-预留不是供应商账单，也不随着“只实际调用了 70 次”退回差额。以 default.yaml 的日预算 1024 为例，同一 UTC 日最多容纳 7 份这样的完整预留，合计 980，剩余 44；`max_active_runs=1` 另外限制同时活跃的 Run，原 Run 离开活跃谓词后，例如进入 awaiting_review，才能继续 Start 下一份。这个算例只适用于上述冻结策略和额度，其他 Run 必须读自己的 policy。
+预留不是供应商账单，也不随着“只实际调用了 70 次”退回差额。以 default.yaml 的日预算 1024 为例，同一 UTC 日最多容纳 7 份这样的完整预留，合计 980，剩余 44；`max_active_runs=1` 另外限制同时活跃的 Run，原 Run 离开活跃谓词后，例如进入 awaiting_review，才能继续 Start 下一份。production.yaml 现覆盖日预算为 2048，同一冻结策略可容纳 14 份完整预留，合计 1960，剩余 88；已有当日预留不清零。这个算例只适用于上述冻结策略和额度，其他 Run 必须读自己的 policy。
 
 恢复同一 Run 复用原来的预算日和预留量，但仍先检查其他活跃 Run，不能靠“我已有 reservation”越过当前活跃上限。取消不退还日预算。每次新 dispatch 还要在 coordinator 锁下，对最新的 dispatch ledger 检查阶段总量、slot/candidate 次数及下一个 execution ordinal；已失败和未知调用也计入消耗。`retryable=true` 只是失败分类的一项输入，自动或人工恢复还必须满足冻结策略和原预算，不能借租约重领重置计数。
 
@@ -136,7 +136,7 @@ evaluation[P] < total[P] - generation_reserved[P]
 | `evaluation.parallel_calls` | Python 默认 1，范围 1–32 | 本进程全部 Provider 的 evaluation token 上限 |
 | `model_capacity.deepseek/zhipu` | Python 默认各 total=2、reserved=1；1 ≤ total ≤32，0 ≤ reserved < total | 本进程 Provider 总 token 和评测可用部分 |
 | Participant quota | default.yaml 日 org/user/assessment=500/5/3，active=10/2/1 | 组织有效策略还结合在线版本化配置与宿主 ceiling |
-| Evaluation quota | default.yaml 日预算=1024，active Run=1 | Start 的持久准入，按 Run 冻结策略预留 |
+| Evaluation quota | local 日预算=1024，production=2048，active Run=1 | Start 的持久准入，按 Run 冻结策略预留 |
 | Database pool / MQ `max_in_flight` | default.yaml pool=5、overflow=5；MQ Python 默认 1，范围 1–32 | 短事务连接 / 每个 Subscriber 的接收在途处理，不是模型 token |
 
 [`Settings`](../../../src/qs_ai/config.py) 由配置文件、环境变量和显式构造参数形成有效值；default.yaml 中生成、评测均关闭。单实例增加 per-run limit，却保留一个 evaluation consumer，不能凭空产生多个并行模型步骤。管理读视图使用的 `EvaluationRuntimeLimits.parallel_calls` 是 `min(global evaluation, per-run, consumer)`；实际 worker 传入 planner 的仍是原 `per_run_parallel_calls`，不是这个展示值。

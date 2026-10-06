@@ -107,3 +107,32 @@ def test_logging_limits_and_old_http_option_rejected():
     with pytest.raises(ValidationError):
         Settings(http={"log_level": "info"})
     assert Settings().logging.flush_seconds == 2
+
+
+def test_production_evaluation_budget_and_saved_organization_policy():
+    from qs_ai.application.evaluation.capacity import EvaluationCapacityPolicy
+    from qs_ai.application.execution.capacity import ParticipantCapacityPolicy
+    from qs_ai.application.governance.quotas import QuotaBaseline, QuotaValues
+
+    settings = Settings(environment="production")
+    defaults = QuotaValues(
+        ParticipantCapacityPolicy(**settings.participant_capacity.model_dump()),
+        EvaluationCapacityPolicy(
+            settings.evaluation.daily_provider_calls, settings.evaluation.max_active_runs
+        ),
+    )
+    assert settings.quota_ceilings is None
+    baseline = QuotaBaseline(defaults, defaults)
+    effective = baseline.resolve(None, 0)
+    assert effective["defaults"]["evaluation"]["daily_provider_calls"] == 2048
+    assert effective["ceilings"]["evaluation"]["daily_provider_calls"] == 2048
+    assert effective["effective"]["evaluation"] == {
+        "daily_provider_calls": 2048,
+        "max_active_runs": 1,
+    }
+    assert Settings(environment="local").evaluation.daily_provider_calls == 1024
+    # A deployment increase does not silently rewrite an organization's saved policy.
+    saved = QuotaValues(ParticipantCapacityPolicy(), EvaluationCapacityPolicy(1024, 1))
+    configured = baseline.resolve(saved, 3)
+    assert configured["effective"]["evaluation"]["daily_provider_calls"] == 1024
+    assert configured["revision"] == 3
