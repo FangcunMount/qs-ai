@@ -108,3 +108,31 @@ async def test_corrupt_evidence_never_becomes_a_review_view(reviewable, kind):
         await db.commit()
     with pytest.raises((CheckpointConflict, ValueError)):
         await MySQLEvaluationManagement(tx).get_candidate(scope, "candidate:1", version)
+
+
+async def test_frozen_payload_read_exposes_original_contract_without_rewriting_content(
+    reviewable, monkeypatch
+):
+    import hashlib
+    from types import SimpleNamespace
+
+    from qs_ai.infrastructure.persistence.mysql import evaluation_candidates
+
+    tx, scope, version, _ = reviewable
+    payload = '{"context":{},"facts":{"dimensions":[]}}'
+    digest = "sha256:" + hashlib.sha256(payload.encode()).hexdigest()
+
+    async def prepared(db, creation, case_id):
+        assert case_id == "PROMPT-EVAL-001"
+        return SimpleNamespace(
+            assembled_input=SimpleNamespace(canonical_json=payload, fingerprint=digest)
+        )
+
+    monkeypatch.setattr(evaluation_candidates, "prepare_run_case", prepared)
+    view = await MySQLEvaluationManagement(tx).get_candidate(scope, "candidate:1", version)
+    evidence = json.loads(view.evidence_json)
+    frozen = evidence["frozen_input"]
+    assert frozen["input_schema"] == evidence["release"]["input_schema"]
+    assert frozen["fingerprint"] == digest
+    assert frozen["content"] == json.loads(payload)
+    assert "schema_version" not in frozen["content"]

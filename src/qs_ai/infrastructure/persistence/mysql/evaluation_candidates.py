@@ -212,6 +212,9 @@ async def get_candidate(
         frozen_input = {
             "available": True,
             "case_id": selected["case_id"],
+            # Provider payloads omit the schema wrapper. Keep their original bytes
+            # and expose the Run's fixed contract separately for audit readers.
+            "input_schema": asdict(release.input_schema),
             "fingerprint": prepared.assembled_input.fingerprint,
             "content": json.loads(prepared.assembled_input.canonical_json),
         }
