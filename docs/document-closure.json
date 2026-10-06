@@ -1822,18 +1822,22 @@
       "sources": [
         "src/qs_ai/infrastructure/persistence/mysql/database.py",
         "src/qs_ai/infrastructure/persistence/mysql/messaging.py",
+        "src/qs_ai/infrastructure/persistence/mysql/result_outbox.py",
         "src/qs_ai/infrastructure/workflow_transport/mq_receiver.py",
         "src/qs_ai/infrastructure/workflow_transport/mq_relay.py",
         "src/qs_ai/infrastructure/workflow_transport/state_events.py",
         "tests/integration/test_mq_admission.py",
         "tests/integration/test_mq_legacy_handoff.py",
+        "tests/integration/test_mq_storage.py",
+        "tests/test_legacy_delivery_retirement.py",
         "tests/test_messaging_runtime.py"
       ],
       "verify": [
         "python scripts/check_docs.py",
-        "pytest -q tests/test_docs.py"
+        "git diff --check",
+        "Existing MQ transaction/relay test assertions and sibling SDK source reviewed; no JOSE/NSQ/MySQL/live transport acceptance"
       ],
-      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+      "review_scope": "Source-grounded rewrite against unchanged qs-ai business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Host-owned root transactions and SDK borrowing, admission first decision versus FIN, two Outboxes, conditional legacy-source check, Broker versus Stored/unknown, bounded failure handoff and alternative transaction ownership; independent source review."
     },
     {
       "path": "docs/05-决策记录/README.md",
