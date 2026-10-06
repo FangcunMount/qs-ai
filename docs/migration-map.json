@@ -1,0 +1,593 @@
+{
+  "source_commit": "c977cb9cd8301c46fb260441aee6ea5b7a3ec3f2",
+  "archive_policy": "immutable_original_bytes",
+  "files": [
+    {
+      "original": "README.md",
+      "archive": "docs/_archive/2026-10-doc-system/project-README.md",
+      "sha256": "585d1fcb93cd4899de28cad7e026153349bd597aace0e10e1bd4866553f410ed",
+      "successors": [
+        "README.md",
+        "docs/README.md"
+      ],
+      "handling": "Original bytes archived; current claims reverified; dated results retain their original scope",
+      "open_items": "docs/_plans/01-能力演进与验收缺口.md"
+    },
+    {
+      "original": "docs/CONTRIBUTING-DOCS.md",
+      "archive": "docs/_archive/2026-10-doc-system/legacy-docs/CONTRIBUTING-DOCS.md",
+      "sha256": "889cc5268a739b26fea5494ce35a8a835c3692d852dc660686fc3b93bd1fb58f",
+      "successors": [
+        "docs/CONTRIBUTING-DOCS.md"
+      ],
+      "handling": "Original bytes archived; current claims reverified; dated results retain their original scope",
+      "open_items": "docs/_plans/01-能力演进与验收缺口.md"
+    },
+    {
+      "original": "docs/README.md",
+      "archive": "docs/_archive/2026-10-doc-system/legacy-docs/README.md",
+      "sha256": "f9ce56b993dcb310f7e7958625fc43a4596b105c5786b2a52222328bb2639373",
+      "successors": [
+        "docs/README.md",
+        "docs/00-总览/03-治理链与执行链.md"
+      ],
+      "handling": "Original bytes archived; current claims reverified; dated results retain their original scope",
+      "open_items": "docs/_plans/01-能力演进与验收缺口.md"
+    },
+    {
+      "original": "docs/ai-governance-v2.md",
+      "archive": "docs/_archive/2026-10-doc-system/legacy-docs/ai-governance-v2.md",
+      "sha256": "3f716a7c75ea5486698cac48e65bc54afd5dcecd9bb0158a7bb74b799654c264",
+      "successors": [
+        "docs/02-业务模块/governance/01-方案资产与原子准备设计.md"
+      ],
+      "handling": "Original bytes archived; current claims reverified; dated results retain their original scope",
+      "open_items": "docs/_plans/01-能力演进与验收缺口.md"
+    },
+    {
+      "original": "docs/ai-messaging-acceptance.md",
+      "archive": "docs/_archive/2026-10-doc-system/legacy-docs/ai-messaging-acceptance.md",
+      "sha256": "37991cfef4e801c8a2458a710740a8c39fc4aa976bf296ad3ca467dd6997ad72",
+      "successors": [
+        "docs/03-基础设施/messaging/README.md",
+        "docs/04-接口与运维/06-排障与受控恢复.md",
+        "docs/_plans/01-能力演进与验收缺口.md"
+      ],
+      "handling": "Original bytes archived; current claims reverified; dated results retain their original scope",
+      "open_items": "docs/_plans/01-能力演进与验收缺口.md"
+    },
+    {
+      "original": "docs/architecture.md",
+      "archive": "docs/_archive/2026-10-doc-system/legacy-docs/architecture.md",
+      "sha256": "67859622384659c7e745f76c836a6132c2a565795ce15ed8fe80c0550c7bea39",
+      "successors": [
+        "docs/00-总览/01-系统定位与跨服务边界.md",
+        "docs/01-运行时/01-单进程架构与启动装配.md"
+      ],
+      "handling": "Original bytes archived; current claims reverified; dated results retain their original scope",
+      "open_items": "docs/_plans/01-能力演进与验收缺口.md"
+    },
+    {
+      "original": "docs/archive/config-center-implementation-20260920.md",
+      "archive": "docs/_archive/2026-10-doc-system/legacy-docs/archive/config-center-implementation-20260920.md",
+      "sha256": "9e95d01b1004ca3eae5bd7d098ded20ccb335605b8e33f961680d713437c4eac",
+      "successors": [
+        "docs/04-接口与运维/04-配置与本地开发.md",
+        "docs/02-业务模块/governance/01-方案资产与原子准备设计.md"
+      ],
+      "handling": "Original bytes archived; current claims reverified; dated results retain their original scope",
+      "open_items": "docs/_plans/01-能力演进与验收缺口.md"
+    },
+    {
+      "original": "docs/batch1-verification.md",
+      "archive": "docs/_archive/2026-10-doc-system/legacy-docs/batch1-verification.md",
+      "sha256": "acfcce8ecb58e481b62c8945301028a84ffc974d32681ecb092c6c3dcb9c0d9b",
+      "successors": [
+        "docs/00-总览/04-代码地图与能力状态.md",
+        "docs/evidence/README.md",
+        "docs/_plans/01-能力演进与验收缺口.md"
+      ],
+      "handling": "Original bytes archived; current claims reverified; dated results retain their original scope",
+      "open_items": "docs/_plans/01-能力演进与验收缺口.md"
+    },
+    {
+      "original": "docs/candidate-completion-acceptance.md",
+      "archive": "docs/_archive/2026-10-doc-system/legacy-docs/candidate-completion-acceptance.md",
+      "sha256": "3fe8ca83ce1359a4b0f67cd877c5e14fa604011c712168769e9babe97c238e38",
+      "successors": [
+        "docs/02-业务模块/evaluation/01-评测候选门槛与审核设计.md"
+      ],
+      "handling": "Original bytes archived; current claims reverified; dated results retain their original scope",
+      "open_items": "docs/_plans/01-能力演进与验收缺口.md"
+    },
+    {
+      "original": "docs/cicd-plan.md",
+      "archive": "docs/_archive/2026-10-doc-system/legacy-docs/cicd-plan.md",
+      "sha256": "a4d918832d55384c4e8f30453aad98b8e40a61f5974cc251b4da1b021b1db3eb",
+      "successors": [
+        "docs/04-接口与运维/05-部署迁移与兼容回滚.md"
+      ],
+      "handling": "Original bytes archived; current claims reverified; dated results retain their original scope",
+      "open_items": "docs/_plans/01-能力演进与验收缺口.md"
+    },
+    {
+      "original": "docs/config-center-closure.md",
+      "archive": "docs/_archive/2026-10-doc-system/legacy-docs/config-center-closure.md",
+      "sha256": "a8bca79ddb1ab0ccb754430317ea2ecf18eef0bd0ad8f0921e014080be42abf1",
+      "successors": [
+        "docs/04-接口与运维/03-治理接口与可信委托.md",
+        "docs/_plans/01-能力演进与验收缺口.md"
+      ],
+      "handling": "Original bytes archived; current claims reverified; dated results retain their original scope",
+      "open_items": "docs/_plans/01-能力演进与验收缺口.md"
+    },
+    {
+      "original": "docs/config-center.md",
+      "archive": "docs/_archive/2026-10-doc-system/legacy-docs/config-center.md",
+      "sha256": "5ff3405f2bae0e5dd4b61e803054094bcecd8d5496cb25a9a9d25ff5427b8308",
+      "successors": [
+        "docs/02-业务模块/governance/01-方案资产与原子准备设计.md",
+        "docs/04-接口与运维/04-配置与本地开发.md",
+        "docs/03-基础设施/concurrency/README.md"
+      ],
+      "handling": "Original bytes archived; current claims reverified; dated results retain their original scope",
+      "open_items": "docs/_plans/01-能力演进与验收缺口.md"
+    },
+    {
+      "original": "docs/contracts.md",
+      "archive": "docs/_archive/2026-10-doc-system/legacy-docs/contracts.md",
+      "sha256": "742f3bb3cfcefbe7b2f59169189bcdba8792474d3e17cd96ca624839e143acde",
+      "successors": [
+        "docs/04-接口与运维/01-接口地图与契约所有权.md",
+        "docs/04-接口与运维/02-QS接入与消息契约.md",
+        "docs/03-基础设施/model-gateway/README.md"
+      ],
+      "handling": "Original bytes archived; current claims reverified; dated results retain their original scope",
+      "open_items": "docs/_plans/01-能力演进与验收缺口.md"
+    },
+    {
+      "original": "docs/cutover-observation.md",
+      "archive": "docs/_archive/2026-10-doc-system/legacy-docs/cutover-observation.md",
+      "sha256": "cf0d2b5ef2a8d664053604d898805aeb1b01707531064134dfe057bcf9b163fb",
+      "successors": [
+        "docs/04-接口与运维/06-排障与受控恢复.md",
+        "docs/evidence/README.md",
+        "docs/_plans/01-能力演进与验收缺口.md"
+      ],
+      "handling": "Original bytes archived; current claims reverified; dated results retain their original scope",
+      "open_items": "docs/_plans/01-能力演进与验收缺口.md"
+    },
+    {
+      "original": "docs/deployment-verification.md",
+      "archive": "docs/_archive/2026-10-doc-system/legacy-docs/deployment-verification.md",
+      "sha256": "f17ad71888bc37af6810b2d11cee3dce09e5b1995561dd81607db08cb09dab1c",
+      "successors": [
+        "docs/04-接口与运维/05-部署迁移与兼容回滚.md",
+        "docs/evidence/README.md"
+      ],
+      "handling": "Original bytes archived; current claims reverified; dated results retain their original scope",
+      "open_items": "docs/_plans/01-能力演进与验收缺口.md"
+    },
+    {
+      "original": "docs/design.md",
+      "archive": "docs/_archive/2026-10-doc-system/legacy-docs/design.md",
+      "sha256": "1914462bf669b124e8461992ff958786d5927465dc312e2f0c7ccc6ba3a4abe3",
+      "successors": [
+        "docs/00-总览/01-系统定位与跨服务边界.md",
+        "docs/01-运行时/01-单进程架构与启动装配.md",
+        "docs/05-决策记录/README.md"
+      ],
+      "handling": "Original bytes archived; current claims reverified; dated results retain their original scope",
+      "open_items": "docs/_plans/01-能力演进与验收缺口.md"
+    },
+    {
+      "original": "docs/domain-data.md",
+      "archive": "docs/_archive/2026-10-doc-system/legacy-docs/domain-data.md",
+      "sha256": "12d61852dfdd807a7bc8e05b3474e67da407d2d2cd21b90d2db4f5ff53e42740",
+      "successors": [
+        "docs/00-总览/02-核心概念与对象关系.md",
+        "docs/02-业务模块/interpretation/01-解读冻结输入与成果设计.md",
+        "docs/03-基础设施/persistence/README.md"
+      ],
+      "handling": "Original bytes archived; current claims reverified; dated results retain their original scope",
+      "open_items": "docs/_plans/01-能力演进与验收缺口.md"
+    },
+    {
+      "original": "docs/evaluation-concurrency.md",
+      "archive": "docs/_archive/2026-10-doc-system/legacy-docs/evaluation-concurrency.md",
+      "sha256": "8939ff8db17f758232b7b77ef08626a4a8ffb81258f5d8287bb7a907de60f022",
+      "successors": [
+        "docs/02-业务模块/evaluation/01-评测候选门槛与审核设计.md",
+        "docs/03-基础设施/concurrency/README.md"
+      ],
+      "handling": "Original bytes archived; current claims reverified; dated results retain their original scope",
+      "open_items": "docs/_plans/01-能力演进与验收缺口.md"
+    },
+    {
+      "original": "docs/evaluation-transaction-plan.md",
+      "archive": "docs/_archive/2026-10-doc-system/legacy-docs/evaluation-transaction-plan.md",
+      "sha256": "0714f716f49173e86e0662970e0317263dff5ca7c59c58b35b9f857d839dd081",
+      "successors": [
+        "docs/02-业务模块/evaluation/01-评测候选门槛与审核设计.md",
+        "docs/03-基础设施/persistence/README.md"
+      ],
+      "handling": "Original bytes archived; current claims reverified; dated results retain their original scope",
+      "open_items": "docs/_plans/01-能力演进与验收缺口.md"
+    },
+    {
+      "original": "docs/governance-v3-contracts.md",
+      "archive": "docs/_archive/2026-10-doc-system/legacy-docs/governance-v3-contracts.md",
+      "sha256": "028eed9796a73f745cc09adfc28a932dc798bf24b0e6a78e3adc9b0d81019edf",
+      "successors": [
+        "docs/04-接口与运维/03-治理接口与可信委托.md",
+        "docs/02-业务模块/evaluation/01-评测候选门槛与审核设计.md"
+      ],
+      "handling": "Original bytes archived; current claims reverified; dated results retain their original scope",
+      "open_items": "docs/_plans/01-能力演进与验收缺口.md"
+    },
+    {
+      "original": "docs/governance-v3-delivery.md",
+      "archive": "docs/_archive/2026-10-doc-system/legacy-docs/governance-v3-delivery.md",
+      "sha256": "6a8fbd7b178e4470850bdbdef170788e49e795136dc761d902d1a23055a32dfe",
+      "successors": [
+        "docs/02-业务模块/governance/01-方案资产与原子准备设计.md",
+        "docs/02-业务模块/evaluation/01-评测候选门槛与审核设计.md",
+        "docs/_plans/01-能力演进与验收缺口.md"
+      ],
+      "handling": "Original bytes archived; current claims reverified; dated results retain their original scope",
+      "open_items": "docs/_plans/01-能力演进与验收缺口.md"
+    },
+    {
+      "original": "docs/langchain-langgraph-migration.md",
+      "archive": "docs/_archive/2026-10-doc-system/legacy-docs/langchain-langgraph-migration.md",
+      "sha256": "4e3f5c3c5be28bc04d023b019d85a6ea21c57f17f3656b1f95ee791082d485d8",
+      "successors": [
+        "docs/05-决策记录/02-业务持久状态与LangGraph编排.md",
+        "docs/03-基础设施/model-gateway/README.md"
+      ],
+      "handling": "Original bytes archived; current claims reverified; dated results retain their original scope",
+      "open_items": "docs/_plans/01-能力演进与验收缺口.md"
+    },
+    {
+      "original": "docs/m1-inventory.md",
+      "archive": "docs/_archive/2026-10-doc-system/legacy-docs/m1-inventory.md",
+      "sha256": "f99014ffbfb0784278b4cd0b46d4dd1ff7e5b5b8ddc5b33fff09e86764997ee5",
+      "successors": [
+        "docs/00-总览/04-代码地图与能力状态.md",
+        "docs/evidence/README.md",
+        "docs/_plans/01-能力演进与验收缺口.md"
+      ],
+      "handling": "Original bytes archived; current claims reverified; dated results retain their original scope",
+      "open_items": "docs/_plans/01-能力演进与验收缺口.md"
+    },
+    {
+      "original": "docs/m3-management-parity.md",
+      "archive": "docs/_archive/2026-10-doc-system/legacy-docs/m3-management-parity.md",
+      "sha256": "57ce4d24695323f64802575f043a7b8918e631985962679ec83e8492ff37c0c1",
+      "successors": [
+        "docs/04-接口与运维/03-治理接口与可信委托.md"
+      ],
+      "handling": "Original bytes archived; current claims reverified; dated results retain their original scope",
+      "open_items": "docs/_plans/01-能力演进与验收缺口.md"
+    },
+    {
+      "original": "docs/m3-production-usage.md",
+      "archive": "docs/_archive/2026-10-doc-system/legacy-docs/m3-production-usage.md",
+      "sha256": "fac646270145a65e1d1713629c3b462697fba00f69eb3fe860aa255275a5bd75",
+      "successors": [
+        "docs/evidence/README.md",
+        "docs/_plans/01-能力演进与验收缺口.md"
+      ],
+      "handling": "Original bytes archived; current claims reverified; dated results retain their original scope",
+      "open_items": "docs/_plans/01-能力演进与验收缺口.md"
+    },
+    {
+      "original": "docs/m3-release-governance.md",
+      "archive": "docs/_archive/2026-10-doc-system/legacy-docs/m3-release-governance.md",
+      "sha256": "03a987fe8ccb465fabc9210eec13357f65f8cc6e54559e61cbb00896f818ed01",
+      "successors": [
+        "docs/02-业务模块/publication/01-发布证据与生效指针设计.md"
+      ],
+      "handling": "Original bytes archived; current claims reverified; dated results retain their original scope",
+      "open_items": "docs/_plans/01-能力演进与验收缺口.md"
+    },
+    {
+      "original": "docs/m5-closeout.md",
+      "archive": "docs/_archive/2026-10-doc-system/legacy-docs/m5-closeout.md",
+      "sha256": "683f115721c02de75c619ff1773205db66d3659ffdf6389421b1b8379a6b1fc9",
+      "successors": [
+        "docs/04-接口与运维/05-部署迁移与兼容回滚.md",
+        "docs/_plans/01-能力演进与验收缺口.md"
+      ],
+      "handling": "Original bytes archived; current claims reverified; dated results retain their original scope",
+      "open_items": "docs/_plans/01-能力演进与验收缺口.md"
+    },
+    {
+      "original": "docs/m5-data-retirement.md",
+      "archive": "docs/_archive/2026-10-doc-system/legacy-docs/m5-data-retirement.md",
+      "sha256": "8d6be981c6a226724b763b56ac6d1232cab3984350877e6336b7e399a5c4d14d",
+      "successors": [
+        "docs/04-接口与运维/05-部署迁移与兼容回滚.md",
+        "docs/_plans/01-能力演进与验收缺口.md"
+      ],
+      "handling": "Original bytes archived; current claims reverified; dated results retain their original scope",
+      "open_items": "docs/_plans/01-能力演进与验收缺口.md"
+    },
+    {
+      "original": "docs/m5-retirement.md",
+      "archive": "docs/_archive/2026-10-doc-system/legacy-docs/m5-retirement.md",
+      "sha256": "7f51ea8a11bcc2eda1893ad27287a4a093e38ee6e07af91e777e43b049a98c22",
+      "successors": [
+        "docs/04-接口与运维/05-部署迁移与兼容回滚.md",
+        "docs/_plans/01-能力演进与验收缺口.md"
+      ],
+      "handling": "Original bytes archived; current claims reverified; dated results retain their original scope",
+      "open_items": "docs/_plans/01-能力演进与验收缺口.md"
+    },
+    {
+      "original": "docs/m5-tail-acceptance.md",
+      "archive": "docs/_archive/2026-10-doc-system/legacy-docs/m5-tail-acceptance.md",
+      "sha256": "07635e2361a22d4537a766530705a3e3925efd931d784b301adcc21bf589040d",
+      "successors": [
+        "docs/04-接口与运维/05-部署迁移与兼容回滚.md",
+        "docs/_plans/01-能力演进与验收缺口.md"
+      ],
+      "handling": "Original bytes archived; current claims reverified; dated results retain their original scope",
+      "open_items": "docs/_plans/01-能力演进与验收缺口.md"
+    },
+    {
+      "original": "docs/m7-messaging.md",
+      "archive": "docs/_archive/2026-10-doc-system/legacy-docs/m7-messaging.md",
+      "sha256": "1b2cff32c7c5f80dff2837d004bd8e66cdcfc303eebcb81d227464d4f68ec41a",
+      "successors": [
+        "docs/03-基础设施/messaging/README.md",
+        "docs/04-接口与运维/02-QS接入与消息契约.md"
+      ],
+      "handling": "Original bytes archived; current claims reverified; dated results retain their original scope",
+      "open_items": "docs/_plans/01-能力演进与验收缺口.md"
+    },
+    {
+      "original": "docs/mbti-contract-baseline.md",
+      "archive": "docs/_archive/2026-10-doc-system/legacy-docs/mbti-contract-baseline.md",
+      "sha256": "133edb5475244578e2c611cb45e34d6746fcc69d706d9a17fbb0c238bfa80b3d",
+      "successors": [
+        "docs/02-业务模块/interpretation/02-MBTI报告事实与版本契约.md",
+        "docs/evidence/README.md"
+      ],
+      "handling": "Original bytes archived; current claims reverified; dated results retain their original scope",
+      "open_items": "docs/_plans/01-能力演进与验收缺口.md"
+    },
+    {
+      "original": "docs/mbti-eligibility-contract.md",
+      "archive": "docs/_archive/2026-10-doc-system/legacy-docs/mbti-eligibility-contract.md",
+      "sha256": "9da7cd369959d5e6fe202acbcace193e1b747f8530f67eaf80ec9610272e110c",
+      "successors": [
+        "docs/02-业务模块/interpretation/04-报告AI能力预检契约.md"
+      ],
+      "handling": "Original bytes archived; current claims reverified; dated results retain their original scope",
+      "open_items": "docs/_plans/01-能力演进与验收缺口.md"
+    },
+    {
+      "original": "docs/mbti-operations.md",
+      "archive": "docs/_archive/2026-10-doc-system/legacy-docs/mbti-operations.md",
+      "sha256": "f043bba58cdbc06e3dc4c15d95ca452b43ed83f74bca99759d22f2a84991f599",
+      "successors": [
+        "docs/04-接口与运维/08-MBTI管理与验收.md",
+        "docs/_plans/01-能力演进与验收缺口.md"
+      ],
+      "handling": "Original bytes archived; current claims reverified; dated results retain their original scope",
+      "open_items": "docs/_plans/01-能力演进与验收缺口.md"
+    },
+    {
+      "original": "docs/mbti-runtime-progress.md",
+      "archive": "docs/_archive/2026-10-doc-system/legacy-docs/mbti-runtime-progress.md",
+      "sha256": "e8799ca728d8b1c20461d09e860193d6cce0847b6cc9c3545f5c8c08b9a0d40e",
+      "successors": [
+        "docs/02-业务模块/interpretation/03-MBTI三主题与参考材料契约.md",
+        "docs/evidence/2026-10-05-mbti-checkpoint.md",
+        "docs/_plans/01-能力演进与验收缺口.md"
+      ],
+      "handling": "Original bytes archived; current claims reverified; dated results retain their original scope",
+      "open_items": "docs/_plans/01-能力演进与验收缺口.md"
+    },
+    {
+      "original": "docs/mbti-template-contract.md",
+      "archive": "docs/_archive/2026-10-doc-system/legacy-docs/mbti-template-contract.md",
+      "sha256": "eff8ccde0a84b890f2ee48bdffe59ab4b162d4d255591fcac4c101391b130c38",
+      "successors": [
+        "docs/02-业务模块/governance/02-MBTI模板与方案来源契约.md"
+      ],
+      "handling": "Original bytes archived; current claims reverified; dated results retain their original scope",
+      "open_items": "docs/_plans/01-能力演进与验收缺口.md"
+    },
+    {
+      "original": "docs/mbti-three-topic-contract.md",
+      "archive": "docs/_archive/2026-10-doc-system/legacy-docs/mbti-three-topic-contract.md",
+      "sha256": "c362f74ff275c9366f11ed7187500d2234b090c36d4198938eb7451fae08c33d",
+      "successors": [
+        "docs/02-业务模块/interpretation/03-MBTI三主题与参考材料契约.md"
+      ],
+      "handling": "Original bytes archived; current claims reverified; dated results retain their original scope",
+      "open_items": "docs/_plans/01-能力演进与验收缺口.md"
+    },
+    {
+      "original": "docs/mbti-v2-contract.md",
+      "archive": "docs/_archive/2026-10-doc-system/legacy-docs/mbti-v2-contract.md",
+      "sha256": "ebe2d31771dc44476cdf3413a3a7b4196fad808551547525fec6768f46017582",
+      "successors": [
+        "docs/02-业务模块/interpretation/02-MBTI报告事实与版本契约.md"
+      ],
+      "handling": "Original bytes archived; current claims reverified; dated results retain their original scope",
+      "open_items": "docs/_plans/01-能力演进与验收缺口.md"
+    },
+    {
+      "original": "docs/migration-boundary.md",
+      "archive": "docs/_archive/2026-10-doc-system/legacy-docs/migration-boundary.md",
+      "sha256": "5107a7c300818b6b1546586df425e35a7619fc048e0f0ab81525efb1ca753c03",
+      "successors": [
+        "docs/00-总览/01-系统定位与跨服务边界.md"
+      ],
+      "handling": "Original bytes archived; current claims reverified; dated results retain their original scope",
+      "open_items": "docs/_plans/01-能力演进与验收缺口.md"
+    },
+    {
+      "original": "docs/migration-milestones.md",
+      "archive": "docs/_archive/2026-10-doc-system/legacy-docs/migration-milestones.md",
+      "sha256": "fdf13c3e244aa069526cd8a053085962a290ed7a7ba944855b178df3d9a40174",
+      "successors": [
+        "docs/00-总览/04-代码地图与能力状态.md",
+        "docs/_plans/01-能力演进与验收缺口.md"
+      ],
+      "handling": "Original bytes archived; current claims reverified; dated results retain their original scope",
+      "open_items": "docs/_plans/01-能力演进与验收缺口.md"
+    },
+    {
+      "original": "docs/multi-provider-rollout.md",
+      "archive": "docs/_archive/2026-10-doc-system/legacy-docs/multi-provider-rollout.md",
+      "sha256": "97ee6a14be51a3cd150ed3db4bf4a40558e05a3946beab26a64cda031c449b03",
+      "successors": [
+        "docs/03-基础设施/model-gateway/README.md",
+        "docs/_plans/01-能力演进与验收缺口.md"
+      ],
+      "handling": "Original bytes archived; current claims reverified; dated results retain their original scope",
+      "open_items": "docs/_plans/01-能力演进与验收缺口.md"
+    },
+    {
+      "original": "docs/operational-metrics.md",
+      "archive": "docs/_archive/2026-10-doc-system/legacy-docs/operational-metrics.md",
+      "sha256": "595dd5a2fafe761c0c3e89ed5c118ad98a85689e45475d8b94de68de8cc2d47d",
+      "successors": [
+        "docs/03-基础设施/observability/README.md",
+        "docs/04-接口与运维/06-排障与受控恢复.md"
+      ],
+      "handling": "Original bytes archived; current claims reverified; dated results retain their original scope",
+      "open_items": "docs/_plans/01-能力演进与验收缺口.md"
+    },
+    {
+      "original": "docs/p0-verification.md",
+      "archive": "docs/_archive/2026-10-doc-system/legacy-docs/p0-verification.md",
+      "sha256": "f5fa8ce283cb3ec45e37fd0c67824ffa5c545115f7db12829cf3d707c25120a7",
+      "successors": [
+        "docs/00-总览/04-代码地图与能力状态.md",
+        "docs/evidence/README.md",
+        "docs/_plans/01-能力演进与验收缺口.md"
+      ],
+      "handling": "Original bytes archived; current claims reverified; dated results retain their original scope",
+      "open_items": "docs/_plans/01-能力演进与验收缺口.md"
+    },
+    {
+      "original": "docs/p1-verification.md",
+      "archive": "docs/_archive/2026-10-doc-system/legacy-docs/p1-verification.md",
+      "sha256": "5ea0dde1819424f6156bec151292fd8020e34ac6de48ec565d082b0cd58539ce",
+      "successors": [
+        "docs/00-总览/04-代码地图与能力状态.md",
+        "docs/evidence/README.md",
+        "docs/_plans/01-能力演进与验收缺口.md"
+      ],
+      "handling": "Original bytes archived; current claims reverified; dated results retain their original scope",
+      "open_items": "docs/_plans/01-能力演进与验收缺口.md"
+    },
+    {
+      "original": "docs/refactoring-verification.md",
+      "archive": "docs/_archive/2026-10-doc-system/legacy-docs/refactoring-verification.md",
+      "sha256": "b9fd423f440cabd8c8cc546fc609addf5c172ee74eca0c64299903e07aeadf17",
+      "successors": [
+        "docs/00-总览/04-代码地图与能力状态.md",
+        "docs/evidence/README.md",
+        "docs/_plans/01-能力演进与验收缺口.md"
+      ],
+      "handling": "Original bytes archived; current claims reverified; dated results retain their original scope",
+      "open_items": "docs/_plans/01-能力演进与验收缺口.md"
+    },
+    {
+      "original": "docs/roadmap.md",
+      "archive": "docs/_archive/2026-10-doc-system/legacy-docs/roadmap.md",
+      "sha256": "bb661b9f79596b5f6c240296b4e02e8fd11aaf887ba421963c2c97e0ea355e30",
+      "successors": [
+        "docs/00-总览/04-代码地图与能力状态.md",
+        "docs/_plans/01-能力演进与验收缺口.md"
+      ],
+      "handling": "Original bytes archived; current claims reverified; dated results retain their original scope",
+      "open_items": "docs/_plans/01-能力演进与验收缺口.md"
+    },
+    {
+      "original": "docs/runtime.md",
+      "archive": "docs/_archive/2026-10-doc-system/legacy-docs/runtime.md",
+      "sha256": "54e529cb5a2ed32a443067889cb457c80975e14b420753e7427404b1b3058c24",
+      "successors": [
+        "docs/01-运行时/03-后台执行与调度.md",
+        "docs/03-基础设施/execution-recovery/README.md",
+        "docs/02-业务模块/governance/01-方案资产与原子准备设计.md"
+      ],
+      "handling": "Original bytes archived; current claims reverified; dated results retain their original scope",
+      "open_items": "docs/_plans/01-能力演进与验收缺口.md"
+    },
+    {
+      "original": "docs/semantic-contract-recovery.md",
+      "archive": "docs/_archive/2026-10-doc-system/legacy-docs/semantic-contract-recovery.md",
+      "sha256": "9248e43685d514b299e341fc86f075e28cf7b39b0b6d848077607c953709d94c",
+      "successors": [
+        "docs/04-接口与运维/07-语义契约故障恢复.md"
+      ],
+      "handling": "Original bytes archived; current claims reverified; dated results retain their original scope",
+      "open_items": "docs/_plans/01-能力演进与验收缺口.md"
+    },
+    {
+      "original": "docs/single-process.md",
+      "archive": "docs/_archive/2026-10-doc-system/legacy-docs/single-process.md",
+      "sha256": "87e61709f9d757586452b969e53290cf99009bfb916931aff6b5a710ffa891a0",
+      "successors": [
+        "docs/01-运行时/01-单进程架构与启动装配.md",
+        "docs/01-运行时/04-生命周期与优雅关闭.md",
+        "docs/04-接口与运维/05-部署迁移与兼容回滚.md"
+      ],
+      "handling": "Original bytes archived; current claims reverified; dated results retain their original scope",
+      "open_items": "docs/_plans/01-能力演进与验收缺口.md"
+    },
+    {
+      "original": "docs/snapshot-verification.md",
+      "archive": "docs/_archive/2026-10-doc-system/legacy-docs/snapshot-verification.md",
+      "sha256": "c96aac608e9a3b220ab12db4b583aed1aae8ec6cfc91f812950d9c1586a861af",
+      "successors": [
+        "docs/00-总览/04-代码地图与能力状态.md",
+        "docs/evidence/README.md",
+        "docs/_plans/01-能力演进与验收缺口.md"
+      ],
+      "handling": "Original bytes archived; current claims reverified; dated results retain their original scope",
+      "open_items": "docs/_plans/01-能力演进与验收缺口.md"
+    },
+    {
+      "original": "docs/structured-logging.md",
+      "archive": "docs/_archive/2026-10-doc-system/legacy-docs/structured-logging.md",
+      "sha256": "63a8ac8b887538c860b670e70230545cee9753f88d98d7709551600e079852a9",
+      "successors": [
+        "docs/03-基础设施/observability/README.md"
+      ],
+      "handling": "Original bytes archived; current claims reverified; dated results retain their original scope",
+      "open_items": "docs/_plans/01-能力演进与验收缺口.md"
+    },
+    {
+      "original": "docs/verification.md",
+      "archive": "docs/_archive/2026-10-doc-system/legacy-docs/verification.md",
+      "sha256": "4c978e3f677e3860e4aaef177e9840d4e6cee889bd52bc98a3362f66d3126d39",
+      "successors": [
+        "docs/00-总览/04-代码地图与能力状态.md",
+        "docs/evidence/README.md",
+        "docs/_plans/01-能力演进与验收缺口.md"
+      ],
+      "handling": "Original bytes archived; current claims reverified; dated results retain their original scope",
+      "open_items": "docs/_plans/01-能力演进与验收缺口.md"
+    },
+    {
+      "original": "docs/workflow-messaging-admission.md",
+      "archive": "docs/_archive/2026-10-doc-system/legacy-docs/workflow-messaging-admission.md",
+      "sha256": "144012cc878bcf07ae8646fe6f3f34be1e13635b522cd9a9dc7a890ef2018b4e",
+      "successors": [
+        "docs/03-基础设施/messaging/README.md",
+        "docs/04-接口与运维/02-QS接入与消息契约.md"
+      ],
+      "handling": "Original bytes archived; current claims reverified; dated results retain their original scope",
+      "open_items": "docs/_plans/01-能力演进与验收缺口.md"
+    }
+  ]
+}

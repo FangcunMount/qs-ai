@@ -1,0 +1,87 @@
+{
+  "source_commit": "c977cb9cd8301c46fb260441aee6ea5b7a3ec3f2",
+  "branch": "codex/docs-system-20261006",
+  "date": "2026-10-06",
+  "timezone": "Asia/Shanghai",
+  "scope": "Source-grounded documentation rebuild and local verification; no business behavior changes",
+  "results": [
+    {
+      "check": "documentation gate",
+      "status": "passed",
+      "markdown_files": 69,
+      "local_links": 538,
+      "errors": 0,
+      "coverage": "Links, source references and hashes, document ownership, archive bytes, migration coverage, selected runtime AST facts"
+    },
+    {
+      "check": "documentation checker regressions",
+      "status": "passed",
+      "passed": 12,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "check": "ruff check entire repository",
+      "status": "passed"
+    },
+    {
+      "check": "ruff format entire repository",
+      "status": "passed",
+      "files": 773
+    },
+    {
+      "check": "git diff --check",
+      "status": "passed"
+    },
+    {
+      "check": "pinned QS protocol generation",
+      "status": "passed",
+      "pinned_qs_commit_prefix": "1ce436d7ec7c"
+    },
+    {
+      "check": "workflow protocol generation",
+      "status": "passed"
+    },
+    {
+      "check": "messaging protocol generation",
+      "status": "passed"
+    },
+    {
+      "check": "protected source, schema, configuration, raw assets and original evidence",
+      "status": "passed",
+      "files": 426,
+      "changed": 0
+    },
+    {
+      "check": "cross-review",
+      "status": "completed",
+      "corrections": [
+        "Cancellation intent versus terminal canceled",
+        "Deployment verification versus business acceptance",
+        "Model result unknown versus message awaiting receipt",
+        "Transport replay versus controlled business retry identities"
+      ]
+    },
+    {
+      "check": "additional existing business test selection",
+      "status": "environment_limited",
+      "passed": 64,
+      "failed": 4,
+      "reason": "Signal-test subprocesses cannot import reliable_messaging in the existing main-checkout virtual environment. An earlier collection also encountered missing jwcrypto. Neither package was installed or the original environment changed. This is not a business-regression pass."
+    }
+  ],
+  "preservation": {
+    "original_markdown_snapshots": 53,
+    "original_evidence_files": 9,
+    "migration_records": 53
+  },
+  "not_performed": [
+    "Full business regression suite",
+    "CI run",
+    "Deployment",
+    "Real model calls",
+    "Production operations",
+    "Participant/browser/device acceptance"
+  ],
+  "runtime_acceptance": "unknown"
+}

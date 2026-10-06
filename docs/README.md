@@ -1,44 +1,40 @@
-# qs-ai 设计与实施入口
+# qs-ai 文档地图
 
-当前执行以 [M1–M5 替代计划](migration-milestones.md) 和 [M5 退役清单](m5-retirement.md) 为准；退役准备不等于生产验收完成。原 P0–P5 文档保留技术设计和历史验证参考。
+本体系以当前代码和机器契约解释 qs-ai 的治理链与执行链。现行正文按问题归属维护，历史记录保留原日期、版本和结论。文档对齐实现不等于生产已启用或业务已验收。
 
-| 阅读顺序 | 文档 | 回答的问题 |
-| --- | --- | --- |
-| 0 | [迁移责任边界](migration-boundary.md) | 最新决定：QS 发起/接收，AI 独立执行及旧能力迁出 |
-| 1 | [项目设计](design.md) | 系统边界、DDD 分层、六边形、Dishka、技术决定 |
-| 2 | [领域与数据](domain-data.md) | 聚合、不变量、状态、MySQL 表、记忆 |
-| 3 | [执行与恢复](runtime.md) | API/Worker、租约、模型调用、检查点协调与版本 |
-| 4 | [接口与模型契约](contracts.md) | HTTP/gRPC、授权、Provider、Prompt、评测发布 |
-| 5 | [替代里程碑](migration-milestones.md) | M1–M5 任务、依赖、验收与目标模式台账 |
-| 技术参考 | [原实施路线](roadmap.md) | P0–P5 技术批次和验证矩阵 |
-| 配置入口 | [统一配置](../configs/README.md) | 环境覆盖、启动入口与 Actions Secrets |
-| 发布规划 | [CI/CD 建设方案](cicd-plan.md) | 对齐 QS 发布设施、MySQL Secrets、迁移与回滚的设计依据 |
-| 发布证据 | [部署验证](deployment-verification.md) | CI、实际数据库与 serverA 版本验收 |
-| 重构证据 | [命令入口整理](refactoring-verification.md) | 类型化输入、历史回执兼容与接口回归 |
-| 当前证据 | [第 1 批验证](batch1-verification.md) | QS 发起、AI 持久执行、QS 可靠接收与剩余边界 |
-| P1 证据 | [P1 验证](p1-verification.md) | 会话、任务、恢复、gRPC 传输与接入缺口 |
-| P0 证据 | [P0 验证](p0-verification.md) | 分层、DI、进程恢复、旧写隔离及剩余限制 |
-| 历史证据 | [初始化验证](verification.md) | 已经运行过什么、不能据此证明什么 |
-| 历史 | [初始化架构边界](architecture.md) | 初始化时记录，完整设计以上述文档为准 |
+## 读者入口
 
-本地运行见 [项目 README](../README.md)。文档维护规则见 [写作约定](CONTRIBUTING-DOCS.md)。
+| 读者问题 | 首选入口 |
+| --- | --- |
+| 系统做什么，IAM、QS、AI 怎样分工 | [系统定位与跨服务边界](00-总览/01-系统定位与跨服务边界.md) |
+| Solution、Profile、Run、Invocation、Artifact 是什么 | [核心概念与对象关系](00-总览/02-核心概念与对象关系.md) |
+| 从方案到发布、从请求到交付如何运行 | [治理链与执行链](00-总览/03-治理链与执行链.md) |
+| 代码在哪里，哪些能力有何种证据 | [代码地图与能力状态](00-总览/04-代码地图与能力状态.md) |
+| 如何启动、装配、调度和关闭 | [运行时](01-运行时/README.md) |
+| 解读、配置、评测、发布规则 | [业务模块](02-业务模块/README.md) |
+| 持久化、未知调用、消息和容量怎样保证 | [基础设施](03-基础设施/README.md) |
+| 如何接入、开发、部署和恢复 | [接口与运维](04-接口与运维/README.md) |
+| 为什么采用当前方案、接受什么代价 | [决策记录](05-决策记录/README.md) |
 
-## 已实现与待实现
+首次阅读建议：系统边界 → 核心概念 → 两条主链 → 对应模块。接入与排障可以直接进入接口与运维，再回查所引用的设计正文。
 
-已实现范围见 [项目 README](../README.md)。M5 移除初期独立 HTTP 会话和 LangGraph 样板，保留 mTLS gRPC、健康检查、正式业务执行与恢复。历史验证文件中的框架、API 和测试数量只描述当时版本。
+## 目录责任
 
-真实管理、授权生成展示、撤权与恢复验收仍需独立证据；未来产品能力不作为本轮退役门槛。
+`00` 建立心智模型；`01` 拥有进程、装配与资源生命周期；`02` 拥有业务语义；`03` 拥有技术机制和失败窗口；`04` 拥有接入及可执行操作；`05` 保存已采用方案的取舍。这些是文档责任分组，不能据此创造独立领域上下文。
 
-- [语义契约故障单次恢复](semantic-contract-recovery.md)：受信主机预览与授权、原证据保留和发布校验。
+同一事实只有一个权威正文，其它位置用简述和链接。例如发布资格归 publication，未知模型调用归 execution-recovery，消息确认归 messaging，操作步骤归接口与运维。[写作约定](CONTRIBUTING-DOCS.md) 定义完整规则；[文档闭包清单](document-closure.json) 登记正文、所有权、源码摘要和验证入口。
 
-- [候选最终结果验收](candidate-completion-acceptance.md)：版本化规则、旧 Run 采用、发布门槛与调用观测。
+## 仓库事实入口
 
-- [AI 解读管理第二版](ai-governance-v2.md)：持久方案、模型参数、原子准备与验证边界。
+- [工作流与消息机器契约](../integrations/workflow/README.md)：qs-ai 持有的 proto。
+- [QS 契约接入](../integrations/qs_server/README.md)、[报告快照](../integrations/qs_server/report-snapshot.md)、[模型协议](../integrations/qs_server/provider-runtime.md)。
+- [配置说明](../configs/README.md)、[部署说明](../deploy/serverA/README.md)。
+- [依赖](../pyproject.toml)、[迁移](../migrations/versions/)、[源码](../src/qs_ai/)、[测试](../tests/)。
 
-- [配置中心后端契约与台账](config-center.md)
+机器文件继续由原目录拥有，设计正文不维护第二套 proto、Schema、配置或部署文件。
 
-- [AI 解读管理第三版交付台账](governance-v3-delivery.md)：运行中心与流程工作区分批实施。
+## 证据、规划与历史
 
-- [V3 运行中心契约与样例](governance-v3-contracts.md)
+[证据索引](evidence/README.md) 只证明标注的版本、环境和时间窗口；[演进与验收缺口](_plans/README.md) 区分未实施能力和未绑定的运行验收。[历史索引](_archive/README.md) 用于追溯；它不参与现行设计事实判断，也不是当前运行步骤。归档保留原字节，原有相对链接可能反映迁移前目录，查询来源可使用归档清单或源码基线。
 
-- [MBTI 接入前置基线](mbti-contract-baseline.md)：真实版本、脱敏报告及量表回执回放；新场景尚未实现。
+本次迁移的逐文件去向见 [迁移映射](migration-map.json)。旧过程记录的未完成事项不会因为归档自动关闭。

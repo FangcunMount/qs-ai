@@ -1,45 +1,37 @@
-# 首个模型路线的执行适配
+# 模型执行适配与原调用回执
 
-当前迁移目标为已观测的 balanced_text_v1/v8、DeepSeek deepseek-v4-pro、Responses、json_schema、reasoning none、120000 ms、12000 output tokens。ModelRoute 保存非秘密参数及与原 QS 字段顺序一致的指纹算法；地址、密钥由外部注入，不纳入指纹。尚未将这些参数启用到生产。
+现行接入材料；源码基线 `c977cb9`。部署选择供应商地址/凭据，MySQL 冻结路线与发布资产决定模型、参数、输入和校验版本。当前生产模型及质量状态须使用日期绑定证据。
 
-DeepSeekResponses 已实现单次异步 HTTP 发送、总超时、响应大小限制、禁用重定向、完成状态/模型/消息数量/用量检查，保留原始输出、兼容解包结果、供应商响应 ID、调用 ID 和时延。它不自动重试、不实现调用 ID 查询，不允许路线宣称这些能力。
+## 适配与编排
 
-失败分类只输出固定 code，不暴露供应商正文、地址或凭据。连接失败可重试；读写超时、传输中断、响应过大及服务端 5xx/408 保守标记 result_unknown。queued/in_progress 也视为尚无最终结果。结果未知必须经后续持久执行协议处理，不能因为 retryable 就重新收费调用。适配器的取消仍传播给调用方，执行层必须在发送前持久记录调用状态，才能在进程取消/崩溃后恢复未知状态。
+[ModelGatewayRouter](../../src/qs_ai/infrastructure/models/router.py)核对冻结路线与部署 binding，按 DeepSeek Responses 或智谱 Chat Completions 等已验证 adapter_contract 发送。[responses.py](../../src/qs_ai/infrastructure/models/responses.py)保留原始响应与分类边界；实际模型通过 LangChain 模型适配执行，生成/评测由 [report 图](../../src/qs_ai/infrastructure/workflows/report.py)和[evaluation 图](../../src/qs_ai/infrastructure/workflows/evaluation.py)组织节点。
 
-相对旧 QS 的明确变化：缺失 usage 保留 None，不伪造零用量；部分服务端失败/非终态更保守地标记未知。供应商 JSON 包装只移除已知单层，保留内部原格式以维持字符数限制，仍经过完整输出及安全规则校验。
+LangGraph 不拥有业务恢复权，不安装业务 checkpointer。应用执行用例、MySQL 租约/fence、CAS、dispatch 标记和原回执决定恢复，数据库事务不跨模型网络请求。
 
-model_calls 通过迁移 0005 增加每 Run 唯一的调用记录。发送前提交 dispatched 标记和冻结请求；只有首次创建标记的执行者获得发送权。调用回执在当前租约及 fence 下保存，成功响应、已知失败和未知结果分别记录；领取权转移后可读取旧回执，但不能重发或覆盖旧调用。发送标记之后、实际网络发送之前发生崩溃也保守地视为结果未知，这是当前供应商不支持幂等重发或按调用 ID 查询的限制。
+## 协议限制与失败
 
-DurableGeneration 将持久接口与模型网关接起来：冻结完整 PreparedExplanation、路线及 Schema，保存 ModelResponse；恢复时读取原始冻结版本及回执，而不是采用当前发布参数。dispatched/unknown 不重新发送，failed 保留失败原因，取消和响应提交失败留下待核实的调用。恢复后的输出仍须交给原版本对应的结构、引用及安全校验，再进入正式成果事务。
+网关执行单次异步发送、总超时、响应大小限制、禁用重定向与隐式环境代理，检查完成状态、模型、消息/用量并保留原输出、供应商响应 ID、调用 ID 和时延。不默认宣称供应商支持幂等重发或按调用 ID 查询，不在超时后静默切模型。
 
-数据库集成覆盖并发创建、连接重建读取、领取权转移、旧执行者迟到、回执不可覆盖、失败分类、取消、数据库提交失败及配置变化后的原版本恢复。该协调器尚未接入真实 Workflow；不能据此宣称模型运行中断恢复已端到端完成。
+失败只输出固定 code。连接失败和合法恢复名单仍须经完整持久策略核对；读写超时、传输中断、响应过大、服务端 5xx/408 和非终态响应保守分类为未知。retryable 不意味着可以直接再发收费请求。取消向外传播，执行层发送前先持久 dispatch 证据。
 
-本地 MockTransport 测试只验证构造、发送次数、分类和解析；未访问真实供应商。尚待 Worker/调用记录/成果事务接线、配置与凭据部署、真实案例验收。没有将 HTTP 成功直接转为正式 Artifact。
+缺失 usage 保留 None，不补零；已知单层 JSON 包装才可解包，原输出字节保持。解析拒绝重复 JSON 字段和非 JSON 数字，随后应用原 Schema、引用、数量和安全校验。协议成功不是语义质量通过，也不是正式 Artifact。
 
-build_artifact 将恢复后的响应与当前任务冻结证据重新绑定，再运行完整输出 Schema、事实引用及确定性安全校验。只有全部通过才返回 ArtifactCandidate，包含稳定成果 ID、内容指纹、证据/输入/Profile/Prompt/路线及校验器版本和供应商回执 ID。
+## durable dispatch 与成果
 
-迁移 0006 增加 interpretation_artifacts。finish 在当前租约内复核候选与已保存调用/证据的关联和内容指纹，将完整成果、completed 状态、同版本 Outbox 一并提交；无完整成果不能完成。取消后和已完成后拒绝迟到写入，已完成状态不能再取消。结果事件以新增 proto 字段 artifact_json 承载完整候选信封，序列化大小上限为 128 KiB；重复投递使用同一已保存事件。
+[DurableGeneration](../../src/qs_ai/application/execution/generation.py)冻结完整 PreparedExplanation、路线及 Schema。首次创建 dispatch 标记者获得发送权；后续恢复读取原请求和回执，不使用当前 publication 或新模型参数。标记后、网络发送前崩溃也保守为未知，dispatched/unknown 不自动重发；租约转移后旧执行者不能覆盖新 owner 的证据。
 
-MySQL 集成测试验证成果和事件同步保存、Outbox 写入失败时整体回滚、取消后拒绝迟到成果。QS 接收端仍待配套更新，实际 Workflow 与常驻进程也尚未启用，不可将这些离线测试视为正式成果已送达生产 QS。
+原回执恢复仍用原版本的结构、事实引用和安全规则验证。成果接受核对候选与原模型调用/证据/输入/资产的关联，当前授权及租约有效时，将不可变 Artifact、completed 状态和同版本结果事件同事务提交。取消/失去 fence 后拒绝迟到写入；HTTP 200 不能直接当成成果。
 
-完整成果跨语言验证位于 tests/integration/test_artifact_delivery.py：使用 MySQL 保存的候选及 Outbox、Python GRPCResultReceiver、独立 Go 进程中的真实 Results 接收器和 QS MySQL 投影，在测试 CA 下建立 mTLS；覆盖完成事件先于旧状态、确认丢失、接收器重启及相同成果重投。本地 MySQL 8.4 已通过，CI 固定 QS 成果接收版本 b13c21e02d0d2abf97062c221aeb69565047f419 并纳入 8.0.36/8.4 矩阵。原 Prompt 来源和旧协议兼容测试保留原固定提交，不用新代码替换历史对照基线。该验证没有调用真实模型，也未证明生产授权、客户端展示或 M2 全部验收完成。
+MQ relay 投递原结果事件，最终业务 ACK 才确认交付。旧 gRPC receiver/scanner 已退役；主链路见 [QS 接入与消息契约](../../docs/04-接口与运维/02-QS接入与消息契约.md)。
 
-ReportWorkflow 已组合准备输入、持久生成、成果校验并返回 WorkflowResult，由 ExecuteNext 在再次授权后提交成果。供应商未知结果统一呈现 provider_result_unknown，格式/安全不合格呈现具体失败码，数据库失败与取消继续传播以保留恢复语义。MySQL 集成测试通过成功、Schema 不合格、安全规则拒绝、执行前撤权、调用后撤权及未知超时六个分支；仍使用模型和权限测试替身。GenerationProvider 已支持按配置组装正式 Workflow；generation.enabled 默认为 false，默认仍选择 UnconfiguredWorkflow。常驻进程与生产启用尚待完成。
+## 路线来源与部署
 
+[routes/manifest.json](routes/manifest.json)保存固定来源文件摘要，balanced_text_v1/v8 与 semantic_judge_v1/v5 是保留的迁移/初始化基线，不是唯一可管理版本。MySQL 不可变资产与 publication 的完整冻结清单是执行权威，缺失或字节损坏拒绝，不从文件补齐。
 
-运行配置集中在 configs/default.yaml 的 generation 节点：启用开关、Profile ID/版本、供应商地址、模型路线及参数。QS_AI_MODEL_API_KEY 仅通过环境变量或显式测试参数提供，禁止写入 YAML；启用生成必须同时配置 HTTPS 地址、非空凭据和 grpc.access_address。HTTP 客户端随请求作用域释放，禁用重定向和隐式环境代理。配置、容器和架构测试覆盖默认关闭、缺配置拒绝、正式组装与 YAML 密钥拒绝；仅组装对象，没有发起真实模型请求。
+地址和凭据不纳入业务路线指纹；改模型、超时、token、推理参数或 adapter contract 需新的资产版本、匹配套件和独立评测批准，不能只改环境变量复用旧指纹。部署模型目录的 verified 是技术能力核证，不能当作质量或任意场景批准。
 
+[GenerationProvider](../../src/qs_ai/bootstrap/providers/generation.py)按开关装配 PublishedReportWorkflow，禁用时 UnconfiguredWorkflow；启用依赖由启动预检核对。统一 server 必须满足 MQ/TLS/数据库条件，生成和评测关闭仍保持消息接收与结果投递。配置见 [configs](../../configs/README.md)。
 
+## 验证定位
 
-
-15 项部署测试通过，包括 Compose 实际解析服务、证书、端口及健康配置；另用一次性无网络容器与纯合成值验证美元符号转义在运行时可还原。尚未设置生产启用变量或真实模型 Secret，尚未启动生产 worker/delivery。
-
-## 冻结路由版本
-
-`routes/balanced_text_v1-v8.json` 保存上述已观测的非秘密执行参数及按 QS 算法计算的 fingerprint；manifest 校验文件字节。这里的来源是前期运行配置观测，不冒充从 QS 数据库导出的新治理资产或生产审批。
-
-GenerationProvider 校验配置投影与冻结包完全相同后才装配模型调用器。同名同版改模型、超时、Token 或 reasoning 会拒绝，未登记版本也拒绝。endpoint 和 credential 仍通过外部配置提供，不写入包。新增路由必须先完成版本资产与评测/审批流程，不能只修改环境变量复用 v8。
-
-当前仅有固定 v8 基线。`0009_route_assets` 与 `bootstrap.import_routes` 已实现不可变 MySQL 保存及幂等导入，隔离 MySQL 8.4 验证首次 1 条、重放 0 条、冲突拒绝和历史读取；尚未生产导入或接管发布选择及管理界面。此保护不代表 M3 完成，也不启用生成。
-
-当前生产运行结构及统一入口见 [单进程说明](../../docs/single-process.md)。生成与投递持久协议保持不变；旧独立常驻命令、心跳文件及 execution.yaml 已删除。
+[真实 MySQL 工作流回归](../../tests/integration/test_report_workflow.py)、[发布配置回归](../../tests/integration/test_execution_configurations.py)和[单进程回归](../../tests/test_single_server.py)分别覆盖持久契约。模型 MockTransport、合成权限、临时证书和固定 Go 对照不能替代真实供应商质量、当前授权、QS 业务 ACK、客户端展示或受控生产恢复。

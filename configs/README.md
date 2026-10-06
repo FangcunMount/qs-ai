@@ -1,31 +1,41 @@
 # 统一启动配置
 
-`default.yaml` 保存公共非敏感默认值；`local.yaml`、`production.yaml` 只保存环境差异。`src/qs_ai/config.py` 负责加载和类型校验，HTTP、Worker、gRPC、Alembic 共用同一 Settings。
+本目录持有部署配置；运行时业务资产由 MySQL 持有。源码基线 `c977cb9`，具体环境值与生产验收由日期绑定的部署证据确认。
 
-优先级从低到高：默认 YAML → 环境 YAML → 环境变量 → 显式构造参数。嵌套对象逐字段合并。`QS_AI_ENVIRONMENT` 只允许 local/production，默认 local；拼写错误、缺失文件或非法参数会立即失败。配置路径不依赖当前工作目录；wheel 和镜像均携带 YAML。
+## 加载与权威
 
-不自动读取 `.env`。本地使用 shell 环境变量；生产敏感值通过 GitHub Actions 的组织/仓库 Secrets 注入，发布 job 使用 production Environment。分项 MYSQL Secrets 由部署脚本转换为应用的 QS_AI_DATABASE_URL。YAML 中禁止 database_url，避免在配置文件里保存凭据。
+`default.yaml` 为公共非敏感默认值，`local.yaml`、`production.yaml` 为环境差异。[Settings](../src/qs_ai/config.py)负责类型校验，统一 server、维护命令和 Alembic 使用同一加载规则。
 
-| 环境变量 | 用途 |
+优先级从低到高：默认 YAML → 环境 YAML → 环境变量 → 显式构造参数；嵌套对象逐字段合并。`QS_AI_ENVIRONMENT` 仅允许 local/production，默认 local。配置路径不依赖当前工作目录，wheel/镜像携带 YAML；不自动读取 `.env`。未知键、非法值、缺失文件或环境拼写错误立即失败。
+
+YAML 禁止 database_url 和模型凭据。数据库 URL、供应商凭据由环境/受控 Secret 注入；MQ 私钥和 TLS 通过只读文件挂载。连接池、并发、租约、MQ、地址、模型部署目录与额度默认值/硬上限为重启生效配置；Prompt、Profile、评测套件、发布与组织额度是有版本的业务数据，不能在此代替。
+
+## 常驻入口前置条件
+
+唯一常驻入口为 `uv run python -m qs_ai.bootstrap.server`。必须同时准备数据库 exact Alembic heads、有效 TLS、QS 授权/正文读取地址及显式 MQ 配置。默认 messaging 关闭，直接使用默认值启动 server 会拒绝；本地 Compose 仅提供 MySQL，不能单独组成完整服务。
+
+| 应用环境变量 | 语义 |
 | --- | --- |
-| `QS_AI_ENVIRONMENT` | 环境选择 |
-| `QS_AI_DATABASE_URL` | mysql+asyncmy 连接 URL，密码须 URL 编码 |
-| `QS_AI_DATABASE__POOL_SIZE` | 连接池大小 |
-| `QS_AI_HTTP__PORT` | HTTP 监听端口 |
-| `QS_AI_WORKER__LEASE_SECONDS` | 任务租约秒数，至少 3 秒 |
-| `QS_AI_GRPC__RESULT_ADDRESS` | QS 回传目标 |
-| `QS_AI_GRPC__ACCESS_ADDRESS` | QS AIWorkflowAccessService 地址；未配置时授权阻断，启用时必须提供三个 TLS 文件 |
-| `QS_AI_GRPC__CA_FILE` / `CERT_FILE` / `KEY_FILE` | 分别使用完整 QS_AI_GRPC__ 前缀的证书文件路径 |
-| `QS_AI_DELIVERY__BATCH_SIZE` | 单次回传数量，1–100 |
+| `QS_AI_DATABASE_URL` | `mysql+asyncmy` URL；凭据按 URL 编码，禁止日志输出 |
+| `QS_AI_DATABASE__POOL_SIZE` / `MAX_OVERFLOW` | 应用共享连接池 |
+| `QS_AI_HTTP__PORT` | HTTP 运维监听 |
+| `QS_AI_GRPC__BIND_ADDRESS` | AI mTLS gRPC 监听 |
+| `QS_AI_GRPC__ACCESS_ADDRESS` | QS 当前授权和 MQ payload endpoint，常驻 MQ 装配必需 |
+| `QS_AI_GRPC__CA_FILE` / `QS_AI_GRPC__CERT_FILE` / `QS_AI_GRPC__KEY_FILE` | 三份 TLS 文件 |
+| `QS_AI_MESSAGING` | 整个 messaging JSON 对象；含 enabled、nsqd 映射、密钥文件及 max_in_flight |
+| `QS_AI_GENERATION__ENABLED` / `QS_AI_EVALUATION__ENABLED` | 生成/评测内部循环开关，不关闭 MQ 投递和 ACK |
+| `QS_AI_GRPC__GOVERNANCE_ENABLED` | 治理服务注册开关，不恢复旧 gRPC 执行写入口 |
+| `QS_AI_WORKER__LEASE_SECONDS` | 任务租约，至少 3 秒 |
+| `QS_AI_DEEPSEEK_API_KEY` / `QS_AI_ZHIPU_API_KEY` | 供应商凭据；旧 `QS_AI_MODEL_API_KEY` 与 DeepSeek 新名并存时须相同 |
 
-统一启动：`uv run python -m qs_ai.bootstrap.server`。所有组件使用一份 Settings；生成与评测开关仅控制内部执行循环，投递始终启用。生产必须配置 QS 回传地址和三份 TLS 文件。
+`messaging.nsqd` 明确映射 NSQD TCP 到同主机 HTTP 地址，不推断端口；signing_key_file、decrypt_key_files、qs_signer_files、qs_recipient_key_file 分别配置 AI 签名私钥、AI 解密私钥、QS 签名公钥、QS 接收者公钥。启动核对 kid、角色、EC P-256、文件大小与既有失败拓扑，不创建 Topic/Channel。
 
-连接池、租约、投递与 gRPC 参数是启动配置；Prompt、模型路线与发布版本是后续业务治理数据，不放进这些文件。不提供热更新，修改配置后需重启相应进程。
+`grpc.result_address`、delivery 的旧字段仍有兼容配置定义，但当前 server 使用 MQ relay；它们不能重新启用旧 gRPC result scanner。完整字段以 [config.py](../src/qs_ai/config.py) 为准。
 
-生产部署操作和 Secret 名称见 [serverA 部署](../deploy/serverA/README.md)。
+## 模型与额度
 
-### 组织额度部署边界
+启用生成/评测需对应供应商绑定、凭据、冻结路线与资产；模型目录中的 verified 是技术能力证据，不等于质量批准或可用于任意场景。地址/凭据归部署，模型路线版本/参数及其指纹归不可变资产，不能靠改环境变量复用旧版本改变语义。
 
-现有 `participant_capacity` 和 `evaluation.daily_provider_calls/max_active_runs` 是部署默认值。
-可选 `quota_ceilings` 包含 `participant` 六项与 `evaluation` 两项完整正整数上限；未配置时上限等于当前部署默认值。
-默认值不得超过上限。上限由运维部署修改，组织写接口不能修改部署上限。
+participant_capacity 与 evaluation.daily_provider_calls/max_active_runs 是部署默认额度。可选 quota_ceilings 包含参与者六项、评测两项完整正整数上限；不配置时上限等于默认值，默认值不得超过上限。组织额度修改影响后续准入，已有预留与活动槽位保持原语义；部署降低上限按项限幅，不改历史。
+
+生产工作流变量与应用的嵌套变量不同，例如 QS_AI_EXECUTION_ENABLED 在[打包脚本](../scripts/cd/deploy.py)转换成 QS_AI_GENERATION__ENABLED。部署密钥、MQ 冻结绑定及全部变量见 [serverA](../deploy/serverA/README.md)，开发与隔离检查见 [配置与本地开发](../docs/04-接口与运维/04-配置与本地开发.md)。

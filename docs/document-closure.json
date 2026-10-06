@@ -1,0 +1,1560 @@
+{
+  "schema_version": "qs-ai-document-closure/v1",
+  "source_commit": "c977cb9cd8301c46fb260441aee6ea5b7a3ec3f2",
+  "reviewed_on": "2026-10-06",
+  "authority": "runtime composition > code > machine contracts/config/migrations > scoped tests > maintained prose > dated evidence/plans/archive",
+  "source_catalog": {
+    ".github/workflows/ci.yml": "4cd023739b4e7e6e5beb70f70bbb102a62bac77d7b8803d1ef637279cebd3c7d",
+    ".github/workflows/deploy.yml": "f654a95aa4371e0aae36e9bf41db5fa586f7b8dc497768cb2b219e77781fe087",
+    "compose.yaml": "07e882533006901f3cda4f3cf2449ee34b20af0cde75cceb1ea9b84699755206",
+    "deploy/serverA/deploy.py": "d662bfceff9ba9a054889f227ab935581c81552bfe6fe21f2dafa3a77c9aeb8b",
+    "docs/evidence/2026-09-13-m3-current-published-reconciliation.json": "950b0d4b7c6f6812756cef41374366a39630277d831ca6c42de56a447802d055",
+    "docs/evidence/2026-09-13-m3-fixed-baseline-import.json": "cb28ea6199095f211348cf1ed44675a8e41cb22c56cec2f282217dc79747a23f",
+    "docs/evidence/2026-09-13-m3-m4-coordinated-release.json": "4c3c0d45e968b6d35c9c18e54607cddd97430852bebe4f1765b76c78eb9bdb66",
+    "docs/evidence/2026-09-13-m3-production-usage-query.js": "dd6834105a1528afe56c4e006046dd83cc25552464770ec54fc17be204eb28bb",
+    "docs/evidence/2026-09-13-m3-production-usage.json": "aa731e0d4a8c2b5f236b82b1b34544cb1975cfbf0ea5c20c6691cee5d6e30d3b",
+    "docs/evidence/2026-09-13-runtime-rollback.json": "a132015958562dd9f34714f4d88f2a2c330564fb8776a039d4ff08dde07ad758",
+    "docs/evidence/2026-09-13-v6-runtime-baseline.json": "8ce5ae90b11174863b417fd7e1ad48a49e95d74d10a59f6bf55807b682625f0d",
+    "docs/evidence/2026-09-19-m5-retirement-monitoring.json": "94e5eb4cecf641d74992676e4051dc4c2b172eb534484b6c23aa849fbf86bc5a",
+    "docs/evidence/multi-provider-connectivity-20260921.json": "9e527ed16698fc55b66504c774e316c2a9b2ea45beb7fab123671a9502fc5418",
+    "integrations/qs_server/evaluation/manifest.json": "ed7d6e77dfc865f9524250da76cbfab470c6803b51096f7fd78c7bcef3308a6d",
+    "integrations/qs_server/evaluation/mbti-themes/manifest.json": "4c3416120c88d9020b736da2c335f6bcb20fa3eaa55d2bea405c8824faf061c3",
+    "integrations/qs_server/evaluation/mbti/manifest.json": "8be5bead7f390b5974a7131874f0de6e44b685f2d12353589abb684c5a2c2aa9",
+    "integrations/qs_server/evaluation/policies.json": "9e60d6c8dedbb9f682120e2c27a506df0b4e9225e573ed1380a32755c012e505",
+    "integrations/qs_server/evaluation/qs-ai-published-input-cases-v1.json": "42afcc73db6fa272ab54aa17bcb9b30dc8797a382ee9329d9453aa9c9953e382",
+    "integrations/qs_server/manifest.json": "29ebe314e7d3db34617519573d7bf36f6fb6dcc0073d4d31004458fa122da606",
+    "integrations/qs_server/retained-assets.json": "42b6e24b5f6cce76e4e1bc77e6e2578c81bfe1b0de97939d9936db1497affac3",
+    "integrations/qs_server/routes/manifest.json": "3f5eac218102d02ceff2abb5c3ecf089f5dc25e99dcfc7a84ff2327c04a122e5",
+    "integrations/qs_server/schemas/ai-explanation-input-v2.schema.json": "225b89bbd64b5c45596acb4b93d77bbfe31016da111c30c89f1840530f321fd1",
+    "integrations/qs_server/schemas/ai-explanation-input-v3.schema.json": "0c3ac84c075a8a9ffd22c91928034365bc28b914596f226e5ad6499ec43ff789",
+    "integrations/qs_server/schemas/ai-explanation-output-v2.schema.json": "db6ba195348ea9d48cf0d321ed31efc2deb27a4d0a81a61a06fe955fb615b34b",
+    "integrations/qs_server/schemas/manifest.json": "06236133252501995ea5380803bbfef31e732c0086f2ef1c615b7a44a5aa83da",
+    "integrations/qs_server/schemas/mbti-input-manifest.json": "8b6a6106e411616119c6bd1e13599dd2fdfd5d6ce7daba37c2b661142744bd3a",
+    "integrations/qs_server/schemas/mbti-thematic-input-manifest.json": "b34c7b37cba81ddac9808f8d2dae2548946c2f01e78fb1eebcf8ff24fff43a8e",
+    "integrations/workflow/proto/messaging.proto": "1cd0d5ac42f8c2e1b4523d9f59a9b6cec85abf4d1eef00db485078ad917d10f6",
+    "integrations/workflow/proto/workflow.proto": "3205470fa6f2b2c0ecceaac2111749604d09d28ba2183cbd46f51f13afc5cbae",
+    "migrations/versions/0035_runtime_utc_timestamps.py": "366fcef80027aa979d9d74222b9ff88f5a83612165ba0d0ea147e499506ab825",
+    "pyproject.toml": "8a279854f700a99534aa7ed5734d206b6931289492ade23ed1de2ff4ab535691",
+    "scripts/cd/deploy.py": "0e59fe5cd8b0c210d3c762a74ddb955979914014f38e88dacdbdde4dc6036c4f",
+    "scripts/check_docs.py": "5df5021a4fba59d6e0710eb9e6e07b15a03bd191d6a0856637f84da49a63b24d",
+    "scripts/ci/run_tests.py": "64a3dc66c419be7265c10474da2dac51d6aa1955401f0657711771822c00960b",
+    "scripts/generate_qs_proto.py": "ac4c4b355f546745428ccbb73839f409b9b883277360ba155cd4006020027d62",
+    "scripts/generate_workflow_proto.py": "f4ec46fc06239881f5bc0a223b5763ff01121b8cf9d2a7af369b46bfaa25d6b9",
+    "src/qs_ai/application/execution/artifact.py": "f5fc3fbf32bb9fefb7232082cf0a602dc1895661dcabd44673cb9b2a0594d78e",
+    "src/qs_ai/application/execution/configuration.py": "285cac15f7d439535383ed3068a0297815ca2d521d5deac07b021c2460094f02",
+    "src/qs_ai/application/execution/generation.py": "64c0a2a6732df119b207a5342cecbc66fae97317907444b2112e461f66b87fd7",
+    "src/qs_ai/application/execution/model_capacity.py": "5555e679551126461c61693271062d466135beaffa4f16d5e1f039d10e31b628",
+    "src/qs_ai/application/execution/worker.py": "e6971112f1d1484a2bf216e02402cf29ed58382d69db8cfdc3c5ed14548e916c",
+    "src/qs_ai/application/governance/publication.py": "f7efdaabe9a982b0fc1d5d83ae7ae068b734d0362521b0a2c85b706eb2e2a231",
+    "src/qs_ai/application/governance/solution_models.py": "9a576b23f1d16b4d620ac78bba2b1928c7ba7b3183bf50fc419ec1a0d3e610fc",
+    "src/qs_ai/application/governance/solutions.py": "648288345e404ea683cd7b35bc7e7d0208753c04ac0e2035efffdfa5ee5f1f27",
+    "src/qs_ai/application/interpretation/eligibility.py": "f22f0874d1246f51833f569252660817d431147c8e6b4b4fe0d5b2af05fc818f",
+    "src/qs_ai/application/interpretation/input.py": "022b29055dc410c8a786914a65f8ed8f89ba1e317816aa41b14be54dd3c1f022",
+    "src/qs_ai/application/interpretation/mbti_input.py": "9bc8bf74e9ee5f1963607801fbe5714090c8667d6707b2cc3422b4855f4a5dd1",
+    "src/qs_ai/application/interpretation/mbti_themes_input.py": "9e03a9ee03d54e1dc7f920acef4564ce5bd0df811609428e53a66025dd2dfc7a",
+    "src/qs_ai/application/interpretation/mbti_themes_output.py": "5426fe3b4a63e5f50c4d25615e503b632ef6fa1faf955fd1d7f967ff1a6cf11a",
+    "src/qs_ai/application/interpretation/output.py": "d3a9b570971910e5eb6c8a7dea3388ad987e975ae39d0e152b8f76a31f7aa131",
+    "src/qs_ai/application/interpretation/preparation.py": "0edcbc985145b952a66acff208aa45f020a90c671dad25a651c9c4ad8b980bc4",
+    "src/qs_ai/application/interpretation/selection.py": "fcd92ecf0d9035d2b908333ddfdbc5b0bac75752603facfcbeaa1d9ab5effbe7",
+    "src/qs_ai/application/interpretation/service.py": "fcb53017e47f971325300d87d98b0349996593a09140828623e4e4d880768ff4",
+    "src/qs_ai/application/operations/diagnostics.py": "223b4fdff27fe5f7d7cfac83cb0434dcac6e33de5fb998689479eda1ac9b6ed2",
+    "src/qs_ai/bootstrap/api.py": "2d4347fb29b3d56f87334ad1d1bce69be76dc4eede018cd986b1f1c35d59dbc1",
+    "src/qs_ai/bootstrap/container.py": "346104099f4d6afac298ab141ce49b405ca8858d2d784fd587b4cab728ae6bd1",
+    "src/qs_ai/bootstrap/daemon.py": "8c5fd707861f24c16a2d12c68c4440360e569e8ae827ba9ea01db6e591e721c6",
+    "src/qs_ai/bootstrap/grpc_server.py": "8d772b0278c29e205961bc1f727ec19f597e2da1ac7dab1c9f1d0c8eaeafed70",
+    "src/qs_ai/bootstrap/import_mbti_assets.py": "5f2330406209d893d62547bbc14f40bd4cae101fea349eef93e6031bf80c9bd4",
+    "src/qs_ai/bootstrap/lifecycle.py": "27326c4629c3a3b5a57e75270df1c97a6e53f5db700fff62b07c8bc8f1736131",
+    "src/qs_ai/bootstrap/messaging.py": "6c60b4e2e40476893ffb295ffbc8f51c59f26c0de9cd0c8c936e1d920349c9e8",
+    "src/qs_ai/bootstrap/providers/core.py": "9b7de165e256ccd51e7eadb6a0597492a4de536461fde40ef7700ec575fad9b8",
+    "src/qs_ai/bootstrap/providers/evaluation.py": "cad681366c73be2e0ee7d4d20974949b42bc3126f176dfc780f7a5486bfc7f72",
+    "src/qs_ai/bootstrap/providers/generation.py": "c771d83039c2151aa15ad18b440a03c3a0ab0e113774ac2a2b8ffe94e0c671a3",
+    "src/qs_ai/bootstrap/recover_semantic_contract.py": "b0cfdfb5c2f3dd529718e994e1b235d1c5013ed206215658c4415c4e8b0d12be",
+    "src/qs_ai/bootstrap/server.py": "c392007e08c5ac120e775d980e45a692d889cebe6d3005bcd43080addc326fcc",
+    "src/qs_ai/config.py": "fe5448a5ec046f23fc3d5191025c90061ba56d86a93e8c1cb69d94c97a994fb5",
+    "src/qs_ai/domain/evaluation/acceptance.py": "5f4a570cbc81996e555baf5844e1a30294dd91408ffe4af924c5afe5e24ffda0",
+    "src/qs_ai/domain/evaluation/actions.py": "d70c5b90f3c2fc0868a1637e91a24d0767a46140503ed965f72460ecb56b3a64",
+    "src/qs_ai/domain/evaluation/cancellation.py": "2e1e96e0da21921c871a81ccd341609e0be508c1aee2b56af46a96530355502c",
+    "src/qs_ai/domain/evaluation/closure.py": "e4e0fff9a074e1d92ec9be12891bb5e2413710ac3e195492ba606737a87b66c4",
+    "src/qs_ai/domain/evaluation/contract_recovery.py": "fa109d37a442c782f4ccb566e239001d78b3e588c88d5f7d45a6d2561b5202cf",
+    "src/qs_ai/domain/evaluation/identity.py": "c229998dae6dec282c92b673a2bc166b2a3dd6ee9248409ad87e09ba2d7f2480",
+    "src/qs_ai/domain/evaluation/quality_gates.py": "89bd850982c6150f701aaad1cb5f1ebc6fc370e2d212f3b809c9534557c8a615",
+    "src/qs_ai/domain/evaluation/reopening.py": "5fb6e880fa775a714ffcd7dda93b70c204d5b0df07092920f79a7abaac7af854",
+    "src/qs_ai/domain/evaluation/review.py": "536cbdf819bd3d82bebabfb30ae9a4312e6ab01d2f534a1e09de3e1a3cdf41a4",
+    "src/qs_ai/domain/governance/manifest.py": "e24dbb300f972c4da62ab4b852a6cfe6c0616e468d909d9b2d54b7f27243e5cb",
+    "src/qs_ai/domain/governance/mbti_references.py": "5b172e63afc55d2e5f6611d1dc11a60315db5c4a5bcb4024a26fa0b6cb4fee77",
+    "src/qs_ai/domain/governance/publication.py": "5a5e04e98bc28baa72b8def41005290954b26db5f262b5b2c0eae100199dfeb9",
+    "src/qs_ai/domain/governance/scenes.py": "f11cc08d90a7437dd1a9171080861a64d4f73937cd1249185591305ae2ba38b5",
+    "src/qs_ai/domain/interpretation/model.py": "a6e5010d9968275e0dc7ada915c8fddead15cb23e57f0ecebe1bc177a402179d",
+    "src/qs_ai/infrastructure/models/response_contract.py": "547e73ecd318e848782d97fb341dd727b5481d9f0503a79b40e85972b15d064b",
+    "src/qs_ai/infrastructure/models/responses.py": "637240aded87211c08d637a96763d63a4c49d619388ea275eb39d3caaa442618",
+    "src/qs_ai/infrastructure/models/router.py": "78b27319f1afc6e77856c67c9412746f4ab8fed512de38b61792a7062614f3a1",
+    "src/qs_ai/infrastructure/models/zhipu.py": "6e4c23309af2c1e30a92e4562a2bf7ab1549de6865aa0666f9ab0d43c0e25980",
+    "src/qs_ai/infrastructure/observability/structured.py": "071b0237046236ce9edf6f9df25f7f23052990912b3294f553df747bc3578b32",
+    "src/qs_ai/infrastructure/persistence/model_call_codec.py": "2942f1828d7ec570d1e052bc48f4f9f52c4e187f9a390b4aa176bcdfac9e5d9a",
+    "src/qs_ai/infrastructure/persistence/mysql/database.py": "aa2c2c96abef6ffec45fbcd563344725fe22899493deed159c7c1e52697e993b",
+    "src/qs_ai/infrastructure/persistence/mysql/eligibility.py": "454b951cd54ef9a4fcdce4bda313e5a4690a84630f08f20ee8add36ff0f647eb",
+    "src/qs_ai/infrastructure/persistence/mysql/evaluation_cancellation.py": "f51c4a0c4e1a8823450814775b2a4ccfad1d00fa847c2d0d486a42ddfcfebfeb",
+    "src/qs_ai/infrastructure/persistence/mysql/evaluation_candidate_recovery.py": "d49ed7f8f98c15ee5fe35568b42ce9e84ce47f11798f79aa86c3d8972e7b5485",
+    "src/qs_ai/infrastructure/persistence/mysql/evaluation_capacity.py": "29b940655976eea5a726cc8e7ef02d15aaebd0de765b6de7d9a121adf9f418c9",
+    "src/qs_ai/infrastructure/persistence/mysql/evaluation_contract_recovery.py": "5a22a41d9ac97ec59afd5fd0070a4bd4d8896e0d0bca2d1fe42e477cbfde71ba",
+    "src/qs_ai/infrastructure/persistence/mysql/evaluation_management.py": "90d92ee656f30bf5b5b4d108d5945f78fc8d842497b3964c427471ed09d31b84",
+    "src/qs_ai/infrastructure/persistence/mysql/evaluation_recovery.py": "ec0d961d01873e37269340c1d35a11432765436db66a420a7b0270be0ccea3a4",
+    "src/qs_ai/infrastructure/persistence/mysql/evaluation_response_receipts.py": "aa94ffc2ff72c08c60170832ba35f7f21b70b23aa214e5cbf8b8f2facba59163",
+    "src/qs_ai/infrastructure/persistence/mysql/evaluation_slot_claims.py": "52e25b82ace8f43d8f87393455351b69d9f60c725693b3e44bd7ed8d22e016d7",
+    "src/qs_ai/infrastructure/persistence/mysql/evaluation_worker.py": "6f2ecd79497f5c4a88a38e805de954d585360a8a8e259705f3523ff9df64bdd9",
+    "src/qs_ai/infrastructure/persistence/mysql/execution.py": "eb0bc4c2e6079c21a456933583deef3bb61f56d7d577d59804b5719a91dd67c4",
+    "src/qs_ai/infrastructure/persistence/mysql/execution_configurations.py": "09951a92c92c5c9a69b23cca4bbedc037bda847be1a43cd2af21d257989980f8",
+    "src/qs_ai/infrastructure/persistence/mysql/interpretation.py": "72fea38789bbf86f9c6f93677e2e4204737cda213fefe9158d9e10c763799d83",
+    "src/qs_ai/infrastructure/persistence/mysql/messaging.py": "50f78fbf0dd7ea69195f209b6e5c01b2d312db2e061b524124074a6ff4cf66aa",
+    "src/qs_ai/infrastructure/persistence/mysql/messaging_observability.py": "d81034b55e7cdb46e3a9b739e12869cbea9551e042605109f560783dfbde3f79",
+    "src/qs_ai/infrastructure/persistence/mysql/metrics.py": "2224c2572cb6dc6f60e665a8ea5f61f39efc5acadc6fffa8c01813567c4eef5a",
+    "src/qs_ai/infrastructure/persistence/mysql/participant_capacity.py": "5b9b1178552a18ed77ee3d659b5b6db3d32cb454cb644996c0e2a660a41b7f48",
+    "src/qs_ai/infrastructure/persistence/mysql/publication_evidence.py": "ac95683c90091775350a3c22444aa6d038c686b6d91a5b116198d60bfdc8ee51",
+    "src/qs_ai/infrastructure/persistence/mysql/publication_history.py": "f1a51064f8087f2f99d9da7e39b62cbcf1f1824ebdba0e6a5d6ee960a7eae90d",
+    "src/qs_ai/infrastructure/persistence/mysql/publications.py": "52dc8f0c9b23bf5468f003b60db620ec569c3ac0df77a1b6ab5b9f0783671ce1",
+    "src/qs_ai/infrastructure/persistence/mysql/quotas.py": "54d22620c23ba9ac432623d72d86590551d931e8161afd53cbb5bc28ffb2c954",
+    "src/qs_ai/infrastructure/persistence/mysql/runtime_milestones.py": "7be939aaeded9bebc2ee76fba2eb8cdf870af1bd124f29d958cd7e1adca61437",
+    "src/qs_ai/infrastructure/persistence/mysql/schema.py": "c97d08bab0d14023fa1295e0411ac5112c393d629145677509fa8144db40bc04",
+    "src/qs_ai/infrastructure/persistence/mysql/solution_assets.py": "befdedf7f45a3197a234078536caac84febea5b2da772c32b25f9b3e45cad61b",
+    "src/qs_ai/infrastructure/persistence/mysql/solution_templates.py": "b34243489c9958370bd94edac493469fa1555af8828c68b0892ebf35ec174c0f",
+    "src/qs_ai/infrastructure/persistence/mysql/solutions.py": "df8d7991537121578edc6a08a4d90023d994d6a552332d6ee48a221f74a0ad59",
+    "src/qs_ai/infrastructure/qs_server/access.py": "94494870f999ae6fcef9609875a42c3e6dc6e1cbe1929793adfd963754924a37",
+    "src/qs_ai/infrastructure/qs_server/evaluation_suite.py": "21259f0afedd5a7083bac97174c5697189ddc85a63b59c7b987744900c9cf120",
+    "src/qs_ai/infrastructure/qs_server/normalization.py": "7fa45c85032d724460d204e04ff44578330bee331a6810ac5262096bac0e1c7b",
+    "src/qs_ai/infrastructure/qs_server/profiles.py": "825611b7304e8df78ae9e2d89ca5e80f2b67bd1477647132eee7b085771d7762",
+    "src/qs_ai/infrastructure/qs_server/report_probe.py": "fdcdd4d850a8dc205763b83241e45e9de1c60b443dcf0352df9c02e2f06876ac",
+    "src/qs_ai/infrastructure/qs_server/responses.py": "1986e00da62f9bef7871a7a6961eca1cc3ca4cad0c29aa0390d5324a3eece480",
+    "src/qs_ai/infrastructure/workflow_transport/command_admission.py": "13a34cd955cdbea2e3473488cc6ab815403ac72f2177ce0ef519a433b0537ecb",
+    "src/qs_ai/infrastructure/workflow_transport/messaging.py": "e5e0a567bd1df79dd68a166ef9d0f6aee992e9d0b6e7510a2d669185aacb3d02",
+    "src/qs_ai/infrastructure/workflow_transport/mq_failure.py": "b8c29df90e457d5785ed378dcdf556849ff188e85d5307f1a7c11803e3002304",
+    "src/qs_ai/infrastructure/workflow_transport/mq_receiver.py": "02c74724f10c05e34b0e8974087dd95fafa84992611a53a16599af10b1f29b19",
+    "src/qs_ai/infrastructure/workflow_transport/mq_relay.py": "99786862e6f4939fe61adba2a5f411a0a617d0aa62bcd4381ad024f2eebb294f",
+    "src/qs_ai/infrastructure/workflow_transport/payloads.py": "b53f2af97ac75210c2ad92e4f16fdb8b407f626f0b123f42e3c345e17f203fbf",
+    "src/qs_ai/infrastructure/workflow_transport/state_events.py": "6d50b202e25f68178452b039de4226823662f329f95b1b95d097dee865a55bb0",
+    "src/qs_ai/infrastructure/workflows/evaluation.py": "c486a1ed56e2399af6065b2113a7c91d25441f79f197555c14edbcea2e7c954a",
+    "src/qs_ai/infrastructure/workflows/report.py": "deb23c4e24c4e6feb12a6df0676c5aeebd634240f376c7686f1992096952cc89",
+    "src/qs_ai/transport/grpc/commands.py": "fd01d18dd78b43e2f4d3e7dc47545fc610ea20944939cce69df76454b5a4e9bd",
+    "src/qs_ai/transport/grpc/identity.py": "3e94b010c079e87a53b77b113470a31ced79a85983d16233232089e67c706ef2",
+    "src/qs_ai/transport/grpc/mq_cutover.py": "a520949d2b762d826e70cef1c01f0a65b6357529ab48e03956de873f230fdd35",
+    "src/qs_ai/transport/http/health.py": "cb1f15c778a3533364d968fb178aa29548fb79f47ceb98b77f3141823a5f302c",
+    "src/qs_ai/transport/http/metrics.py": "9054274b122897c96775bed04ff723fc7e2bdeb0840ca26de166b962a5a5db20",
+    "tests/fixtures/personality_baseline/scale_profile.json": "563e1acf3afac19d6ea7718cc3362b1f769a33547995396d189fa0f0317b36c0",
+    "tests/fixtures/personality_baseline/scale_publication.json": "69051c92e7076e4a85a1ea9892ddd7d57855acfbf88ef5c446acb1325cf793d8",
+    "tests/fixtures/personality_baseline/scale_replay.json": "6b89793705474e1fc0b8a2150c29301abb6934922d890b61372e10a25130d7b3",
+    "tests/fixtures/personality_contract/snapshot.json": "a5c6575391d1985762ebca36b0a233bc26e823dc25587eca34395ad6a5f97f49",
+    "tests/integration/test_eligibility.py": "caecf40b3777f07d416a3158ea3fea54f9bcb84246904d666c22b116c7871334",
+    "tests/integration/test_eligibility_go.py": "1341d63bd34ad4e4ae63775c515e067b6a1c7fa4ce4987624967d4b2c5645b48",
+    "tests/integration/test_evaluation_cancellation.py": "02bb73b4f5edd9c0bc488b24b8ac5e13ac635c9b6795b0204ca1e0a2d83b4f1b",
+    "tests/integration/test_evaluation_capacity.py": "04fc8f316dcd7835d69669ceeb4fb5bb519eae3915bf600d936ec69f5a7f70d3",
+    "tests/integration/test_evaluation_capacity_recovery.py": "024e727ed1af27de825fb6fa05005b887bc4479699f9ef2261eb585c24b70ffe",
+    "tests/integration/test_evaluation_completions.py": "b26543c3790d24d9116cb1d463bc16a9781959c2bf39992eaa5aa596d916db9d",
+    "tests/integration/test_evaluation_manifest_freeze.py": "3ad2e76d43f58cbf0f3fa7493e2a1522ada483a65e562875d4490489d87ddd27",
+    "tests/integration/test_evaluation_recovery.py": "77b1630809dd117f47c43836f80256d78b374430c5b5d7fd25d83b540a676331",
+    "tests/integration/test_evaluation_scan.py": "7762ea95fd36f4b9cfc6b9e10022a4bf55f81f9df4dfcdb13150b27e5daa6e95",
+    "tests/integration/test_evaluation_unknowns.py": "332e5a533a84ad3deee8ee3e452c379442c4ef830185e034840536920a214ecb",
+    "tests/integration/test_evaluation_worker.py": "0b0a68b75cd3cfd5f627971efd80334eafeced72c3731d5ef2ef499f29bdd77d",
+    "tests/integration/test_execution_configurations.py": "4322b1a5b73bb97a08468033829cabad2a1a6f6f5cc79f0f68e6a28b7ab1a370",
+    "tests/integration/test_generation.py": "d9ed012b65f6ce8f41f915d19e27a0ed3677e6b113dd3cf873cd6444eb6f94c7",
+    "tests/integration/test_mbti_initialization.py": "87dbb79f9178a011b4ee1e702132f8e9095e28b5926cdaddaa68e9a289f653d6",
+    "tests/integration/test_mbti_solutions.py": "a345d18cf7ad14595b9a12f51f4e521d23f16d3f7865bb7cc31d18eff7eba82a",
+    "tests/integration/test_messaging_preflight.py": "2a497c3a03072eb5dacfd2d067364d799bff3e19bc3f67c9266284f1bd426d3a",
+    "tests/integration/test_mq_admission.py": "d700dc22518e7e24b57419d40dbfafb285f2dc654d80fe1852e133f386a4f61a",
+    "tests/integration/test_mq_legacy_handoff.py": "46c24be4ccb9a0802d664e973f83bb43335f91f045f13ada65e466ae3deba7b8",
+    "tests/integration/test_mq_observability.py": "e313117c89f0dbf3c0a73bcbe54c1afe13343e2afcb3d122fb8f68800e0d5a0b",
+    "tests/integration/test_mq_observations.py": "715e3593bfece36937e6954f162eb0072fe881554caf96f4595d04810d6ed034",
+    "tests/integration/test_mq_storage.py": "8743db5b374de7f2b0ecadd5a1e0f3d8807027f940192459a8b8010cc9ea2046",
+    "tests/integration/test_participant_capacity.py": "1bdf28a56b7882884f136d269f0606f00bc6f707ae090289e0d7c590b857ad67",
+    "tests/integration/test_quotas.py": "6e27c129e2e51cbec76f3919a3dadd736bf8fcc18984f3fd1875270c8be3897b",
+    "tests/integration/test_report_workflow.py": "75b58cae08b886d7cefededd5ec8fea55686e8d7c7fcbe26f5d60ce372212bb2",
+    "tests/integration/test_runtime.py": "692872d7e91468f638cff659f69db769b8c6d968c3b2ca98e868724f0f8f15ec",
+    "tests/integration/test_semantic_contract_recovery.py": "cb55c263dd29b7ba0b498c3a251849d61aee9fe88fbe94ea3ab71ffd67e7a2fc",
+    "tests/integration/test_shared_runtime_pool.py": "8570e99b38348e395973ddc745239a25d99f4537a713b956f73a8f3b51ed586a",
+    "tests/integration/test_solutions.py": "3a6862a575b445c11b925b9ca91569af5f95c49aac8bfaf47baa7fb78bb4ad4f",
+    "tests/test_architecture.py": "b964137a0b4db1cc2639fa3c6637f5f76624f5b7f465a2c3c5a035f1cbc80466",
+    "tests/test_candidate_completion_gates.py": "09caa1391dfd499964de7080253676607114739b07946a078fb5c5b7b3581159",
+    "tests/test_container.py": "8d09dccc2a7e6f2b6a52e9063b6e4c6c9c6abf0079cc272889e7bfc757d541e1",
+    "tests/test_daemon.py": "f178c1e99280812267e502bf8b48ed965573606dc6ce87dbe59a26a1e1f70670",
+    "tests/test_eligibility.py": "cd559e7f376dfcb79c050ad1f37227adb0c8c8641e156005146968da282e3ee2",
+    "tests/test_evaluation_cancellation.py": "9f7dd222fedf6f7e67d9d3ce455f779ce53c732517320d236061791bf466443a",
+    "tests/test_evaluation_closure.py": "bb555cf441f4675aca1b0fe3cbb7886750ddb6ec2e191e12fd757a89ad91baff",
+    "tests/test_evaluation_input_version.py": "702002b581419f58bf85a31a869c3f746a6758c46a1121c222a6bda9ea8637ef",
+    "tests/test_evaluation_review.py": "17123d7085c52a820bb591a27900ba0155ad07fbe873749bb077dbbe69ce3c89",
+    "tests/test_grpc_eligibility.py": "7ea9ebffc35d6dc9853b3ca8bad83ee3e9a0e9e950d079722b51b17b82351f34",
+    "tests/test_grpc_mq_cutover.py": "6952887531b684a697819bab1883a396354736e52556c7d912a873fb4375219c",
+    "tests/test_grpc_publication.py": "b6f9949110f87cccf78dfa2b67d0f8b46a364d1ade3a2456e54789c45cd70d2f",
+    "tests/test_input_assembly.py": "4d6377122782934051f5c3b25cda102feb3a8cba305ce2aba53c6515313ae7b1",
+    "tests/test_langchain_gateway.py": "6ce76002ad61fe66b92b5463ed34149df62863445cb120de71207b215f6ec6f9",
+    "tests/test_mbti_contract.py": "4a0e977a12caaa20e7442f03c9a554b324ee0e666bccc907bbd29cbbdcd13c1e",
+    "tests/test_mbti_references.py": "5a68ff47c3bb614efe55369058fa839290f9511e0546ad98a0e91871773a5a04",
+    "tests/test_mbti_runtime.py": "1fc285b7d8837709c2153d2b73f874599b8197620dcf7eb0bda938cc5ab4a0c2",
+    "tests/test_mbti_snapshot_interop.py": "357b67147749880686eeacf2c5b3ffbe46c66f65acef1c067582c1b266714013",
+    "tests/test_mbti_themes_evaluation.py": "6e9c49113a858215f12f866b072ff379accd74c1d6f02809f6654de25b1a67b7",
+    "tests/test_mbti_themes_input.py": "c66584c1a3ef158c0d6d98758461ab260e009edd42874b978f834c1c176a2152",
+    "tests/test_mbti_themes_output.py": "f39f69ce76b12986a3ca694d03d744d69d5d193330f68108c087cc6247c4f928",
+    "tests/test_mbti_themes_registration.py": "57ecb6fcc1fc5f137f6e29b7ac4915fa6b2fed0e94cba71c7c178caae91bffdd",
+    "tests/test_mbti_themes_root.py": "6173a48d5574afbd781400d2272c6d9c98433a7c5df861e2f3d368ba9ca1ea70",
+    "tests/test_messaging_runtime.py": "11653d13613705e3a3d52d19b9389b55a28115dd59b99ca11eadd550f9dd288d",
+    "tests/test_model_capacity.py": "564201a9336fe02a20e6e7c1055fb10a6c1c47589c9d8563c3c3b93888aaaa05",
+    "tests/test_model_receipt_identity.py": "6cff0dcdfd45b49cbe1e9652df34b705446495539b5214110522014c5b99bad3",
+    "tests/test_mq_contract.py": "fbae844f2e84b9de8e6753fc8dca3b0dfb5f44b43a04f4c4cfd313ffde960e21",
+    "tests/test_mq_failure.py": "07a480efd9e823b68ee835df637684e09818766724982530873170a2f23f8169",
+    "tests/test_multi_provider_gateway.py": "c18164a1e6c14a200c86d62bf25e1b244e0e64844d0401bf864fcb1454731211",
+    "tests/test_operational_metrics.py": "f6c1a31dca391a935ec5eae91e5e8baa4c8b14574af2e172d8590ad20db76de9",
+    "tests/test_personality_extension_baseline.py": "db9fd33e5145cde95620dcc256ad4f30def0c284476bfc6d6e2c97f635ea9e1f",
+    "tests/test_provider_normalization.py": "c79046809fec6070814a07070ae3b6464c35cf9837a88ef26156c00e30425cc0",
+    "tests/test_publication.py": "c01e2dfb9b5964d1f489e78cee3b56427ffee20b7a9185c4308d8f2452342ca4",
+    "tests/test_publication_records.py": "5634447f9efa9032a1a4abcdd257388c8c196c6a7c2ba6d8a466d9f132124612",
+    "tests/test_quality_gates.py": "ab16ceb6f31644ac91633e6667fc9c0bb0e3efc5d42ab30d9cac0ace20163ef0",
+    "tests/test_report_graph.py": "08cb6ecc6253619fcf1c25eb12c4c32a5c0ea7838a80397302ee009217fadc1a",
+    "tests/test_runtime_lifecycle.py": "b7b3f5b71658a8ad7234016fdb278f55700afe4e9436b7e467863f52aec2fbec",
+    "tests/test_semantic_contract_recovery.py": "34ad6a2451f697bc2830ab1a145321681ebca0b2279e8545c63903923de518f8",
+    "tests/test_server_signals.py": "9595123f820619eb3ea42cda133177c7d56fc6c241615b78f668c62968500124",
+    "tests/test_single_server.py": "ee05fdf341055415ede39badbe7cec4c12a3dbca40662dcbdc87bcb06c54e257",
+    "tests/test_solutions.py": "e60f73b854d4816bfe06d6cfeff1c783572c3348f7f0e265d4dc3d0a602b37f3",
+    "tests/test_structured_logging.py": "01ad0070c167faf7bb0cccd6d507a9debb5880b59a30cd49381dcd943073d17e",
+    "tests/test_worker_frozen_evidence.py": "a279da8e3371901f60a08e200f6ce91438304332c980d2bf591fb2ec0aa108e9",
+    "uv.lock": "5d893bdc8123546ee38f4478347faf4301cd5f2d79120baa93df30b346c85767"
+  },
+  "documents": [
+    {
+      "path": "README.md",
+      "owner": "entrypoint",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        "pyproject.toml",
+        "uv.lock"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "configs/README.md",
+      "owner": "configs",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        "scripts/cd/deploy.py",
+        "src/qs_ai/config.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "deploy/serverA/README.md",
+      "owner": "deploy",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        ".github/workflows/deploy.yml",
+        "scripts/cd/deploy.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "docs/00-总览/01-系统定位与跨服务边界.md",
+      "owner": "00-总览",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        "src/qs_ai/application/execution/worker.py",
+        "src/qs_ai/application/interpretation/service.py",
+        "src/qs_ai/infrastructure/workflow_transport/mq_receiver.py",
+        "src/qs_ai/transport/grpc/identity.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "docs/00-总览/02-核心概念与对象关系.md",
+      "owner": "00-总览",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        "src/qs_ai/application/execution/configuration.py",
+        "src/qs_ai/application/execution/generation.py",
+        "src/qs_ai/application/governance/solutions.py",
+        "src/qs_ai/domain/governance/publication.py",
+        "src/qs_ai/domain/interpretation/model.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "docs/00-总览/03-治理链与执行链.md",
+      "owner": "00-总览",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        "src/qs_ai/application/execution/generation.py",
+        "src/qs_ai/infrastructure/persistence/mysql/evaluation_management.py",
+        "src/qs_ai/infrastructure/persistence/mysql/publications.py",
+        "src/qs_ai/infrastructure/persistence/mysql/solutions.py",
+        "src/qs_ai/infrastructure/workflow_transport/mq_receiver.py",
+        "src/qs_ai/infrastructure/workflow_transport/mq_relay.py",
+        "src/qs_ai/infrastructure/workflows/evaluation.py",
+        "src/qs_ai/infrastructure/workflows/report.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "docs/00-总览/04-代码地图与能力状态.md",
+      "owner": "00-总览",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        ".github/workflows/ci.yml",
+        "scripts/ci/run_tests.py",
+        "tests/test_architecture.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "docs/00-总览/README.md",
+      "owner": "00-总览",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        "scripts/check_docs.py",
+        "src/qs_ai/bootstrap/server.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "docs/01-运行时/01-单进程架构与启动装配.md",
+      "owner": "01-运行时",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        "src/qs_ai/bootstrap/container.py",
+        "src/qs_ai/bootstrap/messaging.py",
+        "src/qs_ai/bootstrap/server.py",
+        "src/qs_ai/transport/http/health.py",
+        "tests/test_messaging_runtime.py",
+        "tests/test_single_server.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "docs/01-运行时/02-Dishka作用域与资源所有权.md",
+      "owner": "01-运行时",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        "src/qs_ai/bootstrap/api.py",
+        "src/qs_ai/bootstrap/container.py",
+        "src/qs_ai/bootstrap/providers/core.py",
+        "src/qs_ai/bootstrap/providers/evaluation.py",
+        "src/qs_ai/bootstrap/providers/generation.py",
+        "src/qs_ai/infrastructure/persistence/mysql/database.py",
+        "src/qs_ai/infrastructure/workflow_transport/mq_receiver.py",
+        "tests/integration/test_mq_admission.py",
+        "tests/integration/test_shared_runtime_pool.py",
+        "tests/test_container.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "docs/01-运行时/03-后台执行与调度.md",
+      "owner": "01-运行时",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        "src/qs_ai/application/execution/worker.py",
+        "src/qs_ai/bootstrap/daemon.py",
+        "src/qs_ai/bootstrap/server.py",
+        "src/qs_ai/infrastructure/persistence/mysql/evaluation_worker.py",
+        "tests/integration/test_evaluation_scan.py",
+        "tests/integration/test_evaluation_worker.py",
+        "tests/test_daemon.py",
+        "tests/test_worker_frozen_evidence.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "docs/01-运行时/04-生命周期与优雅关闭.md",
+      "owner": "01-运行时",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        "src/qs_ai/bootstrap/daemon.py",
+        "src/qs_ai/bootstrap/lifecycle.py",
+        "src/qs_ai/bootstrap/messaging.py",
+        "src/qs_ai/bootstrap/server.py",
+        "tests/integration/test_generation.py",
+        "tests/test_messaging_runtime.py",
+        "tests/test_runtime_lifecycle.py",
+        "tests/test_server_signals.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "docs/01-运行时/README.md",
+      "owner": "01-运行时",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        "src/qs_ai/bootstrap/server.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "docs/02-业务模块/README.md",
+      "owner": "02-业务模块",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        "scripts/check_docs.py",
+        "src/qs_ai/bootstrap/server.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "docs/02-业务模块/evaluation/01-评测候选门槛与审核设计.md",
+      "owner": "02-业务模块",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        "src/qs_ai/domain/evaluation/acceptance.py",
+        "src/qs_ai/domain/evaluation/actions.py",
+        "src/qs_ai/domain/evaluation/cancellation.py",
+        "src/qs_ai/domain/evaluation/closure.py",
+        "src/qs_ai/domain/evaluation/quality_gates.py",
+        "src/qs_ai/domain/evaluation/reopening.py",
+        "src/qs_ai/domain/evaluation/review.py",
+        "src/qs_ai/infrastructure/persistence/mysql/evaluation_cancellation.py",
+        "src/qs_ai/infrastructure/persistence/mysql/evaluation_response_receipts.py",
+        "src/qs_ai/infrastructure/persistence/mysql/evaluation_slot_claims.py",
+        "tests/integration/test_evaluation_cancellation.py",
+        "tests/integration/test_evaluation_completions.py",
+        "tests/test_candidate_completion_gates.py",
+        "tests/test_evaluation_cancellation.py",
+        "tests/test_evaluation_closure.py",
+        "tests/test_evaluation_review.py",
+        "tests/test_quality_gates.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "docs/02-业务模块/evaluation/README.md",
+      "owner": "02-业务模块",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        "scripts/check_docs.py",
+        "src/qs_ai/bootstrap/server.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "docs/02-业务模块/governance/01-方案资产与原子准备设计.md",
+      "owner": "02-业务模块",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        "src/qs_ai/application/governance/solution_models.py",
+        "src/qs_ai/application/governance/solutions.py",
+        "src/qs_ai/domain/evaluation/identity.py",
+        "src/qs_ai/domain/governance/manifest.py",
+        "src/qs_ai/infrastructure/persistence/mysql/solution_assets.py",
+        "src/qs_ai/infrastructure/persistence/mysql/solution_templates.py",
+        "src/qs_ai/infrastructure/persistence/mysql/solutions.py",
+        "tests/integration/test_mbti_solutions.py",
+        "tests/integration/test_solutions.py",
+        "tests/test_solutions.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "docs/02-业务模块/governance/02-MBTI模板与方案来源契约.md",
+      "owner": "02-业务模块",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        "src/qs_ai/application/governance/solutions.py",
+        "src/qs_ai/infrastructure/persistence/mysql/solution_assets.py",
+        "src/qs_ai/infrastructure/persistence/mysql/solution_templates.py",
+        "src/qs_ai/infrastructure/qs_server/evaluation_suite.py",
+        "tests/integration/test_mbti_initialization.py",
+        "tests/integration/test_mbti_solutions.py",
+        "tests/test_mbti_themes_root.py",
+        "tests/test_solutions.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "docs/02-业务模块/governance/README.md",
+      "owner": "02-业务模块",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        "scripts/check_docs.py",
+        "src/qs_ai/bootstrap/server.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "docs/02-业务模块/interpretation/01-解读冻结输入与成果设计.md",
+      "owner": "02-业务模块",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        "src/qs_ai/application/execution/artifact.py",
+        "src/qs_ai/application/execution/generation.py",
+        "src/qs_ai/application/execution/worker.py",
+        "src/qs_ai/application/interpretation/output.py",
+        "src/qs_ai/application/interpretation/preparation.py",
+        "src/qs_ai/application/interpretation/service.py",
+        "src/qs_ai/domain/interpretation/model.py",
+        "src/qs_ai/infrastructure/workflow_transport/mq_receiver.py",
+        "tests/integration/test_generation.py",
+        "tests/test_input_assembly.py",
+        "tests/test_mbti_runtime.py",
+        "tests/test_worker_frozen_evidence.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "docs/02-业务模块/interpretation/02-MBTI报告事实与版本契约.md",
+      "owner": "02-业务模块",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        "integrations/qs_server/schemas/ai-explanation-input-v2.schema.json",
+        "integrations/qs_server/schemas/ai-explanation-input-v3.schema.json",
+        "integrations/qs_server/schemas/mbti-input-manifest.json",
+        "integrations/qs_server/schemas/mbti-thematic-input-manifest.json",
+        "src/qs_ai/application/interpretation/mbti_input.py",
+        "src/qs_ai/application/interpretation/selection.py",
+        "src/qs_ai/domain/governance/scenes.py",
+        "src/qs_ai/infrastructure/persistence/model_call_codec.py",
+        "src/qs_ai/infrastructure/qs_server/profiles.py",
+        "tests/fixtures/personality_contract/snapshot.json",
+        "tests/test_mbti_contract.py",
+        "tests/test_mbti_runtime.py",
+        "tests/test_mbti_snapshot_interop.py",
+        "tests/test_mbti_themes_input.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "docs/02-业务模块/interpretation/03-MBTI三主题与参考材料契约.md",
+      "owner": "02-业务模块",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        "integrations/qs_server/schemas/ai-explanation-output-v2.schema.json",
+        "src/qs_ai/application/execution/artifact.py",
+        "src/qs_ai/application/interpretation/mbti_themes_input.py",
+        "src/qs_ai/application/interpretation/mbti_themes_output.py",
+        "src/qs_ai/domain/governance/mbti_references.py",
+        "src/qs_ai/infrastructure/persistence/model_call_codec.py",
+        "src/qs_ai/infrastructure/qs_server/evaluation_suite.py",
+        "tests/test_mbti_references.py",
+        "tests/test_mbti_themes_evaluation.py",
+        "tests/test_mbti_themes_input.py",
+        "tests/test_mbti_themes_output.py",
+        "tests/test_mbti_themes_registration.py",
+        "tests/test_mbti_themes_root.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "docs/02-业务模块/interpretation/04-报告AI能力预检契约.md",
+      "owner": "02-业务模块",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        "src/qs_ai/application/interpretation/eligibility.py",
+        "src/qs_ai/application/interpretation/service.py",
+        "src/qs_ai/infrastructure/persistence/mysql/eligibility.py",
+        "src/qs_ai/transport/grpc/commands.py",
+        "tests/integration/test_eligibility.py",
+        "tests/integration/test_eligibility_go.py",
+        "tests/test_eligibility.py",
+        "tests/test_grpc_eligibility.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "docs/02-业务模块/interpretation/05-量表兼容与回执重建.md",
+      "owner": "02-业务模块",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        "src/qs_ai/application/execution/artifact.py",
+        "src/qs_ai/application/interpretation/input.py",
+        "src/qs_ai/application/interpretation/output.py",
+        "src/qs_ai/infrastructure/persistence/model_call_codec.py",
+        "src/qs_ai/infrastructure/qs_server/profiles.py",
+        "tests/fixtures/personality_baseline/scale_profile.json",
+        "tests/fixtures/personality_baseline/scale_publication.json",
+        "tests/fixtures/personality_baseline/scale_replay.json",
+        "tests/test_evaluation_input_version.py",
+        "tests/test_input_assembly.py",
+        "tests/test_mbti_runtime.py",
+        "tests/test_personality_extension_baseline.py",
+        "tests/test_publication.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "docs/02-业务模块/interpretation/README.md",
+      "owner": "02-业务模块",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        "scripts/check_docs.py",
+        "src/qs_ai/bootstrap/server.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "docs/02-业务模块/publication/01-发布证据与生效指针设计.md",
+      "owner": "02-业务模块",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        "src/qs_ai/application/governance/publication.py",
+        "src/qs_ai/domain/governance/publication.py",
+        "src/qs_ai/infrastructure/persistence/mysql/execution_configurations.py",
+        "src/qs_ai/infrastructure/persistence/mysql/publication_evidence.py",
+        "src/qs_ai/infrastructure/persistence/mysql/publication_history.py",
+        "src/qs_ai/infrastructure/persistence/mysql/publications.py",
+        "tests/test_grpc_publication.py",
+        "tests/test_publication.py",
+        "tests/test_publication_records.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "docs/02-业务模块/publication/README.md",
+      "owner": "02-业务模块",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        "scripts/check_docs.py",
+        "src/qs_ai/bootstrap/server.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "docs/03-基础设施/README.md",
+      "owner": "03-基础设施",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        "scripts/check_docs.py",
+        "src/qs_ai/bootstrap/server.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "docs/03-基础设施/concurrency/README.md",
+      "owner": "03-基础设施",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        "src/qs_ai/application/execution/model_capacity.py",
+        "src/qs_ai/bootstrap/providers/core.py",
+        "src/qs_ai/infrastructure/persistence/mysql/evaluation_capacity.py",
+        "src/qs_ai/infrastructure/persistence/mysql/participant_capacity.py",
+        "src/qs_ai/infrastructure/persistence/mysql/quotas.py",
+        "tests/integration/test_evaluation_capacity.py",
+        "tests/integration/test_evaluation_capacity_recovery.py",
+        "tests/integration/test_participant_capacity.py",
+        "tests/integration/test_quotas.py",
+        "tests/test_model_capacity.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "docs/03-基础设施/execution-recovery/README.md",
+      "owner": "03-基础设施",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        "src/qs_ai/application/execution/generation.py",
+        "src/qs_ai/application/execution/worker.py",
+        "src/qs_ai/infrastructure/persistence/mysql/evaluation_candidate_recovery.py",
+        "src/qs_ai/infrastructure/persistence/mysql/evaluation_recovery.py",
+        "src/qs_ai/infrastructure/persistence/mysql/execution.py",
+        "src/qs_ai/infrastructure/workflows/evaluation.py",
+        "src/qs_ai/infrastructure/workflows/report.py",
+        "tests/integration/test_evaluation_capacity_recovery.py",
+        "tests/integration/test_evaluation_recovery.py",
+        "tests/integration/test_evaluation_unknowns.py",
+        "tests/integration/test_generation.py",
+        "tests/test_report_graph.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "docs/03-基础设施/messaging/README.md",
+      "owner": "03-基础设施",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        "integrations/workflow/proto/messaging.proto",
+        "src/qs_ai/bootstrap/messaging.py",
+        "src/qs_ai/infrastructure/persistence/mysql/messaging.py",
+        "src/qs_ai/infrastructure/workflow_transport/command_admission.py",
+        "src/qs_ai/infrastructure/workflow_transport/messaging.py",
+        "src/qs_ai/infrastructure/workflow_transport/mq_receiver.py",
+        "src/qs_ai/infrastructure/workflow_transport/mq_relay.py",
+        "src/qs_ai/infrastructure/workflow_transport/payloads.py",
+        "src/qs_ai/infrastructure/workflow_transport/state_events.py",
+        "tests/integration/test_mq_admission.py",
+        "tests/integration/test_mq_legacy_handoff.py",
+        "tests/integration/test_mq_storage.py",
+        "tests/test_messaging_runtime.py",
+        "tests/test_mq_contract.py",
+        "tests/test_mq_failure.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "docs/03-基础设施/model-gateway/README.md",
+      "owner": "03-基础设施",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        "src/qs_ai/infrastructure/models/response_contract.py",
+        "src/qs_ai/infrastructure/models/responses.py",
+        "src/qs_ai/infrastructure/models/router.py",
+        "src/qs_ai/infrastructure/models/zhipu.py",
+        "src/qs_ai/infrastructure/qs_server/normalization.py",
+        "src/qs_ai/infrastructure/qs_server/responses.py",
+        "tests/test_langchain_gateway.py",
+        "tests/test_model_receipt_identity.py",
+        "tests/test_multi_provider_gateway.py",
+        "tests/test_provider_normalization.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "docs/03-基础设施/observability/README.md",
+      "owner": "03-基础设施",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        "src/qs_ai/application/operations/diagnostics.py",
+        "src/qs_ai/infrastructure/observability/structured.py",
+        "src/qs_ai/infrastructure/persistence/mysql/messaging_observability.py",
+        "src/qs_ai/infrastructure/persistence/mysql/metrics.py",
+        "src/qs_ai/infrastructure/persistence/mysql/runtime_milestones.py",
+        "src/qs_ai/transport/http/metrics.py",
+        "tests/integration/test_mq_observability.py",
+        "tests/integration/test_mq_observations.py",
+        "tests/integration/test_runtime.py",
+        "tests/test_operational_metrics.py",
+        "tests/test_structured_logging.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "docs/03-基础设施/persistence/README.md",
+      "owner": "03-基础设施",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        "migrations/versions/0035_runtime_utc_timestamps.py",
+        "src/qs_ai/infrastructure/persistence/mysql/database.py",
+        "src/qs_ai/infrastructure/persistence/mysql/execution.py",
+        "src/qs_ai/infrastructure/persistence/mysql/execution_configurations.py",
+        "src/qs_ai/infrastructure/persistence/mysql/interpretation.py",
+        "src/qs_ai/infrastructure/persistence/mysql/messaging.py",
+        "src/qs_ai/infrastructure/persistence/mysql/schema.py",
+        "tests/integration/test_evaluation_manifest_freeze.py",
+        "tests/integration/test_execution_configurations.py",
+        "tests/integration/test_mq_admission.py",
+        "tests/integration/test_shared_runtime_pool.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "docs/04-接口与运维/01-接口地图与契约所有权.md",
+      "owner": "04-接口与运维",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        "integrations/qs_server/manifest.json",
+        "integrations/workflow/proto/messaging.proto",
+        "integrations/workflow/proto/workflow.proto",
+        "scripts/generate_qs_proto.py",
+        "scripts/generate_workflow_proto.py",
+        "src/qs_ai/bootstrap/grpc_server.py",
+        "src/qs_ai/bootstrap/messaging.py",
+        "src/qs_ai/infrastructure/models/router.py",
+        "src/qs_ai/infrastructure/qs_server/access.py",
+        "src/qs_ai/infrastructure/workflow_transport/payloads.py",
+        "src/qs_ai/transport/grpc/mq_cutover.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "docs/04-接口与运维/02-QS接入与消息契约.md",
+      "owner": "04-接口与运维",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        "integrations/workflow/proto/messaging.proto",
+        "integrations/workflow/proto/workflow.proto",
+        "src/qs_ai/bootstrap/messaging.py",
+        "src/qs_ai/infrastructure/persistence/mysql/messaging.py",
+        "src/qs_ai/infrastructure/qs_server/access.py",
+        "src/qs_ai/infrastructure/workflow_transport/command_admission.py",
+        "src/qs_ai/infrastructure/workflow_transport/messaging.py",
+        "src/qs_ai/infrastructure/workflow_transport/mq_failure.py",
+        "src/qs_ai/infrastructure/workflow_transport/mq_receiver.py",
+        "src/qs_ai/infrastructure/workflow_transport/state_events.py",
+        "tests/integration/test_messaging_preflight.py",
+        "tests/test_grpc_mq_cutover.py",
+        "tests/test_messaging_runtime.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "docs/04-接口与运维/03-治理接口与可信委托.md",
+      "owner": "04-接口与运维",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        "integrations/workflow/proto/workflow.proto",
+        "src/qs_ai/bootstrap/grpc_server.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "docs/04-接口与运维/04-配置与本地开发.md",
+      "owner": "04-接口与运维",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        ".github/workflows/ci.yml",
+        "compose.yaml",
+        "src/qs_ai/config.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "docs/04-接口与运维/05-部署迁移与兼容回滚.md",
+      "owner": "04-接口与运维",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        ".github/workflows/deploy.yml",
+        "deploy/serverA/deploy.py",
+        "scripts/cd/deploy.py",
+        "src/qs_ai/bootstrap/server.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "docs/04-接口与运维/06-排障与受控恢复.md",
+      "owner": "04-接口与运维",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        "src/qs_ai/application/operations/diagnostics.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "docs/04-接口与运维/07-语义契约故障恢复.md",
+      "owner": "04-接口与运维",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        "src/qs_ai/bootstrap/recover_semantic_contract.py",
+        "src/qs_ai/domain/evaluation/contract_recovery.py",
+        "src/qs_ai/infrastructure/persistence/mysql/evaluation_contract_recovery.py",
+        "tests/integration/test_semantic_contract_recovery.py",
+        "tests/test_semantic_contract_recovery.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "docs/04-接口与运维/08-MBTI管理与验收.md",
+      "owner": "04-接口与运维",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        "src/qs_ai/bootstrap/import_mbti_assets.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "docs/04-接口与运维/README.md",
+      "owner": "04-接口与运维",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        "scripts/check_docs.py",
+        "src/qs_ai/bootstrap/server.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "docs/05-决策记录/01-单进程与共享生命周期.md",
+      "owner": "05-决策记录",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        "src/qs_ai/bootstrap/lifecycle.py",
+        "src/qs_ai/bootstrap/messaging.py",
+        "src/qs_ai/bootstrap/server.py",
+        "tests/integration/test_shared_runtime_pool.py",
+        "tests/test_runtime_lifecycle.py",
+        "tests/test_single_server.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "docs/05-决策记录/02-业务持久状态与LangGraph编排.md",
+      "owner": "05-决策记录",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        "src/qs_ai/application/execution/generation.py",
+        "src/qs_ai/infrastructure/workflows/evaluation.py",
+        "src/qs_ai/infrastructure/workflows/report.py",
+        "tests/integration/test_evaluation_capacity_recovery.py",
+        "tests/integration/test_generation.py",
+        "tests/test_report_graph.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "docs/05-决策记录/03-原事务消息与业务确认.md",
+      "owner": "05-决策记录",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        "src/qs_ai/infrastructure/persistence/mysql/database.py",
+        "src/qs_ai/infrastructure/persistence/mysql/messaging.py",
+        "src/qs_ai/infrastructure/workflow_transport/mq_receiver.py",
+        "src/qs_ai/infrastructure/workflow_transport/mq_relay.py",
+        "src/qs_ai/infrastructure/workflow_transport/state_events.py",
+        "tests/integration/test_mq_admission.py",
+        "tests/integration/test_mq_legacy_handoff.py",
+        "tests/test_messaging_runtime.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "docs/05-决策记录/README.md",
+      "owner": "05-决策记录",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        "scripts/check_docs.py",
+        "src/qs_ai/bootstrap/server.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "docs/CONTRIBUTING-DOCS.md",
+      "owner": "CONTRIBUTING-DOCS.md",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        "scripts/check_docs.py",
+        "src/qs_ai/bootstrap/server.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "docs/README.md",
+      "owner": "README.md",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        "pyproject.toml"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "docs/_plans/01-能力演进与验收缺口.md",
+      "owner": "_plans",
+      "status": "planned",
+      "implementation_status": "planned",
+      "runtime_status": "unknown",
+      "sources": [
+        "scripts/check_docs.py",
+        "src/qs_ai/bootstrap/server.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "docs/_plans/README.md",
+      "owner": "_plans",
+      "status": "planned",
+      "implementation_status": "planned",
+      "runtime_status": "unknown",
+      "sources": [
+        "scripts/check_docs.py",
+        "src/qs_ai/bootstrap/server.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "docs/evidence/2026-10-05-mbti-checkpoint.md",
+      "owner": "evidence",
+      "status": "aligned",
+      "implementation_status": "not_applicable",
+      "runtime_status": "unknown",
+      "sources": [
+        "scripts/check_docs.py",
+        "src/qs_ai/bootstrap/server.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "docs/evidence/README.md",
+      "owner": "evidence",
+      "status": "aligned",
+      "implementation_status": "not_applicable",
+      "runtime_status": "unknown",
+      "sources": [
+        "docs/evidence/2026-09-13-m3-current-published-reconciliation.json",
+        "docs/evidence/2026-09-13-m3-fixed-baseline-import.json",
+        "docs/evidence/2026-09-13-m3-m4-coordinated-release.json",
+        "docs/evidence/2026-09-13-m3-production-usage-query.js",
+        "docs/evidence/2026-09-13-m3-production-usage.json",
+        "docs/evidence/2026-09-13-runtime-rollback.json",
+        "docs/evidence/2026-09-13-v6-runtime-baseline.json",
+        "docs/evidence/2026-09-19-m5-retirement-monitoring.json",
+        "docs/evidence/multi-provider-connectivity-20260921.json"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "integrations/qs_server/README.md",
+      "owner": "integrations",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        "integrations/qs_server/manifest.json",
+        "integrations/qs_server/retained-assets.json",
+        "src/qs_ai/infrastructure/qs_server/access.py",
+        "src/qs_ai/infrastructure/qs_server/report_probe.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "integrations/qs_server/evaluation/README.md",
+      "owner": "integrations",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        "integrations/qs_server/evaluation/manifest.json",
+        "integrations/qs_server/evaluation/mbti/manifest.json",
+        "integrations/qs_server/evaluation/policies.json",
+        "integrations/qs_server/evaluation/qs-ai-published-input-cases-v1.json",
+        "integrations/qs_server/retained-assets.json",
+        "src/qs_ai/infrastructure/persistence/mysql/evaluation_worker.py",
+        "src/qs_ai/infrastructure/workflows/evaluation.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "integrations/qs_server/evaluation/ai-explanation-semantic-evaluator-prompt-v2.md",
+      "owner": "integrations",
+      "status": "aligned",
+      "implementation_status": "not_applicable",
+      "runtime_status": "unknown",
+      "sources": [
+        "integrations/qs_server/evaluation/manifest.json"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "integrations/qs_server/evaluation/mbti/prompt-v1.md",
+      "owner": "integrations",
+      "status": "aligned",
+      "implementation_status": "not_applicable",
+      "runtime_status": "unknown",
+      "sources": [
+        "integrations/qs_server/evaluation/mbti/manifest.json"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "integrations/qs_server/evaluation/mbti/semantic-v1.md",
+      "owner": "integrations",
+      "status": "aligned",
+      "implementation_status": "not_applicable",
+      "runtime_status": "unknown",
+      "sources": [
+        "integrations/qs_server/evaluation/mbti/manifest.json"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "integrations/qs_server/evaluation/mbti-themes/README.md",
+      "owner": "integrations",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        "scripts/check_docs.py",
+        "src/qs_ai/bootstrap/server.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "integrations/qs_server/evaluation/mbti-themes/prompt-v1.md",
+      "owner": "integrations",
+      "status": "aligned",
+      "implementation_status": "not_applicable",
+      "runtime_status": "unknown",
+      "sources": [
+        "integrations/qs_server/evaluation/mbti-themes/manifest.json"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "integrations/qs_server/evaluation/mbti-themes/semantic-v1.md",
+      "owner": "integrations",
+      "status": "aligned",
+      "implementation_status": "not_applicable",
+      "runtime_status": "unknown",
+      "sources": [
+        "integrations/qs_server/evaluation/mbti-themes/manifest.json"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "integrations/qs_server/prompts/README.md",
+      "owner": "integrations",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        "scripts/check_docs.py",
+        "src/qs_ai/bootstrap/server.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "integrations/qs_server/provider-runtime.md",
+      "owner": "integrations",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        "integrations/qs_server/routes/manifest.json",
+        "src/qs_ai/application/execution/generation.py",
+        "src/qs_ai/bootstrap/providers/generation.py",
+        "src/qs_ai/infrastructure/models/responses.py",
+        "src/qs_ai/infrastructure/models/router.py",
+        "src/qs_ai/infrastructure/workflows/evaluation.py",
+        "src/qs_ai/infrastructure/workflows/report.py",
+        "tests/integration/test_execution_configurations.py",
+        "tests/integration/test_report_workflow.py",
+        "tests/test_single_server.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "integrations/qs_server/report-snapshot.md",
+      "owner": "integrations",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        "src/qs_ai/application/interpretation/mbti_input.py",
+        "src/qs_ai/application/interpretation/mbti_themes_input.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "integrations/qs_server/schemas/README.md",
+      "owner": "integrations",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        "integrations/qs_server/schemas/manifest.json",
+        "integrations/qs_server/schemas/mbti-input-manifest.json",
+        "integrations/qs_server/schemas/mbti-thematic-input-manifest.json",
+        "src/qs_ai/application/interpretation/input.py",
+        "tests/test_input_assembly.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "integrations/workflow/README.md",
+      "owner": "integrations",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        ".github/workflows/ci.yml",
+        "integrations/workflow/proto/messaging.proto",
+        "integrations/workflow/proto/workflow.proto"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "scripts/cd/IMAGE_RETENTION.md",
+      "owner": "scripts",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        "scripts/check_docs.py",
+        "src/qs_ai/bootstrap/server.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "tests/fixtures/personality_baseline/README.md",
+      "owner": "tests",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        "scripts/check_docs.py",
+        "src/qs_ai/bootstrap/server.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "tests/fixtures/personality_contract/README.md",
+      "owner": "tests",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        "scripts/check_docs.py",
+        "src/qs_ai/bootstrap/server.py"
+      ],
+      "verify": [
+        "python scripts/check_docs.py",
+        "pytest -q tests/test_docs.py"
+      ],
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    }
+  ]
+}

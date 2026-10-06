@@ -1,6 +1,6 @@
 # 人格扩展前置测试资源
 
-来源、生产核验时间和隐私边界见 [基线报告](../../../docs/mbti-contract-baseline.md)。
+来源、生产核验时间和隐私边界见 [基线报告](../../../docs/_archive/2026-10-doc-system/legacy-docs/mbti-contract-baseline.md)。
 
 - `mbti-model.json`：真实不可变 MBTI 发布定义的字段投影。
 - `mbti-report.anonymized.json`：真实测试报告与关联 Outcome 的脱敏事实。
