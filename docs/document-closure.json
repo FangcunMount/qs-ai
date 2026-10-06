@@ -1,6 +1,6 @@
 {
   "schema_version": "qs-ai-document-closure/v1",
-  "source_commit": "c977cb9cd8301c46fb260441aee6ea5b7a3ec3f2",
+  "source_commit": "766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b",
   "reviewed_on": "2026-10-06",
   "authority": "runtime composition > code > machine contracts/config/migrations > scoped tests > maintained prose > dated evidence/plans/archive",
   "source_catalog": {
@@ -10,6 +10,7 @@
     ".github/workflows/m7-messaging.yml": "1d26d405876222d18b2c7a27ca2e879095a57ca3707c66429969d2a4728ae42a",
     "Dockerfile": "a228b397109b1627bee2c2cb66b3d33d3a2c7d4238a726c5b7e1a61503accf8a",
     "compose.yaml": "07e882533006901f3cda4f3cf2449ee34b20af0cde75cceb1ea9b84699755206",
+    "configs/README.md": "8bf55eaec7a5164415c9086a86b6c13199ac281649e4a28f6609d782b89f9c3c",
     "configs/default.yaml": "cfb4e393182eba1793a4a5c3e29ded3cfa7283e6f472c2d22d521e010a400068",
     "configs/local.yaml": "6a722980c92fbb05c39e6e96277dafd5a53a42311ba250db7bab20c58fde4c5a",
     "configs/production.yaml": "fd364c0171d6220590a2c997d83420e4f95065925e4ffacd28bcce2953b2a1d8",
@@ -25,6 +26,7 @@
     "docs/evidence/2026-09-13-v6-runtime-baseline.json": "8ce5ae90b11174863b417fd7e1ad48a49e95d74d10a59f6bf55807b682625f0d",
     "docs/evidence/2026-09-19-m5-retirement-monitoring.json": "94e5eb4cecf641d74992676e4051dc4c2b172eb534484b6c23aa849fbf86bc5a",
     "docs/evidence/multi-provider-connectivity-20260921.json": "9e527ed16698fc55b66504c774e316c2a9b2ea45beb7fab123671a9502fc5418",
+    "integrations/qs_server/README.md": "fd682d768bd86f1a0d8edde15198a1b770309c3432cb8a106ec41356edf28e6e",
     "integrations/qs_server/evaluation/manifest.json": "ed7d6e77dfc865f9524250da76cbfab470c6803b51096f7fd78c7bcef3308a6d",
     "integrations/qs_server/evaluation/mbti-themes/manifest.json": "4c3416120c88d9020b736da2c335f6bcb20fa3eaa55d2bea405c8824faf061c3",
     "integrations/qs_server/evaluation/mbti-themes/profile-v1.json": "002f52e18c6b7aabadb8dc90c396c119b1db1fb12a18427f9150bf6fb94393d9",
@@ -42,6 +44,7 @@
     "integrations/qs_server/schemas/manifest.json": "06236133252501995ea5380803bbfef31e732c0086f2ef1c615b7a44a5aa83da",
     "integrations/qs_server/schemas/mbti-input-manifest.json": "8b6a6106e411616119c6bd1e13599dd2fdfd5d6ce7daba37c2b661142744bd3a",
     "integrations/qs_server/schemas/mbti-thematic-input-manifest.json": "b34c7b37cba81ddac9808f8d2dae2548946c2f01e78fb1eebcf8ff24fff43a8e",
+    "integrations/workflow/README.md": "e090245be483e5c97e1d492059177592ef40f1069345e1c77488b295876495bf",
     "integrations/workflow/proto/messaging.proto": "1cd0d5ac42f8c2e1b4523d9f59a9b6cec85abf4d1eef00db485078ad917d10f6",
     "integrations/workflow/proto/workflow.proto": "3205470fa6f2b2c0ecceaac2111749604d09d28ba2183cbd46f51f13afc5cbae",
     "migrations/env.py": "6f12e1e79185a2ec5bc400133f1a1c1e342ae9b9e73fb698730e81ca71cbaf3b",
@@ -301,6 +304,7 @@
     "tests/test_deploy_scope.py": "1509505a5fa0b49d1b9d02b7edcbc079956477f5f96a6d115f75ecdf6e472b4c",
     "tests/test_deployment.py": "1b1922f2739efb36cb359559fb6526729baea5060a95c0d90e78c9b71babc9fa",
     "tests/test_deployment_lock.py": "ae53ee942982b68c3f7327810c578a24997847b645e82cd14c36ccd208939603",
+    "tests/test_docs.py": "6422a237c58a1e01304d55872514a717bb6877f24a92f3c1f8097ffd623af5eb",
     "tests/test_eligibility.py": "cd559e7f376dfcb79c050ad1f37227adb0c8c8641e156005146968da282e3ee2",
     "tests/test_evaluation_active_dispatches.py": "187b1da5213468be1cc4591953dfda746adfdbb34bc3cf66c735d3c2c5776266",
     "tests/test_evaluation_cancellation.py": "9f7dd222fedf6f7e67d9d3ce455f779ce53c732517320d236061791bf466443a",
@@ -628,9 +632,11 @@
       ],
       "verify": [
         "python scripts/check_docs.py",
-        "pytest -q tests/test_docs.py"
+        "git diff --check",
+        "12 documentation-checker regression tests passed",
+        "All maintained articles indexed and local Markdown navigation reachability reviewed; no archive/runtime/config/protocol changes"
       ],
-      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+      "review_scope": "Navigation and maintenance rules reconciled against all 34 source-reviewed design articles, unchanged business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Concrete question-based reading routes, single fact ownership, exact local checker limits and runtime_status fixed unknown; independent root-index review. External consumer gaps retain their per-article fixed source baselines."
     },
     {
       "path": "docs/01-运行时/01-单进程架构与启动装配.md",
@@ -801,9 +807,11 @@
       ],
       "verify": [
         "python scripts/check_docs.py",
-        "pytest -q tests/test_docs.py"
+        "git diff --check",
+        "12 documentation-checker regression tests passed",
+        "All maintained articles indexed and local Markdown navigation reachability reviewed; no archive/runtime/config/protocol changes"
       ],
-      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+      "review_scope": "Navigation and maintenance rules reconciled against all 34 source-reviewed design articles, unchanged business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Concrete question-based reading routes, single fact ownership, exact local checker limits and runtime_status fixed unknown; independent root-index review. External consumer gaps retain their per-article fixed source baselines."
     },
     {
       "path": "docs/02-业务模块/README.md",
@@ -817,9 +825,11 @@
       ],
       "verify": [
         "python scripts/check_docs.py",
-        "pytest -q tests/test_docs.py"
+        "git diff --check",
+        "12 documentation-checker regression tests passed",
+        "All maintained articles indexed and local Markdown navigation reachability reviewed; no archive/runtime/config/protocol changes"
       ],
-      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+      "review_scope": "Navigation and maintenance rules reconciled against all 34 source-reviewed design articles, unchanged business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Concrete question-based reading routes, single fact ownership, exact local checker limits and runtime_status fixed unknown; independent root-index review. External consumer gaps retain their per-article fixed source baselines."
     },
     {
       "path": "docs/02-业务模块/evaluation/01-评测候选门槛与审核设计.md",
@@ -887,9 +897,11 @@
       ],
       "verify": [
         "python scripts/check_docs.py",
-        "pytest -q tests/test_docs.py"
+        "git diff --check",
+        "12 documentation-checker regression tests passed",
+        "All maintained articles indexed and local Markdown navigation reachability reviewed; no archive/runtime/config/protocol changes"
       ],
-      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+      "review_scope": "Navigation and maintenance rules reconciled against all 34 source-reviewed design articles, unchanged business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Concrete question-based reading routes, single fact ownership, exact local checker limits and runtime_status fixed unknown; independent root-index review. External consumer gaps retain their per-article fixed source baselines."
     },
     {
       "path": "docs/02-业务模块/governance/01-方案资产与原子准备设计.md",
@@ -978,9 +990,11 @@
       ],
       "verify": [
         "python scripts/check_docs.py",
-        "pytest -q tests/test_docs.py"
+        "git diff --check",
+        "12 documentation-checker regression tests passed",
+        "All maintained articles indexed and local Markdown navigation reachability reviewed; no archive/runtime/config/protocol changes"
       ],
-      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+      "review_scope": "Navigation and maintenance rules reconciled against all 34 source-reviewed design articles, unchanged business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Concrete question-based reading routes, single fact ownership, exact local checker limits and runtime_status fixed unknown; independent root-index review. External consumer gaps retain their per-article fixed source baselines."
     },
     {
       "path": "docs/02-业务模块/interpretation/01-解读冻结输入与成果设计.md",
@@ -1184,9 +1198,11 @@
       ],
       "verify": [
         "python scripts/check_docs.py",
-        "pytest -q tests/test_docs.py"
+        "git diff --check",
+        "12 documentation-checker regression tests passed",
+        "All maintained articles indexed and local Markdown navigation reachability reviewed; no archive/runtime/config/protocol changes"
       ],
-      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+      "review_scope": "Navigation and maintenance rules reconciled against all 34 source-reviewed design articles, unchanged business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Concrete question-based reading routes, single fact ownership, exact local checker limits and runtime_status fixed unknown; independent root-index review. External consumer gaps retain their per-article fixed source baselines."
     },
     {
       "path": "docs/02-业务模块/publication/01-发布证据与生效指针设计.md",
@@ -1237,9 +1253,11 @@
       ],
       "verify": [
         "python scripts/check_docs.py",
-        "pytest -q tests/test_docs.py"
+        "git diff --check",
+        "12 documentation-checker regression tests passed",
+        "All maintained articles indexed and local Markdown navigation reachability reviewed; no archive/runtime/config/protocol changes"
       ],
-      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+      "review_scope": "Navigation and maintenance rules reconciled against all 34 source-reviewed design articles, unchanged business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Concrete question-based reading routes, single fact ownership, exact local checker limits and runtime_status fixed unknown; independent root-index review. External consumer gaps retain their per-article fixed source baselines."
     },
     {
       "path": "docs/03-基础设施/README.md",
@@ -1253,9 +1271,11 @@
       ],
       "verify": [
         "python scripts/check_docs.py",
-        "pytest -q tests/test_docs.py"
+        "git diff --check",
+        "12 documentation-checker regression tests passed",
+        "All maintained articles indexed and local Markdown navigation reachability reviewed; no archive/runtime/config/protocol changes"
       ],
-      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+      "review_scope": "Navigation and maintenance rules reconciled against all 34 source-reviewed design articles, unchanged business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Concrete question-based reading routes, single fact ownership, exact local checker limits and runtime_status fixed unknown; independent root-index review. External consumer gaps retain their per-article fixed source baselines."
     },
     {
       "path": "docs/03-基础设施/concurrency/README.md",
@@ -1760,14 +1780,17 @@
       "implementation_status": "partial",
       "runtime_status": "unknown",
       "sources": [
+        "configs/README.md",
         "scripts/check_docs.py",
         "src/qs_ai/bootstrap/server.py"
       ],
       "verify": [
         "python scripts/check_docs.py",
-        "pytest -q tests/test_docs.py"
+        "git diff --check",
+        "12 documentation-checker regression tests passed",
+        "All maintained articles indexed and local Markdown navigation reachability reviewed; no archive/runtime/config/protocol changes"
       ],
-      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+      "review_scope": "Navigation and maintenance rules reconciled against all 34 source-reviewed design articles, unchanged business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Concrete question-based reading routes, single fact ownership, exact local checker limits and runtime_status fixed unknown; independent root-index review. External consumer gaps retain their per-article fixed source baselines."
     },
     {
       "path": "docs/05-决策记录/01-单进程与共享生命周期.md",
@@ -1851,9 +1874,11 @@
       ],
       "verify": [
         "python scripts/check_docs.py",
-        "pytest -q tests/test_docs.py"
+        "git diff --check",
+        "12 documentation-checker regression tests passed",
+        "All maintained articles indexed and local Markdown navigation reachability reviewed; no archive/runtime/config/protocol changes"
       ],
-      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+      "review_scope": "Navigation and maintenance rules reconciled against all 34 source-reviewed design articles, unchanged business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Concrete question-based reading routes, single fact ownership, exact local checker limits and runtime_status fixed unknown; independent root-index review. External consumer gaps retain their per-article fixed source baselines."
     },
     {
       "path": "docs/CONTRIBUTING-DOCS.md",
@@ -1863,13 +1888,19 @@
       "runtime_status": "unknown",
       "sources": [
         "scripts/check_docs.py",
-        "src/qs_ai/bootstrap/server.py"
+        "scripts/generate_messaging_proto.py",
+        "scripts/generate_qs_proto.py",
+        "scripts/generate_workflow_proto.py",
+        "src/qs_ai/bootstrap/server.py",
+        "tests/test_docs.py"
       ],
       "verify": [
         "python scripts/check_docs.py",
-        "pytest -q tests/test_docs.py"
+        "git diff --check",
+        "12 documentation-checker regression tests passed",
+        "All maintained articles indexed and local Markdown navigation reachability reviewed; no archive/runtime/config/protocol changes"
       ],
-      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+      "review_scope": "Navigation and maintenance rules reconciled against all 34 source-reviewed design articles, unchanged business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Concrete question-based reading routes, single fact ownership, exact local checker limits and runtime_status fixed unknown; independent root-index review. External consumer gaps retain their per-article fixed source baselines."
     },
     {
       "path": "docs/README.md",
@@ -1878,13 +1909,26 @@
       "implementation_status": "partial",
       "runtime_status": "unknown",
       "sources": [
-        "pyproject.toml"
+        "configs/README.md",
+        "deploy/serverA/README.md",
+        "integrations/qs_server/README.md",
+        "integrations/qs_server/report-snapshot.md",
+        "integrations/workflow/README.md",
+        "integrations/workflow/proto/messaging.proto",
+        "integrations/workflow/proto/workflow.proto",
+        "pyproject.toml",
+        "src/qs_ai/application/execution/generation.py",
+        "src/qs_ai/bootstrap/server.py",
+        "src/qs_ai/infrastructure/persistence/mysql/publications.py",
+        "src/qs_ai/transport/grpc/mq_cutover.py"
       ],
       "verify": [
         "python scripts/check_docs.py",
-        "pytest -q tests/test_docs.py"
+        "git diff --check",
+        "12 documentation-checker regression tests passed",
+        "All maintained articles indexed and local Markdown navigation reachability reviewed; no archive/runtime/config/protocol changes"
       ],
-      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+      "review_scope": "Navigation and maintenance rules reconciled against all 34 source-reviewed design articles, unchanged business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Concrete question-based reading routes, single fact ownership, exact local checker limits and runtime_status fixed unknown; independent root-index review. External consumer gaps retain their per-article fixed source baselines."
     },
     {
       "path": "docs/_plans/01-能力演进与验收缺口.md",
