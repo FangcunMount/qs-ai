@@ -647,20 +647,32 @@
       "implementation_status": "partial",
       "runtime_status": "unknown",
       "sources": [
+        "configs/default.yaml",
+        "configs/production.yaml",
+        "deploy/serverA/compose.yaml",
+        "src/qs_ai/application/execution/generation.py",
+        "src/qs_ai/application/execution/worker.py",
         "src/qs_ai/bootstrap/daemon.py",
         "src/qs_ai/bootstrap/lifecycle.py",
         "src/qs_ai/bootstrap/messaging.py",
         "src/qs_ai/bootstrap/server.py",
+        "src/qs_ai/infrastructure/persistence/model_call_codec.py",
+        "src/qs_ai/infrastructure/persistence/mysql/execution.py",
+        "src/qs_ai/transport/http/health.py",
         "tests/integration/test_generation.py",
+        "tests/test_daemon.py",
+        "tests/test_health.py",
         "tests/test_messaging_runtime.py",
         "tests/test_runtime_lifecycle.py",
-        "tests/test_server_signals.py"
+        "tests/test_server_signals.py",
+        "tests/test_single_server.py"
       ],
       "verify": [
         "python scripts/check_docs.py",
-        "pytest -q tests/test_docs.py"
+        "pytest -q tests/test_daemon.py tests/test_runtime_lifecycle.py",
+        "pytest -q tests/test_server_signals.py tests/test_single_server.py tests/test_messaging_runtime.py (requires project dependencies and local listener permissions)"
       ],
-      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+      "review_scope": "在 766b2aa 业务源码基线上核对唯一信号所有者、mandatory提前结束故障域、ready撤销/并行drain/Publisher和HTTP依赖顺序、timeout之外取消清理与grpc兜底、191/192/197/201秒配置预算非整体时限、原正式模型调用/failed/response及Outbox恢复前提；独立复核探针测试覆盖和ModelResponse非原HTTPwire，不承诺退出前交付或生产停机结果。"
     },
     {
       "path": "docs/01-运行时/README.md",
