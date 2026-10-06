@@ -25,6 +25,7 @@
     "integrations/qs_server/evaluation/policies.json": "9e60d6c8dedbb9f682120e2c27a506df0b4e9225e573ed1380a32755c012e505",
     "integrations/qs_server/evaluation/qs-ai-published-input-cases-v1.json": "42afcc73db6fa272ab54aa17bcb9b30dc8797a382ee9329d9453aa9c9953e382",
     "integrations/qs_server/manifest.json": "29ebe314e7d3db34617519573d7bf36f6fb6dcc0073d4d31004458fa122da606",
+    "integrations/qs_server/report-snapshot.md": "da9a0be8a7d8720272469bc47afa91c12dcbc6811ae077b890a549af4e29ef25",
     "integrations/qs_server/retained-assets.json": "42b6e24b5f6cce76e4e1bc77e6e2578c81bfe1b0de97939d9936db1497affac3",
     "integrations/qs_server/routes/manifest.json": "3f5eac218102d02ceff2abb5c3ecf089f5dc25e99dcfc7a84ff2327c04a122e5",
     "integrations/qs_server/schemas/ai-explanation-input-v2.schema.json": "225b89bbd64b5c45596acb4b93d77bbfe31016da111c30c89f1840530f321fd1",
@@ -153,6 +154,7 @@
     "src/qs_ai/infrastructure/workflow_transport/state_events.py": "6d50b202e25f68178452b039de4226823662f329f95b1b95d097dee865a55bb0",
     "src/qs_ai/infrastructure/workflows/evaluation.py": "c486a1ed56e2399af6065b2113a7c91d25441f79f197555c14edbcea2e7c954a",
     "src/qs_ai/infrastructure/workflows/report.py": "deb23c4e24c4e6feb12a6df0676c5aeebd634240f376c7686f1992096952cc89",
+    "src/qs_ai/model_configuration.py": "cc5d5a7f488080fcfe54280dc15973db70dcbd6e49a6ab4b2ad94d87bf0973ef",
     "src/qs_ai/transport/grpc/commands.py": "fd01d18dd78b43e2f4d3e7dc47545fc610ea20944939cce69df76454b5a4e9bd",
     "src/qs_ai/transport/grpc/identity.py": "3e94b010c079e87a53b77b113470a31ced79a85983d16233232089e67c706ef2",
     "src/qs_ai/transport/grpc/mq_cutover.py": "a520949d2b762d826e70cef1c01f0a65b6357529ab48e03956de873f230fdd35",
@@ -188,6 +190,7 @@
     "tests/integration/test_mq_observability.py": "e313117c89f0dbf3c0a73bcbe54c1afe13343e2afcb3d122fb8f68800e0d5a0b",
     "tests/integration/test_mq_observations.py": "715e3593bfece36937e6954f162eb0072fe881554caf96f4595d04810d6ed034",
     "tests/integration/test_mq_storage.py": "8743db5b374de7f2b0ecadd5a1e0f3d8807027f940192459a8b8010cc9ea2046",
+    "tests/integration/test_mq_worker_events.py": "256488e2a29c0983819cb3ce3aaeef3073375754952298f75a86f8b29aed6bae",
     "tests/integration/test_participant_capacity.py": "1bdf28a56b7882884f136d269f0606f00bc6f707ae090289e0d7c590b857ad67",
     "tests/integration/test_participant_retries.py": "460a67e3d8484e1d861dfac86006c3c27b2a91057264f79a5feac733c11ba238",
     "tests/integration/test_quotas.py": "6e27c129e2e51cbec76f3919a3dadd736bf8fcc18984f3fd1875270c8be3897b",
@@ -454,14 +457,34 @@
       "runtime_status": "unknown",
       "sources": [
         ".github/workflows/ci.yml",
+        "integrations/qs_server/report-snapshot.md",
         "scripts/ci/run_tests.py",
-        "tests/test_architecture.py"
+        "src/qs_ai/bootstrap/api.py",
+        "src/qs_ai/bootstrap/container.py",
+        "src/qs_ai/bootstrap/grpc_server.py",
+        "src/qs_ai/bootstrap/messaging.py",
+        "src/qs_ai/bootstrap/providers/generation.py",
+        "src/qs_ai/bootstrap/server.py",
+        "src/qs_ai/config.py",
+        "src/qs_ai/infrastructure/persistence/mysql/schema.py",
+        "src/qs_ai/infrastructure/persistence/mysql/solution_assets.py",
+        "src/qs_ai/infrastructure/persistence/mysql/solutions.py",
+        "src/qs_ai/infrastructure/workflows/evaluation.py",
+        "src/qs_ai/model_configuration.py",
+        "tests/integration/test_generation.py",
+        "tests/integration/test_mq_admission.py",
+        "tests/integration/test_mq_observations.py",
+        "tests/integration/test_mq_storage.py",
+        "tests/integration/test_mq_worker_events.py",
+        "tests/integration/test_solutions.py",
+        "tests/test_architecture.py",
+        "tests/test_input_binding.py"
       ],
       "verify": [
         "python scripts/check_docs.py",
-        "pytest -q tests/test_docs.py"
+        "pytest -q tests/test_architecture.py"
       ],
-      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+      "review_scope": "在 766b2aa 业务源码基线上核对单进程装配与真实调用链、层间决策、机器契约和生成文件位置、架构 AST 约束、CI 双 MySQL 四分片与完整覆盖门禁、代码/测试/CI/部署/业务验收证据层次；独立复核改正 evaluation.execute_step 入口和 MQ 成果/ACK 分段测试范围。"
     },
     {
       "path": "docs/00-总览/README.md",
