@@ -76,3 +76,23 @@ async def test_finalize_errors_are_redacted_and_never_retried(handler, error, co
         await service.Finalize(final_command(), Context())
     assert caught.value.args[0] == code and "private" not in str(caught.value)
     assert store.finalize.await_count == 1
+
+
+async def test_finalize_failure_diagnostic_never_records_reason_or_exception_text(handler, caplog):
+    import logging
+
+    service, store = handler
+    request = final_command()
+    request.reason = "private-report-or-review-reason"
+    store.finalize.side_effect = ValueError("private-provider-body-and-credential")
+    with caplog.at_level(logging.INFO, logger="qs_ai.structured"):
+        with pytest.raises(Aborted):
+            await service.Finalize(request, Context())
+    diagnostics = [r.diagnostic for r in caplog.records if hasattr(r, "diagnostic")]
+    failed = next(d for d in diagnostics if d["event"] == "evaluation.finalization.failed")
+    assert failed["run_id"] == request.scope.run_id
+    assert failed["error_type"] == "ValueError"
+    assert failed["error_code"] == "invalid_input"
+    assert "error_location" in failed
+    assert "private-" not in str(diagnostics)
+    assert store.finalize.await_count == 1
