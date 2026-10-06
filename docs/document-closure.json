@@ -675,7 +675,7 @@
         "pytest -q tests/test_container.py tests/test_generation_container.py tests/test_evaluation_container.py tests/test_health.py",
         "pytest -q tests/test_single_server.py tests/test_messaging_runtime.py (requires project dependencies and local listener permissions)"
       ],
-      "review_scope": "Reviewed production evaluation quota override 2048 and unchanged reservation, concurrency and drain semantics; runtime evidence requires independent binding"
+      "review_scope": "在 bd5e18e/766b2aa 未改变业务源码基线上复核统一入口、MQ/TLS/迁移和八类观测前置检查、provider预检、消息密钥先于schema、APP共享池、Publisher gate、实际started/HTTP就绪含义、local/production默认差异及前置失败清理；明确监听器测试替换preflight，启动后ready前可能已经执行业务，不声明现场配置与生产能力。 Reviewed production quota override 2048 with unchanged reservations, concurrency and drain semantics; runtime evidence remains independently bound."
     },
     {
       "path": "docs/01-运行时/02-Dishka作用域与资源所有权.md",
@@ -760,7 +760,7 @@
         "pytest -q tests/test_daemon.py tests/test_model_capacity.py tests/test_worker_frozen_evidence.py",
         "pytest -q tests/integration/test_generation.py tests/integration/test_evaluation_worker.py tests/integration/test_evaluation_scan.py tests/integration/test_evaluation_candidate_execution.py (requires disposable MySQL and project dependencies)"
       ],
-      "review_scope": "Reviewed production evaluation quota override 2048 and unchanged reservation, concurrency and drain semantics; runtime evidence requires independent binding"
+      "review_scope": "在 766b2aa 业务源码基线上核对四类loop返回值、consumer独立退避与关闭、Job最多20候选/锁序/fence/3次attempt、原模型调用状态恢复、Evaluation先恢复再取消/选择的模式差异与游标、候选续租和本地ModelCapacity、Relay固定20及返回0、诊断1000连续清批与失败1小时等待；具体Job失租、receipt/unknown、45消息和2300诊断例子不推断现场配置。 Reviewed production quota override 2048 with unchanged reservations, concurrency and drain semantics; runtime evidence remains independently bound."
     },
     {
       "path": "docs/01-运行时/04-生命周期与优雅关闭.md",
@@ -794,7 +794,7 @@
         "pytest -q tests/test_daemon.py tests/test_runtime_lifecycle.py",
         "pytest -q tests/test_server_signals.py tests/test_single_server.py tests/test_messaging_runtime.py (requires project dependencies and local listener permissions)"
       ],
-      "review_scope": "Reviewed production evaluation quota override 2048 and unchanged reservation, concurrency and drain semantics; runtime evidence requires independent binding"
+      "review_scope": "在 766b2aa 业务源码基线上核对唯一信号所有者、mandatory提前结束故障域、ready撤销/并行drain/Publisher和HTTP依赖顺序、timeout之外取消清理与grpc兜底、191/192/197/201秒配置预算非整体时限、原正式模型调用/failed/response及Outbox恢复前提；独立复核探针测试覆盖和ModelResponse非原HTTPwire，不承诺退出前交付或生产停机结果。 Reviewed production quota override 2048 with unchanged reservations, concurrency and drain semantics; runtime evidence remains independently bound."
     },
     {
       "path": "docs/01-运行时/README.md",
@@ -1326,7 +1326,7 @@
         "git diff --check",
         "72 capacity/quotas/checkpoint/parallel-plan/receipt/config/frozen-evidence unit tests passed; isolated MySQL and real provider throughput not run"
       ],
-      "review_scope": "Reviewed production evaluation quota override 2048 and unchanged reservation, concurrency and drain semantics; runtime evidence requires independent binding"
+      "review_scope": "2026-10-06 source-grounded rewrite on unchanged 766b2aa business code; participant daily/active reservations, evaluation worst-case budgets, lock/version/fence distinctions, original dispatch ownership, concurrent candidate claims/receipt guards, local tokens and cross-instance limits; independent source review. Reviewed production quota override 2048 with unchanged reservations, concurrency and drain semantics; runtime evidence remains independently bound."
     },
     {
       "path": "docs/03-基础设施/execution-recovery/README.md",
@@ -1659,7 +1659,7 @@
         "git diff --check",
         "37 container/configuration/CI unit tests passed using existing environment and sibling SDK source; no dependency install, Docker, migration, MQ/provider or production action"
       ],
-      "review_scope": "Reviewed production evaluation quota override 2048 and unchanged reservation, concurrency and drain semantics; runtime evidence requires independent binding"
+      "review_scope": "Source-grounded rewrite against unchanged qs-ai business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Actual settings precedence/validation/defaults, offline checks, dependency prerequisites, isolated double-head database bootstrap and CI stages; independent source review. Reviewed production quota override 2048 with unchanged reservations, concurrency and drain semantics; runtime evidence remains independently bound."
     },
     {
       "path": "docs/04-接口与运维/05-部署迁移与兼容回滚.md",
@@ -1799,7 +1799,7 @@
         "12 documentation-checker regression tests passed",
         "All maintained articles indexed and local Markdown navigation reachability reviewed; no archive/runtime/config/protocol changes"
       ],
-      "review_scope": "Reviewed production evaluation quota override 2048 and unchanged reservation, concurrency and drain semantics; runtime evidence requires independent binding"
+      "review_scope": "Navigation and maintenance rules reconciled against all 34 source-reviewed design articles, unchanged business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Concrete question-based reading routes, single fact ownership, exact local checker limits and runtime_status fixed unknown; independent root-index review. External consumer gaps retain their per-article fixed source baselines. Reviewed production quota override 2048 with unchanged reservations, concurrency and drain semantics; runtime evidence remains independently bound."
     },
     {
       "path": "docs/05-决策记录/01-单进程与共享生命周期.md",
@@ -1937,7 +1937,7 @@
         "12 documentation-checker regression tests passed",
         "All maintained articles indexed and local Markdown navigation reachability reviewed; no archive/runtime/config/protocol changes"
       ],
-      "review_scope": "Reviewed production evaluation quota override 2048 and unchanged reservation, concurrency and drain semantics; runtime evidence requires independent binding"
+      "review_scope": "Navigation and maintenance rules reconciled against all 34 source-reviewed design articles, unchanged business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Concrete question-based reading routes, single fact ownership, exact local checker limits and runtime_status fixed unknown; independent root-index review. External consumer gaps retain their per-article fixed source baselines. Reviewed production quota override 2048 with unchanged reservations, concurrency and drain semantics; runtime evidence remains independently bound."
     },
     {
       "path": "docs/_plans/01-能力演进与验收缺口.md",
