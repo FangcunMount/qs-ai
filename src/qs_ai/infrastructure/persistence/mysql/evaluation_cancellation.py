@@ -61,6 +61,7 @@ async def record_for(
     times = [receipt["created_at"], *(t["at"] for t in progress["transitions"])]
     times += [r["evidence_json"]["finished_at"] for r in evidence.generations + evidence.semantics]
     times += [r["reviewed_at"] for r in progress.get("human_reviews", [])]
+    times += [r["review"]["reviewed_at"] for r in progress.get("review_corrections", [])]
     if any(decision.canceled_at < datetime.fromisoformat(value) for value in times):
         raise ValueError("Cancellation cannot precede existing evidence")
     if progress["status"] == "requested" and evidence.dispatches:

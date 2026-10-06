@@ -44,9 +44,9 @@
     "integrations/qs_server/schemas/manifest.json": "06236133252501995ea5380803bbfef31e732c0086f2ef1c615b7a44a5aa83da",
     "integrations/qs_server/schemas/mbti-input-manifest.json": "8b6a6106e411616119c6bd1e13599dd2fdfd5d6ce7daba37c2b661142744bd3a",
     "integrations/qs_server/schemas/mbti-thematic-input-manifest.json": "b34c7b37cba81ddac9808f8d2dae2548946c2f01e78fb1eebcf8ff24fff43a8e",
-    "integrations/workflow/README.md": "e090245be483e5c97e1d492059177592ef40f1069345e1c77488b295876495bf",
+    "integrations/workflow/README.md": "6941a30d8601f7ca5c7e1e628e0155e592ace16eb939aa337dc96de1cd1e5322",
     "integrations/workflow/proto/messaging.proto": "1cd0d5ac42f8c2e1b4523d9f59a9b6cec85abf4d1eef00db485078ad917d10f6",
-    "integrations/workflow/proto/workflow.proto": "3205470fa6f2b2c0ecceaac2111749604d09d28ba2183cbd46f51f13afc5cbae",
+    "integrations/workflow/proto/workflow.proto": "fd6df9aea0ccb36f220806471985e6f920c9e0a111b1ab42f0ffd52f0f64ea98",
     "migrations/env.py": "6f12e1e79185a2ec5bc400133f1a1c1e342ae9b9e73fb698730e81ca71cbaf3b",
     "migrations/versions/0035_runtime_utc_timestamps.py": "366fcef80027aa979d9d74222b9ff88f5a83612165ba0d0ea147e499506ab825",
     "migrations/versions/0036_evaluation_slot_claims.py": "92f8eb1ff24aea68342242dad3a6a28aae04164de8b9f27fcfa6d069ad0c6757",
@@ -144,7 +144,7 @@
     "src/qs_ai/infrastructure/persistence/mysql/editable_model_policy.py": "5e817ff521c954bbf99e7f7b46af028930e6857dcc17a1a2d1169bc21ba02391",
     "src/qs_ai/infrastructure/persistence/mysql/eligibility.py": "454b951cd54ef9a4fcdce4bda313e5a4690a84630f08f20ee8add36ff0f647eb",
     "src/qs_ai/infrastructure/persistence/mysql/evaluation_assets.py": "b8bf619a0c02eeab855a97a893686a69a2c57d63b3fe9878abbb8da0fa84ad28",
-    "src/qs_ai/infrastructure/persistence/mysql/evaluation_cancellation.py": "f51c4a0c4e1a8823450814775b2a4ccfad1d00fa847c2d0d486a42ddfcfebfeb",
+    "src/qs_ai/infrastructure/persistence/mysql/evaluation_cancellation.py": "f89df982b73244fd6c28046f1385af16f176821d586c4d3d7151432da55d4780",
     "src/qs_ai/infrastructure/persistence/mysql/evaluation_candidate_completion.py": "bd7f0d131b3cb5d41650b41796a0848d908b22f8cb18609f63d7a9af150b073f",
     "src/qs_ai/infrastructure/persistence/mysql/evaluation_candidate_plan.py": "5a0b89a4a7f4b88151c381914918c6981d6efd0791a832a452043af4216a3ac4",
     "src/qs_ai/infrastructure/persistence/mysql/evaluation_candidate_recovery.py": "d49ed7f8f98c15ee5fe35568b42ce9e84ce47f11798f79aa86c3d8972e7b5485",
@@ -154,14 +154,14 @@
     "src/qs_ai/infrastructure/persistence/mysql/evaluation_contract_recovery.py": "5a22a41d9ac97ec59afd5fd0070a4bd4d8896e0d0bca2d1fe42e477cbfde71ba",
     "src/qs_ai/infrastructure/persistence/mysql/evaluation_contracts.py": "d403bcbab858bce34094064aff86264554829eb0349cc0608e4c9f1f195b1503",
     "src/qs_ai/infrastructure/persistence/mysql/evaluation_diagnostics.py": "eb1a25eaf2b9a95b708761662ec3f9aadba9190a313455593b80e16b4206055c",
-    "src/qs_ai/infrastructure/persistence/mysql/evaluation_finalization.py": "f7ad023acfabe033f1e1c049ec7e206080703c31d9da54da00fa2454f63b679d",
-    "src/qs_ai/infrastructure/persistence/mysql/evaluation_gates.py": "25ac06629cf737fe96ae129fa600ff54ef34bd43233fc4947770f440087d4d1d",
-    "src/qs_ai/infrastructure/persistence/mysql/evaluation_management.py": "90d92ee656f30bf5b5b4d108d5945f78fc8d842497b3964c427471ed09d31b84",
+    "src/qs_ai/infrastructure/persistence/mysql/evaluation_finalization.py": "7e44ad930bae85ff36d5aa556becc6902b84d781d8347cb2e610a3cdc5b07579",
+    "src/qs_ai/infrastructure/persistence/mysql/evaluation_gates.py": "bd5d9b78387ddda1108f9b089b02f3b8fa306bc8089dd8f5b49b4ab847688bed",
+    "src/qs_ai/infrastructure/persistence/mysql/evaluation_management.py": "2a44588a37ffb87e6fec1db8b19b34edc80e6ae083665bd5e14303eb647d2eed",
     "src/qs_ai/infrastructure/persistence/mysql/evaluation_recovery.py": "ec0d961d01873e37269340c1d35a11432765436db66a420a7b0270be0ccea3a4",
     "src/qs_ai/infrastructure/persistence/mysql/evaluation_resolution.py": "9fe81061d5eeb1b6ed016062321b40c9ff93b40670e4b618fa5a22fe3bdf06fe",
     "src/qs_ai/infrastructure/persistence/mysql/evaluation_response_receipts.py": "aa94ffc2ff72c08c60170832ba35f7f21b70b23aa214e5cbf8b8f2facba59163",
-    "src/qs_ai/infrastructure/persistence/mysql/evaluation_review_history.py": "97542f4b4ae65bcc7b6dd16c74739ce7203ed903f2f3deff55b12f7739c6d451",
-    "src/qs_ai/infrastructure/persistence/mysql/evaluation_reviews.py": "80cb89f6bd2f9bec2b8e73ba861780df39e410ebc5e63f940f4e041ba3d289e9",
+    "src/qs_ai/infrastructure/persistence/mysql/evaluation_review_history.py": "6d4e93757833f25ead96a4c7e4826569dda1a7e96184a59971a35506a8077e69",
+    "src/qs_ai/infrastructure/persistence/mysql/evaluation_reviews.py": "83da2c410d9bf41549bb76d8a7e52a2ac6d7e9f23d9b99e73c16836745dc8d09",
     "src/qs_ai/infrastructure/persistence/mysql/evaluation_runs.py": "1625241e36270d9f381a1abbdb4e03c78f626e438dc922baff094ef9c25c5270",
     "src/qs_ai/infrastructure/persistence/mysql/evaluation_scan.py": "3fe9080db2911b6e04a5c64dd75c0c97424232b7331272d71510cad26fafe817",
     "src/qs_ai/infrastructure/persistence/mysql/evaluation_slot_claims.py": "52e25b82ace8f43d8f87393455351b69d9f60c725693b3e44bd7ed8d22e016d7",
@@ -218,7 +218,7 @@
     "src/qs_ai/model_configuration.py": "cc5d5a7f488080fcfe54280dc15973db70dcbd6e49a6ab4b2ad94d87bf0973ef",
     "src/qs_ai/transport/grpc/commands.py": "fd01d18dd78b43e2f4d3e7dc47545fc610ea20944939cce69df76454b5a4e9bd",
     "src/qs_ai/transport/grpc/diagnostics.py": "377e789d7b4a48811fa0fc7bfa56a7d4d59953ab47148c454a9ce0273c8a6306",
-    "src/qs_ai/transport/grpc/evaluation.py": "7c4f0774daff3e555a38ba9d66b441c12e0ba9ebb517c42593399e31503c0149",
+    "src/qs_ai/transport/grpc/evaluation.py": "b56ff042f0dd0ef8cb2f06d89bb17e010029e7869d51d2e11140dc52685ab580",
     "src/qs_ai/transport/grpc/identity.py": "3e94b010c079e87a53b77b113470a31ced79a85983d16233232089e67c706ef2",
     "src/qs_ai/transport/grpc/mq_cutover.py": "a520949d2b762d826e70cef1c01f0a65b6357529ab48e03956de873f230fdd35",
     "src/qs_ai/transport/grpc/participant.py": "d004bc88be4815830254b6ef196c9bb8281c9b0079d6b6ae74272fbd771c0af7",
@@ -380,7 +380,11 @@
     "tests/test_solutions.py": "e60f73b854d4816bfe06d6cfeff1c783572c3348f7f0e265d4dc3d0a602b37f3",
     "tests/test_structured_logging.py": "01ad0070c167faf7bb0cccd6d507a9debb5880b59a30cd49381dcd943073d17e",
     "tests/test_worker_frozen_evidence.py": "a279da8e3371901f60a08e200f6ce91438304332c980d2bf591fb2ec0aa108e9",
-    "uv.lock": "5d893bdc8123546ee38f4478347faf4301cd5f2d79120baa93df30b346c85767"
+    "uv.lock": "5d893bdc8123546ee38f4478347faf4301cd5f2d79120baa93df30b346c85767",
+    "src/qs_ai/infrastructure/persistence/mysql/evaluation_review_corrections.py": "ba4bd6d88e2fcfffb476f624ad50bc74a7bd28a2b14e80a724e7d56ac80380e1",
+    "src/qs_ai/domain/evaluation/review_correction.py": "631b26783340f71e83c32eb033cdd566efc3af846c0d3d412ba9a563c271348e",
+    "tests/test_grpc_review_correction.py": "352fbfc712eb31d5a1f5335f81a230a481354e890d9a0e6fcccc698a8ff2bca8",
+    "tests/integration/test_evaluation_review_corrections.py": "f4e507fc5f94d1d45b9450a361e57862201f13d67c59176eece75513c35891ff"
   },
   "documents": [
     {
@@ -579,9 +583,10 @@
       ],
       "verify": [
         "python scripts/check_docs.py",
-        "pytest -q tests/test_evaluation_review.py tests/test_quality_gates.py tests/test_evaluation_closure.py tests/test_candidate_completion_gates.py tests/test_publication.py"
+        "pytest -q tests/test_evaluation_review.py tests/test_quality_gates.py tests/test_evaluation_closure.py tests/test_candidate_completion_gates.py tests/test_publication.py",
+        "Correction-specific unit/gRPC, MySQL 8.0/8.4 transactions and existing review/finalization/reopening regressions; scripts/check_docs.py. Environment and business acceptance separately recorded."
       ],
-      "review_scope": "在 766b2aa 业务源码基线上逐步核对 MBTI 三主题工作区、原子 Prepare、35 槽位与调用预算、双角色审核、五门、终审和全局发布，以及正式接单、冻结配置、两次授权、原调用恢复、Artifact 接受与原事件 STORED；独立复核后收窄 candidate_v2 响应屏障与发布重读五项生成资产的实际范围，区分 serial_v1，明确七案例非全类型质量证明。"
+      "review_scope": "在 766b2aa 业务源码基线上逐步核对 MBTI 三主题工作区、原子 Prepare、35 槽位与调用预算、双角色审核、五门、终审和全局发布，以及正式接单、冻结配置、两次授权、原调用恢复、Artifact 接受与原事件 STORED；独立复核后收窄 candidate_v2 响应屏障与发布重读五项生成资产的实际范围，区分 serial_v1，明确七案例非全类型质量证明。 2026-10-06 scoped CorrectReview patch review: original signatures remain immutable; effective-review projection, CAS/idempotent audit, archived receipt replay and finalization reads reconciled. Existing MQ execution, participant precheck and other proto fields unchanged. No production correction or publication acceptance claimed."
     },
     {
       "path": "docs/00-总览/04-代码地图与能力状态.md",
@@ -876,14 +881,18 @@
         "tests/test_evaluation_closure.py",
         "tests/test_evaluation_reopening.py",
         "tests/test_evaluation_review.py",
-        "tests/test_quality_gates.py"
+        "tests/test_quality_gates.py",
+        "src/qs_ai/domain/evaluation/review_correction.py",
+        "src/qs_ai/infrastructure/persistence/mysql/evaluation_review_corrections.py",
+        "tests/integration/test_evaluation_review_corrections.py"
       ],
       "verify": [
         "python scripts/check_docs.py",
         "git diff --check",
-        "164 targeted evaluation unit tests passed; isolated MySQL/provider/human acceptance not run"
+        "164 targeted evaluation unit tests passed; isolated MySQL/provider/human acceptance not run",
+        "Correction-specific unit/gRPC, MySQL 8.0/8.4 transactions and existing review/finalization/reopening regressions; scripts/check_docs.py. Environment and business acceptance separately recorded."
       ],
-      "review_scope": "2026-10-06 source-grounded rewrite on d9c3155; frozen Run identity/budgets, serial/candidate response windows, G1-G5 formulas, review/finalization/reopening, and bounded unknown/contract/cancel recovery; independent recovery review; no runtime assertion."
+      "review_scope": "2026-10-06 source-grounded rewrite on d9c3155; frozen Run identity/budgets, serial/candidate response windows, G1-G5 formulas, review/finalization/reopening, and bounded unknown/contract/cancel recovery; independent recovery review; no runtime assertion. 2026-10-06 scoped CorrectReview patch review: original signatures remain immutable; effective-review projection, CAS/idempotent audit, archived receipt replay and finalization reads reconciled. Existing MQ execution, participant precheck and other proto fields unchanged. No production correction or publication acceptance claimed."
     },
     {
       "path": "docs/02-业务模块/evaluation/README.md",
@@ -1142,9 +1151,10 @@
         "python scripts/check_docs.py",
         "git diff --check",
         "27 eligibility/admission-rejection unit tests passed with worktree source and existing sibling reliable-messaging SDK path; no install",
-        "Fixed QS source links verified; MySQL/mTLS integration and live acceptance not run"
+        "Fixed QS source links verified; MySQL/mTLS integration and live acceptance not run",
+        "Correction-specific unit/gRPC, MySQL 8.0/8.4 transactions and existing review/finalization/reopening regressions; scripts/check_docs.py. Environment and business acceptance separately recorded."
       ],
-      "review_scope": "2026-10-06 source-grounded rewrite on unchanged 766b2aa business code and QS 2ccc2de; current authorization/source resolver, no-write eligibility, scale fallback vs exact MBTI, error mapping, true MQ admission and historical binding; no current deployment or UI claim."
+      "review_scope": "2026-10-06 source-grounded rewrite on unchanged 766b2aa business code and QS 2ccc2de; current authorization/source resolver, no-write eligibility, scale fallback vs exact MBTI, error mapping, true MQ admission and historical binding; no current deployment or UI claim. 2026-10-06 scoped CorrectReview patch review: original signatures remain immutable; effective-review projection, CAS/idempotent audit, archived receipt replay and finalization reads reconciled. Existing MQ execution, participant precheck and other proto fields unchanged. No production correction or publication acceptance claimed."
     },
     {
       "path": "docs/02-业务模块/interpretation/05-量表兼容与回执重建.md",
@@ -1237,9 +1247,10 @@
       "verify": [
         "python scripts/check_docs.py",
         "pytest -q tests/test_publication.py tests/test_publication_records.py",
-        "pytest -q tests/integration/test_publications.py tests/integration/test_publication_grpc.py (requires disposable MySQL, Go probes, project dependencies and listener permissions)"
+        "pytest -q tests/integration/test_publications.py tests/integration/test_publication_grpc.py (requires disposable MySQL, Go probes, project dependencies and listener permissions)",
+        "Correction-specific unit/gRPC, MySQL 8.0/8.4 transactions and existing review/finalization/reopening regressions; scripts/check_docs.py. Environment and business acceptance separately recorded."
       ],
-      "review_scope": "在 766b2aa 业务源码基线上重写四种持久记录、全局五字段selector与量表宽fallback/MBTI共槽、最终决定原历史重算/五项Manifest原字节/当前模型条件三层核证、Publish和rollback/disable各自锁序与CAS、P1/P2递增指针示例、原Apply Run前置与GetReceipt查询差异、历史审计/私有command scope和原请求绑定；独立复核收窄v1/v2模型准入分支和发布端未测撤销范围，不外推现场上线。"
+      "review_scope": "在 766b2aa 业务源码基线上重写四种持久记录、全局五字段selector与量表宽fallback/MBTI共槽、最终决定原历史重算/五项Manifest原字节/当前模型条件三层核证、Publish和rollback/disable各自锁序与CAS、P1/P2递增指针示例、原Apply Run前置与GetReceipt查询差异、历史审计/私有command scope和原请求绑定；独立复核收窄v1/v2模型准入分支和发布端未测撤销范围，不外推现场上线。 2026-10-06 scoped CorrectReview patch review: original signatures remain immutable; effective-review projection, CAS/idempotent audit, archived receipt replay and finalization reads reconciled. Existing MQ execution, participant precheck and other proto fields unchanged. No production correction or publication acceptance claimed."
     },
     {
       "path": "docs/02-业务模块/publication/README.md",
@@ -1377,9 +1388,10 @@
       "verify": [
         "python scripts/check_docs.py",
         "git diff --check",
-        "54 targeted report-graph/resolution/semantic-contract/cancellation unit tests passed; DB/crash/MQ/live recovery not run"
+        "54 targeted report-graph/resolution/semantic-contract/cancellation unit tests passed; DB/crash/MQ/live recovery not run",
+        "Correction-specific unit/gRPC, MySQL 8.0/8.4 transactions and existing review/finalization/reopening regressions; scripts/check_docs.py. Environment and business acceptance separately recorded."
       ],
-      "review_scope": "2026-10-06 source-grounded rewrite on unchanged 766b2aa business code; generation original receipts and bounded claims, explicit Participant Retry, serial/candidate recovery differences, unknown decisions, internal semantic contract recovery, cancellation drain and original message acknowledgment; independent source review; no actual recovery action."
+      "review_scope": "2026-10-06 source-grounded rewrite on unchanged 766b2aa business code; generation original receipts and bounded claims, explicit Participant Retry, serial/candidate recovery differences, unknown decisions, internal semantic contract recovery, cancellation drain and original message acknowledgment; independent source review; no actual recovery action. 2026-10-06 scoped CorrectReview patch review: original signatures remain immutable; effective-review projection, CAS/idempotent audit, archived receipt replay and finalization reads reconciled. Existing MQ execution, participant precheck and other proto fields unchanged. No production correction or publication acceptance claimed."
     },
     {
       "path": "docs/03-基础设施/messaging/README.md",
@@ -1563,9 +1575,10 @@
       "verify": [
         "python scripts/check_docs.py",
         "git diff --check",
-        "QS/workflow/messaging generation --check all passed; fixed-source manifest and generated output byte consistency verified; no runtime/network acceptance"
+        "QS/workflow/messaging generation --check all passed; fixed-source manifest and generated output byte consistency verified; no runtime/network acceptance",
+        "Correction-specific unit/gRPC, MySQL 8.0/8.4 transactions and existing review/finalization/reopening regressions; scripts/check_docs.py. Environment and business acceptance separately recorded."
       ],
-      "review_scope": "Source-grounded rewrite against unchanged qs-ai business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Actual protocol owners/registration, retired execution RPCs, fixed QS vendoring versus generated artifacts, current HTTP DTOs and per-family idempotency; independent source review."
+      "review_scope": "Source-grounded rewrite against unchanged qs-ai business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Actual protocol owners/registration, retired execution RPCs, fixed QS vendoring versus generated artifacts, current HTTP DTOs and per-family idempotency; independent source review. 2026-10-06 scoped CorrectReview patch review: original signatures remain immutable; effective-review projection, CAS/idempotent audit, archived receipt replay and finalization reads reconciled. Existing MQ execution, participant precheck and other proto fields unchanged. No production correction or publication acceptance claimed."
     },
     {
       "path": "docs/04-接口与运维/02-QS接入与消息契约.md",
@@ -1592,9 +1605,10 @@
       "verify": [
         "python scripts/check_docs.py",
         "git diff --check",
-        "AI/QS/IAM source and existing test assertions reviewed; cross-service MySQL/MQ/mTLS and participant acceptance not run"
+        "AI/QS/IAM source and existing test assertions reviewed; cross-service MySQL/MQ/mTLS and participant acceptance not run",
+        "Correction-specific unit/gRPC, MySQL 8.0/8.4 transactions and existing review/finalization/reopening regressions; scripts/check_docs.py. Environment and business acceptance separately recorded."
       ],
-      "review_scope": "Source-grounded rewrite against unchanged qs-ai business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. QS 2ccc2de44bbd45e26d29e7e130da518cc32426f0 and IAM c8fc1fe61a32056368148e232e96d32763c15ba5 source review: current access/delegation, exact HTTP and MQ operation/projection contracts, original request replay and durable Stored; independent source review."
+      "review_scope": "Source-grounded rewrite against unchanged qs-ai business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. QS 2ccc2de44bbd45e26d29e7e130da518cc32426f0 and IAM c8fc1fe61a32056368148e232e96d32763c15ba5 source review: current access/delegation, exact HTTP and MQ operation/projection contracts, original request replay and durable Stored; independent source review. 2026-10-06 scoped CorrectReview patch review: original signatures remain immutable; effective-review projection, CAS/idempotent audit, archived receipt replay and finalization reads reconciled. Existing MQ execution, participant precheck and other proto fields unchanged. No production correction or publication acceptance claimed."
     },
     {
       "path": "docs/04-接口与运维/03-治理接口与可信委托.md",
@@ -1619,14 +1633,17 @@
         "tests/test_grpc_evaluation_finalization.py",
         "tests/test_grpc_evaluation_review.py",
         "tests/test_grpc_mq_cutover.py",
-        "tests/test_grpc_publication.py"
+        "tests/test_grpc_publication.py",
+        "tests/test_grpc_review_correction.py",
+        "src/qs_ai/infrastructure/persistence/mysql/evaluation_review_corrections.py"
       ],
       "verify": [
         "python scripts/check_docs.py",
         "git diff --check",
-        "106 selected gRPC governance unit tests passed; 1 dependency-graph test deselected; existing sibling reliable-messaging source used via PYTHONPATH without install; real DB/mTLS acceptance not run"
+        "106 selected gRPC governance unit tests passed; 1 dependency-graph test deselected; existing sibling reliable-messaging source used via PYTHONPATH without install; real DB/mTLS acceptance not run",
+        "Correction-specific unit/gRPC, MySQL 8.0/8.4 transactions and existing review/finalization/reopening regressions; scripts/check_docs.py. Environment and business acceptance separately recorded."
       ],
-      "review_scope": "Source-grounded rewrite against unchanged qs-ai business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. QS 2ccc2de44bbd45e26d29e7e130da518cc32426f0 and IAM c8fc1fe61a32056368148e232e96d32763c15ba5 source review: actual capability, organization scope, current synchronous governance/MQ admission, receipt versus CAS semantics, independent actors and global publication effect; independent source review."
+      "review_scope": "Source-grounded rewrite against unchanged qs-ai business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. QS 2ccc2de44bbd45e26d29e7e130da518cc32426f0 and IAM c8fc1fe61a32056368148e232e96d32763c15ba5 source review: actual capability, organization scope, current synchronous governance/MQ admission, receipt versus CAS semantics, independent actors and global publication effect; independent source review. 2026-10-06 scoped CorrectReview patch review: original signatures remain immutable; effective-review projection, CAS/idempotent audit, archived receipt replay and finalization reads reconciled. Existing MQ execution, participant precheck and other proto fields unchanged. No production correction or publication acceptance claimed."
     },
     {
       "path": "docs/04-接口与运维/04-配置与本地开发.md",
@@ -1730,9 +1747,10 @@
       "verify": [
         "python scripts/check_docs.py",
         "git diff --check",
-        "15 runtime/metrics unit tests passed using existing sibling SDK source; MQ legacy-handoff test collection requires unavailable jwcrypto; real mTLS cutover tests blocked by sandbox port bind; DB/MQ/listener/production diagnosis not run"
+        "15 runtime/metrics unit tests passed using existing sibling SDK source; MQ legacy-handoff test collection requires unavailable jwcrypto; real mTLS cutover tests blocked by sandbox port bind; DB/MQ/listener/production diagnosis not run",
+        "Correction-specific unit/gRPC, MySQL 8.0/8.4 transactions and existing review/finalization/reopening regressions; scripts/check_docs.py. Environment and business acceptance separately recorded."
       ],
-      "review_scope": "Source-grounded rewrite against unchanged qs-ai business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Diagnostic identities and active_call_count/cancel_draining DTO, default isolated-read behavior, query/error limits, business versus transport states and bounded recovery actions; source and independent contract review."
+      "review_scope": "Source-grounded rewrite against unchanged qs-ai business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Diagnostic identities and active_call_count/cancel_draining DTO, default isolated-read behavior, query/error limits, business versus transport states and bounded recovery actions; source and independent contract review. 2026-10-06 scoped CorrectReview patch review: original signatures remain immutable; effective-review projection, CAS/idempotent audit, archived receipt replay and finalization reads reconciled. Existing MQ execution, participant precheck and other proto fields unchanged. No production correction or publication acceptance claimed."
     },
     {
       "path": "docs/04-接口与运维/07-语义契约故障恢复.md",
@@ -1935,9 +1953,10 @@
         "python scripts/check_docs.py",
         "git diff --check",
         "12 documentation-checker regression tests passed",
-        "All maintained articles indexed and local Markdown navigation reachability reviewed; no archive/runtime/config/protocol changes"
+        "All maintained articles indexed and local Markdown navigation reachability reviewed; no archive/runtime/config/protocol changes",
+        "Correction-specific unit/gRPC, MySQL 8.0/8.4 transactions and existing review/finalization/reopening regressions; scripts/check_docs.py. Environment and business acceptance separately recorded."
       ],
-      "review_scope": "Navigation and maintenance rules reconciled against all 34 source-reviewed design articles, unchanged business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Concrete question-based reading routes, single fact ownership, exact local checker limits and runtime_status fixed unknown; independent root-index review. External consumer gaps retain their per-article fixed source baselines. Reviewed production quota override 2048 with unchanged reservations, concurrency and drain semantics; runtime evidence remains independently bound."
+      "review_scope": "Navigation and maintenance rules reconciled against all 34 source-reviewed design articles, unchanged business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Concrete question-based reading routes, single fact ownership, exact local checker limits and runtime_status fixed unknown; independent root-index review. External consumer gaps retain their per-article fixed source baselines. Reviewed production quota override 2048 with unchanged reservations, concurrency and drain semantics; runtime evidence remains independently bound. 2026-10-06 scoped CorrectReview patch review: original signatures remain immutable; effective-review projection, CAS/idempotent audit, archived receipt replay and finalization reads reconciled. Existing MQ execution, participant precheck and other proto fields unchanged. No production correction or publication acceptance claimed."
     },
     {
       "path": "docs/_plans/01-能力演进与验收缺口.md",
@@ -2228,9 +2247,10 @@
       ],
       "verify": [
         "python scripts/check_docs.py",
-        "pytest -q tests/test_docs.py"
+        "pytest -q tests/test_docs.py",
+        "Correction-specific unit/gRPC, MySQL 8.0/8.4 transactions and existing review/finalization/reopening regressions; scripts/check_docs.py. Environment and business acceptance separately recorded."
       ],
-      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding 2026-10-06 scoped CorrectReview patch review: original signatures remain immutable; effective-review projection, CAS/idempotent audit, archived receipt replay and finalization reads reconciled. Existing MQ execution, participant precheck and other proto fields unchanged. No production correction or publication acceptance claimed."
     },
     {
       "path": "scripts/cd/IMAGE_RETENTION.md",

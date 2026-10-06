@@ -14,7 +14,11 @@ from qs_ai.domain.evaluation.reopening import (
     validate_reopening_history,
 )
 from qs_ai.domain.evaluation.review import CandidateHumanReview, ReviewCandidate
-from qs_ai.infrastructure.persistence.mysql.evaluation_review_codec import decode_reviews
+from qs_ai.domain.evaluation.review_correction import validate_corrections
+from qs_ai.infrastructure.persistence.mysql.evaluation_review_codec import (
+    decode_corrections,
+    decode_reviews,
+)
 
 
 def canonical(value: object) -> str:
@@ -85,6 +89,18 @@ def validate_rounds(
         if type(source_version) is not int or source_version < previous_version:
             raise ValueError("Historical finalization version is invalid")
         reviews = decode_reviews(entry["previous_reviews"])
+        if "previous_review_corrections" in entry or "previous_original_reviews" in entry:
+            projected = validate_corrections(
+                decode_reviews(entry["previous_original_reviews"]),
+                decode_corrections({"review_corrections": entry["previous_review_corrections"]}),
+                candidates,
+                closed_at,
+                source_version,
+                datetime.fromisoformat(final["finalized_at"]),
+                "v2",
+            )
+            if projected != reviews:
+                raise ValueError("Archived correction projection differs from final reviews")
         quality = calculate(reviews, datetime.fromisoformat(final["finalized_at"]))
         expected_final = final_record(
             GatePreview(run_id, source_version, fingerprint, quality),
@@ -107,6 +123,9 @@ def validate_rounds(
         )
         boundary = closure_count + index * 2 + 1
         expected = opening_record(plan, expected_final, boundary)
+        if "previous_review_corrections" in entry:
+            expected["previous_original_reviews"] = entry["previous_original_reviews"]
+            expected["previous_review_corrections"] = entry["previous_review_corrections"]
         if (
             canonical(entry) != canonical(expected)
             or transitions[boundary - 1] != final_transition(final)
@@ -117,6 +136,11 @@ def validate_rounds(
             raise ValueError("Historical reopening audit differs from its Run boundary")
         previous_version = expected["version"]
         history.append(plan)
+    if raw_history and any(
+        entry.review.reviewed_at < datetime.fromisoformat(raw_history[-1]["reopened_at"])
+        for entry in decode_corrections(progress)
+    ):
+        raise ValueError("Correction predates current review round")
     validate_reopening_history(
         tuple(history),
         decode_reviews(progress.get("human_reviews", [])),

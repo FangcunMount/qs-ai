@@ -50,6 +50,9 @@ async def reopen(
         reopening_count=len(history),
     )
     entry = opening_record(plan, progress["gate_result"], len(progress["transitions"]))
+    if progress.get("review_corrections"):
+        entry["previous_original_reviews"] = progress["human_reviews"]
+        entry["previous_review_corrections"] = progress["review_corrections"]
     history = [*history, entry]
     if len(canonical(history).encode()) > 2 * 1024 * 1024:
         raise ValueError("Review history exceeds response bound")
@@ -67,6 +70,7 @@ async def reopen(
                 for r in plan.retained_reviews
             ],
             "review_reopenings": history,
+            "review_corrections": [],
             "transitions": [*progress["transitions"], opening_transition(entry)],
         },
     )

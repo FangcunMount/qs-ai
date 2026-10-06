@@ -49,6 +49,9 @@ class EvaluationView:
     parallel_call_limit: int = 1
     cancel_draining: bool = False
     cancel_request_json: str = ""
+    original_reviews_json: str = "[]"
+    review_corrections_json: str = "[]"
+    review_fingerprints_json: str = "[]"
 
 
 class EvaluationManagementStore(Protocol):
@@ -103,6 +106,16 @@ class EvaluationManagementStore(Protocol):
         scope: ManagementScope,
         expected_version: int,
         values: tuple[CandidateHumanReview, ...],
+    ) -> EvaluationView: ...
+
+    async def correct_review(
+        self,
+        scope: ManagementScope,
+        expected_version: int,
+        command_id: str,
+        previous_review_fingerprint: str,
+        candidate_output_fingerprint: str,
+        value: CandidateHumanReview,
     ) -> EvaluationView: ...
 
     async def start(

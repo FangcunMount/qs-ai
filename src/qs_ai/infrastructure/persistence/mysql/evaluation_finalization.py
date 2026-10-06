@@ -127,7 +127,7 @@ async def read_finalization(
     if record is None and progress["status"] not in ("approved", "rejected"):
         if progress.get("finalized_at"):
             raise ValueError("Finalization audit without a gate decision")
-        if has_review_rounds(progress):
+        if has_review_rounds(progress) or progress.get("review_corrections"):
             await load_snapshot(db, scope, run, run["version"], datetime.now(UTC))
         return "", False
     snapshot = await verified_final_snapshot(db, scope, run)

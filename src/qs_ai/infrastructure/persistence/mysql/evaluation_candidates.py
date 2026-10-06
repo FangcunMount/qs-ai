@@ -32,7 +32,10 @@ from qs_ai.infrastructure.persistence.mysql.evaluation_projection import (
     decode_semantic_completion,
     project_slots,
 )
-from qs_ai.infrastructure.persistence.mysql.evaluation_review_codec import decode_reviews
+from qs_ai.infrastructure.persistence.mysql.evaluation_review_codec import (
+    current_reviews,
+    encode_review,
+)
 from qs_ai.infrastructure.persistence.mysql.evaluation_review_history import has_review_rounds
 from qs_ai.infrastructure.persistence.mysql.evaluation_snapshot import header
 from qs_ai.infrastructure.persistence.mysql.schema import (
@@ -172,7 +175,9 @@ async def get_candidate(
         if r["execution_id"] == candidate["accepted_semantic_execution_id"]
     )
     judged = decode_semantic_completion(accepted)
-    reviews = [r for r in progress.get("human_reviews", []) if r["candidate_id"] == candidate_id]
+    reviews = tuple(
+        r for r in current_reviews(progress, expected_version) if r.candidate_id == candidate_id
+    )
     closures = [
         t
         for t in progress.get("transitions", [])
@@ -191,7 +196,7 @@ async def get_candidate(
             tuple(AssertionReceipt(**a) for a in candidate["assertions"]),
             tuple(AssertionReceipt(**a) for a in candidate["semantic_assertions"]),
         ),
-        decode_reviews(reviews),
+        reviews,
         closed_at,
         gate_policy_version=release.gate_policy.version,
     )
@@ -234,7 +239,7 @@ async def get_candidate(
                 "output_fingerprint": judged.output_fingerprint,
                 "result": accepted["result_json"],
             },
-            "reviews": reviews,
+            "reviews": [encode_review(r) for r in reviews],
             "effective_assertions": [asdict(a) for a in effective.assertions],
             "semantic_adjudication": asdict(effective.adjudication)
             if effective.adjudication

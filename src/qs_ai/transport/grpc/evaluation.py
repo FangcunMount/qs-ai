@@ -254,6 +254,52 @@ class EvaluationManagement(rpc.EvaluationManagementServicer):
             return pb.EvaluationState(**asdict(view))
         raise AssertionError("abort must raise")
 
+    async def CorrectReview(
+        self, request: pb.EvaluationReviewCorrectionCommand, context: aio.ServicerContext[Any, Any]
+    ) -> pb.EvaluationState:
+        async with self.operation(context):
+            import re
+            from uuid import UUID
+
+            scope = scope_from(request.scope)
+            if (
+                request.ByteSize() > 8192
+                or not request.confirm
+                or request.expected_version < 1
+                or str(UUID(request.command_id)) != request.command_id
+                or UUID(request.command_id).int == 0
+                or not all(
+                    re.fullmatch(r"sha256:[0-9a-f]{64}", f)
+                    for f in (
+                        request.previous_review_fingerprint,
+                        request.candidate_output_fingerprint,
+                    )
+                )
+            ):
+                raise ValueError(
+                    "Explicit correction identity, fingerprints and confirmation required"
+                )
+            value = CandidateHumanReview(
+                request.candidate_id,
+                request.role,
+                scope.actor,
+                request.decision,
+                datetime.now(UTC),
+                request.reason.strip(),
+            )
+            async with self.container() as operation:
+                store = await operation.get(EvaluationManagementStore)
+                view = await store.correct_review(
+                    scope,
+                    request.expected_version,
+                    request.command_id,
+                    request.previous_review_fingerprint,
+                    request.candidate_output_fingerprint,
+                    value,
+                )
+            return pb.EvaluationState(**asdict(view))
+        raise AssertionError("abort must raise")
+
     async def PreviewGates(
         self, request: pb.EvaluationGateQuery, context: aio.ServicerContext[Any, Any]
     ) -> pb.EvaluationGatePreview:
