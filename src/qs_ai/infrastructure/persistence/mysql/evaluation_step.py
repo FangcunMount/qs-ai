@@ -74,6 +74,7 @@ class PreparedStep:
     route: ModelRoute
     messages: PromptMessages
     schema: dict[str, Any]
+    max_output_characters: int
     semantic: SemanticAssets | None
     claim: SlotClaim | None = None
     capacity_token: CapacityToken | None = None
@@ -273,6 +274,7 @@ async def _prepare_step(
         route,
         messages,
         schema,
+        prepared.release.render_policy.max_output_characters,
         semantic,
         claim,
         tokens[0] if tokens else None,
@@ -309,7 +311,15 @@ async def finish_step(
     receipt = None
     raw, normalized = b"", b""
     if response is not None:
-        evidence = response_evidence(cp.kind, execution_id, invocation_id, route, schema, response)
+        evidence = response_evidence(
+            cp.kind,
+            execution_id,
+            invocation_id,
+            route,
+            schema,
+            response,
+            max_output_characters=prepared.max_output_characters,
+        )
         receipt, raw, normalized, failure = (
             evidence.receipt,
             evidence.raw,

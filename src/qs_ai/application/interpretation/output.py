@@ -13,6 +13,7 @@ from qs_ai.application.interpretation.output_types import (
 from qs_ai.application.interpretation.output_types import (
     OutputParser as OutputParser,
 )
+from qs_ai.application.interpretation.output_types import validate_output_length
 from qs_ai.application.interpretation.preparation import PreparedExplanation
 
 
@@ -20,8 +21,7 @@ def validate_output(
     raw: str, prepared: PreparedExplanation, parser: OutputParser
 ) -> DeterministicOutput:
     policy = prepared.release.render_policy
-    if len(raw) > policy.max_output_characters:
-        raise InvalidOutput("output_too_long")
+    validate_output_length(raw, policy.max_output_characters)
     content = parser.parse(raw)
     if isinstance(prepared.release.input_policy, MBTIThematicInputPolicy):
         from qs_ai.application.interpretation.mbti_themes_output import validate_mbti_themes_output

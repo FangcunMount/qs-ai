@@ -106,6 +106,10 @@ QS 返回 202 `data.status=submitted`、operation_id/command_id 与 status_url�
 
 ## 5. 单独发布到共享 MBTI 槽位
 
+生成输出的字符上限来自原冻结 Profile，不是模型 Token 上限。评测和参与者生成都检查供应商适配后的 validation text，在 JSON 解析、压紧或规范化前按 Unicode 字符计数；格式空白计入上限。评测超长响应保留原回执与有界原文，记录 `output_too_long` 合约失败，不创建成功候选；只按原冻结执行策略允许的次数补生成，恢复已收到回执不重新调用模型。语义裁判仍使用其自己的输出契约，不套用生成正文的字符上限。
+
+历史 Run、候选与 publication 不因这项修复被改写。重新核验旧输出时仍检查原验证文本，不能用压紧后的长度替代原长度并宣称业务可用。若需要扩大上限，须建立新冻结方案版本并完整评测审核，不能原地修改既有资产。
+
 先 GET `/publications`，query 完整携带 `audience=participant`、`model_kind=typology`、`decision_kind=pole_composition`、`model_code=MBTI_OEJTS`、`model_version=v64-report-202608-v1`。读取失败不能当“从未发布”；从未发布为 version=0/active_publication_id 空，停用后则为大于零的 version/空指针。
 
 这是全局共享 selector，旧 v1 与三主题 v2 共用同一槽位，机构没有私人 active 指针。变更会影响后续匹配的新准入，必须明确其影响范围，并保存独立量表 selector 的原指针作为兼容对照。

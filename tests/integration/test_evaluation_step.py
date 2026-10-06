@@ -163,21 +163,26 @@ async def test_acceptance_failure_preserves_dispatched_checkpoint_without_replay
     assert gateway.calls == 1
 
 
-async def test_malformed_output_is_saved_then_retried_in_original_slot(ready):
+@pytest.mark.parametrize("overlong", [False, True])
+async def test_malformed_output_is_saved_then_retried_in_original_slot(ready, overlong):
     from tests.integration.test_evaluation_completions import stored
 
     class Malformed(Gateway):
         async def generate_messages(self, *args):
             response = await super().generate_messages(*args)
-            return replace(response, raw_output="not-json", validation_output="not-json")
+            raw = response.validation_output
+            raw = raw + "\n" * (8001 - len(raw)) if overlong else "not-json"
+            return replace(response, raw_output=raw, validation_output=raw)
 
     gateway = Malformed(ready)
     state = await step(ready, gateway)
     tx, run_id, *_ = ready
     assert state.version == 6 and state.checkpoint is None
     records = await stored(tx, run_id)
-    assert records[0]["evidence_json"]["failure"]["code"] == "output_schema_invalid"
-    assert records[0]["raw_output"] == b"not-json"
+    assert records[0]["evidence_json"]["failure"]["code"] == (
+        "output_too_long" if overlong else "output_schema_invalid"
+    )
+    assert len(records[0]["raw_output"].decode()) == (8001 if overlong else len("not-json"))
     assert records[0]["candidate_id"] is None
     state = await step(ready, gateway, state.version)
     assert state.version == 9 and state.checkpoint is None
