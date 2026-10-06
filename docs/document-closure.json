@@ -41,7 +41,10 @@
     "integrations/qs_server/schemas/mbti-thematic-input-manifest.json": "b34c7b37cba81ddac9808f8d2dae2548946c2f01e78fb1eebcf8ff24fff43a8e",
     "integrations/workflow/proto/messaging.proto": "1cd0d5ac42f8c2e1b4523d9f59a9b6cec85abf4d1eef00db485078ad917d10f6",
     "integrations/workflow/proto/workflow.proto": "3205470fa6f2b2c0ecceaac2111749604d09d28ba2183cbd46f51f13afc5cbae",
+    "migrations/env.py": "6f12e1e79185a2ec5bc400133f1a1c1e342ae9b9e73fb698730e81ca71cbaf3b",
     "migrations/versions/0035_runtime_utc_timestamps.py": "366fcef80027aa979d9d74222b9ff88f5a83612165ba0d0ea147e499506ab825",
+    "migrations/versions/0037_workflow_messaging.py": "8663cda4a6263bb1f99b5766d571487f067923d95414560efa84915bf3d66c2a",
+    "migrations/versions/0038_messaging_observations.py": "052520bdf81107128872608ca20d5ab2a37773677160aa6d96ce94e22dd63882",
     "pyproject.toml": "8a279854f700a99534aa7ed5734d206b6931289492ade23ed1de2ff4ab535691",
     "scripts/cd/deploy.py": "0e59fe5cd8b0c210d3c762a74ddb955979914014f38e88dacdbdde4dc6036c4f",
     "scripts/check_docs.py": "5df5021a4fba59d6e0710eb9e6e07b15a03bd191d6a0856637f84da49a63b24d",
@@ -1327,23 +1330,32 @@
       "implementation_status": "partial",
       "runtime_status": "unknown",
       "sources": [
+        "migrations/env.py",
         "migrations/versions/0035_runtime_utc_timestamps.py",
+        "migrations/versions/0037_workflow_messaging.py",
+        "migrations/versions/0038_messaging_observations.py",
         "src/qs_ai/infrastructure/persistence/mysql/database.py",
         "src/qs_ai/infrastructure/persistence/mysql/execution.py",
         "src/qs_ai/infrastructure/persistence/mysql/execution_configurations.py",
         "src/qs_ai/infrastructure/persistence/mysql/interpretation.py",
         "src/qs_ai/infrastructure/persistence/mysql/messaging.py",
+        "src/qs_ai/infrastructure/persistence/mysql/messaging_observations.py",
+        "src/qs_ai/infrastructure/persistence/mysql/result_outbox.py",
         "src/qs_ai/infrastructure/persistence/mysql/schema.py",
+        "tests/integration/test_artifact_acceptance.py",
         "tests/integration/test_evaluation_manifest_freeze.py",
         "tests/integration/test_execution_configurations.py",
         "tests/integration/test_mq_admission.py",
-        "tests/integration/test_shared_runtime_pool.py"
+        "tests/integration/test_publications.py",
+        "tests/integration/test_shared_runtime_pool.py",
+        "tests/integration/test_solutions.py"
       ],
       "verify": [
         "python scripts/check_docs.py",
-        "pytest -q tests/test_docs.py"
+        "git diff --check",
+        "Source and existing MySQL/MQ test assertion review; DB/MQ integration and production migration not run"
       ],
-      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+      "review_scope": "2026-10-06 source-grounded rewrite on unchanged 766b2aa business code; actual durable tables/uniqueness, path-specific isolation and locking, MQ root/savepoint and borrowed SDK pool, separate metadata migrations 0035/0037/0038 and read-only bootstrap checks; independent source review correction applied."
     },
     {
       "path": "docs/04-接口与运维/01-接口地图与契约所有权.md",
