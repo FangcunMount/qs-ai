@@ -8,6 +8,8 @@ grpc:
   cert_file: /run/qs-ai-tls/qs-ai-fullchain.crt
   key_file: /run/qs-ai-tls/qs-ai.key
 evaluation:
+  # UTC daily admission budget; existing reservations are never reset.
+  daily_provider_calls: 2048
   shutdown_seconds: 190
 models:
   v2_writes_enabled: false

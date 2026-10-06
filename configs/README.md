@@ -39,3 +39,5 @@ YAML 禁止 database_url 和模型凭据。数据库 URL、供应商凭据由环
 participant_capacity 与 evaluation.daily_provider_calls/max_active_runs 是部署默认额度。可选 quota_ceilings 包含参与者六项、评测两项完整正整数上限；不配置时上限等于默认值，默认值不得超过上限。组织额度修改影响后续准入，已有预留与活动槽位保持原语义；部署降低上限按项限幅，不改历史。
 
 生产工作流变量与应用的嵌套变量不同，例如 QS_AI_EXECUTION_ENABLED 在[打包脚本](../scripts/cd/deploy.py)转换成 QS_AI_GENERATION__ENABLED。部署密钥、MQ 冻结绑定及全部变量见 [serverA](../deploy/serverA/README.md)，开发与隔离检查见 [配置与本地开发](../docs/04-接口与运维/04-配置与本地开发.md)。
+
+生产环境 evaluation.daily_provider_calls 为 2048 次（UTC 日界线）；本地默认仍为 1024。生产未配置独立 quota_ceilings 时，部署上限随默认值为 2048。修改部署预算需发布并重启，仅影响后续准入，不重置当日预留或已有任务；显式组织额度继续按其原版本生效，不会随部署自动提高。
