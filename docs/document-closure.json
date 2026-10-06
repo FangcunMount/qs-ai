@@ -1800,15 +1800,18 @@
         "src/qs_ai/application/execution/generation.py",
         "src/qs_ai/infrastructure/workflows/evaluation.py",
         "src/qs_ai/infrastructure/workflows/report.py",
+        "tests/integration/test_evaluation_candidate_execution.py",
         "tests/integration/test_evaluation_capacity_recovery.py",
+        "tests/integration/test_evaluation_recovery.py",
         "tests/integration/test_generation.py",
         "tests/test_report_graph.py"
       ],
       "verify": [
         "python scripts/check_docs.py",
-        "pytest -q tests/test_docs.py"
+        "git diff --check",
+        "Existing graph/frozen-evidence/evaluation recovery assertions reviewed; prior targeted graph/evaluation tests passed; no DB crash/recovery or provider acceptance"
       ],
-      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+      "review_scope": "Source-grounded rewrite against unchanged qs-ai business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Graph nodes versus MySQL business authority, no configured checkpointer/retry policy, dispatch unknown boundary, serial/candidate independent-response differences, alternatives and fence/CAS reconciliation; independent source review; reasons inferred from current code."
     },
     {
       "path": "docs/05-决策记录/03-原事务消息与业务确认.md",
