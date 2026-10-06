@@ -71,6 +71,7 @@
     "src/qs_ai/application/interpretation/mbti_input.py": "9bc8bf74e9ee5f1963607801fbe5714090c8667d6707b2cc3422b4855f4a5dd1",
     "src/qs_ai/application/interpretation/mbti_themes_input.py": "9e03a9ee03d54e1dc7f920acef4564ce5bd0df811609428e53a66025dd2dfc7a",
     "src/qs_ai/application/interpretation/mbti_themes_output.py": "5426fe3b4a63e5f50c4d25615e503b632ef6fa1faf955fd1d7f967ff1a6cf11a",
+    "src/qs_ai/application/interpretation/model_route_v2.py": "68d91aa239a5c15ef1a60955cfb6087f07a206e814dbc4f0f84298180bf467eb",
     "src/qs_ai/application/interpretation/output.py": "d3a9b570971910e5eb6c8a7dea3388ad987e975ae39d0e152b8f76a31f7aa131",
     "src/qs_ai/application/interpretation/preparation.py": "0edcbc985145b952a66acff208aa45f020a90c671dad25a651c9c4ad8b980bc4",
     "src/qs_ai/application/interpretation/selection.py": "fcd92ecf0d9035d2b908333ddfdbc5b0bac75752603facfcbeaa1d9ab5effbe7",
@@ -271,6 +272,7 @@
     "tests/test_config.py": "916056da1b7c225f60e261e7d6edbad2e61e4cd293aaace618634e1f365b0676",
     "tests/test_container.py": "8d09dccc2a7e6f2b6a52e9063b6e4c6c9c6abf0079cc272889e7bfc757d541e1",
     "tests/test_daemon.py": "f178c1e99280812267e502bf8b48ed965573606dc6ce87dbe59a26a1e1f70670",
+    "tests/test_deepseek_request.py": "ecff977b94741303586e13adec04164e76ee37fe8a8eadb1e9fc98a57b7b3541",
     "tests/test_eligibility.py": "cd559e7f376dfcb79c050ad1f37227adb0c8c8641e156005146968da282e3ee2",
     "tests/test_evaluation_active_dispatches.py": "187b1da5213468be1cc4591953dfda746adfdbb34bc3cf66c735d3c2c5776266",
     "tests/test_evaluation_cancellation.py": "9f7dd222fedf6f7e67d9d3ce455f779ce53c732517320d236061791bf466443a",
@@ -308,6 +310,7 @@
     "tests/test_mbti_themes_root.py": "6173a48d5574afbd781400d2272c6d9c98433a7c5df861e2f3d368ba9ca1ea70",
     "tests/test_messaging_runtime.py": "11653d13613705e3a3d52d19b9389b55a28115dd59b99ca11eadd550f9dd288d",
     "tests/test_model_capacity.py": "564201a9336fe02a20e6e7c1055fb10a6c1c47589c9d8563c3c3b93888aaaa05",
+    "tests/test_model_configuration.py": "0cbf6b3887c5ffd29d679f914b4ed34974ea62f45a1fbb054a25fd5522b6d591",
     "tests/test_model_receipt_identity.py": "6cff0dcdfd45b49cbe1e9652df34b705446495539b5214110522014c5b99bad3",
     "tests/test_model_route_v2.py": "5242918a530511b3dfbaa4d36eada17d5d706a5e13254154378e5018bedf608d",
     "tests/test_model_selection_v2.py": "6cea4296e515d38447670ebb83523f5afa4904f2753401e4ab521e8ee07b6113",
@@ -330,6 +333,7 @@
     "tests/test_report_graph.py": "08cb6ecc6253619fcf1c25eb12c4c32a5c0ea7838a80397302ee009217fadc1a",
     "tests/test_runtime_lifecycle.py": "b7b3f5b71658a8ad7234016fdb278f55700afe4e9436b7e467863f52aec2fbec",
     "tests/test_semantic_contract_recovery.py": "34ad6a2451f697bc2830ab1a145321681ebca0b2279e8545c63903923de518f8",
+    "tests/test_semantic_gateway.py": "e6bb880ae0c4ccbf4104baf03075f3b46aee71e440ff000222020f7d902a8e7d",
     "tests/test_server_signals.py": "9595123f820619eb3ea42cda133177c7d56fc6c241615b78f668c62968500124",
     "tests/test_single_server.py": "ee05fdf341055415ede39badbe7cec4c12a3dbca40662dcbdc87bcb06c54e257",
     "tests/test_solutions.py": "e60f73b854d4816bfe06d6cfeff1c783572c3348f7f0e265d4dc3d0a602b37f3",
@@ -1370,22 +1374,35 @@
       "implementation_status": "partial",
       "runtime_status": "unknown",
       "sources": [
+        "src/qs_ai/application/execution/generation.py",
+        "src/qs_ai/application/interpretation/model_route_v2.py",
+        "src/qs_ai/bootstrap/providers/generation.py",
         "src/qs_ai/infrastructure/models/response_contract.py",
         "src/qs_ai/infrastructure/models/responses.py",
         "src/qs_ai/infrastructure/models/router.py",
         "src/qs_ai/infrastructure/models/zhipu.py",
+        "src/qs_ai/infrastructure/qs_server/deepseek_request.py",
         "src/qs_ai/infrastructure/qs_server/normalization.py",
         "src/qs_ai/infrastructure/qs_server/responses.py",
+        "src/qs_ai/model_configuration.py",
+        "tests/test_deepseek_request.py",
         "tests/test_langchain_gateway.py",
+        "tests/test_mbti_runtime.py",
+        "tests/test_model_configuration.py",
         "tests/test_model_receipt_identity.py",
+        "tests/test_model_route_v2.py",
+        "tests/test_model_selection_v2.py",
         "tests/test_multi_provider_gateway.py",
-        "tests/test_provider_normalization.py"
+        "tests/test_provider_normalization.py",
+        "tests/test_report_graph.py",
+        "tests/test_semantic_gateway.py"
       ],
       "verify": [
         "python scripts/check_docs.py",
-        "pytest -q tests/test_docs.py"
+        "git diff --check",
+        "101 model configuration/route/request/adapter/normalization/identity/report-graph/semantic gateway unit tests passed; no live API/network/credential/quality test"
       ],
-      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+      "review_scope": "2026-10-06 source-grounded rewrite on unchanged 766b2aa business code; legacy/v2 Route/catalog/binding distinctions, official endpoints and credential ownership, DeepSeek Responses vs Zhipu Chat wire/response conditions, exact failure uncertainty, single dispatch and finite normalization; independent review corrections applied."
     },
     {
       "path": "docs/03-基础设施/observability/README.md",
