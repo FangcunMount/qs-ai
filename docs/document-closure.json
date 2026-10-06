@@ -167,6 +167,7 @@
     "src/qs_ai/infrastructure/persistence/mysql/solutions.py": "df8d7991537121578edc6a08a4d90023d994d6a552332d6ee48a221f74a0ad59",
     "src/qs_ai/infrastructure/persistence/mysql/suite_contracts.py": "4d15667a7a7ca669166f16d9f5895ea4b81849b666aba40ae7b4addea136ddfb",
     "src/qs_ai/infrastructure/qs_server/access.py": "94494870f999ae6fcef9609875a42c3e6dc6e1cbe1929793adfd963754924a37",
+    "src/qs_ai/infrastructure/qs_server/deepseek_request.py": "4ef98d9e69409358243c66a87760cdabaad2d6b8842c91d658d00a841e307087",
     "src/qs_ai/infrastructure/qs_server/evaluation_suite.py": "21259f0afedd5a7083bac97174c5697189ddc85a63b59c7b987744900c9cf120",
     "src/qs_ai/infrastructure/qs_server/input_schema.py": "320d58fb4600a0ff207483db0814873aa50862412edae42e54ee22ad00f027f8",
     "src/qs_ai/infrastructure/qs_server/mbti_assets.py": "1d2ff8dc7b553037486574891da9918124ba1b60fa9a3a8c943d06a0b7cf006d",
@@ -268,6 +269,7 @@
     "tests/test_mbti_root_assets.py": "9fb3386de50e931d26695355df725735beb08f907ce121a8880befa328e0ed25",
     "tests/test_mbti_runtime.py": "1fc285b7d8837709c2153d2b73f874599b8197620dcf7eb0bda938cc5ab4a0c2",
     "tests/test_mbti_snapshot_interop.py": "357b67147749880686eeacf2c5b3ffbe46c66f65acef1c067582c1b266714013",
+    "tests/test_mbti_theme_output_contract.py": "5c3bd6becdbf3aa0b1165e1a2b703775a668d258f6012af91886835156aa7b04",
     "tests/test_mbti_themes_evaluation.py": "6e9c49113a858215f12f866b072ff379accd74c1d6f02809f6654de25b1a67b7",
     "tests/test_mbti_themes_input.py": "c66584c1a3ef158c0d6d98758461ab260e009edd42874b978f834c1c176a2152",
     "tests/test_mbti_themes_output.py": "f39f69ce76b12986a3ca694d03d744d69d5d193330f68108c087cc6247c4f928",
@@ -992,14 +994,18 @@
       "implementation_status": "partial",
       "runtime_status": "unknown",
       "sources": [
+        "integrations/qs_server/evaluation/mbti-themes/semantic-v1.md",
         "integrations/qs_server/schemas/ai-explanation-output-v2.schema.json",
         "src/qs_ai/application/execution/artifact.py",
         "src/qs_ai/application/interpretation/mbti_themes_input.py",
         "src/qs_ai/application/interpretation/mbti_themes_output.py",
         "src/qs_ai/domain/governance/mbti_references.py",
         "src/qs_ai/infrastructure/persistence/model_call_codec.py",
+        "src/qs_ai/infrastructure/persistence/mysql/execution.py",
+        "src/qs_ai/infrastructure/qs_server/deepseek_request.py",
         "src/qs_ai/infrastructure/qs_server/evaluation_suite.py",
         "tests/test_mbti_references.py",
+        "tests/test_mbti_theme_output_contract.py",
         "tests/test_mbti_themes_evaluation.py",
         "tests/test_mbti_themes_input.py",
         "tests/test_mbti_themes_output.py",
@@ -1008,9 +1014,11 @@
       ],
       "verify": [
         "python scripts/check_docs.py",
-        "pytest -q tests/test_docs.py"
+        "git diff --check",
+        "191 targeted MBTI themes unit tests passed; example fragments validated against full schema and frozen references",
+        "Fixed QS source links and output-v2 schema byte parity verified; QS selected tests passed; no live MQ/provider/device acceptance"
       ],
-      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+      "review_scope": "2026-10-06 source-grounded rewrite on unchanged 766b2aa business code and QS 2ccc2de; ISFJ material selection and canonical fingerprint, basis/reference constraints, local/provider schema differences, Artifact v2 recovery and cross-service receiving/reading boundaries; independent review; no live quality or device claim."
     },
     {
       "path": "docs/02-业务模块/interpretation/04-报告AI能力预检契约.md",
