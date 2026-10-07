@@ -5,7 +5,7 @@
   "authority": "runtime composition > code > machine contracts/config/migrations > scoped tests > maintained prose > dated evidence/plans/archive",
   "source_catalog": {
     ".github/workflows/ai-messaging.yml": "8fa450450f25b340a5bbc9f76ce1dfab6c4e7e9a79693b5d78dab80b193cbc2f",
-    ".github/workflows/ci.yml": "f4f21a3c9440661876f7a5f075bd3d285d018aa6df0d86d629faba76c9199a4e",
+    ".github/workflows/ci.yml": "30e67fd92d15f417f94e7bb10964e7458b7add27eed05173beb027b0aa132c10",
     ".github/workflows/deploy.yml": "f654a95aa4371e0aae36e9bf41db5fa586f7b8dc497768cb2b219e77781fe087",
     ".github/workflows/m7-messaging.yml": "1d26d405876222d18b2c7a27ca2e879095a57ca3707c66429969d2a4728ae42a",
     "Dockerfile": "a228b397109b1627bee2c2cb66b3d33d3a2c7d4238a726c5b7e1a61503accf8a",
@@ -36,7 +36,7 @@
     "integrations/qs_server/evaluation/qs-ai-published-input-cases-v1.json": "42afcc73db6fa272ab54aa17bcb9b30dc8797a382ee9329d9453aa9c9953e382",
     "integrations/qs_server/manifest.json": "29ebe314e7d3db34617519573d7bf36f6fb6dcc0073d4d31004458fa122da606",
     "integrations/qs_server/report-snapshot.md": "dcc8d3aa7da2c21a93a822db3ca0f8382f5e2919f8a31a0c7f0e9d6e792d7c9b",
-    "integrations/qs_server/retained-assets.json": "42b6e24b5f6cce76e4e1bc77e6e2578c81bfe1b0de97939d9936db1497affac3",
+    "integrations/qs_server/retained-assets.json": "c46b0ac9b304061d18992c78ab5ed861d67239aa6f3b4df867c604f897170631",
     "integrations/qs_server/routes/manifest.json": "3f5eac218102d02ceff2abb5c3ecf089f5dc25e99dcfc7a84ff2327c04a122e5",
     "integrations/qs_server/schemas/ai-explanation-input-v2.schema.json": "225b89bbd64b5c45596acb4b93d77bbfe31016da111c30c89f1840530f321fd1",
     "integrations/qs_server/schemas/ai-explanation-input-v3.schema.json": "0c3ac84c075a8a9ffd22c91928034365bc28b914596f226e5ad6499ec43ff789",
