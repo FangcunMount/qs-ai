@@ -1,11 +1,11 @@
 {
   "schema_version": "qs-ai-document-closure/v1",
   "source_commit": "92a55c8d51851da06dc8ba86dec9c8938b3adc00",
-  "reviewed_on": "2026-10-06",
+  "reviewed_on": "2026-10-07",
   "authority": "runtime composition > code > machine contracts/config/migrations > scoped tests > maintained prose > dated evidence/plans/archive",
   "source_catalog": {
     ".github/workflows/ai-messaging.yml": "8fa450450f25b340a5bbc9f76ce1dfab6c4e7e9a79693b5d78dab80b193cbc2f",
-    ".github/workflows/ci.yml": "4cd023739b4e7e6e5beb70f70bbb102a62bac77d7b8803d1ef637279cebd3c7d",
+    ".github/workflows/ci.yml": "f4f21a3c9440661876f7a5f075bd3d285d018aa6df0d86d629faba76c9199a4e",
     ".github/workflows/deploy.yml": "f654a95aa4371e0aae36e9bf41db5fa586f7b8dc497768cb2b219e77781fe087",
     ".github/workflows/m7-messaging.yml": "1d26d405876222d18b2c7a27ca2e879095a57ca3707c66429969d2a4728ae42a",
     "Dockerfile": "a228b397109b1627bee2c2cb66b3d33d3a2c7d4238a726c5b7e1a61503accf8a",
@@ -35,7 +35,7 @@
     "integrations/qs_server/evaluation/policies.json": "9e60d6c8dedbb9f682120e2c27a506df0b4e9225e573ed1380a32755c012e505",
     "integrations/qs_server/evaluation/qs-ai-published-input-cases-v1.json": "42afcc73db6fa272ab54aa17bcb9b30dc8797a382ee9329d9453aa9c9953e382",
     "integrations/qs_server/manifest.json": "29ebe314e7d3db34617519573d7bf36f6fb6dcc0073d4d31004458fa122da606",
-    "integrations/qs_server/report-snapshot.md": "da9a0be8a7d8720272469bc47afa91c12dcbc6811ae077b890a549af4e29ef25",
+    "integrations/qs_server/report-snapshot.md": "dcc8d3aa7da2c21a93a822db3ca0f8382f5e2919f8a31a0c7f0e9d6e792d7c9b",
     "integrations/qs_server/retained-assets.json": "42b6e24b5f6cce76e4e1bc77e6e2578c81bfe1b0de97939d9936db1497affac3",
     "integrations/qs_server/routes/manifest.json": "3f5eac218102d02ceff2abb5c3ecf089f5dc25e99dcfc7a84ff2327c04a122e5",
     "integrations/qs_server/schemas/ai-explanation-input-v2.schema.json": "225b89bbd64b5c45596acb4b93d77bbfe31016da111c30c89f1840530f321fd1",
@@ -76,11 +76,11 @@
     "src/qs_ai/application/governance/publication_codec.py": "4cf9a0bc9474bcdcef1963ca4cfc2b85f60730a047e2c18506e5bb88f350bdce",
     "src/qs_ai/application/governance/solution_models.py": "9a576b23f1d16b4d620ac78bba2b1928c7ba7b3183bf50fc419ec1a0d3e610fc",
     "src/qs_ai/application/governance/solutions.py": "648288345e404ea683cd7b35bc7e7d0208753c04ac0e2035efffdfa5ee5f1f27",
-    "src/qs_ai/application/interpretation/eligibility.py": "f22f0874d1246f51833f569252660817d431147c8e6b4b4fe0d5b2af05fc818f",
+    "src/qs_ai/application/interpretation/eligibility.py": "0e1071bac31bee6eb1be140136074f35a675f557dc91064303f3a89b312461bf",
     "src/qs_ai/application/interpretation/input.py": "022b29055dc410c8a786914a65f8ed8f89ba1e317816aa41b14be54dd3c1f022",
     "src/qs_ai/application/interpretation/input_values.py": "c5d6cbe2246f4db4a6fa9f7c604aab2f011880c9a1cf00526c0015e34c958afc",
-    "src/qs_ai/application/interpretation/mbti_input.py": "9bc8bf74e9ee5f1963607801fbe5714090c8667d6707b2cc3422b4855f4a5dd1",
-    "src/qs_ai/application/interpretation/mbti_themes_input.py": "9e03a9ee03d54e1dc7f920acef4564ce5bd0df811609428e53a66025dd2dfc7a",
+    "src/qs_ai/application/interpretation/mbti_input.py": "1cd4b7d34a032419d504900c54074975edccecaab64ad43907659231de97f62d",
+    "src/qs_ai/application/interpretation/mbti_themes_input.py": "f2687bc36d835b84b9041b09c2ee5e96b7f73342a59ac2158a74e30d010def1c",
     "src/qs_ai/application/interpretation/mbti_themes_output.py": "5426fe3b4a63e5f50c4d25615e503b632ef6fa1faf955fd1d7f967ff1a6cf11a",
     "src/qs_ai/application/interpretation/model_route_v2.py": "68d91aa239a5c15ef1a60955cfb6087f07a206e814dbc4f0f84298180bf467eb",
     "src/qs_ai/application/interpretation/output.py": "cacb4097b6d28cccac5cbcab7190f790def5068c52811ab811b366b2387e831b",
@@ -97,7 +97,7 @@
     "src/qs_ai/bootstrap/grpc_probe.py": "a6a9a080a291d273939c92d22515f92866164798a0258c39702b1b302cba2b2b",
     "src/qs_ai/bootstrap/grpc_server.py": "8d772b0278c29e205961bc1f727ec19f597e2da1ac7dab1c9f1d0c8eaeafed70",
     "src/qs_ai/bootstrap/import_evaluation_suites.py": "a89681bc78b4773496d8e72b07d4a33ebcbb486f0db6ced3029ebc260f796350",
-    "src/qs_ai/bootstrap/import_mbti_assets.py": "5f2330406209d893d62547bbc14f40bd4cae101fea349eef93e6031bf80c9bd4",
+    "src/qs_ai/bootstrap/import_mbti_assets.py": "12c4bd584fde25536c2a2097cefdd234f9a8172f565ab25b459576f5b60b0ec4",
     "src/qs_ai/bootstrap/lifecycle.py": "27326c4629c3a3b5a57e75270df1c97a6e53f5db700fff62b07c8bc8f1736131",
     "src/qs_ai/bootstrap/messaging.py": "6c60b4e2e40476893ffb295ffbc8f51c59f26c0de9cd0c8c936e1d920349c9e8",
     "src/qs_ai/bootstrap/observe_cutover.py": "69d46c370fad5ef7beb79cd849b88071fbf7283f30ead72f743f05488d00e694",
@@ -123,13 +123,13 @@
     "src/qs_ai/domain/evaluation/review.py": "536cbdf819bd3d82bebabfb30ae9a4312e6ab01d2f534a1e09de3e1a3cdf41a4",
     "src/qs_ai/domain/evaluation/suite_contracts.py": "8c3e00a07abe26305b95f2752925b86750e652a1522e613519e1e781420e0b78",
     "src/qs_ai/domain/governance/manifest.py": "e24dbb300f972c4da62ab4b852a6cfe6c0616e468d909d9b2d54b7f27243e5cb",
-    "src/qs_ai/domain/governance/mbti_references.py": "5b172e63afc55d2e5f6611d1dc11a60315db5c4a5bcb4024a26fa0b6cb4fee77",
+    "src/qs_ai/domain/governance/mbti_references.py": "8f60c7912706f7c9288ef2d3234fc4ca7d1a926e4223405f8cb8bbd3293123eb",
     "src/qs_ai/domain/governance/profile.py": "c9465f617a5d9ac041388b928dbe452a00322d1eeef0d7556da6ebdf8e9e3e2d",
     "src/qs_ai/domain/governance/prompt.py": "dcb8aafaf914951308ce884fa1e72a6445d0a2203b1c772e74358348f7950f5b",
     "src/qs_ai/domain/governance/prompt_draft.py": "b748725c7ba0b6a627ac460e0e51d2b06d1dcb1de1cff95d22e0c0aa26318408",
     "src/qs_ai/domain/governance/prompt_origin.py": "c8adeea3a9e8922ddc43350f853822bec94cd38abf195741c5d8be9d52d66ca3",
     "src/qs_ai/domain/governance/publication.py": "5a5e04e98bc28baa72b8def41005290954b26db5f262b5b2c0eae100199dfeb9",
-    "src/qs_ai/domain/governance/scenes.py": "f11cc08d90a7437dd1a9171080861a64d4f73937cd1249185591305ae2ba38b5",
+    "src/qs_ai/domain/governance/scenes.py": "5141509b8e54ee174b0d3d728b62aba7fbc8ae55da433a2f4080e76ff87e1ee8",
     "src/qs_ai/domain/interpretation/artifact.py": "e7d7a7f3bc71f094c4691f2fab188333533520ed4a5a2ad2d57f9fbae929d289",
     "src/qs_ai/domain/interpretation/model.py": "a6e5010d9968275e0dc7ada915c8fddead15cb23e57f0ecebe1bc177a402179d",
     "src/qs_ai/infrastructure/models/response_contract.py": "547e73ecd318e848782d97fb341dd727b5481d9f0503a79b40e85972b15d064b",
@@ -138,7 +138,7 @@
     "src/qs_ai/infrastructure/models/zhipu.py": "6e4c23309af2c1e30a92e4562a2bf7ab1549de6865aa0666f9ab0d43c0e25980",
     "src/qs_ai/infrastructure/observability/events.py": "fda8ad25eb6a3cc0284143f4869b32072997331cb7a57cd1c78167a72b9e8c7a",
     "src/qs_ai/infrastructure/observability/structured.py": "071b0237046236ce9edf6f9df25f7f23052990912b3294f553df747bc3578b32",
-    "src/qs_ai/infrastructure/persistence/model_call_codec.py": "2942f1828d7ec570d1e052bc48f4f9f52c4e187f9a390b4aa176bcdfac9e5d9a",
+    "src/qs_ai/infrastructure/persistence/model_call_codec.py": "3d6ed70fad7f1caf5a495cff9ba0bfb36395d164435182801558da3a20cbe870",
     "src/qs_ai/infrastructure/persistence/mysql/asset_snapshot.py": "a54f15af6f0b561241a5d76d52679632ffac4fcaa995e8ac1ea2f99dee3545b4",
     "src/qs_ai/infrastructure/persistence/mysql/database.py": "aa2c2c96abef6ffec45fbcd563344725fe22899493deed159c7c1e52697e993b",
     "src/qs_ai/infrastructure/persistence/mysql/editable_model_policy.py": "5e817ff521c954bbf99e7f7b46af028930e6857dcc17a1a2d1169bc21ba02391",
@@ -170,7 +170,7 @@
     "src/qs_ai/infrastructure/persistence/mysql/evaluation_unknowns.py": "cf6b87dc668238865b1e8a34735d9333d22427bb4a0e3af655b66a5ffffb4a1a",
     "src/qs_ai/infrastructure/persistence/mysql/evaluation_worker.py": "6f2ecd79497f5c4a88a38e805de954d585360a8a8e259705f3523ff9df64bdd9",
     "src/qs_ai/infrastructure/persistence/mysql/execution.py": "eb0bc4c2e6079c21a456933583deef3bb61f56d7d577d59804b5719a91dd67c4",
-    "src/qs_ai/infrastructure/persistence/mysql/execution_configurations.py": "09951a92c92c5c9a69b23cca4bbedc037bda847be1a43cd2af21d257989980f8",
+    "src/qs_ai/infrastructure/persistence/mysql/execution_configurations.py": "17416c72d1534d09738c690c1d2dfbbc0892deb448425de8a5eeaafd53543b8a",
     "src/qs_ai/infrastructure/persistence/mysql/interpretation.py": "72fea38789bbf86f9c6f93677e2e4204737cda213fefe9158d9e10c763799d83",
     "src/qs_ai/infrastructure/persistence/mysql/messaging.py": "50f78fbf0dd7ea69195f209b6e5c01b2d312db2e061b524124074a6ff4cf66aa",
     "src/qs_ai/infrastructure/persistence/mysql/messaging_observability.py": "d81034b55e7cdb46e3a9b739e12869cbea9551e042605109f560783dfbde3f79",
@@ -190,17 +190,17 @@
     "src/qs_ai/infrastructure/persistence/mysql/runtime_milestones.py": "7be939aaeded9bebc2ee76fba2eb8cdf870af1bd124f29d958cd7e1adca61437",
     "src/qs_ai/infrastructure/persistence/mysql/schema.py": "c97d08bab0d14023fa1295e0411ac5112c393d629145677509fa8144db40bc04",
     "src/qs_ai/infrastructure/persistence/mysql/solution_assets.py": "befdedf7f45a3197a234078536caac84febea5b2da772c32b25f9b3e45cad61b",
-    "src/qs_ai/infrastructure/persistence/mysql/solution_templates.py": "b34243489c9958370bd94edac493469fa1555af8828c68b0892ebf35ec174c0f",
-    "src/qs_ai/infrastructure/persistence/mysql/solutions.py": "df8d7991537121578edc6a08a4d90023d994d6a552332d6ee48a221f74a0ad59",
+    "src/qs_ai/infrastructure/persistence/mysql/solution_templates.py": "766cdbd74cc1be8cf3a001aabe08eb8add0ef8e636a81950bd6a7e06952d4e49",
+    "src/qs_ai/infrastructure/persistence/mysql/solutions.py": "6f686b3f26f5c2ed81ade910de3132b87cfb73fb6d7028ee8fb6c38b3a24e05a",
     "src/qs_ai/infrastructure/persistence/mysql/suite_contracts.py": "4d15667a7a7ca669166f16d9f5895ea4b81849b666aba40ae7b4addea136ddfb",
     "src/qs_ai/infrastructure/qs_server/access.py": "94494870f999ae6fcef9609875a42c3e6dc6e1cbe1929793adfd963754924a37",
     "src/qs_ai/infrastructure/qs_server/deepseek_request.py": "4ef98d9e69409358243c66a87760cdabaad2d6b8842c91d658d00a841e307087",
-    "src/qs_ai/infrastructure/qs_server/evaluation_suite.py": "21259f0afedd5a7083bac97174c5697189ddc85a63b59c7b987744900c9cf120",
-    "src/qs_ai/infrastructure/qs_server/input_schema.py": "320d58fb4600a0ff207483db0814873aa50862412edae42e54ee22ad00f027f8",
-    "src/qs_ai/infrastructure/qs_server/mbti_assets.py": "1d2ff8dc7b553037486574891da9918124ba1b60fa9a3a8c943d06a0b7cf006d",
+    "src/qs_ai/infrastructure/qs_server/evaluation_suite.py": "014b8bc6c4ad88630b5d6897682f23c656e6a0b8a40836fa3d8a44063c2df039",
+    "src/qs_ai/infrastructure/qs_server/input_schema.py": "ba186eb6217d9a727f866a0bd5691dd871f1deef904a1b982cf08e760ac6e997",
+    "src/qs_ai/infrastructure/qs_server/mbti_assets.py": "409f0e4e729ff9c4972a54471219a1102f255ea405331285c3c32b9274846228",
     "src/qs_ai/infrastructure/qs_server/normalization.py": "7fa45c85032d724460d204e04ff44578330bee331a6810ac5262096bac0e1c7b",
     "src/qs_ai/infrastructure/qs_server/output.py": "02c2538176cd15bd1116c85dcd4bb827e5604e545b79f4cad628d4137f12f787",
-    "src/qs_ai/infrastructure/qs_server/profiles.py": "825611b7304e8df78ae9e2d89ca5e80f2b67bd1477647132eee7b085771d7762",
+    "src/qs_ai/infrastructure/qs_server/profiles.py": "38c084bbf71178e73fbcf4b7b139aaaff35ecda13bbba6fd0d1828ff222b138a",
     "src/qs_ai/infrastructure/qs_server/report_probe.py": "fdcdd4d850a8dc205763b83241e45e9de1c60b443dcf0352df9c02e2f06876ac",
     "src/qs_ai/infrastructure/qs_server/responses.py": "1986e00da62f9bef7871a7a6961eca1cc3ca4cad0c29aa0390d5324a3eece480",
     "src/qs_ai/infrastructure/workflow_transport/command_admission.py": "13a34cd955cdbea2e3473488cc6ab815403ac72f2177ce0ef519a433b0537ecb",
@@ -265,8 +265,8 @@
     "tests/integration/test_generation.py": "d9ed012b65f6ce8f41f915d19e27a0ed3677e6b113dd3cf873cd6444eb6f94c7",
     "tests/integration/test_interpretation.py": "1300107971596b443cf5019e660629e64553f16af2742f450f0dc0748b8a55a8",
     "tests/integration/test_m7_delivery.py": "2cdc1fd11d207a28c02f525912c48ec16f59beef94d6c72cb20e9d06651b90fa",
-    "tests/integration/test_mbti_initialization.py": "87dbb79f9178a011b4ee1e702132f8e9095e28b5926cdaddaa68e9a289f653d6",
-    "tests/integration/test_mbti_solutions.py": "a345d18cf7ad14595b9a12f51f4e521d23f16d3f7865bb7cc31d18eff7eba82a",
+    "tests/integration/test_mbti_initialization.py": "57e2471f055055e113ab9a4f5382904cefe0cfe3412d013870f3587828cd70d2",
+    "tests/integration/test_mbti_solutions.py": "666feba0b30dbd42f21cfe829ed6f7fc9e72163eab9a7a6f7f0f027c1edef8ba",
     "tests/integration/test_messaging_preflight.py": "2a497c3a03072eb5dacfd2d067364d799bff3e19bc3f67c9266284f1bd426d3a",
     "tests/integration/test_mq_admission.py": "d700dc22518e7e24b57419d40dbfafb285f2dc654d80fe1852e133f386a4f61a",
     "tests/integration/test_mq_handoff_tool.py": "06a2d8fab7a61381be56a1c12fb58f396e633a70e3ffcfd0de8582b8d2ee53cd",
@@ -384,7 +384,18 @@
     "src/qs_ai/infrastructure/persistence/mysql/evaluation_review_corrections.py": "ba4bd6d88e2fcfffb476f624ad50bc74a7bd28a2b14e80a724e7d56ac80380e1",
     "src/qs_ai/domain/evaluation/review_correction.py": "631b26783340f71e83c32eb033cdd566efc3af846c0d3d412ba9a563c271348e",
     "tests/test_grpc_review_correction.py": "352fbfc712eb31d5a1f5335f81a230a481354e890d9a0e6fcccc698a8ff2bca8",
-    "tests/integration/test_evaluation_review_corrections.py": "f4e507fc5f94d1d45b9450a361e57862201f13d67c59176eece75513c35891ff"
+    "tests/integration/test_evaluation_review_corrections.py": "f4e507fc5f94d1d45b9450a361e57862201f13d67c59176eece75513c35891ff",
+    "integrations/qs_server/evaluation/mbti-exploration/profile-v1.json": "860d97a4081dfe80bd07dba1d499669b5a438273b21af4dabf123f0b7cd1ac0b",
+    "integrations/qs_server/evaluation/mbti-exploration/prompt-v1.json": "55398c11c6149bdc87cfe3b6216523b521def3cfaf880cecf8d0a97c7c036bc9",
+    "integrations/qs_server/evaluation/mbti-exploration/reference-material-v1.json": "7f1cd86fea9d7a42ac6ed0e9c3690786f972902efce594e160fa43d0644f40da",
+    "integrations/qs_server/evaluation/mbti-exploration/prompt-v1.md": "b922930c720d265420a0f6626e3cd3ca9349e8194d711723c50939fc46437f23",
+    "integrations/qs_server/evaluation/mbti-exploration/semantic-v1.md": "07af91c2b9568d0b3cb2cb54cf8d311a96782e16c8cac9ed8d59bf286c0df629",
+    "integrations/qs_server/evaluation/mbti-exploration/manifest.json": "5ad26a2dd9b51e9d328633a7d2910a6508ff67baaaf3470e06d3adf341b61483",
+    "integrations/qs_server/evaluation/mbti-exploration/source-proof-v1.json": "4c73d7165c91ba931aa69d50226b634310227dee802d3f0f308cdc38b8b42bb6",
+    "integrations/qs_server/evaluation/mbti-exploration/suite-v1.json": "42e52ef9437962cb67683c925f9cd5a5ff8e1ff42ffe8eadd3fe187f6e41a9b6",
+    "integrations/qs_server/schemas/ai-explanation-input-v4.schema.json": "6f5d306ff964dde3da45403523b0f9390204b7c0269625c5e96885c24a7fa6de",
+    "tests/test_mbti_exploration_assets.py": "bfe771d401cae55f1f8ce3f8d39c6ee26d84c56e61689120eac760aad48d3422",
+    "tests/test_mbti_exploration_contract.py": "5b15f9560bf8726f9ec18205e9fb19750311d6a11695dca014d917e91f027df3"
   },
   "documents": [
     {
@@ -474,13 +485,15 @@
         "tests/test_input_binding.py",
         "tests/test_model_receipt_identity.py",
         "tests/test_qs_access.py",
-        "tests/test_worker_frozen_evidence.py"
+        "tests/test_worker_frozen_evidence.py",
+        "tests/test_mbti_exploration_contract.py",
+        "integrations/qs_server/schemas/ai-explanation-input-v4.schema.json"
       ],
       "verify": [
         "python scripts/check_docs.py",
         "pytest -q tests/test_docs.py tests/test_qs_access.py tests/test_worker_frozen_evidence.py tests/test_input_binding.py tests/test_artifact.py tests/test_model_receipt_identity.py"
       ],
-      "review_scope": "First article rewritten from qs-ai bd5e18ed4659d1d9d5ab853255577139df173aff, qs-server 2ccc2de44bbd45e26d29e7e130da518cc32426f0 and IAM c8fc1fe61a32056368148e232e96d32763c15ba5: capabilities, synthetic request, separate delegation and participant access chains, frozen publication binding, four local commit boundaries, rejection versus Retry and bounded output-validation coverage. Production configuration and business acceptance remain independently unbound."
+      "review_scope": "First article rewritten from qs-ai bd5e18ed4659d1d9d5ab853255577139df173aff, qs-server 2ccc2de44bbd45e26d29e7e130da518cc32426f0 and IAM c8fc1fe61a32056368148e232e96d32763c15ba5: capabilities, synthetic request, separate delegation and participant access chains, frozen publication binding, four local commit boundaries, rejection versus Retry and bounded output-validation coverage. Production configuration and business acceptance remain independently unbound.; 2026-10-07 finite exploration model and separate publication selector reviewed; production acceptance remains unknown"
     },
     {
       "path": "docs/00-总览/02-核心概念与对象关系.md",
@@ -978,14 +991,17 @@
         "tests/integration/test_solutions.py",
         "tests/test_mbti_root_assets.py",
         "tests/test_mbti_themes_root.py",
-        "tests/test_solutions.py"
+        "tests/test_solutions.py",
+        "integrations/qs_server/evaluation/mbti-exploration/manifest.json",
+        "integrations/qs_server/schemas/ai-explanation-input-v4.schema.json",
+        "tests/test_mbti_exploration_assets.py"
       ],
       "verify": [
         "python scripts/check_docs.py",
         "pytest -q tests/test_solutions.py tests/test_mbti_root_assets.py tests/test_mbti_themes_root.py",
         "pytest -q tests/integration/test_mbti_initialization.py tests/integration/test_mbti_solutions.py tests/integration/test_solution_grpc.py (requires disposable MySQL, Go probes and project dependencies)"
       ],
-      "review_scope": "按 qs-ai 766b2aa 与 QS 2ccc2de 固定源码复核两个allowlist根/字节摘要/共selector、安装SERIALIZABLE事务/首次provenance及Git/IAM证明上限、模板目录非active状态、三种Create来源与组织/semanticowner可见性、Save契约保留、已知缺根INVALID_ARGUMENT/未知根NOT_FOUND和旧命令兼容、QS capability及AI mTLS委托；独立复核区分普通资产AssetConflict与Suite ValueError，6条跨仓固定链接已用本地Git对象核对，不声明模板安装或真实质量已验收。"
+      "review_scope": "按 qs-ai 766b2aa 与 QS 2ccc2de 固定源码复核两个allowlist根/字节摘要/共selector、安装SERIALIZABLE事务/首次provenance及Git/IAM证明上限、模板目录非active状态、三种Create来源与组织/semanticowner可见性、Save契约保留、已知缺根INVALID_ARGUMENT/未知根NOT_FOUND和旧命令兼容、QS capability及AI mTLS委托；独立复核区分普通资产AssetConflict与Suite ValueError，6条跨仓固定链接已用本地Git对象核对，不声明模板安装或真实质量已验收。; additive MBTI_FC_93 exact model/input-v4 reviewed, production acceptance pending"
     },
     {
       "path": "docs/02-业务模块/governance/README.md",
@@ -1078,14 +1094,17 @@
         "tests/test_mbti_contract.py",
         "tests/test_mbti_runtime.py",
         "tests/test_mbti_snapshot_interop.py",
-        "tests/test_mbti_themes_input.py"
+        "tests/test_mbti_themes_input.py",
+        "integrations/qs_server/evaluation/mbti-exploration/manifest.json",
+        "integrations/qs_server/schemas/ai-explanation-input-v4.schema.json",
+        "tests/test_mbti_exploration_assets.py"
       ],
       "verify": [
         "python scripts/check_docs.py",
         "pytest -q tests/test_mbti_contract.py tests/test_mbti_runtime.py tests/test_mbti_themes_input.py tests/test_evaluation_input_version.py",
         "pytest -q tests/test_mbti_snapshot_interop.py (requires exported Go contract vectors; ordinary local run can skip)"
       ],
-      "review_scope": "按 qs-ai 766b2aa 与本地 QS 2ccc2de 固定代码核对 ISFJ 四轴已保存原值/强度非置信度、report-content:outcome来源、严格白名单与0/缺失区别、canonical/provider两投影与两摘要、locale/focus真实约束、快照/Session/Suite/Profile/input/output/Artifact版本表、全局精确selector、原输入/响应恢复以及本地纯测试与固定Go互操作证据区别；固定QS源链接已用本地Git对象验证，不声称未执行互操作和生产报告可用。"
+      "review_scope": "按 qs-ai 766b2aa 与本地 QS 2ccc2de 固定代码核对 ISFJ 四轴已保存原值/强度非置信度、report-content:outcome来源、严格白名单与0/缺失区别、canonical/provider两投影与两摘要、locale/focus真实约束、快照/Session/Suite/Profile/input/output/Artifact版本表、全局精确selector、原输入/响应恢复以及本地纯测试与固定Go互操作证据区别；固定QS源链接已用本地Git对象验证，不声称未执行互操作和生产报告可用。; additive MBTI_FC_93 exact model/input-v4 reviewed, production acceptance pending"
     },
     {
       "path": "docs/02-业务模块/interpretation/03-MBTI三主题与参考材料契约.md",
@@ -1110,7 +1129,10 @@
         "tests/test_mbti_themes_input.py",
         "tests/test_mbti_themes_output.py",
         "tests/test_mbti_themes_registration.py",
-        "tests/test_mbti_themes_root.py"
+        "tests/test_mbti_themes_root.py",
+        "src/qs_ai/domain/governance/scenes.py",
+        "tests/test_mbti_exploration_contract.py",
+        "integrations/qs_server/schemas/ai-explanation-input-v4.schema.json"
       ],
       "verify": [
         "python scripts/check_docs.py",
@@ -1118,7 +1140,7 @@
         "191 targeted MBTI themes unit tests passed; example fragments validated against full schema and frozen references",
         "Fixed QS source links and output-v2 schema byte parity verified; QS selected tests passed; no live MQ/provider/device acceptance"
       ],
-      "review_scope": "2026-10-06 source-grounded rewrite on unchanged 766b2aa business code and QS 2ccc2de; ISFJ material selection and canonical fingerprint, basis/reference constraints, local/provider schema differences, Artifact v2 recovery and cross-service receiving/reading boundaries; independent review; no live quality or device claim."
+      "review_scope": "2026-10-06 source-grounded rewrite on unchanged 766b2aa business code and QS 2ccc2de; ISFJ material selection and canonical fingerprint, basis/reference constraints, local/provider schema differences, Artifact v2 recovery and cross-service receiving/reading boundaries; independent review; no live quality or device claim.; 2026-10-07 finite exploration model and separate publication selector reviewed; production acceptance remains unknown"
     },
     {
       "path": "docs/02-业务模块/interpretation/04-报告AI能力预检契约.md",
@@ -1145,7 +1167,10 @@
         "tests/test_eligibility.py",
         "tests/test_grpc_eligibility.py",
         "tests/test_grpc_probe.py",
-        "tests/test_grpc_report_probe.py"
+        "tests/test_grpc_report_probe.py",
+        "src/qs_ai/domain/governance/scenes.py",
+        "tests/test_mbti_exploration_contract.py",
+        "integrations/qs_server/schemas/ai-explanation-input-v4.schema.json"
       ],
       "verify": [
         "python scripts/check_docs.py",
@@ -1154,7 +1179,7 @@
         "Fixed QS source links verified; MySQL/mTLS integration and live acceptance not run",
         "Correction-specific unit/gRPC, MySQL 8.0/8.4 transactions and existing review/finalization/reopening regressions; scripts/check_docs.py. Environment and business acceptance separately recorded."
       ],
-      "review_scope": "2026-10-06 source-grounded rewrite on unchanged 766b2aa business code and QS 2ccc2de; current authorization/source resolver, no-write eligibility, scale fallback vs exact MBTI, error mapping, true MQ admission and historical binding; no current deployment or UI claim. 2026-10-06 scoped CorrectReview patch review: original signatures remain immutable; effective-review projection, CAS/idempotent audit, archived receipt replay and finalization reads reconciled. Existing MQ execution, participant precheck and other proto fields unchanged. No production correction or publication acceptance claimed."
+      "review_scope": "2026-10-06 source-grounded rewrite on unchanged 766b2aa business code and QS 2ccc2de; current authorization/source resolver, no-write eligibility, scale fallback vs exact MBTI, error mapping, true MQ admission and historical binding; no current deployment or UI claim. 2026-10-06 scoped CorrectReview patch review: original signatures remain immutable; effective-review projection, CAS/idempotent audit, archived receipt replay and finalization reads reconciled. Existing MQ execution, participant precheck and other proto fields unchanged. No production correction or publication acceptance claimed.; 2026-10-07 finite exploration model and separate publication selector reviewed; production acceptance remains unknown"
     },
     {
       "path": "docs/02-业务模块/interpretation/05-量表兼容与回执重建.md",
@@ -1242,7 +1267,10 @@
         "tests/integration/test_solutions.py",
         "tests/test_grpc_publication.py",
         "tests/test_publication.py",
-        "tests/test_publication_records.py"
+        "tests/test_publication_records.py",
+        "src/qs_ai/domain/governance/scenes.py",
+        "tests/test_mbti_exploration_contract.py",
+        "integrations/qs_server/schemas/ai-explanation-input-v4.schema.json"
       ],
       "verify": [
         "python scripts/check_docs.py",
@@ -1250,7 +1278,7 @@
         "pytest -q tests/integration/test_publications.py tests/integration/test_publication_grpc.py (requires disposable MySQL, Go probes, project dependencies and listener permissions)",
         "Correction-specific unit/gRPC, MySQL 8.0/8.4 transactions and existing review/finalization/reopening regressions; scripts/check_docs.py. Environment and business acceptance separately recorded."
       ],
-      "review_scope": "在 766b2aa 业务源码基线上重写四种持久记录、全局五字段selector与量表宽fallback/MBTI共槽、最终决定原历史重算/五项Manifest原字节/当前模型条件三层核证、Publish和rollback/disable各自锁序与CAS、P1/P2递增指针示例、原Apply Run前置与GetReceipt查询差异、历史审计/私有command scope和原请求绑定；独立复核收窄v1/v2模型准入分支和发布端未测撤销范围，不外推现场上线。 2026-10-06 scoped CorrectReview patch review: original signatures remain immutable; effective-review projection, CAS/idempotent audit, archived receipt replay and finalization reads reconciled. Existing MQ execution, participant precheck and other proto fields unchanged. No production correction or publication acceptance claimed."
+      "review_scope": "在 766b2aa 业务源码基线上重写四种持久记录、全局五字段selector与量表宽fallback/MBTI共槽、最终决定原历史重算/五项Manifest原字节/当前模型条件三层核证、Publish和rollback/disable各自锁序与CAS、P1/P2递增指针示例、原Apply Run前置与GetReceipt查询差异、历史审计/私有command scope和原请求绑定；独立复核收窄v1/v2模型准入分支和发布端未测撤销范围，不外推现场上线。 2026-10-06 scoped CorrectReview patch review: original signatures remain immutable; effective-review projection, CAS/idempotent audit, archived receipt replay and finalization reads reconciled. Existing MQ execution, participant precheck and other proto fields unchanged. No production correction or publication acceptance claimed.; 2026-10-07 finite exploration model and separate publication selector reviewed; production acceptance remains unknown"
     },
     {
       "path": "docs/02-业务模块/publication/README.md",
@@ -1789,7 +1817,10 @@
         "tests/test_mbti_references.py",
         "tests/test_mbti_themes_input.py",
         "tests/test_mbti_themes_output.py",
-        "tests/test_mbti_themes_root.py"
+        "tests/test_mbti_themes_root.py",
+        "integrations/qs_server/evaluation/mbti-exploration/manifest.json",
+        "integrations/qs_server/schemas/ai-explanation-input-v4.schema.json",
+        "tests/test_mbti_exploration_assets.py"
       ],
       "verify": [
         "python scripts/check_docs.py",
@@ -1798,7 +1829,7 @@
         "Template fingerprint, 35-slot/70-stage budget, sample uuid5, MBTI source fixture and fixed consumer source/links independently checked",
         "No MySQL/CLI install/model/publication/cross-service/device/production acceptance executed"
       ],
-      "review_scope": "Source-grounded rewrite against unchanged qs-ai business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Independent review of exact installed template/plan/UUID examples, current MQ operations, double-actor review, global publication and participant/artifact/reference/device acceptance ladder. Fixed consumer sources verified: qs-server 2ccc2de44bbd45e26d29e7e130da518cc32426f0, IAM c8fc1fe61a32056368148e232e96d32763c15ba5, Operating 8eefb9e0660bc1ffeef6dde31805a9b8caaa5623, mini-program 681cd05f23418d028e61676e7158139078455f62. Operating catalog/reader/async-admission gaps and mini-program no-operation-poll/no-local-SHA limits explicitly documented."
+      "review_scope": "Source-grounded rewrite against unchanged qs-ai business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Independent review of exact installed template/plan/UUID examples, current MQ operations, double-actor review, global publication and participant/artifact/reference/device acceptance ladder. Fixed consumer sources verified: qs-server 2ccc2de44bbd45e26d29e7e130da518cc32426f0, IAM c8fc1fe61a32056368148e232e96d32763c15ba5, Operating 8eefb9e0660bc1ffeef6dde31805a9b8caaa5623, mini-program 681cd05f23418d028e61676e7158139078455f62. Operating catalog/reader/async-admission gaps and mini-program no-operation-poll/no-local-SHA limits explicitly documented.; additive MBTI_FC_93 exact model/input-v4 reviewed, production acceptance pending"
     },
     {
       "path": "docs/04-接口与运维/README.md",
@@ -2299,6 +2330,40 @@
         "pytest -q tests/test_docs.py"
       ],
       "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "integrations/qs_server/evaluation/mbti-exploration/prompt-v1.md",
+      "owner": "governance",
+      "status": "aligned",
+      "implementation_status": "implemented",
+      "runtime_status": "unknown",
+      "sources": [
+        "integrations/qs_server/evaluation/mbti-exploration/manifest.json",
+        "integrations/qs_server/evaluation/mbti-exploration/source-proof-v1.json",
+        "src/qs_ai/infrastructure/qs_server/mbti_assets.py",
+        "tests/test_mbti_exploration_assets.py"
+      ],
+      "verify": [
+        "pytest -q tests/test_mbti_exploration_assets.py"
+      ],
+      "review_scope": "Pinned r17 messages and semantic rules copied for an independent exploration model; no candidate quality or publication approval reused"
+    },
+    {
+      "path": "integrations/qs_server/evaluation/mbti-exploration/semantic-v1.md",
+      "owner": "governance",
+      "status": "aligned",
+      "implementation_status": "implemented",
+      "runtime_status": "unknown",
+      "sources": [
+        "integrations/qs_server/evaluation/mbti-exploration/manifest.json",
+        "integrations/qs_server/evaluation/mbti-exploration/source-proof-v1.json",
+        "src/qs_ai/infrastructure/qs_server/mbti_assets.py",
+        "tests/test_mbti_exploration_assets.py"
+      ],
+      "verify": [
+        "pytest -q tests/test_mbti_exploration_assets.py"
+      ],
+      "review_scope": "Pinned r17 messages and semantic rules copied for an independent exploration model; no candidate quality or publication approval reused"
     }
   ]
 }

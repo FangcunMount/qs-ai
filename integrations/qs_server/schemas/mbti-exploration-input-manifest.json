@@ -1,0 +1,10 @@
+{
+  "schema_version": "qs-ai-mbti-input-manifest/v1",
+  "input": {
+    "id": "ai-explanation-input",
+    "version": "v4",
+    "scene_contract_version": "mbti-single-assessment/v2",
+    "sha256": "6f5d306ff964dde3da45403523b0f9390204b7c0269625c5e96885c24a7fa6de"
+  },
+  "provenance": "Additive exploration contract for MBTI_FC_93@v55-report-202608-v1; basic MBTI v1/v2/v3 bytes unchanged. No quality approval."
+}

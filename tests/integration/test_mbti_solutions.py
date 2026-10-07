@@ -19,7 +19,7 @@ from qs_ai.infrastructure.persistence.mysql.solution_templates import (
     template_release,
 )
 from qs_ai.infrastructure.persistence.mysql.solutions import MySQLSolutions
-from qs_ai.infrastructure.qs_server.evaluation_suite import MBTI_ROOT, MBTI_THEMES_ROOT
+from qs_ai.infrastructure.qs_server.evaluation_suite import MBTI_ROOT
 from tests.integration.test_interpretation import kit as kit
 from tests.integration.test_mbti_initialization import (
     apply,
@@ -118,6 +118,7 @@ async def test_template_create_save_prepare_and_receipts_without_publication(
     assert created["scene_contract_version"] == "mbti-single-assessment/v1"
     listing = await store.list(scope)
     assert listing["items"][0]["scene_contract_version"] == created["scene_contract_version"]
+    assert listing["items"][0]["selector"]["model_code"] == "MBTI_OEJTS"
     assert created["policy"]["scene_contract_version"] == "mbti-single-assessment/v1"
     assert await store.apply(scope, sid, command, at) == created
     assert await MySQLSolutions(tx, Settings()).receipt(scope, command.command_id) == created
@@ -176,7 +177,7 @@ async def test_template_damaged_prompt_cannot_adopt_new_content(workspace):
 
 
 @pytest.mark.parametrize("recover_receipt", [False, True])
-@pytest.mark.parametrize("thematic", [False, True])
+@pytest.mark.parametrize("thematic", [False, True, "exploration"])
 async def test_complete_mbti_run_uses_existing_graph_and_frozen_assets(
     workspace, initialized_dependencies, monkeypatch, recover_receipt, thematic, kit
 ):
@@ -196,10 +197,35 @@ async def test_complete_mbti_run_uses_existing_graph_and_frozen_assets(
         from qs_ai.infrastructure.qs_server.mbti_assets import load_mbti_themes_root
 
         _, actor, commit = initialized_dependencies
+        root = load_mbti_themes_root()
+        if thematic == "exploration":
+            from qs_ai.bootstrap.import_mbti_assets import insert_exact
+            from qs_ai.infrastructure.qs_server.evaluation_policies import evaluation_directory
+            from qs_ai.infrastructure.qs_server.mbti_assets import load_mbti_exploration_root
+
+            root = load_mbti_exploration_root()
+            proof = json.loads(
+                (evaluation_directory() / "mbti-exploration/source-proof-v1.json").read_text()
+            )
+            async with tx.open() as db:
+                for route in proof["routes"].values():
+                    await insert_exact(
+                        db,
+                        tables.route_assets,
+                        {
+                            "route": route["reference"]["id"],
+                            "revision": route["reference"]["version"],
+                            "fingerprint": route["reference"]["fingerprint"],
+                            "definition_json": route["body"],
+                        },
+                        "test:" + actor,
+                        actor,
+                    )
+                await db.commit()
         async with tx.open() as db:
-            await install(db, load_mbti_themes_root(), commit, actor)
+            await install(db, root, commit, actor)
             await db.commit()
-        command = replace(command, template_ref=MBTI_THEMES_ROOT)
+        command = replace(command, template_ref=root.suite.reference)
     await store.apply(scope, sid, command, at)
     prepared = await store.apply(
         scope,
@@ -455,6 +481,29 @@ async def synthetic_publication_and_generation(tx, manager, scope, view, prepare
     async with tx.open() as db:
         await compile_configuration(db, original)
     _, evidence, _ = mbti_case()
+    if selector.model_code == "MBTI_FC_93":
+        from qs_ai.application.interpretation.service import fingerprint
+        from qs_ai.domain.governance.scenes import mbti_model_contract
+        from qs_ai.domain.interpretation.model import EvidenceSet, Fact
+
+        snapshot = json.loads(evidence.items[0].facts[0].value)
+        snapshot["model"].update(code=selector.model_code, version=selector.model_version)
+        contract = mbti_model_contract(selector.model_code, selector.model_version)
+        for d, axis, bounds in zip(
+            snapshot["dimensions"], contract.axes, contract.bounds, strict=True
+        ):
+            d["raw_score"] = 11 if d["pole_facts"]["preference"] == axis[1] else 12
+            d["pole_facts"].update(
+                left_pole=axis[1],
+                right_pole=axis[2],
+                min_score=bounds[0],
+                max_score=bounds[1],
+                threshold=bounds[2],
+            )
+        item = replace(evidence.items[0], facts=(Fact("standard_report", json.dumps(snapshot)),))
+        evidence = EvidenceSet(
+            evidence.id, evidence.session_id, fingerprint([asdict(item)]), (item,)
+        )
     from qs_ai.application.interpretation.eligibility import Eligibility
     from tests.integration.test_eligibility import readonly_check
 
@@ -499,7 +548,7 @@ async def synthetic_publication_and_generation(tx, manager, scope, view, prepare
 
         async def generate(self, source, route, schema, invocation_id):
             self.calls += 1
-            assert source.release.input_policy.profile_id == "participant-mbti-single"
+            assert source.release.input_policy.profile_id == prepared["policy"]["profile_id"]
             if (
                 getattr(source.release.input_policy, "scene_contract_version", None)
                 == "mbti-single-assessment/v2"

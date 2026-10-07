@@ -77,7 +77,8 @@ class JSONModelCallCodec:
                 canonical = json.loads(assembled.canonical_json)
                 if (
                     not isinstance(canonical, dict)
-                    or canonical.get("schema_version") != "ai-explanation-input/v3"
+                    or canonical.get("schema_version")
+                    != definition["generation_policy"]["input_schema_version"]
                     or canonical.get("scene_contract_version") != decoded.scene_contract_version
                     or any(canonical.get(key) != payload[key] for key in payload)
                     or assembled.fingerprint

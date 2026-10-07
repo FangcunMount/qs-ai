@@ -11,17 +11,22 @@ from qs_ai.application.interpretation.input_values import (
     MBTIThematicInputPolicy,
     _json,
 )
-from qs_ai.application.interpretation.mbti_input import assemble_mbti, validate_mbti_projection
-from qs_ai.domain.governance.scenes import MBTI_CONTRACT, MBTI_THEMATIC_CONTRACT
+from qs_ai.application.interpretation.mbti_input import project_mbti, validate_mbti_projection
+from qs_ai.domain.governance.scenes import (
+    MBTI_CONTRACT,
+    MBTI_THEMATIC_CONTRACT,
+    mbti_model_contract,
+)
 
 
 def assemble_mbti_themes(
     snapshot: Any, policy: MBTIThematicInputPolicy, locale: str, focus: tuple[str, ...]
 ) -> AssembledInput:
-    if policy.scene_contract_version != MBTI_THEMATIC_CONTRACT:
+    contract = mbti_model_contract(policy.model_code, policy.model_version)
+    if contract is None or policy.scene_contract_version != MBTI_THEMATIC_CONTRACT:
         raise InvalidInput("Unsupported MBTI thematic contract")
     # Reuse exact report validation/projection, without rescaling or enriching facts.
-    baseline = assemble_mbti(
+    baseline = project_mbti(
         snapshot, replace(policy, scene_contract_version=MBTI_CONTRACT), locale, focus
     )
     document = json.loads(baseline.canonical_json)
@@ -30,7 +35,7 @@ def assemble_mbti_themes(
         raise InvalidInput("MBTI references differ from report model")
     selected = material.select(document["facts"]["model_result"]["type_code"])
     document.update(
-        schema_version="ai-explanation-input/v3",
+        schema_version=contract.thematic_input_version,
         scene_contract_version=MBTI_THEMATIC_CONTRACT,
         reference_material=selected.projection(),
     )
@@ -48,6 +53,11 @@ def validate_mbti_themes_projection(
     """Check original frozen references, not current assets or model-written metadata."""
     try:
         if set(payload) != {"context", "facts", "reference_material"}:
+            raise ValueError
+        if (payload["facts"]["model"]["code"], payload["facts"]["model"]["version"]) != (
+            policy.model_code,
+            policy.model_version,
+        ):
             raise ValueError
         validate_mbti_projection({name: payload[name] for name in ("context", "facts")})
         expected = policy.reference_material.select(payload["facts"]["model_result"]["type_code"])

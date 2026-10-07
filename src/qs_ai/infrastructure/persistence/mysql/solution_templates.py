@@ -25,13 +25,17 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
     schema_assets,
 )
 from qs_ai.infrastructure.qs_server.evaluation_release import validate_release_assets
-from qs_ai.infrastructure.qs_server.evaluation_suite import MBTI_ROOT, MBTI_THEMES_ROOT
+from qs_ai.infrastructure.qs_server.evaluation_suite import (
+    MBTI_EXPLORATION_ROOT,
+    MBTI_ROOT,
+    MBTI_THEMES_ROOT,
+)
 
 
 async def template_release(
     db: AsyncSession, scope: DraftScope, reference: FrozenContractRef
 ) -> EvidenceReleaseIdentity:
-    if reference not in (MBTI_ROOT, MBTI_THEMES_ROOT):
+    if reference not in (MBTI_ROOT, MBTI_THEMES_ROOT, MBTI_EXPLORATION_ROOT):
         raise NotFound("Template unavailable")
     suite = await load_registered_suite(db, reference, organization_id=scope.organization_id)
     document = json.loads(suite.definition_json)
@@ -63,6 +67,7 @@ async def template_catalog(db: AsyncSession, scope: DraftScope) -> list[dict[str
     for reference, name in (
         (MBTI_ROOT, "MBTI 单次解读首版"),
         (MBTI_THEMES_ROOT, "MBTI 三主题单次解读首版"),
+        (MBTI_EXPLORATION_ROOT, "MBTI 探索版三主题单次解读首版"),
     ):
         installed = await db.scalar(
             select(evaluation_suites.c.suite_id).where(

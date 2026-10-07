@@ -238,3 +238,54 @@ async def test_thematic_root_late_validation_failure_is_atomic(
             )
             == 0
         )
+
+
+async def test_exploration_import_is_independent_repeatable_and_never_publishes(
+    initialized_dependencies,
+):
+    import json
+
+    from qs_ai.application.governance.prompt_drafts import DraftScope
+    from qs_ai.infrastructure.persistence.mysql.solution_templates import (
+        template_catalog,
+        template_release,
+    )
+    from qs_ai.infrastructure.qs_server.evaluation_policies import evaluation_directory
+    from qs_ai.infrastructure.qs_server.mbti_assets import load_mbti_exploration_root
+
+    tx, actor, commit = initialized_dependencies
+    before = await counts(tx)
+    root = load_mbti_exploration_root()
+    # Initializer requires existing exact routes; it cannot silently create or replace them.
+    with pytest.raises(ValueError, match="model route unavailable"):
+        async with tx.open() as db:
+            await install(db, root, commit, actor)
+    proof = json.loads(
+        (evaluation_directory() / "mbti-exploration/source-proof-v1.json").read_text()
+    )
+    async with tx.open() as db:
+        for source in proof["routes"].values():
+            ref = source["reference"]
+            await insert_exact(
+                db,
+                route_assets,
+                {
+                    "route": ref["id"],
+                    "revision": ref["version"],
+                    "fingerprint": ref["fingerprint"],
+                    "definition_json": source["body"],
+                },
+                "test:" + actor,
+                actor,
+            )
+        assert await install(db, root, commit, actor) == 6
+        await db.commit()
+    async with tx.open() as db:
+        assert await install(db, root, "b" * 40, "replay") == 0
+        catalog = await template_catalog(db, DraftScope(1, 42))
+        entry = next(x for x in catalog if x["template_ref"]["id"] == root.suite.reference.id)
+        assert entry["selector"]["model_code"] == "MBTI_FC_93"
+        assert entry["published"] is False
+        assert await template_release(db, DraftScope(1, 42), root.suite.reference) == root.release
+        await db.commit()
+    assert await counts(tx) == before

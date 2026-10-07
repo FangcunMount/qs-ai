@@ -6,7 +6,7 @@ MBTI 解读解释的是 **QS 已保存的四轴偏好、强度和人格类型**�
 
 ## 先确认解释的是哪个模型、哪份报告
 
-当前支持的是一个有限场景：单人、单次测评、单份标准报告。模型身份必须完整匹配：
+当前支持的是一个有限场景：单人、单次测评、单份标准报告。模型身份必须完整匹配有限名单；以下代码块和 ISFJ 样例继续指基础版：
 
 ```text
 model.kind      = typology
@@ -15,6 +15,10 @@ model.code      = MBTI_OEJTS
 model.version   = v64-report-202608-v1
 runtime.decision_kind = pole_composition
 ```
+
+探索版新增独立绑定 `MBTI_FC_93 / v55-report-202608-v1`，问卷为冻结的 `MBTI_FC_93 / 8.0.1`。其 EI 为 E/I、SN 为 S/N、TF 为 T/F、JP 为 J/P；前三轴原始范围 0–23，JP 为 0–24，阈值均为 11.5。QS 从已冻结二选一问卷验证 93 题的 0/1 计分范围，不改变历史评分、偏好方向或强度。基础版原有 I/E、S/N、F/T、J/P 与 8/40/24 契约保持不变。
+
+探索版三主题使用新增 `ai-explanation-input/v4`；输出仍为 `ai-explanation-output/v2`，共享三主题结构，不共享发布指针。代码只接受这两个完整模型版本组合，不允许用 `latest`、基础版轴边界或当前模型编辑头代替。探索版旧报告没有 `pole_facts` 时继续只读展示；需新测评形成冻结事实，不能补写旧报告。
 
 这些值来自报告及其已提交 Outcome，而不是当前模型编辑头。`model.version` 固定测量模型身份；`report_template_version` 固定标准报告模板；`content_schema_version` 标记报告内容协议；三者允许不同值，不能相互替换。
 
@@ -110,7 +114,7 @@ MBTI Profile 强制保留全部 EI/SN/TF/JP，维度 min/max 均为 4，无 excl
 
 ## 发布选择与 Schema 必须对上原组合
 
-MBTI 的 selector 精确为 `(participant, typology, pole_composition, MBTI_OEJTS, v64-report-202608-v1)`。[`ReleaseSelector.admission_candidates`](../../../src/qs_ai/domain/governance/publication.py) 对 typology 只返回自身，没有量表的“精确→模型通配→全量表通配”候选序列。缺少 active Publication、禁用当前槽位或配置损坏，会明确拒绝，不能用量表发布补缺。
+基础版 MBTI 的 selector 精确为 `(participant, typology, pole_composition, MBTI_OEJTS, v64-report-202608-v1)`；探索版为独立的 `(participant, typology, pole_composition, MBTI_FC_93, v55-report-202608-v1)`。[`ReleaseSelector.admission_candidates`](../../../src/qs_ai/domain/governance/publication.py) 对 typology 只返回自身，没有量表的“精确→模型通配→全量表通配”候选序列。缺少 active Publication、禁用当前槽位或配置损坏，会明确拒绝，不能用量表发布补缺。
 
 单主题与三主题共用这个模型 selector 槽位，scene 不在 selector key 里。一次新请求由当前发布 Profile 选择场景，已接受请求继续使用原 Publication。把单主题指针切到三主题发布，不会让先前已接单 Session 自动增加参考材料或换输出结构。
 

@@ -212,3 +212,11 @@ AI 端先检查 TLS auth_context 为 ssl，且客户端 common name 精确为 `q
 主要源码入口：[根身份和 Suite 解码](../../../src/qs_ai/infrastructure/qs_server/evaluation_suite.py)、[原始材料校验](../../../src/qs_ai/infrastructure/qs_server/mbti_assets.py)、[显式安装事务](../../../src/qs_ai/bootstrap/import_mbti_assets.py)、[目录与原 release](../../../src/qs_ai/infrastructure/persistence/mysql/solution_templates.py)、[Create/回执/来源字段](../../../src/qs_ai/infrastructure/persistence/mysql/solutions.py)、[继承与派生](../../../src/qs_ai/infrastructure/persistence/mysql/solution_assets.py)、[入口错误映射](../../../src/qs_ai/transport/grpc/solutions.py)、[工作负载身份](../../../src/qs_ai/transport/grpc/identity.py)、[selector 槽身份](../../../src/qs_ai/domain/governance/publication.py)。
 
 QS 端核对入口：[路由 capability](https://github.com/FangcunMount/qs-server/blob/2ccc2de44bbd45e26d29e7e130da518cc32426f0/internal/apiserver/transport/rest/routes_interpretation.go)、[用例二次授权](https://github.com/FangcunMount/qs-server/blob/2ccc2de44bbd45e26d29e7e130da518cc32426f0/internal/apiserver/application/aibridge/solutions.go)、[可信 scope 与正文转发](https://github.com/FangcunMount/qs-server/blob/2ccc2de44bbd45e26d29e7e130da518cc32426f0/internal/apiserver/transport/rest/handler/ai_workflow_solutions.go)。
+
+## 探索版的独立初始化根
+
+`participant-mbti-exploration-single@three-topic-r17-v1` 是单独注册的未发布模板，来源为已发布基础版 r17 的固定消息、模型路线及语义规则；来源证明和摘要位于 `integrations/qs_server/evaluation/mbti-exploration/source-proof-v1.json`。初始化包不包含个人报告、答卷或候选正文。其 Prompt 的三段消息不改措辞，Profile 仅绑定探索版固定模型及 input/v4，参考正文与安全边界沿用原版本。七组案例是按探索版轴契约构造的合成输入，保留五候选、预检和原断言；不得复用 r17 候选审核作为探索版批准。
+
+使用 `python -m qs_ai.bootstrap.import_mbti_assets --root exploration-r17-v1 --source-commit <40位提交> --imported-by <运维身份>` 原子初始化。共享 Schema、执行与门槛策略，以及来源证明中的两条精确模型路线必须预先存在；缺失或摘要不同即明确失败，不创建替代路线或读取当前默认值。重复导入保持历史来源不变。该命令不创建 Run、不批准、不发布，也不开放参与者流量。
+
+方案目录增量返回原冻结 Profile 的 `selector`；不改写历史方案状态或命令回执。探索版通过同一个方案工作台独立创建、准备、评测和审核，基础版三主题 input/v3 与旧单次 input/v2 的原字节及指纹继续保留。
