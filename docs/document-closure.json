@@ -13,7 +13,7 @@
     "configs/README.md": "f12adab60a839ac797d15bafa6dc5ab96f135c63ee1aecb4e1115477619c6cd9",
     "configs/default.yaml": "cfb4e393182eba1793a4a5c3e29ded3cfa7283e6f472c2d22d521e010a400068",
     "configs/local.yaml": "6a722980c92fbb05c39e6e96277dafd5a53a42311ba250db7bab20c58fde4c5a",
-    "configs/production.yaml": "77ae237e71ae7b8c7ae81da71cdf493a4c9fed071b2e60332296acb3d399b704",
+    "configs/production.yaml": "b5c341265262f5509e06e67f5f67bc71ba20eb97e44147e45f7b4f72ceff6b21",
     "deploy/serverA/README.md": "aab301abda93e4684d893761c20ca5c4685343cd7c5bc68e4c63e363581e5864",
     "deploy/serverA/compose.yaml": "19c689c48aba8aa3fdfbe8198f054a025f8851f419551af0b64e49c143293da3",
     "deploy/serverA/deploy.py": "d662bfceff9ba9a054889f227ab935581c81552bfe6fe21f2dafa3a77c9aeb8b",
