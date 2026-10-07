@@ -8,7 +8,7 @@ from datetime import date
 from typing import Any
 from urllib.parse import urlsplit
 
-from qs_ai.domain.governance.scenes import MBTI_AXES, MBTI_MODEL, MBTI_VERSION
+from qs_ai.domain.governance.scenes import MBTI_AXES, mbti_model_contract
 
 MBTI_TOPICS = ("personality", "career", "relationships")
 _IDENTITY = re.compile(r"[a-z][a-z0-9._-]{0,127}")
@@ -138,8 +138,7 @@ def decode_mbti_reference_material(value: Any) -> MBTIReferenceMaterial:
     )
     if (
         document["schema_version"] != "mbti-reference-material/v1"
-        or document["model_code"] != MBTI_MODEL
-        or document["model_version"] != MBTI_VERSION
+        or mbti_model_contract(document["model_code"], document["model_version"]) is None
     ):
         raise InvalidMBTIReferences("Unsupported MBTI reference contract")
     version = document["version"]
@@ -225,8 +224,8 @@ def decode_mbti_reference_material(value: Any) -> MBTIReferenceMaterial:
         raise InvalidMBTIReferences("Reference material exceeds size limit")
     return MBTIReferenceMaterial(
         version,
-        MBTI_MODEL,
-        MBTI_VERSION,
+        document["model_code"],
+        document["model_version"],
         tuple(sorted(sources, key=lambda item: item.source_id)),
         tuple(sorted(entries, key=lambda item: item.entry_id)),
     )

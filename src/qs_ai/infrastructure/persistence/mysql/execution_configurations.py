@@ -109,8 +109,15 @@ async def compile_configuration(
     expected_snapshot = "v2" if isinstance(release.input_policy, MBTIInputPolicy) else "v1"
     input_version, output_version = expected_snapshot, "v1"
     if isinstance(release.input_policy, MBTIThematicInputPolicy):
-        expected_snapshot = "v3"
-        input_version, output_version = "v3", "v2"
+        from qs_ai.domain.governance.scenes import mbti_model_contract
+
+        contract = mbti_model_contract(
+            release.input_policy.model_code, release.input_policy.model_version
+        )
+        if contract is None:
+            raise ConfigurationUnavailable("Unsupported frozen MBTI model")
+        expected_snapshot = contract.thematic_input_version.rsplit("/", 1)[-1]
+        input_version, output_version = expected_snapshot, "v2"
     if (
         suite.input_construction_version != f"qs-published-snapshot-{expected_snapshot}"
         or suite.input_schema != proof.release.input_schema

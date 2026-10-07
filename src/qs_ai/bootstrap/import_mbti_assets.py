@@ -30,6 +30,7 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
 from qs_ai.infrastructure.qs_server.evaluation_release import validate_release_assets
 from qs_ai.infrastructure.qs_server.mbti_assets import (
     MBTIRootAssets,
+    load_mbti_exploration_root,
     load_mbti_root,
     load_mbti_themes_root,
 )
@@ -120,7 +121,11 @@ async def install(
 
 
 async def run(source_commit: str, imported_by: str, root: str = "v1") -> int:
-    loaders = {"v1": load_mbti_root, "three-topic-v1": load_mbti_themes_root}
+    loaders = {
+        "v1": load_mbti_root,
+        "three-topic-v1": load_mbti_themes_root,
+        "exploration-r17-v1": load_mbti_exploration_root,
+    }
     assets = await asyncio.to_thread(loaders[root])
     settings = Settings()
     if settings.database_url is None:
@@ -140,7 +145,9 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--source-commit", required=True)
     parser.add_argument("--imported-by", required=True)
-    parser.add_argument("--root", choices=("v1", "three-topic-v1"), default="v1")
+    parser.add_argument(
+        "--root", choices=("v1", "three-topic-v1", "exploration-r17-v1"), default="v1"
+    )
     args = parser.parse_args()
     try:
         inserted = asyncio.run(run(args.source_commit, args.imported_by, args.root))

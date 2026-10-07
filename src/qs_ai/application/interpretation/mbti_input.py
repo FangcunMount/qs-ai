@@ -24,6 +24,8 @@ from qs_ai.domain.governance.scenes import (
     MBTI_CONTRACT,
     MBTI_MODEL,
     MBTI_VERSION,
+    MBTIModelContract,
+    mbti_model_contract,
 )
 
 
@@ -77,11 +79,10 @@ def _validate_snapshot(value: Any) -> dict[str, Any]:
     ):
         raise ValueError("Invalid report source")
     model = _fields(s["model"], "kind algorithm code version title")
-    if tuple(model[k] for k in ("kind", "algorithm", "code", "version")) != (
+    contract = mbti_model_contract(model["code"], model["version"])
+    if contract is None or (model["kind"], model["algorithm"]) != (
         "typology",
         "personality_typology",
-        MBTI_MODEL,
-        MBTI_VERSION,
     ):
         raise ValueError("Invalid MBTI model")
     _plain(model["title"], 2000)
@@ -109,7 +110,7 @@ def _validate_snapshot(value: Any) -> dict[str, Any]:
         _plain(d["name"], 2000)
         for key in ("description", "suggestion"):
             _plain(d[key], 4000, False)
-        order, preference = _pole_preference(d, d["raw_score"])
+        order, preference = _pole_preference(d, d["raw_score"], contract)
         if order in preferences:
             raise ValueError("Duplicate MBTI axis")
         preferences[order] = preference
@@ -132,9 +133,8 @@ def _validate_snapshot(value: Any) -> dict[str, Any]:
     return deepcopy(s)
 
 
-def _pole_preference(d: dict[str, Any], score: Any) -> tuple[int, str]:
+def _pole_preference(d: dict[str, Any], score: Any, contract: MBTIModelContract) -> tuple[int, str]:
     """Shared structural facts for source reports and synthetic evaluation projections."""
-    _bounded(score, 8, 40)
     p = _fields(
         d["pole_facts"],
         "schema_version left_pole right_pole preference strength "
@@ -143,14 +143,16 @@ def _pole_preference(d: dict[str, Any], score: Any) -> tuple[int, str]:
     order = p["composition_order"]
     if type(order) is not int or not 1 <= order <= 4:
         raise ValueError("Invalid axis order")
+    minimum, maximum, threshold = contract.bounds[order - 1]
+    _bounded(score, minimum, maximum)
     if (
         d["kind"] != "pole"
         or p["schema_version"] != "mbti-pole-facts/v1"
-        or (d["code"], p["left_pole"], p["right_pole"]) != MBTI_AXES[order - 1]
+        or (d["code"], p["left_pole"], p["right_pole"]) != contract.axes[order - 1]
         or p["preference"] not in (p["left_pole"], p["right_pole"])
     ):
         raise ValueError("Invalid axis identity")
-    for key, expected in (("min_score", 8), ("max_score", 40), ("threshold", 24)):
+    for key, expected in (("min_score", minimum), ("max_score", maximum), ("threshold", threshold)):
         _bounded(p[key], expected, expected)
     _bounded(p["strength"], 0, 100)
     return order, p["preference"]
@@ -160,16 +162,21 @@ def validate_mbti_projection(payload: dict[str, Any]) -> None:
     """Validate synthetic facts after schema validation, without inventing report provenance."""
     facts = payload["facts"]
     model = facts["model"]
+    contract = mbti_model_contract(model["code"], model["version"])
     if (
-        tuple(model[k] for k in ("kind", "algorithm", "code", "version"))
-        != ("typology", "personality_typology", MBTI_MODEL, MBTI_VERSION)
+        contract is None
+        or (model["kind"], model["algorithm"]) != ("typology", "personality_typology")
         or facts["runtime"]["decision_kind"] != "pole_composition"
     ):
         raise InvalidInput("Invalid MBTI evaluation model")
     preferences = {}
     references = set()
     for d in facts["dimensions"]:
-        order, preference = _pole_preference(d, d["raw_score"]["value"])
+        order, preference = _pole_preference(d, d["raw_score"]["value"], contract)
+        if contract.thematic_input_version == "ai-explanation-input/v4":
+            _bounded(
+                d["raw_score"]["max"], contract.bounds[order - 1][1], contract.bounds[order - 1][1]
+            )
         if order in preferences or d["ref"] != "dimension:" + d["code"]:
             raise InvalidInput("Invalid MBTI evaluation axes")
         preferences[order] = preference
@@ -199,10 +206,22 @@ def validate_mbti_projection(payload: dict[str, Any]) -> None:
 def assemble_mbti(
     value: Any, policy: MBTIInputPolicy, locale: str, focus: tuple[str, ...]
 ) -> AssembledInput:
+    if (policy.model_code, policy.model_version) != (MBTI_MODEL, MBTI_VERSION):
+        raise InvalidInput("Legacy MBTI input requires the basic model")
+    return project_mbti(value, policy, locale, focus)
+
+
+def project_mbti(
+    value: Any, policy: MBTIInputPolicy, locale: str, focus: tuple[str, ...]
+) -> AssembledInput:
+    """Shared frozen fact projection; callers choose an explicit input contract."""
     snapshot = decode_mbti_snapshot(value)
+    contract = mbti_model_contract(policy.model_code, policy.model_version)
     if (
         policy.scene_contract_version != MBTI_CONTRACT
-        or (policy.model_code, policy.model_version) != (MBTI_MODEL, MBTI_VERSION)
+        or contract is None
+        or (snapshot["model"]["code"], snapshot["model"]["version"])
+        != (policy.model_code, policy.model_version)
         or (policy.min_dimensions, policy.max_dimensions) != (4, 4)
         or policy.eligible_codes != tuple(axis[0] for axis in MBTI_AXES)
         or policy.excluded_codes

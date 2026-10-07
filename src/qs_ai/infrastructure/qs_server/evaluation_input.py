@@ -12,6 +12,7 @@ from jsonschema import Draft202012Validator
 
 from qs_ai.domain.evaluation.identity import FrozenContractRef
 from qs_ai.infrastructure.qs_server.evaluation_suite import (
+    MBTI_EXPLORATION_INPUT_VERSION,
     MBTI_INPUT_VERSION,
     MBTI_THEMATIC_INPUT_VERSION,
     PUBLISHED_INPUT_VERSION,
@@ -28,6 +29,7 @@ def validate_suite_input(
         PUBLISHED_INPUT_VERSION: "v1",
         MBTI_INPUT_VERSION: "v2",
         MBTI_THEMATIC_INPUT_VERSION: "v3",
+        MBTI_EXPLORATION_INPUT_VERSION: "v4",
     }
     version = versions.get(suite.input_construction_version or "")
     if version is None or suite.input_schema != reference:
@@ -41,7 +43,7 @@ def validate_suite_input(
         raise ValueError("Evaluation input schema differs from registered asset")
     schema = load_input_schema(version=reference.version)
     projection_fields: tuple[str, ...] = ("context", "facts")
-    if version == "v3":
+    if version in ("v3", "v4"):
         projection_fields += ("reference_material",)
     projection = {
         **schema,
@@ -56,7 +58,7 @@ def validate_suite_input(
         from qs_ai.application.interpretation.mbti_input import validate_mbti_projection
 
         validate_mbti_projection(payload)
-    elif version == "v3":
+    elif version in ("v3", "v4"):
         from qs_ai.application.interpretation.input_values import MBTIThematicInputPolicy
         from qs_ai.application.interpretation.mbti_themes_input import (
             validate_mbti_themes_projection,

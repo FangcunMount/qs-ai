@@ -6,11 +6,31 @@ import (
 	"errors"
 	"os"
 
+	pb "github.com/FangcunMount/qs-server/api/grpc/gen/aiworkflow"
 	app "github.com/FangcunMount/qs-server/internal/apiserver/application/aibridge"
 	authz "github.com/FangcunMount/qs-server/internal/apiserver/application/authz"
 	infra "github.com/FangcunMount/qs-server/internal/apiserver/infra/aibridge"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/status"
 )
+
+// retiredExecutionProbe is test-only: preserve actual QS authorization/validation,
+// then verify that the old RPC endpoints reject execution over the real mTLS wire.
+// It does not implement Outbox submission or the current production MQ write path.
+type retiredExecutionProbe struct{ connection grpc.ClientConnInterface }
+
+func (p retiredExecutionProbe) SubmitParticipantRetry(ctx context.Context, _ app.DraftScope, _ string, _ app.ParticipantRetry) error {
+	_, err := pb.NewParticipantManagementClient(p.connection).Retry(ctx, &pb.ParticipantRetryCommand{})
+	return err
+}
+func (p retiredExecutionProbe) SubmitEvaluationStart(ctx context.Context, _ app.EvaluationScope, _ string, _ app.EvaluationStart) error {
+	_, err := pb.NewEvaluationManagementClient(p.connection).Start(ctx, &pb.EvaluationStartCommand{})
+	return err
+}
+func (p retiredExecutionProbe) SubmitEvaluationCancel(ctx context.Context, _ app.EvaluationScope, _ string, _ app.EvaluationCancel) error {
+	_, err := pb.NewEvaluationManagementClient(p.connection).Cancel(ctx, &pb.EvaluationCancelCommand{})
+	return err
+}
 
 func main() {
 	// Reserve stdout for the JSON protocol; QS diagnostics use stderr.
@@ -65,7 +85,12 @@ func main() {
 		snapshot.Permissions = []authz.Permission{{Resource: "qs:evaluation:collection:reports", Action: "audit", Mode: authz.AuthorizationModeUnconditional}}
 	}
 	ctx := authz.WithSnapshot(context.Background(), snapshot)
-	service := &app.EvaluationAdministration{Gateway: client}
+	connection, ok := clients.Connection.(grpc.ClientConnInterface)
+	if !ok {
+		os.Exit(3)
+	}
+	retired := retiredExecutionProbe{connection}
+	service := &app.EvaluationAdministration{Gateway: client, Messages: retired}
 	if input.UserID == 0 {
 		input.UserID = 42
 	}
@@ -102,7 +127,7 @@ func main() {
 	} else if input.Action == "participant-get" {
 		result, err = (&app.ParticipantAdministration{Gateway: clients.Participants}).Get(ctx, app.DraftScope{OrganizationID: input.OrgID, OperatorUserID: input.UserID}, input.SessionID)
 	} else if input.Action == "participant-retry" {
-		result, err = (&app.ParticipantAdministration{Gateway: clients.Participants}).Retry(ctx, app.DraftScope{OrganizationID: input.OrgID, OperatorUserID: input.UserID}, input.SessionID, input.ParticipantRetry)
+		err = (&app.ParticipantAdministration{Gateway: clients.Participants, Messages: retired}).SubmitRetry(ctx, app.DraftScope{OrganizationID: input.OrgID, OperatorUserID: input.UserID}, input.SessionID, input.ParticipantRetry)
 	} else if input.Action == "participant-receipt" {
 		result, err = (&app.ParticipantAdministration{Gateway: clients.Participants}).RetryReceipt(ctx, app.DraftScope{OrganizationID: input.OrgID, OperatorUserID: input.UserID}, input.CommandID)
 	} else if input.Action == "participant-capacity" {
@@ -117,7 +142,7 @@ func main() {
 	} else if input.Action == "list" {
 		result, err = service.List(ctx, app.DraftScope{OrganizationID: input.OrgID, OperatorUserID: input.UserID}, input.Catalog)
 	} else if input.Action == "cancel" {
-		result, err = service.Cancel(ctx, scope, app.EvaluationCancel{ExpectedVersion: input.Version, Reason: input.Reason, Confirm: input.Confirm, Discard: input.Discard})
+		err = service.SubmitCancel(ctx, scope, app.EvaluationCancel{CommandID: "11111111-1111-4111-8111-111111111111", ExpectedVersion: input.Version, Reason: input.Reason, Confirm: input.Confirm, Discard: input.Discard})
 	} else if input.Action == "unknowns" {
 		result, err = service.ListUnknowns(ctx, scope, input.Version)
 	} else if input.Action == "prepare" {
@@ -143,7 +168,7 @@ func main() {
 		}
 		result, err = service.Resolve(ctx, scope, app.UnknownResolution{ExpectedVersion: input.Version, ExecutionID: input.ExecutionID, Decision: input.Decision, Reason: "跨进程管理测试", Confirm: input.Confirm, AcknowledgedDuplicateCallAndCostRisk: input.Confirm})
 	} else if input.Action == "start" {
-		result, err = service.Start(ctx, scope, app.EvaluationStart{ExpectedVersion: input.Version, Reason: "跨进程管理测试", Confirm: input.Confirm})
+		err = service.SubmitStart(ctx, scope, app.EvaluationStart{CommandID: "11111111-1111-4111-8111-111111111111", ExpectedVersion: input.Version, Reason: "跨进程管理测试", Confirm: input.Confirm})
 	} else {
 		result, err = service.Get(ctx, scope)
 	}

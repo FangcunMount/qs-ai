@@ -32,8 +32,8 @@ preparation.py 的 prepare_report_input 进一步绑定 Session 与 EvidenceSet�
 
 ## 人格快照与三主题输入
 
-人格输入采用 `qs-report-snapshot/v2`，只允许精确 `MBTI_OEJTS / v64-report-202608-v1` 模型；类型、方向和强度由 QS 评分/报告产生，AI 不重算。人格事实使用明确定义字段，不把量表 norm、suggestion 或其他模型的扩展字段强行映射进人格输入。
+人格输入采用 `qs-report-snapshot/v2`，只允许精确 `MBTI_OEJTS / v64-report-202608-v1` 或 `MBTI_FC_93 / v55-report-202608-v1` 模型；类型、方向和强度由 QS 评分/报告产生，AI 不重算。人格事实使用明确定义字段，不把量表 norm、suggestion 或其他模型的扩展字段强行映射进人格输入。
 
-报告解读场景 `mbti-single-assessment/v1` 使用 AI input v2，三主题 `mbti-single-assessment/v2` 使用 input v3 与 output v2。三主题额外引用原冻结 Profile 中与本次类型相符的参考条目；通用参考不是本用户实测事实。原量表和旧 MBTI 已冻结请求按原版本继续读取，不能自动升级或 fallback。
+报告解读场景 `mbti-single-assessment/v1` 使用 AI input v2，三主题 `mbti-single-assessment/v2` 在基础版使用 input v3，在探索版使用 input v4，输出均为 output v2。三主题额外引用原冻结 Profile 中与本次类型相符的参考条目；通用参考不是本用户实测事实。原量表和旧 MBTI 已冻结请求按原版本继续读取，不能自动升级或 fallback。
 
 精确字段和组合校验由 [输入/输出规范](schemas/README.md)、[MBTI 输入](../../src/qs_ai/application/interpretation/mbti_input.py)、[三主题输入](../../src/qs_ai/application/interpretation/mbti_themes_input.py)及各初始化 manifest 持有。真实版本核对与参与者验收见 [MBTI 管理与验收](../../docs/04-接口与运维/08-MBTI管理与验收.md)。

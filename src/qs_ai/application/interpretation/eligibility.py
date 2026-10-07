@@ -13,7 +13,7 @@ from qs_ai.application.interpretation.service import (
     validate_session_input,
 )
 from qs_ai.domain.governance.publication import ReleaseSelector
-from qs_ai.domain.governance.scenes import MBTI_MODEL, MBTI_VERSION
+from qs_ai.domain.governance.scenes import mbti_model_contract
 from qs_ai.domain.interpretation.model import (
     Actor,
     EvidenceItem,
@@ -69,7 +69,7 @@ def eligibility_source(
         if kind not in {("scale", "score_range"), ("typology", "pole_composition")}:
             return Eligibility("unavailable", "unsupported_scene")
         if kind == ("typology", "pole_composition"):
-            if model["code"] != MBTI_MODEL or model["version"] != MBTI_VERSION:
+            if mbti_model_contract(model["code"], model["version"]) is None:
                 return Eligibility("unavailable", "unsupported_model_version")
             if snapshot["schema_version"] != "qs-report-snapshot/v2":
                 return Eligibility("unavailable", "source_incomplete")

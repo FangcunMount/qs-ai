@@ -21,6 +21,7 @@ from qs_ai.infrastructure.qs_server.evaluation_policies import (
     load_gate_policy,
 )
 from qs_ai.infrastructure.qs_server.evaluation_suite import (
+    MBTI_EXPLORATION_ROOT,
     MBTI_ROOT,
     MBTI_THEMES_ROOT,
     FrozenSuite,
@@ -68,6 +69,16 @@ def load_mbti_themes_root(directory: Path | None = None) -> MBTIRootAssets:
     )
 
 
+def load_mbti_exploration_root(directory: Path | None = None) -> MBTIRootAssets:
+    return _load_root(
+        directory or evaluation_directory() / "mbti-exploration",
+        MBTI_EXPLORATION_ROOT,
+        "5ad26a2dd9b51e9d328633a7d2910a6508ff67baaaf3470e06d3adf341b61483",
+        "v4",
+        "v2",
+    )
+
+
 def _load_root(
     directory: Path,
     reference: FrozenContractRef,
@@ -86,11 +97,18 @@ def _load_root(
         "semantic-v1.md",
         "suite-v1.json",
     }
-    if reference == MBTI_THEMES_ROOT:
+    if reference in (MBTI_THEMES_ROOT, MBTI_EXPLORATION_ROOT):
         expected.add("reference-material-v1.json")
+    if reference == MBTI_EXPLORATION_ROOT:
+        expected.add("source-proof-v1.json")
+    source_kind = (
+        "qs-ai-derived-from-published-r17"
+        if reference == MBTI_EXPLORATION_ROOT
+        else "qs-ai-authored-not-qs-export"
+    )
     if (
         manifest.get("format") != "qs-ai-mbti-root/v1"
-        or manifest.get("source_kind") != "qs-ai-authored-not-qs-export"
+        or manifest.get("source_kind") != source_kind
         or set(manifest.get("files", {})) != expected
     ):
         raise ValueError("Unsupported MBTI initialization manifest")
@@ -124,9 +142,9 @@ def _load_root(
         digest(values["profile-v1.json"]),
         values["profile-v1.json"],
     )
-    if reference == MBTI_THEMES_ROOT and json.loads(profile.definition_json)[
-        "reference_material"
-    ] != json.loads(values["reference-material-v1.json"]):
+    if reference in (MBTI_THEMES_ROOT, MBTI_EXPLORATION_ROOT) and json.loads(
+        profile.definition_json
+    )["reference_material"] != json.loads(values["reference-material-v1.json"]):
         raise ValueError("MBTI reference material differs from frozen Profile")
     decoded = decode_published_profile(
         {
@@ -159,9 +177,25 @@ def _load_root(
                     "scene_contract_version"
                 ],
             )
+    semantic_version = (
+        "three-topic-v2-exact-obligations"
+        if reference == MBTI_EXPLORATION_ROOT
+        else reference.version
+    )
+    if reference == MBTI_EXPLORATION_ROOT:
+        proof = json.loads(values["source-proof-v1.json"])
+        messages = {key: package[key] for key in ("SystemMessage", "TaskTemplate", "DataPreamble")}
+        from qs_ai.infrastructure.qs_server.evaluation_suite import canonical
+
+        if proof["message_sha256"] != digest(canonical(messages)):
+            raise ValueError("Exploration messages differ from published r17")
+        if proof["source_release"]["semantic_prompt"]["fingerprint"] != digest(
+            values["semantic-v1.md"]
+        ):
+            raise ValueError("Exploration semantic rules differ from published r17")
     semantic = SemanticPromptAsset(
         FrozenContractRef(
-            "mbti-single-semantic-evaluator", reference.version, digest(values["semantic-v1.md"])
+            "mbti-single-semantic-evaluator", semantic_version, digest(values["semantic-v1.md"])
         ),
         values["semantic-v1.md"],
     )
@@ -210,6 +244,6 @@ def _load_root(
         release,
         hashlib.sha256(manifest_bytes).hexdigest(),
         SchemaAsset("ai-explanation-output", output_version, digest(output_raw), output_raw)
-        if reference == MBTI_THEMES_ROOT
+        if reference in (MBTI_THEMES_ROOT, MBTI_EXPLORATION_ROOT)
         else None,
     )

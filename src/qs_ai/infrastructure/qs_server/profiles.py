@@ -15,7 +15,7 @@ from qs_ai.application.interpretation.input import (
 from qs_ai.application.interpretation.prompts import RenderPolicy
 from qs_ai.application.interpretation.release import ExplanationRelease, InvalidRelease
 from qs_ai.domain.governance.mbti_references import decode_mbti_reference_material
-from qs_ai.domain.governance.scenes import MBTI_AXES
+from qs_ai.domain.governance.scenes import MBTI_AXES, MBTI_MODEL, MBTI_VERSION, mbti_model_contract
 from qs_ai.infrastructure.qs_server.prompts import prompt_directory
 
 Version = Annotated[str, Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$")]
@@ -175,7 +175,7 @@ class MBTIGeneration(GenerationBase):
 
 
 class MBTIThematicGeneration(GenerationBase):
-    input_schema_version: Literal["ai-explanation-input/v3"]
+    input_schema_version: Literal["ai-explanation-input/v3", "ai-explanation-input/v4"]
     output_schema_version: Literal["ai-explanation-output/v2"]
 
 
@@ -183,8 +183,14 @@ class MBTISelector(PolicyModel):
     audience: Literal["participant"]
     model_kind: Literal["typology"]
     decision_kind: Literal["pole_composition"]
-    model_code: Literal["MBTI_OEJTS"]
-    model_version: Literal["v64-report-202608-v1"]
+    model_code: Literal["MBTI_OEJTS", "MBTI_FC_93"]
+    model_version: Literal["v64-report-202608-v1", "v55-report-202608-v1"]
+
+    @model_validator(mode="after")
+    def exact_model(self) -> Self:
+        if mbti_model_contract(self.model_code, self.model_version) is None:
+            raise ValueError("Unknown immutable MBTI model")
+        return self
 
 
 class DefinitionBase(PolicyModel):
@@ -231,6 +237,12 @@ class MBTIDefinition(MBTIDefinitionBase):
     scene_contract_version: Literal["mbti-single-assessment/v1"]
     generation_policy: MBTIGeneration
 
+    @model_validator(mode="after")
+    def legacy_basic_model(self) -> Self:
+        if (self.selector.model_code, self.selector.model_version) != (MBTI_MODEL, MBTI_VERSION):
+            raise ValueError("Legacy MBTI Profile requires the basic model")
+        return self
+
 
 class MBTIThematicDefinition(MBTIDefinitionBase):
     schema_version: Literal["ai-explanation-profile/v3"]
@@ -240,7 +252,15 @@ class MBTIThematicDefinition(MBTIDefinitionBase):
 
     @model_validator(mode="after")
     def frozen_references(self) -> Self:
-        decode_mbti_reference_material(self.reference_material)
+        material = decode_mbti_reference_material(self.reference_material)
+        identity = (self.selector.model_code, self.selector.model_version)
+        contract = mbti_model_contract(*identity)
+        if (
+            contract is None
+            or identity != (material.model_code, material.model_version)
+            or self.generation_policy.input_schema_version != contract.thematic_input_version
+        ):
+            raise ValueError("MBTI Profile, references and input contract differ")
         if len(canonical_definition(self.model_dump()).encode()) > 131072:
             raise ValueError("MBTI Profile exceeds storage limit")
         return self

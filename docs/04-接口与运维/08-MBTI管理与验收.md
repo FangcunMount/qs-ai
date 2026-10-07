@@ -1,6 +1,6 @@
 # MBTI 管理与验收
 
-三主题 MBTI 开放需要串起五份证据：精确模板可用、冻结方案完成评测与独立审核、共享发布指针指向该批准版本、参与者原请求被 QS 持久接收、正式客户端读到同一成果及其原参考正文。安装成功、合成测试通过或容器健康，只能证明其中一层。
+三主题 MBTI 开放需要串起五份证据：精确模板可用、冻结方案完成评测与独立审核、对应模型的发布指针指向该批准版本、参与者原请求被 QS 持久接收、正式客户端读到同一成果及其原参考正文。安装成功、合成测试通过或容器健康，只能证明其中一层。
 
 本文以一次 `MBTI_OEJTS / v64-report-202608-v1` 标准报告为对象。三主题是自我理解、职业探索、关系沟通；不支持招聘适配、配对、诊断、多次报告趋势。核对日期为 2026-10-06：AI 业务源码 `766b2aa`、QS `2ccc2de`、IAM `c8fc1fe`、Operating `8eefb9e`、小程序 `681cd05`。以下是受控操作的参数和判定规则；示例身份、版本必须用目标环境读回值替换，执行记录另绑定具体环境与日期。
 
@@ -104,7 +104,7 @@ QS 返回 202 `data.status=submitted`、operation_id/command_id 与 status_url�
 
 先 GET `/evaluations/{run_id}/gates?expected_version=<当前版本>`，保存 G1～G4 和 passed；再以同 version、显式 expected_passed、reason、confirm 做 Finalize。服务端事务内复算，不能用 confirm 跳过硬断言、均值或审核。approved/rejected 只固定 Run 结论；ReopenReview 有有限条件、不会重跑生成。完整门槛、响应未知和取消排空规则见 [评测设计](../02-业务模块/evaluation/01-评测候选门槛与审核设计.md)、[排障与恢复](06-排障与受控恢复.md)。
 
-## 5. 单独发布到共享 MBTI 槽位
+## 5. 发布到精确模型的 MBTI 槽位
 
 生成输出的字符上限来自原冻结 Profile，不是模型 Token 上限。评测和参与者生成都检查供应商适配后的 validation text，在 JSON 解析、压紧或规范化前按 Unicode 字符计数；格式空白计入上限。评测超长响应保留原回执与有界原文，记录 `output_too_long` 合约失败，不创建成功候选；只按原冻结执行策略允许的次数补生成，恢复已收到回执不重新调用模型。语义裁判仍使用其自己的输出契约，不套用生成正文的字符上限。
 
@@ -112,7 +112,7 @@ QS 返回 202 `data.status=submitted`、operation_id/command_id 与 status_url�
 
 先 GET `/publications`，query 完整携带 `audience=participant`、`model_kind=typology`、`decision_kind=pole_composition`、`model_code=MBTI_OEJTS`、`model_version=v64-report-202608-v1`。读取失败不能当“从未发布”；从未发布为 version=0/active_publication_id 空，停用后则为大于零的 version/空指针。
 
-这是全局共享 selector，旧 v1 与三主题 v2 共用同一槽位，机构没有私人 active 指针。变更会影响后续匹配的新准入，必须明确其影响范围，并保存独立量表 selector 的原指针作为兼容对照。
+基础版的旧 v1 与三主题 v2 共用同一全局槽位，机构没有私人 active 指针。探索版使用独立的精确模型 selector，不能继承基础版的批准记录或 active 指针。变更会影响后续匹配的新准入，必须明确其影响范围，并保存独立量表 selector 的原指针作为兼容对照。
 
 Publish 正文各字段只从相应读回组成：
 
@@ -202,3 +202,9 @@ QS 校验 Artifact/参考字符串的原字节摘要和绑定，小程序再验�
 [client-reference-tests]: https://github.com/FangcunMount/qs-collection-system/blob/681cd05f23418d028e61676e7158139078455f62/src/services/api/__tests__/mbtiReferences.test.js
 [client-content-tests]: https://github.com/FangcunMount/qs-collection-system/blob/681cd05f23418d028e61676e7158139078455f62/src/modules/assessment/components/ai-explanation/__tests__/AIExplanationContent.test.jsx
 [client-lifecycle-tests]: https://github.com/FangcunMount/qs-collection-system/blob/681cd05f23418d028e61676e7158139078455f62/src/modules/assessment/pages/__tests__/ReportPageLifecycle.test.jsx
+
+## 探索版（93题）增量接入
+
+先发布 qs-ai 的 input/v4 兼容、QS 的探索版冻结/投影，再原子安装精确的探索版根，最后部署 Operating 的模型范围选择。工作台新增“MBTI 探索版（93题）”，URL 使用 `aiScene=mbti-exploration`；发布选择器明确为 `MBTI_FC_93 / v55-report-202608-v1`。基础版和探索版的模板、方案列表及发布状态分别读取。已发布基础版 r17 保留不动。
+
+复用 r17 消息不等于探索版质量已验收。仍需授权后运行一次七组×五候选完整评测，核对原冻结 input/v4、双职责审核、独立发布及真实解读回传。没有冻结轴事实的历史探索版报告不能作为生成对象，也不得用当前模型补齐；兼容部署后新提交一份正式探索版测评再验收。小程序参考读取与正式发布另列，不因后端测试通过提前标记完成。

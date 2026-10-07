@@ -25,6 +25,7 @@ from qs_ai.application.governance.solutions import (
 )
 from qs_ai.application.interpretation.ports import NotFound
 from qs_ai.config import Settings
+from qs_ai.domain.governance.profile import ProfileAsset
 from qs_ai.domain.governance.prompt import PromptAsset
 from qs_ai.domain.governance.prompt_draft import DraftConflict
 from qs_ai.infrastructure.persistence.mysql.asset_snapshot import (
@@ -36,6 +37,7 @@ from qs_ai.infrastructure.persistence.mysql.evaluation_contracts import semantic
 from qs_ai.infrastructure.persistence.mysql.evaluation_management import read_view
 from qs_ai.infrastructure.persistence.mysql.prompt_drafts import apply_draft, read_draft
 from qs_ai.infrastructure.persistence.mysql.schema import (
+    profile_assets,
     prompt_assets,
 )
 from qs_ai.infrastructure.persistence.mysql.schema import (
@@ -259,6 +261,15 @@ class MySQLSolutions:
                         )
                     }
                 )
+                # Add a read projection from the original immutable Profile. Never
+                # rewrite historic state/receipts or infer a model from its scene name.
+                ref = release_from(state["source_release"]).profile
+                profile = await AssetSnapshotReader(db, profile_assets, ProfileAsset).get(
+                    ref.id, ref.version
+                )
+                if profile is None or profile.fingerprint != ref.fingerprint:
+                    raise ValueError("Solution source Profile unavailable or changed")
+                items[-1]["selector"] = json.loads(profile.definition_json)["selector"]
                 if "scene_contract_version" in state:
                     items[-1]["scene_contract_version"] = state["scene_contract_version"]
             return {

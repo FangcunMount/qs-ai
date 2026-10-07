@@ -1,6 +1,6 @@
 {
   "schema": "qs-ai-retained-assets/v1",
-  "purpose": "Current v6 runtime and immutable verification dependencies, plus authored MBTI v2 contracts; original source manifests remain unchanged full-export provenance.",
+  "purpose": "Current v6 runtime and immutable verification dependencies, plus versioned basic and exploration MBTI contracts; original source manifests remain unchanged full-export provenance.",
   "directories": {
     "prompts": {
       "manifest.json": "556f697faf9e79cbc23715e2678345590d3ad8cdd3a8c282bcc606ad21b4e07f",
@@ -30,7 +30,9 @@
       "mbti-input-manifest.json": "8b6a6106e411616119c6bd1e13599dd2fdfd5d6ce7daba37c2b661142744bd3a",
       "ai-explanation-input-v3.schema.json": "0c3ac84c075a8a9ffd22c91928034365bc28b914596f226e5ad6499ec43ff789",
       "ai-explanation-output-v2.schema.json": "db6ba195348ea9d48cf0d321ed31efc2deb27a4d0a81a61a06fe955fb615b34b",
-      "mbti-thematic-input-manifest.json": "b34c7b37cba81ddac9808f8d2dae2548946c2f01e78fb1eebcf8ff24fff43a8e"
+      "mbti-thematic-input-manifest.json": "b34c7b37cba81ddac9808f8d2dae2548946c2f01e78fb1eebcf8ff24fff43a8e",
+      "ai-explanation-input-v4.schema.json": "6f5d306ff964dde3da45403523b0f9390204b7c0269625c5e96885c24a7fa6de",
+      "mbti-exploration-input-manifest.json": "8f43ec77b18a7a6f1bac8d243d7211d9b6b2688ca434a80b61e5572543668e80"
     },
     "evaluation/mbti": {
       "manifest.json": "8be5bead7f390b5974a7131874f0de6e44b685f2d12353589abb684c5a2c2aa9",
@@ -48,6 +50,16 @@
       "reference-material-v1.json": "40b2f6469c25c03af9880eaa100292dbf2070ed9f27f25b4319c7ee300fdb9bb",
       "semantic-v1.md": "a4a5348c49adb9d1f53824794df6ef0103c6d65fb6fa601e1e178a20667d7660",
       "suite-v1.json": "027fbe31e18e08786390920dfc1233e76e7a54ac68198385f6391c8634ce2a4b"
+    },
+    "evaluation/mbti-exploration": {
+      "manifest.json": "5ad26a2dd9b51e9d328633a7d2910a6508ff67baaaf3470e06d3adf341b61483",
+      "profile-v1.json": "860d97a4081dfe80bd07dba1d499669b5a438273b21af4dabf123f0b7cd1ac0b",
+      "prompt-v1.json": "55398c11c6149bdc87cfe3b6216523b521def3cfaf880cecf8d0a97c7c036bc9",
+      "prompt-v1.md": "b922930c720d265420a0f6626e3cd3ca9349e8194d711723c50939fc46437f23",
+      "reference-material-v1.json": "7f1cd86fea9d7a42ac6ed0e9c3690786f972902efce594e160fa43d0644f40da",
+      "semantic-v1.md": "07af91c2b9568d0b3cb2cb54cf8d311a96782e16c8cac9ed8d59bf286c0df629",
+      "source-proof-v1.json": "4c73d7165c91ba931aa69d50226b634310227dee802d3f0f308cdc38b8b42bb6",
+      "suite-v1.json": "42e52ef9437962cb67683c925f9cd5a5ff8e1ff42ffe8eadd3fe187f6e41a9b6"
     }
   }
 }
