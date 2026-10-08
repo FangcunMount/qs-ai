@@ -1,6 +1,6 @@
 {
   "schema_version": "qs-ai-document-closure/v1",
-  "source_commit": "e23277732ab1b5831a8751661f686a5a409e0c91",
+  "source_commit": "82ffa1b43308f23fbb1ebe669c3071e0486e105a",
   "reviewed_on": "2026-10-08",
   "authority": "runtime composition > code > machine contracts/config/migrations > scoped tests > maintained prose > dated evidence/plans/archive",
   "source_catalog": {
@@ -460,7 +460,9 @@
     "tests/test_schema_followup_transport.py": "7911169171439d88af0d2c885cbddfbf9aef6f1e291953c5a5dcef92a8312b18",
     ".github/workflows/schema-followup.yml": "2c09ba00c8ff88a30f5b0598b0e210092f81839a4a51d6bf19fce0a82b1db198",
     "src/qs_ai/maintenance/prompt_retirement/__main__.py": "b9c9c419e22ac2160663faca394150e37db77578f99820b4b92267917a8c0625",
-    "scripts/cd/schema_followup.py": "d7594fdea6564ef28fb822b8755e7ec48ba76b05ac8002a765bdd6d3c31269f0"
+    "scripts/cd/schema_followup.py": "d7594fdea6564ef28fb822b8755e7ec48ba76b05ac8002a765bdd6d3c31269f0",
+    "docs/evidence/2026-10-08-schema-followup-local.json": "e38f1af80e7f8297c408007348f804be4941967ccbbbdd35894d32979d0dded5",
+    "docs/evidence/2026-10-08-schema-followup-production.json": "ddcd8d4193ad2ecfbb4d9d38374c7bdbfc5d64c8319cdf3bc36d02108d6d85cc"
   },
   "documents": [
     {
@@ -1918,6 +1920,8 @@
         "deploy/serverA/deploy.py",
         "deploy/serverA/schema_followup.py",
         "deploy/serverA/schema_maintenance.py",
+        "docs/evidence/2026-10-08-schema-followup-local.json",
+        "docs/evidence/2026-10-08-schema-followup-production.json",
         "docs/evidence/2026-10-08-schema-refactor-rehearsal.json",
         "migrations/env.py",
         "migrations/versions/0039_data_consolidation.py",
@@ -1992,7 +1996,7 @@
         "uv run pytest tests/test_schema_followup.py tests/test_schema_followup_transport.py tests/test_schema_refactor_auto_increment.py tests/test_prompt_retirement.py tests/test_prompt_retirement_policy.py",
         "MySQL 8.0.36/8.4 full CI; production Actions metadata-only acceptance and isolated native restore/inverse rehearsal"
       ],
-      "review_scope": "Authorized 54-to-44 working-tree refactor: complete module mapping, lossless typed merges, offline schema-family release guard, paused-writer maintenance journal, 30-minute window/25-minute exit and 30-day archive retention. Full rollback converts all current new-layout facts; startup can write before ingress. Historical gRPC rehearsal is disabled. Runtime and business evidence remain unknown. 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained. Final review preserves original column collation maps and auto-increment high-water marks, retained private journals after archive expiry, inherited reverse preparation, schema/table grant distinctions and final 44-table structural checks; local fixture performance does not establish the production window budget. Raw actual BLOB facts and alembic_version own structure are verified; durable local evidence stores hashes and scoped case counts, preserving all production-volume/image/runtime pending boundaries. Final CLI watchdog and monotonic digest deadlines preserve pending journals on blocked queries/commits and allow only bounded actual-layout probes after expiry. Production read-only domain checks require prebound organization/natural-key expectations and original typed reads; fixed four-class asset audit and bounded messaging inventory do not prove complete business acceptance. First PR149 CI failures remain recorded. Only disposable CI upgrade steps use maintenance privileges; runtime/app checks stay schema-scoped. Historical restore preserves known source version metadata. Owned Alembic online connections commit final head, while provided transactions remain host-owned; normal default-command image smoke is separate local proof. Actions maintenance uses dedicated production environment Secrets and continuously held host locks; prepare stages immutable images without changing runtime, metadata-only receipts are separate from deployment acceptance. Snapshot backups restore via frozen definitions and verified native-byte records; cross-schema inverse startup bypasses ordinary rollback and saves state only after fixed-image/head/runtime verification. Production maintenance permission, real-data restoration, timing and cutover remain independently pending."
+      "review_scope": "Behavior-preserving 0040 follow-up: independent AUTO_INCREMENT contract; format3 AI Prompt retirement with fixed whitelist, native backup and protected-row rescan; v2 immutable baseline/runtime bindings, durable pending-operation clocks, current-facts rollback and per-archive retention. Historical migrations, frozen definitions and original backup format remain byte-identical. The 2026-10-08 dated production report separately binds full CI, isolated snapshot restore/inverse, actual 82ffa1b image and read-only 44-table/four-auto structure. Production Prompt candidates are zero; no production deletion, inverse exchange or archive cleanup. Nine production business categories remain not_covered. Fixed maintenance executor revision and exact retention timestamp are documented; canonical runtime_status does not imply current or complete business acceptance."
     },
     {
       "path": "docs/04-接口与运维/README.md",
@@ -2529,5 +2533,5 @@
       "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
     }
   ],
-  "working_tree_review": "Module-table refactor reviewed in the authorized working tree; source_catalog hashes bind current uncommitted files. Local test evidence and production runtime acceptance are independent; runtime_status remains unknown."
+  "working_tree_review": "Reviewed released follow-up implementation at 82ffa1b; source_catalog hashes bind current sources. Dated production Actions metadata separately binds release, read-only structure and isolated rehearsal. Canonical runtime_status remains unknown outside that dated evidence; real business acceptance is not covered."
 }
