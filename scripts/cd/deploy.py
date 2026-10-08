@@ -420,13 +420,63 @@ def record_deployment(ssh: list[str]) -> None:
             stream.write(f"actual_revision={revision}\n")
 
 
+def record_preparation(ssh: list[str], release_id: str, package: Path) -> None:
+    """Bind a preparation receipt to exactly the uploaded, still-inactive materials."""
+    receipt = json.loads(
+        run(
+            "prepared release receipt",
+            [*ssh, f"cat /opt/qs-ai/releases/{release_id}/prepared.json"],
+        )
+    )
+    manifest = json.loads((package / "manifest.json").read_text())
+    expected = {
+        "version": 1,
+        "prepared": True,
+        "release": release_id,
+        "release_id": release_id,
+        "revision": manifest["revision"],
+        "source_image_id": manifest["image_id"],
+        "archive_sha256": manifest["archive_sha256"],
+        "registry_digest": manifest["digest"],
+        **{
+            key + "_sha256": hashlib.sha256((package / name).read_bytes()).hexdigest()
+            for key, name in (
+                ("manifest", "manifest.json"),
+                ("runtime", "runtime.json"),
+                ("compose", "compose.yaml"),
+            )
+        },
+    }
+    try:
+        if (
+            set(receipt) != set(expected) | {"image_id", "expected_heads"}
+            or receipt["prepared"] is not True
+            or any(receipt[key] != value for key, value in expected.items())
+            or not re.fullmatch(r"sha256:[0-9a-f]{64}", receipt["image_id"])
+            or not isinstance(receipt["expected_heads"], list)
+            or len(receipt["expected_heads"]) != 1
+            or not re.fullmatch(r"[0-9]{4}_[a-z0-9_]+", receipt["expected_heads"][0])
+        ):
+            raise ValueError
+    except (KeyError, TypeError, ValueError):
+        raise RuntimeError(
+            "Release preparation receipt binding invalid; contents withheld"
+        ) from None
+    path = Path("release-receipt.json")
+    path.write_text(json.dumps(receipt, sort_keys=True) + "\n")
+    path.chmod(0o600)
+    if output := os.environ.get("GITHUB_OUTPUT"):
+        with Path(output).open("a") as stream:
+            stream.write(f"release_id={release_id}\nrevision={manifest['revision']}\n")
+
+
 def main() -> None:
     os.umask(0o077)
     env = dict(os.environ)
     action = env.get("DEPLOY_OPERATION", "deploy")
-    if action not in ("deploy", "rollback"):
+    if action not in ("deploy", "rollback", "prepare"):
         raise ValueError("Invalid operation")
-    config = runtime_config(env) if action == "deploy" else None
+    config = runtime_config(env) if action in ("deploy", "prepare") else None
     revision = required(env, "DEPLOY_SHA")
     if not re.fullmatch(r"[0-9a-f]{40}", revision):
         raise ValueError("Invalid commit")
@@ -474,14 +524,15 @@ def main() -> None:
             [*scp, str(ROOT / "deploy/serverA/deploy.py"), f"{user}@{host}:{remote_script}"],
         )
         remote_retention = remote_script.replace(".py", "-retention.py")
-        run(
-            "upload retention script",
-            [
-                *scp,
-                str(ROOT / "scripts/cd/image-retention.py"),
-                f"{user}@{host}:{remote_retention}",
-            ],
-        )
+        if action != "prepare":
+            run(
+                "upload retention script",
+                [
+                    *scp,
+                    str(ROOT / "scripts/cd/image-retention.py"),
+                    f"{user}@{host}:{remote_retention}",
+                ],
+            )
         try:
             if action == "rollback":
                 print(run("rollback", [*ssh, f"python3 {remote_script} rollback"]), end="")
@@ -543,9 +594,24 @@ def main() -> None:
                 [
                     *ssh,
                     f"cp {remote_script} {target}/deploy.py && "
-                    f"cp {remote_retention} {target}/image-retention.py && chmod 600 {target}/*",
+                    + (
+                        f"cp {remote_retention} {target}/image-retention.py && "
+                        if action != "prepare"
+                        else ""
+                    )
+                    + f"chmod 600 {target}/*",
                 ],
             )
+            if action == "prepare":
+                print(
+                    run(
+                        "remote preparation",
+                        [*ssh, f"python3 {remote_script} prepare {release_id}"],
+                    ),
+                    end="",
+                )
+                record_preparation(ssh, release_id, package)
+                return
             try:
                 print(
                     run("remote deployment", [*ssh, f"python3 {remote_script} {release_id}"]),

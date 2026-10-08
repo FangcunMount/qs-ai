@@ -8,6 +8,8 @@
 
 手动操作要求工作流运行于 main；revision 留空选择当前提交，也可填写 main 上已通过 push CI 的完整 SHA。operation=rollback 恢复 serverA 记录的上一成功发布。普通镜像回滚仅在数据库匹配旧镜像head和存储布局时允许。0038/0040任一方向必须进入[双向全量数据转换](../../docs/04-接口与运维/09-模块数据表与双向迁移.md)，完整保留当前新增事实。
 
+[Schema maintenance serverA](../../.github/workflows/schema-maintenance.yml) 是这次结构切换的专用入口。手动依次执行 preflight、prepare、rehearse、switch，恢复使用 rollback，status 只读查询。每次保持相同 maintenance_id 和已通过 main CI 的完整 revision；prepare 中断后填写第一次生成的 release ID 继续，不重新构建或替换已绑定镜像。候选镜像准备不更新部署基线，切换完成并核验运行时后才更新 state.json。维护窗口内暂停自动部署。
+
 自动发布由 main 的 checks 成功触发，同时要求仓库变量 AUTO_DEPLOY_ENABLED=true；是否已启用需读取仓库当前设置。并发部署串行，serverA 另外使用文件锁防止手动操作重叠。
 
 ## 配置
@@ -15,6 +17,8 @@
 复用组织 Secrets：MYSQL_HOST、MYSQL_PORT、ALIYUN_ACR_REGISTRY、ALIYUN_ACR_NAMESPACE、ALIYUN_ACR_USERNAME、ALIYUN_ACR_PASSWORD、SVRA_HOST、SVRA_USERNAME、SVRA_SSH_PORT，以及优先使用的 SVR_MINI_SSH_KEY（缺失时用 SVRA_SSH_KEY）。serverA 优先使用组织变量 SVRA_PUBLIC_HOST；地址、用户、端口支持同名仓库变量覆盖。Mac mini 采用隔离的 Docker auth 文件，避免触发 macOS Keychain。
 
 仓库 Secrets：MYSQL_DATABASE、MYSQL_USERNAME、MYSQL_PASSWORD。MYSQL_DBNAME 为数据库名兼容项，两者均配置却不一致时拒绝发布。连接 URL 由 SQLAlchemy 构造，不需要另建 QS_AI_DATABASE_URL Secret。
+
+production Environment 的维护 Secrets 为 MYSQL_MAINTENANCE_USERNAME、MYSQL_MAINTENANCE_PASSWORD。它们保存独立迁移账号，RDS 地址和源库复用已绑定的生产 release 配置。维护权限在 RDS 授予，Secrets 不会自动增加账号权限。维护凭据只用于维护步骤，临时文件为 0600 并在结束时移除；完整数据备份和 journal 留在 serverA 的私有目录，Actions 仅保存不含正文的摘要证据。
 
 仓库变量 SVRA_HOST_PUBLIC_KEY 保存通过可信 SSH 连接核对的 serverA ed25519 主机公钥。production Environment 限定 main，qlume runner 组需允许本仓库使用。运行参数仍由 [configs](../../configs/README.md) 管理。
 

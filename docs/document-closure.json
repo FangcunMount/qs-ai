@@ -1,6 +1,6 @@
 {
   "schema_version": "qs-ai-document-closure/v1",
-  "source_commit": "a533afef3f390a0726ff26657c93c045d07300b7",
+  "source_commit": "117d08fdf492ef136bf164813d5e86a885ac2d08",
   "reviewed_on": "2026-10-08",
   "authority": "runtime composition > code > machine contracts/config/migrations > scoped tests > maintained prose > dated evidence/plans/archive",
   "source_catalog": {
@@ -14,9 +14,9 @@
     "configs/default.yaml": "cfb4e393182eba1793a4a5c3e29ded3cfa7283e6f472c2d22d521e010a400068",
     "configs/local.yaml": "6a722980c92fbb05c39e6e96277dafd5a53a42311ba250db7bab20c58fde4c5a",
     "configs/production.yaml": "b5c341265262f5509e06e67f5f67bc71ba20eb97e44147e45f7b4f72ceff6b21",
-    "deploy/serverA/README.md": "9924d5a4085024951339abaa7c57c99f36ea47d6f5736c1ab25ba27749776924",
+    "deploy/serverA/README.md": "fdade5096e35cc44205a0efa304774d138dbff176615fb8f80de85886e97634c",
     "deploy/serverA/compose.yaml": "19c689c48aba8aa3fdfbe8198f054a025f8851f419551af0b64e49c143293da3",
-    "deploy/serverA/deploy.py": "2c6a4b5c836dc94df339caa9c31ebdce67a008f6b5a1892da8eb0e011d6930a9",
+    "deploy/serverA/deploy.py": "d58e1a717a43010fb61205e122af82a2927c3e78cc76bc44c4029689f38ba49b",
     "docs/evidence/2026-09-13-m3-current-published-reconciliation.json": "950b0d4b7c6f6812756cef41374366a39630277d831ca6c42de56a447802d055",
     "docs/evidence/2026-09-13-m3-fixed-baseline-import.json": "cb28ea6199095f211348cf1ed44675a8e41cb22c56cec2f282217dc79747a23f",
     "docs/evidence/2026-09-13-m3-m4-coordinated-release.json": "4c3c0d45e968b6d35c9c18e54607cddd97430852bebe4f1765b76c78eb9bdb66",
@@ -66,7 +66,7 @@
     "migrations/versions/0040_module_table_names.py": "4c4ab3cdc7b871b5d3e0577ead40be96ee5ebfb568ef84acc712cd58b2ab32e9",
     "pyproject.toml": "68a1413d91177046ba7ac707e374170923596e68269248e064cc86633c01e731",
     "scripts/cd/IMAGE_RETENTION.md": "2e525760370df1c5b4238fea5ee707deb492b0f7c2851517d3cdc3dee8feb5d3",
-    "scripts/cd/deploy.py": "0e59fe5cd8b0c210d3c762a74ddb955979914014f38e88dacdbdde4dc6036c4f",
+    "scripts/cd/deploy.py": "f36484d1631b7d477ce66421d80263162db067bdacd56c395740b717cadf2fdc",
     "scripts/cd/deploy_scope.py": "fec48f82798101688b26459169b3808b08cf8610b5fd5e3fcdacb86cddf1bbc5",
     "scripts/cd/image-retention.py": "83ad105c86e930d73666dad4d33178b16a5456fc3c25e5af7a782608298ed2f1",
     "scripts/check_docs.py": "5df5021a4fba59d6e0710eb9e6e07b15a03bd191d6a0856637f84da49a63b24d",
@@ -438,7 +438,17 @@
     "tests/test_solutions.py": "e60f73b854d4816bfe06d6cfeff1c783572c3348f7f0e265d4dc3d0a602b37f3",
     "tests/test_structured_logging.py": "01ad0070c167faf7bb0cccd6d507a9debb5880b59a30cd49381dcd943073d17e",
     "tests/test_worker_frozen_evidence.py": "a279da8e3371901f60a08e200f6ce91438304332c980d2bf591fb2ec0aa108e9",
-    "uv.lock": "051182371d03ae7d5f3e91ee87c85e94651b726c3cc4015dcc198625a07dce00"
+    "uv.lock": "051182371d03ae7d5f3e91ee87c85e94651b726c3cc4015dcc198625a07dce00",
+    ".github/workflows/schema-maintenance.yml": "24699269bd60cac98c41b210c04783cbf36056feb10848e462e1750f020b5e44",
+    "scripts/cd/schema_maintenance.py": "9a9540ad4f7a840e204cd98aa76a378e626e700ee210fe544a09d329d4be7726",
+    "deploy/serverA/schema_maintenance.py": "0d064a9814aae8cf7c20dabb3efc2dca19ab87e8477bb21472cd494e84b744b5",
+    "src/qs_ai/maintenance/schema_refactor/backup.py": "bd0954e80969371e03c519273201d6c7733b39cafbabfe9afa8bb05d5e644d9a",
+    "src/qs_ai/maintenance/schema_refactor/backup_format.py": "d6e7954a645d5d1db5ed5d3e2ccd98a9cdfdc99bd1a7effd8e8e84769b52c119",
+    "tests/test_cd_prepare.py": "42838775a503982702fded83c4860331c17fc72883f21b4ff9384910c54d404f",
+    "tests/test_schema_maintenance_transport.py": "8e8d4119152cc5de9c98333625e8278b3ae84d0715eb172057265196d86e5747",
+    "tests/test_schema_maintenance_deployment.py": "22d303c15df3ce82845566ece1b789a66847cd07cfd74e3b42a20e5fc084564c",
+    "tests/test_schema_refactor_backup.py": "8ab108689b4734a12ad1cae77db4c3f43d0b53f768a86112708d2d0f72273320",
+    "tests/integration/test_schema_refactor_backup.py": "3705dc2204d99dc322f6bbf4407dea12ac1f676e67d0a3c6c738b9745858b4e5"
   },
   "documents": [
     {
@@ -481,7 +491,10 @@
       "runtime_status": "unknown",
       "sources": [
         ".github/workflows/deploy.yml",
-        "scripts/cd/deploy.py"
+        ".github/workflows/schema-maintenance.yml",
+        "deploy/serverA/schema_maintenance.py",
+        "scripts/cd/deploy.py",
+        "scripts/cd/schema_maintenance.py"
       ],
       "verify": [
         "python scripts/check_docs.py",
@@ -1887,12 +1900,15 @@
         ".github/workflows/ai-messaging.yml",
         ".github/workflows/ci.yml",
         ".github/workflows/m7-messaging.yml",
+        ".github/workflows/schema-maintenance.yml",
         "Dockerfile",
         "deploy/serverA/deploy.py",
+        "deploy/serverA/schema_maintenance.py",
         "docs/evidence/2026-10-08-schema-refactor-rehearsal.json",
         "migrations/env.py",
         "migrations/versions/0039_data_consolidation.py",
         "migrations/versions/0040_module_table_names.py",
+        "scripts/cd/schema_maintenance.py",
         "scripts/ci/rehearse_m7_cutover.py",
         "scripts/ci/smoke_single_process.py",
         "scripts/ci/verify_mq_payload_report.py",
@@ -1912,6 +1928,8 @@
         "src/qs_ai/maintenance/messaging_audit.py",
         "src/qs_ai/maintenance/schema_layout.py",
         "src/qs_ai/maintenance/schema_refactor/__main__.py",
+        "src/qs_ai/maintenance/schema_refactor/backup.py",
+        "src/qs_ai/maintenance/schema_refactor/backup_format.py",
         "src/qs_ai/maintenance/schema_refactor/contracts.py",
         "src/qs_ai/maintenance/schema_refactor/control.py",
         "src/qs_ai/maintenance/schema_refactor/conversion.py",
@@ -1923,6 +1941,7 @@
         "tests/integration/test_execution_storage_contracts.py",
         "tests/integration/test_governance_storage_contracts.py",
         "tests/integration/test_mq_0038_maintenance.py",
+        "tests/integration/test_schema_refactor_backup.py",
         "tests/integration/test_schema_refactor_cli.py",
         "tests/integration/test_schema_refactor_collations.py",
         "tests/integration/test_schema_refactor_conversion.py",
@@ -1933,9 +1952,13 @@
         "tests/probes/mq_fault_acceptance.py",
         "tests/probes/mq_payload_acceptance.py",
         "tests/test_architecture.py",
+        "tests/test_cd_prepare.py",
         "tests/test_m7_rehearsal_boundary.py",
         "tests/test_retirement_layout_boundary.py",
         "tests/test_schema_deployment_boundary.py",
+        "tests/test_schema_maintenance_deployment.py",
+        "tests/test_schema_maintenance_transport.py",
+        "tests/test_schema_refactor_backup.py",
         "tests/test_schema_refactor_control.py",
         "tests/test_schema_refactor_deadline.py",
         "tests/test_schema_refactor_timeout.py"
@@ -1944,9 +1967,10 @@
         "python scripts/check_docs.py",
         "pytest -q tests/test_schema_deployment_boundary.py tests/test_m7_rehearsal_boundary.py tests/test_retirement_layout_boundary.py",
         "Isolated MySQL 8.0.36/8.4 full forward/reverse storage and MQ regression; production conversion and acceptance require independent binding",
-        "2026-10-08 local rehearsal JSON: 69 original storage plus one owned-online final-head commit and five native timeout identities passed on each MySQL version; 18 shared CLI/digest units give 93 migration identities. Conversion/collation/native reports are rechecks. Architecture and retirement are separate; initial failed PR149 checks/M7 and passing local fixes do not imply post-fix CI or production acceptance."
+        "2026-10-08 local rehearsal JSON: 69 original storage plus one owned-online final-head commit and five native timeout identities passed on each MySQL version; 18 shared CLI/digest units give 93 migration identities. Conversion/collation/native reports are rechecks. Architecture and retirement are separate; initial failed PR149 checks/M7 and passing local fixes do not imply post-fix CI or production acceptance.",
+        "pytest -q tests/test_cd_prepare.py tests/test_schema_maintenance_transport.py tests/test_schema_maintenance_deployment.py tests/test_schema_refactor_backup.py; disposable MySQL backup restoration tests on 8.0.36/8.4"
       ],
-      "review_scope": "Authorized 54-to-44 working-tree refactor: complete module mapping, lossless typed merges, offline schema-family release guard, paused-writer maintenance journal, 30-minute window/25-minute exit and 30-day archive retention. Full rollback converts all current new-layout facts; startup can write before ingress. Historical gRPC rehearsal is disabled. Runtime and business evidence remain unknown. 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained. Final review preserves original column collation maps and auto-increment high-water marks, retained private journals after archive expiry, inherited reverse preparation, schema/table grant distinctions and final 44-table structural checks; local fixture performance does not establish the production window budget. Raw actual BLOB facts and alembic_version own structure are verified; durable local evidence stores hashes and scoped case counts, preserving all production-volume/image/runtime pending boundaries. Final CLI watchdog and monotonic digest deadlines preserve pending journals on blocked queries/commits and allow only bounded actual-layout probes after expiry. Production read-only domain checks require prebound organization/natural-key expectations and original typed reads; fixed four-class asset audit and bounded messaging inventory do not prove complete business acceptance. First PR149 CI failures remain recorded. Only disposable CI upgrade steps use maintenance privileges; runtime/app checks stay schema-scoped. Historical restore preserves known source version metadata. Owned Alembic online connections commit final head, while provided transactions remain host-owned; normal default-command image smoke is separate local proof."
+      "review_scope": "Authorized 54-to-44 working-tree refactor: complete module mapping, lossless typed merges, offline schema-family release guard, paused-writer maintenance journal, 30-minute window/25-minute exit and 30-day archive retention. Full rollback converts all current new-layout facts; startup can write before ingress. Historical gRPC rehearsal is disabled. Runtime and business evidence remain unknown. 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained. Final review preserves original column collation maps and auto-increment high-water marks, retained private journals after archive expiry, inherited reverse preparation, schema/table grant distinctions and final 44-table structural checks; local fixture performance does not establish the production window budget. Raw actual BLOB facts and alembic_version own structure are verified; durable local evidence stores hashes and scoped case counts, preserving all production-volume/image/runtime pending boundaries. Final CLI watchdog and monotonic digest deadlines preserve pending journals on blocked queries/commits and allow only bounded actual-layout probes after expiry. Production read-only domain checks require prebound organization/natural-key expectations and original typed reads; fixed four-class asset audit and bounded messaging inventory do not prove complete business acceptance. First PR149 CI failures remain recorded. Only disposable CI upgrade steps use maintenance privileges; runtime/app checks stay schema-scoped. Historical restore preserves known source version metadata. Owned Alembic online connections commit final head, while provided transactions remain host-owned; normal default-command image smoke is separate local proof. Actions maintenance uses dedicated production environment Secrets and continuously held host locks; prepare stages immutable images without changing runtime, metadata-only receipts are separate from deployment acceptance. Snapshot backups restore via frozen definitions and verified native-byte records; cross-schema inverse startup bypasses ordinary rollback and saves state only after fixed-image/head/runtime verification. Production maintenance permission, real-data restoration, timing and cutover remain independently pending."
     },
     {
       "path": "docs/04-接口与运维/README.md",

@@ -617,17 +617,8 @@ def restore(state: dict) -> None:
     print(json.dumps({"rollback": "passed", "release": previous}))
 
 
-def apply(release: Path, state: dict) -> None:
-    manifest = json.loads((release / "manifest.json").read_text())
-    verified = release / "verification.json"
-    if release.name in (state.get("current"), state.get("previous")) or (
-        verified.exists() and json.loads(verified.read_text()).get("phase") == "ready"
-    ):
-        raise DeploymentError("Existing successful release cannot be overwritten")
-    loaded_image_binding(release)
-    enabled = messaging_release(release, manifest)
-    if state.get("current"):
-        messaging_transition(release_path(state["current"]), release)
+def _load_release_image(release: Path, manifest: dict) -> str:
+    """Validate and pin an uploaded archive without accessing database or runtime."""
     revision = manifest["revision"]
     if not re.fullmatch(r"[0-9a-f]{40}", revision) or not release.name.startswith(revision + "-"):
         raise ValueError("Invalid release revision")
@@ -660,6 +651,10 @@ def apply(release: Path, state: dict) -> None:
             if archive_identity(saved, None, revision) != identity:
                 raise DeploymentError("Loaded image configuration or layer digest mismatch")
     bind_loaded_image(release, manifest, identity, actual)
+    return actual
+
+
+def _offline_release_preflight(release: Path, enabled: bool) -> None:
     services = run("compose services", compose(release, "config", "--services")).split()
     if enabled:
         if services != ["qs-ai"]:
@@ -681,6 +676,73 @@ def apply(release: Path, state: dict) -> None:
                 "--check-files",
             ),
         )
+
+
+def stage_prepare(release: Path) -> dict:
+    """Prepare immutable image materials only; the caller owns both deployment locks."""
+    materials = {
+        key + "_sha256": hashlib.sha256((release / name).read_bytes()).hexdigest()
+        for key, name in (
+            ("manifest", "manifest.json"),
+            ("runtime", "runtime.json"),
+            ("compose", "compose.yaml"),
+        )
+    }
+    prepared = release / "prepared.json"
+    existing = json.loads(prepared.read_text()) if prepared.exists() else None
+    if existing is not None and any(existing.get(key) != value for key, value in materials.items()):
+        raise DeploymentError("Existing prepared release binding cannot be overwritten")
+    path = ROOT / "state.json"
+    state = json.loads(path.read_text()) if path.exists() else {}
+    verified = release / "verification.json"
+    if release.name in (state.get("current"), state.get("previous")) or (
+        verified.exists() and json.loads(verified.read_text()).get("phase") == "ready"
+    ):
+        raise DeploymentError("Existing successful release cannot be overwritten")
+    manifest = json.loads((release / "manifest.json").read_text())
+    loaded_image_binding(release)
+    enabled = messaging_release(release, manifest)
+    actual = _load_release_image(release, manifest)
+    _offline_release_preflight(release, enabled)
+    heads = expected_heads(release)
+    if len(heads) != 1 or not re.fullmatch(r"[0-9]{4}_[a-z0-9_]+", heads[0]):
+        raise DeploymentError("Image schema contract unavailable")
+    receipt = {
+        "version": 1,
+        "prepared": True,
+        "release": release.name,
+        "release_id": release.name,
+        "revision": manifest["revision"],
+        "image_id": actual,
+        "source_image_id": manifest["image_id"],
+        "archive_sha256": manifest["archive_sha256"],
+        "registry_digest": manifest.get("digest"),
+        "expected_heads": heads,
+        **materials,
+    }
+    if existing is not None:
+        if existing != receipt:
+            raise DeploymentError("Existing prepared release binding cannot be overwritten")
+    else:
+        write_json(prepared, receipt)
+    return receipt
+
+
+def apply(release: Path, state: dict) -> None:
+    manifest = json.loads((release / "manifest.json").read_text())
+    verified = release / "verification.json"
+    if release.name in (state.get("current"), state.get("previous")) or (
+        verified.exists() and json.loads(verified.read_text()).get("phase") == "ready"
+    ):
+        raise DeploymentError("Existing successful release cannot be overwritten")
+    loaded_image_binding(release)
+    enabled = messaging_release(release, manifest)
+    if state.get("current"):
+        messaging_transition(release_path(state["current"]), release)
+    actual = _load_release_image(release, manifest)
+    revision = manifest["revision"]
+    archive = release / "image.tar.gz"
+    _offline_release_preflight(release, enabled)
     before = probe(release)
     guard_schema_transition(before["current"], before["expected"])
     write_json(release / "verification.json", {"phase": "preflight", "database": before})
@@ -799,6 +861,12 @@ def main() -> None:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         path = ROOT / "state.json"
         state = json.loads(path.read_text()) if path.exists() else {}
+        if len(sys.argv) == 3 and sys.argv[1] == "prepare":
+            release = release_path(sys.argv[2])
+            print(json.dumps(stage_prepare(release), sort_keys=True))
+            return
+        if len(sys.argv) != 2:
+            raise DeploymentError("Expected release, rollback, or prepare <release>")
         if sys.argv[1] == "rollback":
             restore(state)
             retain_successful_image(release_path(state["previous"]))
