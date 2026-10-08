@@ -1,0 +1,493 @@
+{
+  "format": "qs-ai-schema-followup-production-evidence/v1",
+  "recorded_at": "2026-10-08T15:27:24.451017+00:00",
+  "scope": "Metadata-only Actions receipts. No raw database rows, credentials, private plans or host journals were exported.",
+  "baseline_commit": "7c4f60def8afbda46deba2c00ef8b73dd2d3d3a0",
+  "implementation_commit": "82ffa1b43308f23fbb1ebe669c3071e0486e105a",
+  "implementation_pr": "https://github.com/FangcunMount/qs-ai/pull/151",
+  "layers": {
+    "code_ci": "passed",
+    "isolated_production_snapshot_restore_inverse": "passed",
+    "production_code_release_and_read_only_structure": "passed",
+    "human_business_acceptance": "not_covered",
+    "production_prompt_deletion": "not_performed",
+    "production_inverse_migration": "not_performed",
+    "production_archive_cleanup": "not_performed"
+  },
+  "immutable_files": {
+    "comparison_commit": "7c4f60def8afbda46deba2c00ef8b73dd2d3d3a0",
+    "byte_identical": true,
+    "sha256": {
+      "src/qs_ai/maintenance/schema_refactor/v0038.py": "94606b97bc616376447219b014a1ece237fe59e85f7996cb7bbba0fe98f02e0f",
+      "src/qs_ai/maintenance/schema_refactor/v0040.json": "1920802a64a4410fbd863873231d69694bc92b1ed36102191fc922975e837e92",
+      "src/qs_ai/maintenance/schema_refactor/backup_format.py": "d6e7954a645d5d1db5ed5d3e2ccd98a9cdfdc99bd1a7effd8e8e84769b52c119",
+      "deploy/serverA/schema_maintenance.py": "0d064a9814aae8cf7c20dabb3efc2dca19ab87e8477bb21472cd494e84b744b5",
+      "migrations/env.py": "59209b7c1bbf2169717edcc73b3b8ba653705ed206a467cecd0fec005f01c7fc",
+      "migrations/versions/0001_baseline.py": "1859c2fe9b48cba783d487bfc5395392709bd8e0f64719c247f58ef0e6a23c72",
+      "migrations/versions/0002_checkpoint_leases.py": "3c9e548892ec9f23192e70aa92059ed5321638baec18d9aa4d8f6a16e04e179b",
+      "migrations/versions/0003_interpretation.py": "86331bbef35b4bcbf8672d593c4715afe9f834908b3f41522374b82b4c9c9dc1",
+      "migrations/versions/0004_delivery.py": "3e5230c76ee8ce2d0d5f6976078860fe9b6dac32ea1ac91bdf3befc9426d3e94",
+      "migrations/versions/0005_model_calls.py": "21e47457fbb4bad49b9f24fcf2c488c4a84100143c5c193674af9f054236a85c",
+      "migrations/versions/0006_artifacts.py": "d45162143279169ab8602e2b38757f5b41dd4873137500d68e1280cf2e4b53e9",
+      "migrations/versions/0007_profile_assets.py": "5dfb31b0f8b53525e700faf44b730ef97dcd787e120e4a22bcbd8ea4c9091623",
+      "migrations/versions/0008_prompt_assets.py": "02bcc5ea5da81b0212e1a2d873acc703c10d8df5a762f478c555828a716ac35d",
+      "migrations/versions/0009_route_assets.py": "a9c0ce93edc4967dbaaaef3b85a7f8ec1dcc46a38209f1187a758338530cb268",
+      "migrations/versions/0010_schema_assets.py": "f444111b1b9cfea49bfafb001f2fb8e946f4029a0c67e5964da241abc068900b",
+      "migrations/versions/0011_evaluation_checkpoints.py": "bc9ff199558005a45dc2314c4bf69a90c33e5457b74f0d0804467aedb473b819",
+      "migrations/versions/0012_evaluation_dispatches.py": "030885e202c7461d0e542ff660f5b178f374fdcd52c03783c450a5ed7fd1aa2c",
+      "migrations/versions/0013_evaluation_runs.py": "42ff2485f0fd74ff56d47e34fd07a94b50cf7d54f7884274f8c64f9a7d6950b9",
+      "migrations/versions/0014_evaluation_progress.py": "64ead21876fc3c8cd42136b4d60c4792fe88142ed01f76cdae1b4bcf2cb228a0",
+      "migrations/versions/0015_generation_completions.py": "3a29b2992bb4d284d7bf1d9d04186b0eaa89b0b92df723a42f43213b63d0d57b",
+      "migrations/versions/0016_semantic_completions.py": "b3f48132c9211d6d91184e46e1131e2190ca60e2de24188e517b7482cc6d077e",
+      "migrations/versions/0017_configuration_publications.py": "98052869326c6726b17dcaf2051f39f505605d5f01a4bc28a90af09e230d88be",
+      "migrations/versions/0018_execution_configurations.py": "a8c2008f210abe5012671ae14571bd0a3ab479de8fd65d226c6e87da3e479197",
+      "migrations/versions/0019_prompt_drafts.py": "f98e701bd6c18ed4eccf10e0526655d2414f5a611fc010be60c8f09bd6c1a7bc",
+      "migrations/versions/0020_prompt_freezes.py": "f429b4a6c9880667593b5e57ccc2460d007ed598945f87acdce4f3f575ec765c",
+      "migrations/versions/0021_profile_registrations.py": "3977ada5852ff5bebab1c2f96be2760b77422433a3553fb5e3eb2caf0477133d",
+      "migrations/versions/0022_evaluation_suites.py": "f74188e7a9620f73114fb665aadefc041838d5cfd92d7d08c7e58b6f36d026f9",
+      "migrations/versions/0023_evaluation_catalog_index.py": "5f6edf1fb331dad230f845fdb15ca142bf0094169eea7b08f6cb103737820d80",
+      "migrations/versions/0024_evaluation_capacity.py": "98f77f1efd6d80886a24de181cd2a62a02398e006034bd6925c20565b78c6a9f",
+      "migrations/versions/0025_participant_capacity.py": "d923cdf730b0c9a40b4dd0b144ee504be98f990aef7c1df009228666563105d6",
+      "migrations/versions/0026_participant_retries.py": "acb48e0130c827c80ee1f463c09e2735b7e0a68b2d13dfbf0d67c75ff8886114",
+      "migrations/versions/0027_delivery_timestamps.py": "e0ef73d70cc5b9b1d7d5d0424cc8548e78b8398c0a0d6245fe2dd6e2c0bb4519",
+      "migrations/versions/0028_execution_leases.py": "2f790439417dfc9183ed0b83d06dc19aaa2971b21a01086e0327caec747dea39",
+      "migrations/versions/0029_solution_revisions.py": "5754aa84c844bf7e0cfb158fbae95400f1a13f8e57bc7a640d923905112fa8be",
+      "migrations/versions/0030_organization_quotas.py": "2b139d1a2a09b5a5fcc705871da05e499cc1af6237876845a092383b4303b7ee",
+      "migrations/versions/0031_evaluation_policy_assets.py": "2dba9ace1b448349753045daa50584dea0a03800f6b8e65d8033aef5047aec3e",
+      "migrations/versions/0032_runtime_milestones.py": "52febb9643ead4e62489e93da38d8fe3918ca01a29cdb54002c6362f31fe57c8",
+      "migrations/versions/0033_semantic_prompt_drafts.py": "7523e11cb55beea98723050042d6737b74152f623c51917b166fba5bb3843440",
+      "migrations/versions/0034_evaluation_suite_sources.py": "614a6dc59cbf8bf4b2872640151224b51165ba57a1784de78fa650bfb315aac5",
+      "migrations/versions/0035_runtime_utc_timestamps.py": "366fcef80027aa979d9d74222b9ff88f5a83612165ba0d0ea147e499506ab825",
+      "migrations/versions/0036_evaluation_slot_claims.py": "92f8eb1ff24aea68342242dad3a6a28aae04164de8b9f27fcfa6d069ad0c6757",
+      "migrations/versions/0037_workflow_messaging.py": "8663cda4a6263bb1f99b5766d571487f067923d95414560efa84915bf3d66c2a",
+      "migrations/versions/0038_messaging_observations.py": "052520bdf81107128872608ca20d5ab2a37773677160aa6d96ce94e22dd63882",
+      "migrations/versions/0039_data_consolidation.py": "b9d27aab1ae323afc150df07a2bed3c21c4d4978f1262c4e178e37e16bcd5f93",
+      "migrations/versions/0040_module_table_names.py": "4c4ab3cdc7b871b5d3e0577ead40be96ee5ebfb568ef84acc712cd58b2ab32e9"
+    }
+  },
+  "ci": {
+    "pr": {
+      "url": "https://github.com/FangcunMount/qs-ai/actions/runs/37790516725",
+      "audit_sha256": "72d9561c976e7631b2e6887b235ebbc6684822f8219da93c61cd712658519109",
+      "run": {
+        "conclusion": "success",
+        "event": "pull_request",
+        "head_sha": "4ac8738fe7adaf266e28fc07e86e0f1a21fc09a3",
+        "id": 37790516725,
+        "path": ".github/workflows/ci.yml",
+        "pull_requests": [],
+        "run_attempt": 1,
+        "status": "completed"
+      },
+      "manifest_revision": "9a8fd4516e55b7ba3fc39cd627df9c83a7406132",
+      "versions": {
+        "8.0.36": {
+          "errors": 0,
+          "every_identity_exactly_once": true,
+          "executed": 3027,
+          "failures": 0,
+          "skips": 0,
+          "unique_tests": 3027
+        },
+        "8.4": {
+          "errors": 0,
+          "every_identity_exactly_once": true,
+          "executed": 3027,
+          "failures": 0,
+          "skips": 0,
+          "unique_tests": 3027
+        }
+      },
+      "verify_test_shards": "passed",
+      "complete_test_coverage_job": "success"
+    },
+    "main": {
+      "url": "https://github.com/FangcunMount/qs-ai/actions/runs/37792479076",
+      "audit_sha256": "76e92d9469d2fbb642a93a15cee203f14343dda70b701814c0685eec37c159de",
+      "run": {
+        "conclusion": "success",
+        "event": "push",
+        "head_sha": "82ffa1b43308f23fbb1ebe669c3071e0486e105a",
+        "id": 37792479076,
+        "path": ".github/workflows/ci.yml",
+        "run_attempt": 1,
+        "status": "completed"
+      },
+      "manifest_revision": "82ffa1b43308f23fbb1ebe669c3071e0486e105a",
+      "versions": {
+        "8.0.36": {
+          "errors": 0,
+          "every_identity_exactly_once": true,
+          "executed": 3027,
+          "failures": 0,
+          "skips": 0,
+          "unique_tests": 3027
+        },
+        "8.4": {
+          "errors": 0,
+          "every_identity_exactly_once": true,
+          "executed": 3027,
+          "failures": 0,
+          "skips": 0,
+          "unique_tests": 3027
+        }
+      },
+      "verify_test_shards": "passed",
+      "complete_test_coverage_job": "success"
+    }
+  },
+  "actions": {
+    "bootstrap": {
+      "url": "https://github.com/FangcunMount/qs-ai/actions/runs/37794205505",
+      "id": 37794205505,
+      "conclusion": "success",
+      "completed_at": null,
+      "audit_sha256": "a89c6177e7968bb20c6a35472acc670e629a75bfe6253c0719a7ceff302d0fe7",
+      "receipt_sha256": "70e825bffe68b6e82d5685f849571d46d31e0f99bd4a5bfef30e6836f873dec3",
+      "receipt": {
+        "archives": [
+          {
+            "cleanup_not_before": "2026-11-07T11:54:59.530182+00:00",
+            "head": "0038_messaging_observations",
+            "retained_since": "2026-10-08T11:54:59.530182+00:00",
+            "retention_elapsed": false,
+            "schema": "ai_backup_dbrefactor_20261008",
+            "status": "retained"
+          }
+        ],
+        "auto_increment_columns": [
+          "governance_asset_versions.asset_row_id",
+          "governance_draft_heads.draft_row_id",
+          "quota_evaluation_admission_locks.organization_id",
+          "quota_participant_admission_locks.organization_id"
+        ],
+        "base_forward_sha256": "0e8a69b1e1f0d047f6ed40238d013020b9e1b2e13fd2d9f49c5c539209a20899",
+        "base_host_sha256": "47801058227b725e06fc1894c54b86f7af8466a7ca555582a3c5bfd8ba2909d8",
+        "base_id": "dbrefactor_20261008",
+        "baseline_unchanged": true,
+        "current_revision": "7c4f60def8afbda46deba2c00ef8b73dd2d3d3a0",
+        "executor_revision": "82ffa1b43308f23fbb1ebe669c3071e0486e105a",
+        "followup": "ok",
+        "id": "dbfollowup_20261008",
+        "image": "sha256:5c210cadf263d1f9ec75672d47df5b7c616258adf97776037032250886758d13",
+        "operation": "bootstrap",
+        "pending_operation": false,
+        "phase": "ready",
+        "release": "7c4f60def8afbda46deba2c00ef8b73dd2d3d3a0-37770788044-1",
+        "retain_until": "2026-11-07T11:54:59.530182+00:00",
+        "retention_known": true,
+        "runtime": {
+          "healthy": true,
+          "image": "sha256:5c210cadf263d1f9ec75672d47df5b7c616258adf97776037032250886758d13",
+          "mtls": true,
+          "release": "7c4f60def8afbda46deba2c00ef8b73dd2d3d3a0-37770788044-1",
+          "verified": true
+        },
+        "runtime_verified": true,
+        "server_uuid": "83df0988-3e1b-11f1-b09e-00163e3ab5b1",
+        "source_head": "0040_module_table_names",
+        "tables": 44,
+        "workflow_revision": "82ffa1b43308f23fbb1ebe669c3071e0486e105a"
+      }
+    },
+    "prepare": {
+      "url": "https://github.com/FangcunMount/qs-ai/actions/runs/37795913351",
+      "id": 37795913351,
+      "conclusion": "success",
+      "completed_at": null,
+      "audit_sha256": "6a2ceb3de7b429143780ff7ada8be27de8b520795b1c3437d4b4162830f3833b",
+      "receipt_sha256": "f5ce810c940f0628aca7e3df7454767b77f0c8e8dd89d12d31de73018a7a511a",
+      "receipt": {
+        "followup": "ok",
+        "id": "dbfollowup_20261008",
+        "operation": "prepare",
+        "phase": "prepared",
+        "target": "ai_rollback_dbfollowup_20261008_def29f6044cc7757",
+        "target_head": "0038_messaging_observations",
+        "workflow_revision": "82ffa1b43308f23fbb1ebe669c3071e0486e105a"
+      }
+    },
+    "rehearse": {
+      "url": "https://github.com/FangcunMount/qs-ai/actions/runs/37796239534",
+      "id": 37796239534,
+      "conclusion": "success",
+      "completed_at": null,
+      "audit_sha256": "1ef8ac07982cec6ea55fdacdc0464bdb5ac980e90f3058e5c895fd4c9ba47ff3",
+      "receipt_sha256": "8fe43dda27209ae275d2a69685701be9c40ce1cd0edf4731eb6d681f15484e7c",
+      "receipt": {
+        "coverage": {
+          "isolated_0038_image_prompt_fixture_typed_read": "covered",
+          "isolated_full_current_facts_inverse_manifest": "covered",
+          "isolated_full_snapshot_storage_restore": "covered",
+          "isolated_insert_update_delete_storage_fixture": "covered",
+          "isolated_new_image_prompt_fixture_typed_read": "covered",
+          "production_business_asset_publication": "not_covered",
+          "production_business_evaluation_runs": "not_covered",
+          "production_business_execution": "not_covered",
+          "production_business_messaging": "not_covered",
+          "production_business_prompt_assets": "not_covered",
+          "production_business_prompt_drafts": "not_covered",
+          "production_business_quotas": "not_covered",
+          "production_business_semantic_drafts": "not_covered",
+          "production_business_sessions": "not_covered"
+        },
+        "elapsed_seconds": 75.09702354855835,
+        "fixture": {
+          "deleted": 1,
+          "inserted": 1,
+          "prompt_sha256": "15b12e0ab5924f1835bf25778aa2f98908b77d4fb7f9d17f41f0cf85716523b1",
+          "updated": 1
+        },
+        "followup": "ok",
+        "id": "dbfollowup_20261008",
+        "operation": "rehearse",
+        "passed": true,
+        "phase": "rehearsed",
+        "rehearsal": {
+          "backup_sha256": "ab9bb412b10931acd5cc2cc19a2a356f14b0d33342fd39f1c7ed5e55910e036d",
+          "manifest_sha256": "23d3899c40c9fe05c617d26763d8ffe33666344b1a41db76db5b7d2595478b05",
+          "physical_manifest_sha256": "44eb496ba3627039d05362d671dda4db9f2e8d1b52f5274fe2054d728efe5626",
+          "rows": 10292,
+          "source_head": "0040_module_table_names",
+          "source_server_uuid": "83df0988-3e1b-11f1-b09e-00163e3ab5b1",
+          "tables": 44
+        },
+        "workflow_revision": "82ffa1b43308f23fbb1ebe669c3071e0486e105a"
+      }
+    },
+    "retirement-plan": {
+      "url": "https://github.com/FangcunMount/qs-ai/actions/runs/37796993360",
+      "id": 37796993360,
+      "conclusion": "success",
+      "completed_at": null,
+      "audit_sha256": "96067f5a87f346a0cc652560bae4b15c9a5047a29a632783dc6d98dadff99771",
+      "receipt_sha256": "15a1d7f47f9b2480a6cdd8b225090854ff6e92447ba410c871677c8e2ea8fe70",
+      "receipt": {
+        "followup": "ok",
+        "id": "dbfollowup_20261008",
+        "operation": "retirement-plan",
+        "retirement": {
+          "candidates": 0,
+          "head": "0040_module_table_names",
+          "plan_sha256": "5cd09b1b793b81c1b899efdd46f008b092a24a36e2d9ebd3a62247a1c76702f9",
+          "retained": 0,
+          "source_schema": "ai",
+          "source_server_uuid": "83df0988-3e1b-11f1-b09e-00163e3ab5b1",
+          "status": "verified",
+          "verified": true
+        },
+        "workflow_revision": "82ffa1b43308f23fbb1ebe669c3071e0486e105a"
+      }
+    },
+    "retirement-backup": {
+      "url": "https://github.com/FangcunMount/qs-ai/actions/runs/37797297566",
+      "id": 37797297566,
+      "conclusion": "success",
+      "completed_at": null,
+      "audit_sha256": "78869d5c2cb35e67fdbdd627712b08406b00cda26b0769dd8f128da44055017f",
+      "receipt_sha256": "e8d879bf30a180d18c1271238653f19572509f84aae079c431cb3cddb18e1a56",
+      "receipt": {
+        "followup": "ok",
+        "id": "dbfollowup_20261008",
+        "operation": "retirement-backup",
+        "retirement": {
+          "backup_sha256": "4735517b8f8bb1d358883e1290e1d36a77b3873a4febe0cbd9080da5c36e8c3d",
+          "candidates": 0,
+          "head": "0040_module_table_names",
+          "manifest_sha256": "23d3899c40c9fe05c617d26763d8ffe33666344b1a41db76db5b7d2595478b05",
+          "physical_manifest_sha256": "44eb496ba3627039d05362d671dda4db9f2e8d1b52f5274fe2054d728efe5626",
+          "plan_sha256": "5cd09b1b793b81c1b899efdd46f008b092a24a36e2d9ebd3a62247a1c76702f9",
+          "restore_target": "ai_refactor_prompt_fd2376b518ac4a6394a75ff5f44da106",
+          "restore_target_retained": false,
+          "restore_verified": true,
+          "retained": 0,
+          "source_schema": "ai",
+          "source_server_uuid": "83df0988-3e1b-11f1-b09e-00163e3ab5b1",
+          "status": "verified",
+          "verified": true
+        },
+        "workflow_revision": "82ffa1b43308f23fbb1ebe669c3071e0486e105a"
+      }
+    },
+    "retirement-verify": {
+      "url": "https://github.com/FangcunMount/qs-ai/actions/runs/37797708089",
+      "id": 37797708089,
+      "conclusion": "success",
+      "completed_at": null,
+      "audit_sha256": "88b9ed19b0a0c46307a784108deeaf5e40c4b3157597fede3dc626b2c882e44b",
+      "receipt_sha256": "fa5f9cff8cfe10b8bcaefb1dfc35430ba84ddffe0986a6cfe432ed55321e9588",
+      "receipt": {
+        "followup": "ok",
+        "id": "dbfollowup_20261008",
+        "operation": "retirement-verify",
+        "retirement": {
+          "candidates": 0,
+          "head": "0040_module_table_names",
+          "plan_sha256": "5cd09b1b793b81c1b899efdd46f008b092a24a36e2d9ebd3a62247a1c76702f9",
+          "restore_verified": true,
+          "retained": 0,
+          "source_schema": "ai",
+          "source_server_uuid": "83df0988-3e1b-11f1-b09e-00163e3ab5b1",
+          "status": "verified",
+          "verified": true
+        },
+        "workflow_revision": "82ffa1b43308f23fbb1ebe669c3071e0486e105a"
+      }
+    },
+    "retirement-restore": {
+      "url": "https://github.com/FangcunMount/qs-ai/actions/runs/37798322006",
+      "id": 37798322006,
+      "conclusion": "success",
+      "completed_at": null,
+      "audit_sha256": "49a65b8f61122b94543d40834e023ee198391be0e0ba7f5c0098d85e90b53671",
+      "receipt_sha256": "bde2b0fb366bdd74752b17bcab033f8f77d9635358db268e454722431496c0a9",
+      "receipt": {
+        "followup": "ok",
+        "id": "dbfollowup_20261008",
+        "operation": "retirement-restore",
+        "retirement": {
+          "backup_sha256": "4735517b8f8bb1d358883e1290e1d36a77b3873a4febe0cbd9080da5c36e8c3d",
+          "candidates": 0,
+          "head": "0040_module_table_names",
+          "physical_manifest_sha256": "44eb496ba3627039d05362d671dda4db9f2e8d1b52f5274fe2054d728efe5626",
+          "plan_sha256": "5cd09b1b793b81c1b899efdd46f008b092a24a36e2d9ebd3a62247a1c76702f9",
+          "restore_target": "ai_refactor_prompt_16fbf8f263c94da3be4c9826d9843d2a",
+          "restore_target_retained": true,
+          "restore_verified": true,
+          "retained": 0,
+          "source_schema": "ai",
+          "source_server_uuid": "83df0988-3e1b-11f1-b09e-00163e3ab5b1",
+          "status": "verified",
+          "verified": true
+        },
+        "workflow_revision": "82ffa1b43308f23fbb1ebe669c3071e0486e105a"
+      }
+    },
+    "release": {
+      "url": "https://github.com/FangcunMount/qs-ai/actions/runs/37798828696",
+      "id": 37798828696,
+      "conclusion": "success",
+      "completed_at": null,
+      "audit_sha256": "3bd3ef3590c7d0361869634d98c6687b4aa9c6c3df6aa334efd53c2b7a8d8706",
+      "receipt_sha256": "c2a76d9eec1b7dea4090cf8b35664a7760b6c488057185c452efc89785661fee",
+      "receipt": {
+        "archives": [
+          {
+            "cleanup_not_before": "2026-11-07T11:54:59.530182+00:00",
+            "head": "0038_messaging_observations",
+            "retained_since": "2026-10-08T11:54:59.530182+00:00",
+            "retention_elapsed": false,
+            "schema": "ai_backup_dbrefactor_20261008",
+            "status": "retained"
+          }
+        ],
+        "auto_increment_columns": [
+          "governance_asset_versions.asset_row_id",
+          "governance_draft_heads.draft_row_id",
+          "quota_evaluation_admission_locks.organization_id",
+          "quota_participant_admission_locks.organization_id"
+        ],
+        "base_forward_sha256": "0e8a69b1e1f0d047f6ed40238d013020b9e1b2e13fd2d9f49c5c539209a20899",
+        "base_host_sha256": "47801058227b725e06fc1894c54b86f7af8466a7ca555582a3c5bfd8ba2909d8",
+        "base_id": "dbrefactor_20261008",
+        "baseline_unchanged": true,
+        "current_revision": "82ffa1b43308f23fbb1ebe669c3071e0486e105a",
+        "executor_revision": "82ffa1b43308f23fbb1ebe669c3071e0486e105a",
+        "followup": "ok",
+        "id": "dbfollowup_20261008",
+        "image": "sha256:9285cbd03ef2a5079dafc2745fd2bced452d0ad11d691c5c19af50c90bea508f",
+        "operation": "release",
+        "pending_operation": false,
+        "phase": "released",
+        "release": "82ffa1b43308f23fbb1ebe669c3071e0486e105a-37794205505-1",
+        "retain_until": "2026-11-07T11:54:59.530182+00:00",
+        "retention_known": true,
+        "runtime": {
+          "healthy": true,
+          "image": "sha256:9285cbd03ef2a5079dafc2745fd2bced452d0ad11d691c5c19af50c90bea508f",
+          "mtls": true,
+          "release": "82ffa1b43308f23fbb1ebe669c3071e0486e105a-37794205505-1",
+          "verified": true
+        },
+        "runtime_verified": true,
+        "server_uuid": "83df0988-3e1b-11f1-b09e-00163e3ab5b1",
+        "source_head": "0040_module_table_names",
+        "tables": 44,
+        "workflow_revision": "82ffa1b43308f23fbb1ebe669c3071e0486e105a"
+      }
+    },
+    "status": {
+      "url": "https://github.com/FangcunMount/qs-ai/actions/runs/37799474460",
+      "id": 37799474460,
+      "conclusion": "success",
+      "completed_at": null,
+      "audit_sha256": "525e7f22e307cd0ffcf4d184067c4204b031af4e6dc1fc1f68f85f0e6e37a3df",
+      "receipt_sha256": "d0b7f76f0f103f9006850cab447d56fb2fe67e888bf26e8eefe460111f033faf",
+      "receipt": {
+        "archives": [
+          {
+            "cleanup_not_before": "2026-11-07T11:54:59.530182+00:00",
+            "head": "0038_messaging_observations",
+            "retained_since": "2026-10-08T11:54:59.530182+00:00",
+            "retention_elapsed": false,
+            "schema": "ai_backup_dbrefactor_20261008",
+            "status": "retained"
+          }
+        ],
+        "auto_increment_columns": [
+          "governance_asset_versions.asset_row_id",
+          "governance_draft_heads.draft_row_id",
+          "quota_evaluation_admission_locks.organization_id",
+          "quota_participant_admission_locks.organization_id"
+        ],
+        "base_forward_sha256": "0e8a69b1e1f0d047f6ed40238d013020b9e1b2e13fd2d9f49c5c539209a20899",
+        "base_host_sha256": "47801058227b725e06fc1894c54b86f7af8466a7ca555582a3c5bfd8ba2909d8",
+        "base_id": "dbrefactor_20261008",
+        "baseline_unchanged": true,
+        "current_revision": "82ffa1b43308f23fbb1ebe669c3071e0486e105a",
+        "executor_revision": "82ffa1b43308f23fbb1ebe669c3071e0486e105a",
+        "followup": "ok",
+        "id": "dbfollowup_20261008",
+        "image": "sha256:9285cbd03ef2a5079dafc2745fd2bced452d0ad11d691c5c19af50c90bea508f",
+        "operation": "status",
+        "pending_operation": false,
+        "phase": "ready",
+        "release": "82ffa1b43308f23fbb1ebe669c3071e0486e105a-37794205505-1",
+        "retain_until": "2026-11-07T11:54:59.530182+00:00",
+        "retention_known": true,
+        "runtime": {
+          "healthy": true,
+          "image": "sha256:9285cbd03ef2a5079dafc2745fd2bced452d0ad11d691c5c19af50c90bea508f",
+          "mtls": true,
+          "release": "82ffa1b43308f23fbb1ebe669c3071e0486e105a-37794205505-1",
+          "verified": true
+        },
+        "runtime_verified": true,
+        "server_uuid": "83df0988-3e1b-11f1-b09e-00163e3ab5b1",
+        "source_head": "0040_module_table_names",
+        "tables": 44,
+        "workflow_revision": "82ffa1b43308f23fbb1ebe669c3071e0486e105a"
+      }
+    }
+  },
+  "auto_deploy": {
+    "enabled": true,
+    "restored_after_independent_status_run": 37799474460,
+    "confirmed_at": "2026-10-08T15:27:24.451334+00:00"
+  },
+  "coverage_limitations": [
+    "Production Prompt retirement whitelist matched zero candidates; apply remains unavailable in production Actions. Deletion correctness is covered by disposable MySQL CI fixtures, not production candidate samples.",
+    "Production-snapshot storage equality covers all 44 tables and 10292 snapshot rows. Insert, update and delete fixtures and fixed old/new image typed Prompt reads run only in isolated databases.",
+    "The rehearsal explicitly marks all nine production business categories not_covered. Storage manifests, service health and mTLS do not establish business acceptance.",
+    "The 75.097-second isolated rehearsal is not a measured production stop-write cutover or inverse-migration budget.",
+    "Retention expiry is an earliest eligibility condition; no production archive cleanup or automatic deletion was scheduled."
+  ],
+  "future_maintenance": {
+    "context_id": "dbfollowup_20261008",
+    "base_id": "dbrefactor_20261008",
+    "executor_revision": "82ffa1b43308f23fbb1ebe669c3071e0486e105a",
+    "revision_input_required": true,
+    "source_of_full_rollback": "all current 0040 facts, never the baseline backup",
+    "ordinary_same_head_release": "append immutable runtime binding through the fixed v2 executor"
+  }
+}
