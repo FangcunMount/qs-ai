@@ -4,6 +4,7 @@ import contextlib
 import fcntl
 import gzip
 import hashlib
+import importlib.util
 import json
 import os
 import re
@@ -21,6 +22,84 @@ class DeploymentError(RuntimeError):
 
 ROOT = Path("/opt/qs-ai")
 RETENTION_ROOT = Path("/var/lib/fangcun-image-retention")
+
+
+class FollowupDeployment:
+    """Expose this module's live globals, including the bounded run replacement."""
+
+    def __getattr__(self, name):
+        try:
+            return globals()[name]
+        except KeyError:
+            raise AttributeError(name) from None
+
+    def __setattr__(self, name, value):
+        globals()[name] = value
+
+    def __delattr__(self, name):
+        globals().pop(name, None)
+
+
+def schema_followup_module():
+    pointer = ROOT / "schema-maintenance" / "active-v2.json"
+    pending = ROOT / "schema-maintenance" / "operation-v2.json"
+    if not pointer.exists():
+        if pending.exists():
+            raise DeploymentError("Maintenance operation lacks its active context; preserve facts")
+        return None
+    try:
+        import stat
+
+        info = pointer.lstat()
+        if not stat.S_ISREG(info.st_mode) or info.st_mode & 0o077 or info.st_uid != os.getuid():
+            raise ValueError
+        value = json.loads(pointer.read_text())
+        if (
+            value.get("format") != "qs-ai-schema-active-context/v2"
+            or not re.fullmatch(r"[a-z][a-z0-9_]{0,31}", value["context_id"])
+            or not re.fullmatch(r"[0-9a-f]{40}", value["executor_revision"])
+            or not re.fullmatch(r"[0-9a-f]{64}", value["helper_sha256"])
+        ):
+            raise ValueError
+        path = (
+            ROOT
+            / "schema-maintenance"
+            / value["context_id"]
+            / ("code-" + value["executor_revision"])
+            / "deploy/serverA/schema_followup.py"
+        )
+        if (
+            path.is_symlink()
+            or hashlib.sha256(path.read_bytes()).hexdigest() != value["helper_sha256"]
+        ):
+            raise ValueError
+        spec = importlib.util.spec_from_file_location("active_schema_followup", path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+    except Exception:
+        raise DeploymentError("Active schema followup executor cannot be verified") from None
+
+
+def schema_followup_guard():
+    module = schema_followup_module()
+    if module is not None:
+        try:
+            module.deployment_guard(ROOT, globals().get("_SCHEMA_FOLLOWUP_OPERATION"))
+        except Exception:
+            raise DeploymentError("An unfinished schema operation blocks deployment") from None
+
+
+def schema_followup_publish(release, proof):
+    module = schema_followup_module()
+    if module is not None:
+        try:
+            module.publish_runtime(FollowupDeployment(), release, proof)
+        except Exception:
+            raise DeploymentError(
+                "Runtime publication could not bind its maintenance context"
+            ) from None
+
 
 # Docker inspect expands omitted legacy Config fields. Normalize only their exact
 # empty defaults; every non-default and unknown field remains in the comparison.
@@ -593,6 +672,7 @@ def messaging_key_preflight(release: Path) -> None:
 
 
 def restore(state: dict) -> None:
+    schema_followup_guard()
     previous = state.get("previous")
     if not previous:
         raise DeploymentError("No previous successful release")
@@ -607,13 +687,14 @@ def restore(state: dict) -> None:
     probe(target, True)
     try:
         stop_release(current)
-        verify(target)
+        database = verify(target)
     except Exception:
         stop_release(target)
         probe(current, True)
         verify(current)
         raise
     write_json(ROOT / "state.json", {"current": previous, "previous": state["current"]})
+    schema_followup_publish(target, database)
     print(json.dumps({"rollback": "passed", "release": previous}))
 
 
@@ -729,6 +810,7 @@ def stage_prepare(release: Path) -> dict:
 
 
 def apply(release: Path, state: dict) -> None:
+    schema_followup_guard()
     manifest = json.loads((release / "manifest.json").read_text())
     verified = release / "verification.json"
     if release.name in (state.get("current"), state.get("previous")) or (
@@ -790,6 +872,7 @@ def apply(release: Path, state: dict) -> None:
         },
     )
     write_json(ROOT / "state.json", {"current": release.name, "previous": state.get("current")})
+    schema_followup_publish(release, after)
     # Loaded images and release metadata remain available for rollback.
     archive.unlink()
     print(json.dumps({"deployed": revision, "database": after, "release": release.name}))
@@ -834,6 +917,10 @@ def retain_successful_image(release):
         protected = []
         if previous:
             protected = ["--protect-image-id", release_image_id(release_path(previous))]
+        followup = schema_followup_module()
+        if followup is not None:
+            for image in followup.protected_images(ROOT):
+                protected.extend(["--protect-image-id", image])
         run(
             "image retention",
             [
@@ -868,12 +955,20 @@ def main() -> None:
         if len(sys.argv) != 2:
             raise DeploymentError("Expected release, rollback, or prepare <release>")
         if sys.argv[1] == "rollback":
-            restore(state)
+            followup = schema_followup_module()
+            if followup is None:
+                restore(state)
+            else:
+                followup.ordinary_restore(FollowupDeployment(), state)
             retain_successful_image(release_path(state["previous"]))
         else:
             release = release_path(sys.argv[1])
             try:
-                apply(release, state)
+                followup = schema_followup_module()
+                if followup is None:
+                    apply(release, state)
+                else:
+                    followup.ordinary_release(FollowupDeployment(), release.name)
             except Exception as error:
                 write_json(
                     release / "failure.json",
