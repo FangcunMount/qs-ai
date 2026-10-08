@@ -282,9 +282,12 @@ def context(tmp_path, monkeypatch):
             return {
                 "source_server_uuid": SERVER,
                 "head": module.NEW_HEAD,
+                "tables": 44,
+                "rows": 17,
                 "verified": True,
                 "backup_sha256": "d" * 64,
                 "manifest_sha256": "e" * 64,
+                "physical_manifest_sha256": "a" * 64,
             }
 
         def container(self, _image, command, *, schema=None, **kwargs):
@@ -397,6 +400,63 @@ def test_rehearsal_mutates_only_snapshot_and_reads_fixed_old_and_new(context):
     assert context.schemas["ai"] == context.module.NEW_HEAD
     assert "conversion:switch" not in context.events
     assert not any(e.startswith("stop:") for e in context.events)
+    assert_base_unchanged(context)
+
+
+def test_rehearsal_reports_snapshot_counts_and_uncovered_production_business(context):
+    bootstrap(context)
+    result = context.followup.rehearse()
+    assert result["rehearsal"] == {
+        "source_head": context.module.NEW_HEAD,
+        "source_server_uuid": SERVER,
+        "tables": 44,
+        "rows": 17,
+        "backup_sha256": "d" * 64,
+        "manifest_sha256": "e" * 64,
+        "physical_manifest_sha256": "a" * 64,
+    }
+    assert result["coverage"] == context.module.REHEARSAL_COVERAGE
+    assert all(
+        scope.startswith("isolated_")
+        for scope, status in result["coverage"].items()
+        if status == "covered"
+    )
+    assert all(
+        status == "not_covered"
+        for scope, status in result["coverage"].items()
+        if scope.startswith("production_business_")
+    )
+    assert "template_id" not in json.dumps(result)
+    assert "new fact" not in json.dumps(result)
+    before = context.followup.path.read_bytes()
+    context.events.clear()
+    assert context.followup.rehearse() == result
+    assert context.followup.path.read_bytes() == before
+    assert not any(e.startswith(("backup:", "conversion:", "stop:")) for e in context.events)
+    transport = load("scripts/cd/schema_followup.py")
+    public = transport.safe_receipt(
+        json.dumps({"followup": "ok", "id": "followup_1", "operation": "rehearse", **result}),
+        {"id": "followup_1", "operation": "rehearse"},
+    )
+    assert public["coverage"] == result["coverage"]
+    assert public["rehearsal"] == result["rehearsal"]
+    assert_base_unchanged(context)
+
+
+@pytest.mark.parametrize("field,bad", [("tables", 43), ("rows", None), ("rows", -1)])
+def test_rehearsal_rejects_unbound_snapshot_counts_before_clone_writes(context, field, bad):
+    bootstrap(context)
+    backup = context.tools.backup
+
+    def invalid(*args, **kwargs):
+        return {**backup(*args, **kwargs), field: bad}
+
+    context.tools.backup = invalid
+    with pytest.raises(context.module.MaintenanceError, match="snapshot"):
+        context.followup.rehearse()
+    assert "backup:restore" not in context.events
+    assert "conversion:copy" not in context.events
+    assert context.facts["ai"] == {"row": "new fact"}
     assert_base_unchanged(context)
 
 

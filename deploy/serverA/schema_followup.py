@@ -25,6 +25,22 @@ OLD_HEAD, NEW_HEAD = legacy.OLD_HEAD, legacy.NEW_HEAD
 FORMAT = "qs-ai-host-schema-maintenance/v2"
 POINTER_FORMAT = "qs-ai-schema-active-context/v2"
 OPERATION_FORMAT = "qs-ai-schema-operation/v2"
+REHEARSAL_COVERAGE = {
+    "isolated_full_snapshot_storage_restore": "covered",
+    "isolated_full_current_facts_inverse_manifest": "covered",
+    "isolated_insert_update_delete_storage_fixture": "covered",
+    "isolated_new_image_prompt_fixture_typed_read": "covered",
+    "isolated_0038_image_prompt_fixture_typed_read": "covered",
+    "production_business_prompt_assets": "not_covered",
+    "production_business_asset_publication": "not_covered",
+    "production_business_prompt_drafts": "not_covered",
+    "production_business_semantic_drafts": "not_covered",
+    "production_business_sessions": "not_covered",
+    "production_business_evaluation_runs": "not_covered",
+    "production_business_execution": "not_covered",
+    "production_business_quotas": "not_covered",
+    "production_business_messaging": "not_covered",
+}
 SHA = re.compile(r"[0-9a-f]{64}")
 REVISION = re.compile(r"[0-9a-f]{40}")
 IDENTITY = re.compile(r"[a-z][a-z0-9_]{0,31}")
@@ -882,10 +898,9 @@ class Followup(legacy.Maintenance):
             source = self.deploy.release_path(pending["allowed_releases"][0])
         else:
             source = self.deploy.release_path(self.current_binding["release"])
-        if (
-            self.deploy.expected_heads(target) != [NEW_HEAD]
-            or self.deploy.expected_heads(source) != [NEW_HEAD]
-        ):
+        if self.deploy.expected_heads(target) != [NEW_HEAD] or self.deploy.expected_heads(
+            source
+        ) != [NEW_HEAD]:
             raise MaintenanceError("Followup runtime release must preserve the exact 0040 head")
         self.tools.deadline = time.monotonic() + 60
         with self.host_budget(short_probe=True):
@@ -1049,7 +1064,7 @@ class Followup(legacy.Maintenance):
                 raise MaintenanceError(
                     "Interrupted isolated rehearsal must be inspected before a new attempt"
                 )
-            return {"phase": "rehearsed", **self.state["rehearsal"]}
+            return self._rehearsal_receipt()
         started = time.monotonic()
         token = uuid4().hex[:12]
         source = "ai_refactor_followup_" + token
@@ -1060,6 +1075,9 @@ class Followup(legacy.Maintenance):
         if (
             backup.get("source_server_uuid") != self.state["server_uuid"]
             or backup.get("head") != NEW_HEAD
+            or backup.get("tables") != 44
+            or type(backup.get("rows")) is not int
+            or not 0 <= backup["rows"] <= 2**64
         ):
             raise MaintenanceError("Rehearsal snapshot belongs to another source")
         restored = self.tools.backup(
@@ -1118,13 +1136,36 @@ class Followup(legacy.Maintenance):
             "legacy_image": self.old_image,
             "fixture": {k: fixture[k] for k in ("inserted", "updated", "deleted", "prompt_sha256")},
             "elapsed_seconds": time.monotonic() - started,
+            "coverage": dict(REHEARSAL_COVERAGE),
         }
         self.save()
+        return self._rehearsal_receipt()
+
+    def _rehearsal_receipt(self):
+        """Snapshot counts describe storage; isolated fixtures never accept live business flows."""
+        rehearsal = self.state["rehearsal"]
+        snapshot = rehearsal["backup"]
         return {
             "phase": "rehearsed",
             "passed": True,
-            "elapsed_seconds": self.state["rehearsal"]["elapsed_seconds"],
-            "fixture": self.state["rehearsal"]["fixture"],
+            "elapsed_seconds": rehearsal["elapsed_seconds"],
+            "fixture": dict(rehearsal["fixture"]),
+            "coverage": dict(rehearsal["coverage"]),
+            "rehearsal": {
+                "source_head": snapshot["head"],
+                "source_server_uuid": snapshot["source_server_uuid"],
+                **{
+                    key: snapshot[key]
+                    for key in (
+                        "tables",
+                        "rows",
+                        "backup_sha256",
+                        "manifest_sha256",
+                        "physical_manifest_sha256",
+                    )
+                    if key in snapshot
+                },
+            },
         }
 
     def _retention_journals(self):
