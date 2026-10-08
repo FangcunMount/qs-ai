@@ -1,6 +1,6 @@
 {
   "schema_version": "qs-ai-document-closure/v1",
-  "source_commit": "5415bfdf1fdae275b42f9843b9b8db98f8252cc3",
+  "source_commit": "e23277732ab1b5831a8751661f686a5a409e0c91",
   "reviewed_on": "2026-10-08",
   "authority": "runtime composition > code > machine contracts/config/migrations > scoped tests > maintained prose > dated evidence/plans/archive",
   "source_catalog": {
@@ -451,12 +451,12 @@
     "tests/integration/test_schema_refactor_backup.py": "3705dc2204d99dc322f6bbf4407dea12ac1f676e67d0a3c6c738b9745858b4e5",
     "tests/integration/test_schema_followup_runtime.py": "5025bfe7a0fdbbdd6e5dfc8ec08d3a20f6459a773f784b5d79a2ff4e8ccb272a",
     "tests/integration/test_schema_refactor_auto_increment.py": "b0f68977f9912df3a95e17970999e88a60bc61140b474c3f7c302934a58bc55c",
-    "tests/test_schema_followup.py": "a0987a1b2c7e42dfd1483068c880739908f827b3f99c0d2ebec43571fab06126",
+    "tests/test_schema_followup.py": "40a8d7ef45676311fcf3f39449cdc973ad012523d3543debf4461932b90bf887",
     "tests/integration/test_prompt_retirement.py": "5d2cb85f1accd4a162425f76d12d1137efc58a5de659f7da895ff6825b724127",
     "src/qs_ai/maintenance/prompt_retirement/service.py": "b827874efc1d9582ce480d65502737d0a788433ab07c818975d5f24d369aa96a",
     "src/qs_ai/maintenance/schema_refactor/validation_contract.py": "f811771c393b2f3f8ed518f88c7246c8ead957edb69723e4c88b38e871ae03a5",
     "src/qs_ai/maintenance/prompt_retirement/snapshot.py": "6d87125f38a88a3bf180585dfd4b7626b2d72a00c65e0ba8b3c101ee5dbf1154",
-    "deploy/serverA/schema_followup.py": "0035e45a950f6857022c5f7c3267b45b789a0c6f96fc975252a6f9985b5672b1",
+    "deploy/serverA/schema_followup.py": "3d3befcefe8b67905ba9eb40e8b666978ec96ecb6fb524fdca9ab8bdca866b35",
     "tests/test_schema_followup_transport.py": "7911169171439d88af0d2c885cbddfbf9aef6f1e291953c5a5dcef92a8312b18",
     ".github/workflows/schema-followup.yml": "2c09ba00c8ff88a30f5b0598b0e210092f81839a4a51d6bf19fce0a82b1db198",
     "src/qs_ai/maintenance/prompt_retirement/__main__.py": "b9c9c419e22ac2160663faca394150e37db77578f99820b4b92267917a8c0625",

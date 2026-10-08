@@ -154,5 +154,12 @@
   "production_runtime": "pending",
   "business_acceptance": "not covered by these tests",
   "production_asset_deletion": "not performed",
-  "production_inverse_migration": "not performed"
+  "production_inverse_migration": "not performed",
+  "coverage_receipt_commit": "e23277732ab1b5831a8751661f686a5a409e0c91",
+  "coverage_receipt_regression": {
+    "passed": 153,
+    "failed": 0,
+    "report": ".interop/schema-followup-coverage.xml",
+    "sha256": "2abd8f28193fe0ea600a43593abf4e3e109c0ba86ba6a0424f13283430fc14ca"
+  }
 }
