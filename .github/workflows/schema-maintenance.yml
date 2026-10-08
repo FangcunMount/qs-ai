@@ -1,0 +1,173 @@
+name: Schema maintenance serverA
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        type: choice
+        options: [preflight, prepare, rehearse, switch, rollback, status]
+        default: preflight
+      maintenance_id:
+        description: 'Stable migration identifier, lowercase letters/digits/underscore; max 32'
+        required: true
+        default: dbrefactor_20261008
+      revision:
+        description: 'Full tested main SHA; empty selects this workflow commit'
+        required: false
+      release:
+        description: 'Prepared immutable release ID; empty uses the maintenance journal'
+        required: false
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: qs-ai-serverA
+  cancel-in-progress: false
+jobs:
+  gate:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    outputs:
+      revision: ${{ steps.gate.outputs.revision }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+      - id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUESTED_SHA: ${{ inputs.revision || github.sha }}
+          MAINTENANCE_ID: ${{ inputs.maintenance_id }}
+          OPERATION: ${{ inputs.operation }}
+          AUTO_DEPLOY_ENABLED: ${{ vars.AUTO_DEPLOY_ENABLED }}
+        run: |
+          set -euo pipefail
+          [[ "$REQUESTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$MAINTENANCE_ID" =~ ^[a-z][a-z0-9_]{0,31}$ ]]
+          if [[ "$OPERATION" != preflight && "$OPERATION" != status ]]; then
+            [[ "$AUTO_DEPLOY_ENABLED" == false ]]
+          fi
+          git merge-base --is-ancestor "$REQUESTED_SHA" origin/main
+          gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml --commit "$REQUESTED_SHA" --event push --json conclusion --jq 'any(.[]; .conclusion == "success")' | grep -qx true
+          echo "revision=$REQUESTED_SHA" >> "$GITHUB_OUTPUT"
+  build:
+    needs: gate
+    if: inputs.operation == 'prepare' && inputs.release == ''
+    runs-on: ubuntu-latest
+    outputs:
+      digest: ${{ steps.image.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.gate.outputs.revision }}
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.ALIYUN_ACR_REGISTRY }}
+          username: ${{ secrets.ALIYUN_ACR_USERNAME }}
+          password: ${{ secrets.ALIYUN_ACR_PASSWORD }}
+      - uses: docker/build-push-action@v6
+        id: image
+        with:
+          context: .
+          build-args: RELEASE_SHA=${{ needs.gate.outputs.revision }}
+          platforms: linux/amd64
+          push: true
+          provenance: false
+          sbom: false
+          tags: ${{ secrets.ALIYUN_ACR_REGISTRY }}/${{ secrets.ALIYUN_ACR_NAMESPACE }}/qs-ai:${{ needs.gate.outputs.revision }}
+          labels: org.opencontainers.image.revision=${{ needs.gate.outputs.revision }}
+          cache-from: type=gha,scope=qs-ai
+          cache-to: type=gha,mode=max,scope=qs-ai
+  maintenance:
+    needs: [gate, build]
+    if: >-
+      always() && needs.gate.result == 'success' &&
+      (needs.build.result == 'success' ||
+       ((inputs.operation != 'prepare' || inputs.release != '') && needs.build.result == 'skipped'))
+    runs-on:
+      group: qlume
+      labels: [self-hosted, macOS, ARM64]
+    environment: production
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.gate.outputs.revision }}
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.12.13'
+          python-version: '3.11'
+      - run: uv sync --locked --no-dev
+      - name: Prepare immutable image without migration or runtime startup
+        id: stage
+        if: inputs.operation == 'prepare' && inputs.release == ''
+        env:
+          DEPLOY_SHA: ${{ needs.gate.outputs.revision }}
+          DEPLOY_OPERATION: prepare
+          IMAGE_DIGEST: ${{ needs.build.outputs.digest }}
+          ALIYUN_ACR_REGISTRY: ${{ secrets.ALIYUN_ACR_REGISTRY }}
+          ALIYUN_ACR_NAMESPACE: ${{ secrets.ALIYUN_ACR_NAMESPACE }}
+          ALIYUN_ACR_USERNAME: ${{ secrets.ALIYUN_ACR_USERNAME }}
+          ALIYUN_ACR_PASSWORD: ${{ secrets.ALIYUN_ACR_PASSWORD }}
+          MYSQL_HOST: ${{ secrets.MYSQL_HOST }}
+          MYSQL_PORT: ${{ secrets.MYSQL_PORT || '3306' }}
+          MYSQL_DATABASE: ${{ secrets.MYSQL_DATABASE }}
+          MYSQL_DBNAME: ${{ secrets.MYSQL_DBNAME }}
+          MYSQL_USERNAME: ${{ secrets.MYSQL_USERNAME }}
+          MYSQL_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
+          QS_AI_EXECUTION_ENABLED: ${{ vars.QS_AI_EXECUTION_ENABLED || 'false' }}
+          QS_AI_GOVERNANCE_ENABLED: ${{ vars.QS_AI_GOVERNANCE_ENABLED || 'false' }}
+          QS_AI_EVALUATION_ENABLED: ${{ vars.QS_AI_EVALUATION_ENABLED || 'false' }}
+          QS_AI_CANDIDATE_MODE_ENABLED: ${{ vars.QS_AI_CANDIDATE_MODE_ENABLED || 'false' }}
+          QS_AI_EVALUATION_PARALLEL_CALLS: ${{ vars.QS_AI_EVALUATION_PARALLEL_CALLS || '1' }}
+          QS_AI_EVALUATION_PER_RUN_PARALLEL_CALLS: ${{ vars.QS_AI_EVALUATION_PER_RUN_PARALLEL_CALLS || '1' }}
+          QS_AI_EVALUATION_CONCURRENCY: ${{ vars.QS_AI_EVALUATION_CONCURRENCY || '1' }}
+          QS_AI_DEEPSEEK_TOTAL_CAPACITY: ${{ vars.QS_AI_DEEPSEEK_TOTAL_CAPACITY || '2' }}
+          QS_AI_ZHIPU_TOTAL_CAPACITY: ${{ vars.QS_AI_ZHIPU_TOTAL_CAPACITY || '2' }}
+          QS_AI_MODEL_V2_WRITES_ENABLED: ${{ vars.QS_AI_MODEL_V2_WRITES_ENABLED || 'false' }}
+          QS_AI_MODEL_ENDPOINT: ${{ vars.QS_AI_MODEL_ENDPOINT }}
+          QS_AI_MODEL_API_KEY: ${{ secrets.QS_AI_MODEL_API_KEY }}
+          QS_AI_DEEPSEEK_API_KEY: ${{ secrets.QS_AI_DEEPSEEK_API_KEY }}
+          QS_AI_ZHIPU_API_KEY: ${{ secrets.QS_AI_ZHIPU_API_KEY }}
+          QS_AI_QS_ADDRESS: ${{ vars.QS_AI_QS_ADDRESS || 'qs-apiserver:9090' }}
+          QS_AI_MESSAGING_BINDING: ${{ vars.QS_AI_MESSAGING_BINDING }}
+          SVRA_HOST: ${{ vars.SVRA_PUBLIC_HOST || vars.SVRA_HOST || secrets.SVRA_HOST }}
+          SVRA_USERNAME: ${{ vars.SVRA_USERNAME || secrets.SVRA_USERNAME }}
+          SVRA_SSH_PORT: ${{ vars.SVRA_SSH_PORT || secrets.SVRA_SSH_PORT || '22' }}
+          SVRA_SSH_KEY: ${{ secrets.SVR_MINI_SSH_KEY || secrets.SVRA_SSH_KEY }}
+          SVRA_HOST_PUBLIC_KEY: ${{ vars.SVRA_HOST_PUBLIC_KEY }}
+        run: uv run --no-dev python scripts/cd/deploy.py
+      - name: Run journalled schema maintenance on serverA
+        id: maintenance
+        env:
+          DEPLOY_SHA: ${{ needs.gate.outputs.revision }}
+          SCHEMA_OPERATION: ${{ inputs.operation }}
+          SCHEMA_MAINTENANCE_ID: ${{ inputs.maintenance_id }}
+          SCHEMA_RELEASE: ${{ steps.stage.outputs.release_id || inputs.release }}
+          MYSQL_MAINTENANCE_USERNAME: ${{ secrets.MYSQL_MAINTENANCE_USERNAME }}
+          MYSQL_MAINTENANCE_PASSWORD: ${{ secrets.MYSQL_MAINTENANCE_PASSWORD }}
+          SVRA_HOST: ${{ vars.SVRA_PUBLIC_HOST || vars.SVRA_HOST || secrets.SVRA_HOST }}
+          SVRA_USERNAME: ${{ vars.SVRA_USERNAME || secrets.SVRA_USERNAME }}
+          SVRA_SSH_PORT: ${{ vars.SVRA_SSH_PORT || secrets.SVRA_SSH_PORT || '22' }}
+          SVRA_SSH_KEY: ${{ secrets.SVR_MINI_SSH_KEY || secrets.SVRA_SSH_KEY }}
+          SVRA_HOST_PUBLIC_KEY: ${{ vars.SVRA_HOST_PUBLIC_KEY }}
+        run: uv run --no-dev python scripts/cd/schema_maintenance.py
+      - name: Record metadata-only maintenance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qs-ai-schema-${{ inputs.operation }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            schema-maintenance-receipt.json
+            release-receipt.json
+          if-no-files-found: warn
+          retention-days: 90
+      - name: Record successfully verified runtime baseline
+        if: success() && (inputs.operation == 'switch' || inputs.operation == 'rollback')
+        uses: actions/upload-artifact@v4
+        with:
+          name: qs-ai-deployed-${{ steps.maintenance.outputs.actual_revision }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: deployment-receipt.json
+          if-no-files-found: error
+          retention-days: 90

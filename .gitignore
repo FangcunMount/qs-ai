@@ -17,3 +17,5 @@ htmlcov/
 .interop/
 
 deployment-receipt.json
+release-receipt.json
+schema-maintenance-receipt.json
