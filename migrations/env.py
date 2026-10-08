@@ -40,6 +40,10 @@ async def online() -> None:
     try:
         async with engine.connect() as connection:
             await connection.run_sync(migrate)
+            # SELECT DATABASE() starts a transaction before Alembic configures its context.
+            # This connection belongs to the CLI; persist the final head DML after the last DDL.
+            # The supplied-connection branch leaves commit/rollback to its host.
+            await connection.commit()
     finally:
         await engine.dispose()
 

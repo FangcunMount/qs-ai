@@ -46,7 +46,10 @@ jobs:
       - run: uv sync --frozen
       - run: uv run ruff check . && uv run ruff format --check . && uv run mypy
       - run: uv run python scripts/generate_messaging_proto.py --check
-      - run: uv run alembic upgrade head && uv run alembic check
+      - run: uv run alembic upgrade head
+        env:
+          QS_AI_DATABASE_URL: mysql+asyncmy://root:qs_ai_local_root@127.0.0.1:3306/qs_ai
+      - run: uv run alembic check
       - name: Create separate disposable adapter database
         run: |
           uv run python - <<'PYTHON'
@@ -145,7 +148,10 @@ jobs:
         with:
           version: '0.12.13'
           python-version: ${{ matrix.python }}
-      - run: uv sync --frozen && uv run alembic upgrade head
+      - run: uv sync --frozen
+      - run: uv run alembic upgrade head
+        env:
+          QS_AI_DATABASE_URL: mysql+asyncmy://root:qs_ai_local_root@127.0.0.1:3306/qs_ai
       - uses: actions/checkout@v4
         with:
           repository: FangcunMount/qs-server

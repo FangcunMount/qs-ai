@@ -15,7 +15,7 @@ from scripts.retirement.stores import MongoStore, MySQLStore
 
 
 @pytest.fixture
-def stores():
+def stores(request):
     uri = os.environ["M5_TEST_MONGO_URI"]
     url = make_url(os.environ["M5_TEST_MYSQL_URL"])
     admin = pymysql.connect(
@@ -27,9 +27,27 @@ def stores():
     )
     qs, ai, mongo = ["m5_test_" + uuid4().hex for _ in range(3)]
     client = MongoClient(uri)
+    adapters, created = [], []
+
+    def cleanup():
+        try:
+            for adapter in adapters:
+                adapter.close()
+            client.drop_database(mongo)
+        finally:
+            client.close()
+            try:
+                with admin.cursor() as cursor:
+                    for database in reversed(created):
+                        cursor.execute("DROP DATABASE `" + database + "`")
+            finally:
+                admin.close()
+
+    request.addfinalizer(cleanup)
     with admin.cursor() as cursor:
         for database in (qs, ai):
             cursor.execute("CREATE DATABASE `" + database + "`")
+            created.append(database)
         cursor.execute("USE `" + qs + "`")
         for table in SHARED_TABLES:
             cursor.execute(
@@ -53,6 +71,8 @@ def stores():
         cursor.execute("CREATE TABLE ai_bridge_requests (id BIGINT PRIMARY KEY, payload TEXT)")
         cursor.execute("INSERT INTO ai_bridge_requests VALUES (1,'preserve UUID and result')")
         cursor.execute("USE `" + ai + "`")
+        cursor.execute("CREATE TABLE alembic_version (version_num VARCHAR(32) PRIMARY KEY)")
+        cursor.execute("INSERT INTO alembic_version VALUES ('0038_messaging_observations')")
         for table in ("execution_leases", "evaluation_checkpoints", "checkpoint_leases"):
             cursor.execute(f"CREATE TABLE `{table}` (id INT PRIMARY KEY, fence INT)")
             cursor.execute(f"INSERT INTO `{table}` VALUES (1,42)")
@@ -66,22 +86,14 @@ def stores():
     assert client[mongo]["system.profile"].count_documents({}) > 0
     for key, event in enumerate((*EVENTS, "assessment.scored")):
         client[mongo]["domain_event_outbox"].insert_one({"_id": key, "event_type": event})
-    adapters = [
-        MongoStore(uri, mongo),
-        MySQLStore("qs_mysql", url.set(database=qs).render_as_string(hide_password=False)),
-        MySQLStore("ai_mysql", url.set(database=ai).render_as_string(hide_password=False)),
-    ]
-    try:
-        yield adapters
-    finally:
-        for adapter in adapters:
-            adapter.close()
-        client.drop_database(mongo)
-        client.close()
-        with admin.cursor() as cursor:
-            for database in (qs, ai):
-                cursor.execute("DROP DATABASE `" + database + "`")
-        admin.close()
+    adapters.append(MongoStore(uri, mongo))
+    adapters.append(
+        MySQLStore("qs_mysql", url.set(database=qs).render_as_string(hide_password=False))
+    )
+    adapters.append(
+        MySQLStore("ai_mysql", url.set(database=ai).render_as_string(hide_password=False))
+    )
+    return adapters
 
 
 @pytest.mark.parametrize("external_restore", [False, True])
@@ -259,12 +271,33 @@ def seed_prompts(store):
         )
 
 
-def test_prompt_backup_restore_deletes_only_unreferenced_exact_versions(tmp_path, stores):
+@pytest.mark.parametrize("external_restore", [False, True])
+def test_prompt_backup_restore_deletes_only_unreferenced_exact_versions(
+    tmp_path, stores, monkeypatch, external_restore
+):
     from scripts.retirement.prompt_policy import TEMPLATE_ID
 
     ai = stores[2]
     seed_prompts(ai)
+    with ai.connection.cursor() as cursor:
+        cursor.execute("SELECT * FROM prompt_assets WHERE version='v1'")
+        original_prompt = cursor.fetchone()
+    if external_restore:
+        ai.restore_url = (
+            make_url(os.environ["M5_TEST_MYSQL_URL"])
+            .set(database="information_schema")
+            .render_as_string(hide_password=False)
+        )
+
+        def refuse_source_restore(*args, **kwargs):
+            raise AssertionError("restore must not write through the source connection")
+
+        monkeypatch.setattr(ai, "restore", refuse_source_restore)
     before = ai.snapshot()
+    assert before["alembic_version"]["action"] == "preserve"
+    assert before["alembic_version"]["metadata"]["legacy_schema_head"] == (
+        "0038_messaging_observations"
+    )
     selected = before["prompt_assets"]
     assert [row["id"] for row in selected["rows"]] == [[TEMPLATE_ID, "v1"]]
     assert selected["protected_count"] == 2
@@ -283,10 +316,99 @@ def test_prompt_backup_restore_deletes_only_unreferenced_exact_versions(tmp_path
     core.backup(directory, [ai], sha)
     ai.apply(before)
     ai.verify_deleted(before)
-    ai.verify_restore(before)
+    restored = ai.verify_restore(before, keep=True)
+    url = make_url(os.environ["M5_TEST_MYSQL_URL"])
+    admin = pymysql.connect(
+        host=url.host,
+        port=url.port or 3306,
+        user=url.username,
+        password=url.password,
+        autocommit=True,
+        cursorclass=pymysql.cursors.DictCursor,
+    )
+    try:
+        with admin.cursor() as cursor:
+            cursor.execute(f"SELECT * FROM `{restored['database']}`.alembic_version")
+            assert cursor.fetchall() == [{"version_num": "0038_messaging_observations"}]
+            cursor.execute(f"SELECT * FROM `{restored['database']}`.prompt_assets")
+            assert cursor.fetchall() == [original_prompt]
+            cursor.execute(
+                "SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA=%s",
+                (restored["database"],),
+            )
+            assert {row["TABLE_NAME"] for row in cursor.fetchall()} == {
+                "alembic_version",
+                "prompt_assets",
+            }
+    finally:
+        with admin.cursor() as cursor:
+            cursor.execute(f"DROP DATABASE `{restored['database']}`")
+        admin.close()
     with ai.connection.cursor() as cursor:
         cursor.execute("SELECT version FROM prompt_assets ORDER BY version")
         assert [row["version"] for row in cursor.fetchall()] == ["v2", "v6"]
+        cursor.execute("SELECT version_num FROM alembic_version")
+        assert cursor.fetchall() == [{"version_num": "0038_messaging_observations"}]
+
+
+@pytest.mark.parametrize("head", [None, "0040_module_table_names"])
+def test_unknown_source_head_blocks_plan_before_deleting_any_data(tmp_path, stores, head):
+    ai = stores[2]
+    seed_prompts(ai)
+    with ai.connection.cursor() as cursor:
+        cursor.execute("DELETE FROM alembic_version")
+        if head:
+            cursor.execute("INSERT INTO alembic_version VALUES (%s)", (head,))
+    directory = tmp_path / "rejected-plan"
+    with pytest.raises(core.Stop, match="recognized 0038"):
+        core.plan(directory, stores)
+    assert not (directory / "plan.json").exists()
+    assert set(COLLECTIONS) <= set(stores[0].db.list_collection_names())
+    for table in SHARED_TABLES:
+        assert stores[1].snapshot()[table]["protected_count"] == 2
+    with ai.connection.cursor() as cursor:
+        cursor.execute("SELECT COUNT(*) AS n FROM prompt_assets")
+        assert cursor.fetchone()["n"] == 3
+        cursor.execute("SELECT version_num FROM alembic_version")
+        assert [row["version_num"] for row in cursor.fetchall()] == ([] if head is None else [head])
+
+
+def test_merged_asset_storage_blocks_plan_even_with_a_legacy_head(tmp_path, stores):
+    ai = stores[2]
+    seed_prompts(ai)
+    with ai.connection.cursor() as cursor:
+        cursor.execute("CREATE TABLE governance_asset_versions (id INT PRIMARY KEY, body BLOB)")
+        cursor.execute("INSERT INTO governance_asset_versions VALUES (1,%s)", (b"keep\x00raw",))
+    directory = tmp_path / "rejected-merged-plan"
+    with pytest.raises(core.Stop, match="does not support merged storage"):
+        core.plan(directory, stores)
+    assert not (directory / "plan.json").exists()
+    assert set(COLLECTIONS) <= set(stores[0].db.list_collection_names())
+    with ai.connection.cursor() as cursor:
+        cursor.execute("SELECT * FROM governance_asset_versions")
+        assert cursor.fetchall() == [{"id": 1, "body": b"keep\x00raw"}]
+        cursor.execute("SELECT COUNT(*) AS n FROM prompt_assets")
+        assert cursor.fetchone()["n"] == 3
+
+
+@pytest.mark.parametrize("head", [None, "0040_module_table_names"])
+def test_restore_requires_exact_source_head_binding_before_creating_scratch(stores, head):
+    from copy import deepcopy
+
+    ai = stores[2]
+    seed_prompts(ai)
+    original = ai.snapshot()
+    snapshot = deepcopy(original)
+    snapshot["alembic_version"]["metadata"]["legacy_schema_head"] = head
+    with ai.connection.cursor() as cursor:
+        cursor.execute("SHOW DATABASES")
+        before = cursor.fetchall()
+    with pytest.raises(core.Stop, match="backup bound to recognized 0038"):
+        ai.verify_restore(snapshot)
+    with ai.connection.cursor() as cursor:
+        cursor.execute("SHOW DATABASES")
+        assert cursor.fetchall() == before
+    assert ai.snapshot() == original
 
 
 def test_new_prompt_reference_blocks_apply_without_deleting_any_asset(stores):

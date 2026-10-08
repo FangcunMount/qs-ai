@@ -2,6 +2,8 @@
 
 import hashlib
 import os
+import subprocess
+import sys
 from datetime import UTC, date, datetime
 from uuid import uuid4
 
@@ -334,6 +336,28 @@ def test_version_table_field_drift_is_rejected(cloned):
     conn.execute(sa.text("ALTER TABLE alembic_version MODIFY version_num VARCHAR(64) NOT NULL"))
     with pytest.raises(ValueError, match="Migration version table"):
         require_schema(conn, OLD_HEAD, state["source"])
+
+
+def test_owned_migration_cli_commits_final_head_and_preserves_populated_source(cloned):
+    conn, state, _ = cloned
+    before = manifest(conn, state["source"], OLD_HEAD)
+    conn.rollback()  # Release the read snapshot and metadata locks before the CLI's RENAME.
+    url = sa.make_url(os.environ["QS_AI_SCHEMA_TEST_SERVER"]).set(
+        drivername="mysql+asyncmy", database=state["source"]
+    )
+    migrated = subprocess.run(
+        [sys.executable, "-m", "alembic", "upgrade", "head"],
+        env={**os.environ, "QS_AI_DATABASE_URL": url.render_as_string(hide_password=False)},
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert migrated.returncode == 0, migrated.stdout + migrated.stderr
+    # No host commit is allowed to mask a missing commit in the independent CLI process.
+    assert contracts.head(conn, state["source"]) == NEW_HEAD
+    require_schema(conn, NEW_HEAD, state["source"])
+    assert len(contracts.tables(conn, state["source"])) == 44
+    assert manifest(conn, state["source"], NEW_HEAD) == before
 
 
 def test_unrepresentable_new_body_cannot_silently_rewrite_legacy_text(cloned):

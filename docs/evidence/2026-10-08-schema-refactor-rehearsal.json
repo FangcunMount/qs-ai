@@ -1,6 +1,6 @@
 {
   "format": "qs-ai-schema-refactor-local-rehearsal/v1",
-  "recorded_at": "2026-10-08T07:52:34.737640+00:00",
+  "recorded_at": "2026-10-08T08:12:57.280037+00:00",
   "scope": "Disposable local schemas only; no production migration, deployment or business acceptance",
   "audit_base_commit": "a533afef3f390a0726ff26657c93c045d07300b7",
   "branch": "codex/database-simplification",
@@ -12,15 +12,21 @@
     "v0040_sha256": "1920802a64a4410fbd863873231d69694bc92b1ed36102191fc922975e837e92"
   },
   "source_sha256": {
+    ".github/workflows/ai-messaging.yml": "2dddb3ffeb66a49967fb2019709829065365464b1833a51f72f34331ef38aabe",
+    ".github/workflows/ci.yml": "1f4f3a3248b94797649812596f9f09fbb51f983aeaa14347fa75a5ca1e931a97",
+    ".github/workflows/m7-messaging.yml": "6dbe883cc556a287bac8807e90c0879afcf1212ff0db05a963e53dcf535168e8",
+    "Dockerfile": "a228b397109b1627bee2c2cb66b3d33d3a2c7d4238a726c5b7e1a61503accf8a",
     "deploy/serverA/deploy.py": "2c6a4b5c836dc94df339caa9c31ebdce67a008f6b5a1892da8eb0e011d6930a9",
-    "migrations/env.py": "d2682a2e67941a62869ff6a1507085717ef2bf63200ced08697eff4e63d10e9b",
+    "migrations/env.py": "59209b7c1bbf2169717edcc73b3b8ba653705ed206a467cecd0fec005f01c7fc",
     "migrations/versions/0039_data_consolidation.py": "b9d27aab1ae323afc150df07a2bed3c21c4d4978f1262c4e178e37e16bcd5f93",
     "migrations/versions/0040_module_table_names.py": "4c4ab3cdc7b871b5d3e0577ead40be96ee5ebfb568ef84acc712cd58b2ab32e9",
     "scripts/ci/rehearse_m7_cutover.py": "74fbdc45660044a756ccbc0c636a45456f0a1731e04d518dd7c6372cd2edf21d",
+    "scripts/ci/smoke_single_process.py": "0679d5ebbc838fcdb6087b55283933d3af1ec27960f1da90442b911704d70751",
     "scripts/ci/verify_mq_payload_report.py": "2e6bc075ba9b2b675c08f5dcad49ed4e4ae6ab32e434cd999fbeca282d76ab3c",
     "scripts/ci/verify_mq_process_report.py": "b7c6c98831099acb80108d4748450de8ce2f142dacb3641ebea6892aaff7d926",
     "scripts/freeze_schema_contract.py": "67d4e17de6c931e87f359d0be2d591d1750fc570179e5df3a671aaf07d7af2c0",
-    "scripts/retirement/stores.py": "e932dd02f4cfdb549db5b37bab7660deae580d7c7ad2eef8c723dd7031c79816",
+    "scripts/retirement/stores.py": "81bf6f67c2dbf4da85f0383459ded44f52eca58349872183858aaf8a43735662",
+    "scripts/retirement/test_live.py": "fcc7c3184743cad53bcbe8e6134e332e3a2865a287db5a4b23c818e4d0a8023a",
     "src/qs_ai/bootstrap/audit_assets.py": "813646fb71befb92394de7e7f4a9a25d58ff084bfc3264b11234cf2b0b402cec",
     "src/qs_ai/bootstrap/database_check.py": "dc813593d235ff993ed6a0f4ef24bd596159df5923364eee2171351c0a9dc822",
     "src/qs_ai/bootstrap/server.py": "669f6ff8fd603776f6e5ed92fe2501cc32a782ad51a07fb79d2da8758b63e290",
@@ -51,7 +57,7 @@
     "tests/integration/test_mq_0038_maintenance.py": "0d80d20f739b6936eaf5def4eb327f9faf4a8789cb15fc09e0ff24e99e433cdb",
     "tests/integration/test_schema_refactor_cli.py": "62a484cbf91d837aea70aff2370392079fd2bc4fe7e92f838a47dfe810c49d61",
     "tests/integration/test_schema_refactor_collations.py": "6ea9c97d096bf1018e71a7a9accc24d0bc1fc52fba57ba90f26a5b26f6b180d9",
-    "tests/integration/test_schema_refactor_conversion.py": "22e62d9fc961614fdcdc559aea63461baad25a2ffb530407126ceb73d55d1603",
+    "tests/integration/test_schema_refactor_conversion.py": "c374abc0d4184cddf02b705f6c7f03cb858b93b529d691cdb47ca0334167612f",
     "tests/integration/test_schema_refactor_disconnect.py": "d1443cf80cca1649d91e4c495e0d94868ba86cff044666b10a79083b6aa06a00",
     "tests/integration/test_schema_refactor_legacy_runtime.py": "b2fc544f7bafca2b7fe1b9c23c9da0dafe89be379d656f8415ccbb8e0be9106c",
     "tests/integration/test_schema_refactor_timeout.py": "f5a43ffcb9924115ecbc1987a9766af9b061f67b270aa6a0c1f09dace5b4d585",
@@ -284,6 +290,30 @@
             "tests.integration.test_schema_refactor_collations::test_old_full_ddl_drift_stops_before_copy[foreign_key]",
             "tests.integration.test_schema_refactor_collations::test_signed_prompt_boundary_preserves_reverse_while_semantic_keeps_u64"
           ]
+        },
+        {
+          "artifact": "final-timeout80.xml",
+          "sha256": "e4cde47006f4b9ad47c70889cf2bdf006cf7f33082abed44c1c2d727ca2982a7",
+          "tests": 5,
+          "passed": 5,
+          "failed": 0,
+          "errors": 0,
+          "skipped": 0,
+          "seconds": 44.153,
+          "failed_tests": [],
+          "skipped_tests": [],
+          "execution_log": {
+            "artifact": "final-timeout80.log",
+            "sha256": "082af686c90b50f9e1560ae53dc4b742e51ad3db0b79dad5784303eb42126cf8"
+          },
+          "passed_case_ids": [
+            "tests.integration.test_schema_refactor_timeout::test_blocked_native_insert_select_is_rolled_back_after_owned_kill",
+            "tests.integration.test_schema_refactor_timeout::test_blocked_native_select_is_killed_and_owned_connection_is_invalidated",
+            "tests.integration.test_schema_refactor_timeout::test_expired_pending_gets_bounded_probe_without_a_second_or_fresh_native_rename[False]",
+            "tests.integration.test_schema_refactor_timeout::test_expired_pending_gets_bounded_probe_without_a_second_or_fresh_native_rename[True]",
+            "tests.integration.test_schema_refactor_timeout::test_native_rename_metadata_lock_timeout_retains_pending_and_both_accepted_copies"
+          ],
+          "case_count_rule": "Recheck of the same five native timeout identities already counted; no new migration identities."
         }
       ],
       "final_cli_watchdog_report": {
@@ -339,6 +369,7 @@
         "tests.integration.test_schema_refactor_conversion::test_fast_rollback_and_retention_guard",
         "tests.integration.test_schema_refactor_conversion::test_missing_bindings_policies_and_sql_json_null_remain_distinct",
         "tests.integration.test_schema_refactor_conversion::test_orphan_policy_precheck_preserves_source",
+        "tests.integration.test_schema_refactor_conversion::test_owned_migration_cli_commits_final_head_and_preserves_populated_source",
         "tests.integration.test_schema_refactor_conversion::test_populated_historical_migrations_preserve_every_field",
         "tests.integration.test_schema_refactor_conversion::test_unrepresentable_new_body_cannot_silently_rewrite_legacy_text",
         "tests.integration.test_schema_refactor_conversion::test_version_table_field_drift_is_rejected",
@@ -413,7 +444,27 @@
         "tests.test_schema_refactor_timeout::test_success_returns_action_result_without_kill_or_stale_batch_clock",
         "tests.test_schema_refactor_timeout::test_unconfirmed_kill_fails_closed_and_still_invalidates_owned_socket"
       ],
-      "final_migration_unique_cases": 92
+      "final_migration_unique_cases": 93,
+      "owned_online_final_head_regression": {
+        "artifact": "owned-alembic80.xml",
+        "sha256": "1be7649ca5d743c070c44949be65adf45ac53cb69468ad7ac71b1aa041540b54",
+        "tests": 1,
+        "passed": 1,
+        "failed": 0,
+        "errors": 0,
+        "skipped": 0,
+        "seconds": 21.018,
+        "failed_tests": [],
+        "skipped_tests": [],
+        "execution_log": {
+          "artifact": "owned-alembic80.log",
+          "sha256": "c10b1106540aaceede22b89f95a21e413c27bc11ce2009ca8721b7f7c1b425f7"
+        },
+        "passed_case_ids": [
+          "tests.integration.test_schema_refactor_conversion::test_owned_migration_cli_commits_final_head_and_preserves_populated_source"
+        ],
+        "scope": "Owned online Alembic CLI commits the complete final head while preserving populated source facts; provided connections retain host transaction ownership."
+      }
     },
     "84": {
       "full_regression": {
@@ -691,6 +742,30 @@
             "tests.integration.test_schema_refactor_collations::test_old_full_ddl_drift_stops_before_copy[foreign_key]",
             "tests.integration.test_schema_refactor_collations::test_signed_prompt_boundary_preserves_reverse_while_semantic_keeps_u64"
           ]
+        },
+        {
+          "artifact": "final-timeout84.xml",
+          "sha256": "cf0831e841d931a974625830a9d59628328693c0746ee5d1c5a99bc8deca8c23",
+          "tests": 5,
+          "passed": 5,
+          "failed": 0,
+          "errors": 0,
+          "skipped": 0,
+          "seconds": 44.252,
+          "failed_tests": [],
+          "skipped_tests": [],
+          "execution_log": {
+            "artifact": "final-timeout84.log",
+            "sha256": "7415a112ca283eb1315de74644e9d42843d744138c0b42af9bd8c2ca038b4236"
+          },
+          "passed_case_ids": [
+            "tests.integration.test_schema_refactor_timeout::test_blocked_native_insert_select_is_rolled_back_after_owned_kill",
+            "tests.integration.test_schema_refactor_timeout::test_blocked_native_select_is_killed_and_owned_connection_is_invalidated",
+            "tests.integration.test_schema_refactor_timeout::test_expired_pending_gets_bounded_probe_without_a_second_or_fresh_native_rename[False]",
+            "tests.integration.test_schema_refactor_timeout::test_expired_pending_gets_bounded_probe_without_a_second_or_fresh_native_rename[True]",
+            "tests.integration.test_schema_refactor_timeout::test_native_rename_metadata_lock_timeout_retains_pending_and_both_accepted_copies"
+          ],
+          "case_count_rule": "Recheck of the same five native timeout identities already counted; no new migration identities."
         }
       ],
       "final_cli_watchdog_report": {
@@ -746,6 +821,7 @@
         "tests.integration.test_schema_refactor_conversion::test_fast_rollback_and_retention_guard",
         "tests.integration.test_schema_refactor_conversion::test_missing_bindings_policies_and_sql_json_null_remain_distinct",
         "tests.integration.test_schema_refactor_conversion::test_orphan_policy_precheck_preserves_source",
+        "tests.integration.test_schema_refactor_conversion::test_owned_migration_cli_commits_final_head_and_preserves_populated_source",
         "tests.integration.test_schema_refactor_conversion::test_populated_historical_migrations_preserve_every_field",
         "tests.integration.test_schema_refactor_conversion::test_unrepresentable_new_body_cannot_silently_rewrite_legacy_text",
         "tests.integration.test_schema_refactor_conversion::test_version_table_field_drift_is_rejected",
@@ -820,10 +896,30 @@
         "tests.test_schema_refactor_timeout::test_success_returns_action_result_without_kill_or_stale_batch_clock",
         "tests.test_schema_refactor_timeout::test_unconfirmed_kill_fails_closed_and_still_invalidates_owned_socket"
       ],
-      "final_migration_unique_cases": 92
+      "final_migration_unique_cases": 93,
+      "owned_online_final_head_regression": {
+        "artifact": "owned-alembic84.xml",
+        "sha256": "a698ac03bbf6fcb030a8f120224871db500c4895deb6d5beb979890efd352901",
+        "tests": 1,
+        "passed": 1,
+        "failed": 0,
+        "errors": 0,
+        "skipped": 0,
+        "seconds": 17.341,
+        "failed_tests": [],
+        "skipped_tests": [],
+        "execution_log": {
+          "artifact": "owned-alembic84.log",
+          "sha256": "3b2fa3be2717431e3bcb68f67c41e62635ff4cc394f4d50b59ac385531fae8b2"
+        },
+        "passed_case_ids": [
+          "tests.integration.test_schema_refactor_conversion::test_owned_migration_cli_commits_final_head_and_preserves_populated_source"
+        ],
+        "scope": "Owned online Alembic CLI commits the complete final head while preserving populated source facts; provided connections retain host transaction ownership."
+      }
     }
   },
-  "counting_rule": "Full regressions and independent runs overlap and are never summed. The original storage union is 69 identities per MySQL version (67+1+1). Final migration coverage is 92 distinct identities: 69 original, five new native timeout, 16 CLI timeout/cleanup units and two digest deadline units. The six-case watchdog report includes one existing CLI case; conversion/collation rechecks add no identities. The architecture rule is separate.",
+  "counting_rule": "Full regressions, original storage runs and independent replays overlap and are never summed. Final migration coverage is 93 distinct identities: 69 original storage, one owned-online final-head commit, five new native timeout, 16 CLI timeout/cleanup units and two digest deadline units. The six-case watchdog report includes one existing CLI case; conversion/collation/native rechecks add no identities. The architecture rule and retirement subsystem reports are separate.",
   "full80_resolution": "Original full run retained one absolute-import architecture failure. Final architecture gate passed separately in both environments after repair; original XML/log is not represented as all-green.",
   "full84_skips": "Eight original skips lacked QS_AI_SCHEMA_TEST_SERVER at process startup: four query-plan cases and four owned-DDL recovery cases. All are mapped above to passing final independent cases. Later environment-file repair did not alter the running process.",
   "schema_alignment": {
@@ -871,7 +967,31 @@
     "evidence_scope": "Final quality commands verified by the owning agent and recorded in the task; no deployment inference",
     "packaged_wheel": {
       "sha256": "320c519eb2a51331c857435092b6ec19c79e972b1962956709f347117b7deeb3",
-      "validation": "Owning agent verified the final wheel contains byte-identical current source files; local build only, no deployment inference."
+      "source_stage": "current-offline-rebuild",
+      "build": "Owning agent rebuilt wheel and sdist from current files with uv build --offline.",
+      "build_log": {
+        "artifact": "wheel-final-build.log",
+        "sha256": "734dd6704f5b0559c01db9df463b9529351f02004dc95b077539267fe02a07c8"
+      },
+      "validation": "Owning agent directly compared ZIP entries with all 10 current maintenance/schema_refactor .py/.json files and verified byte equality. The wheel contains src/configs/integration assets; this verification specifically binds these 10 package files.",
+      "verified_package_files": {
+        "src/qs_ai/maintenance/schema_refactor/__init__.py": "7f686a17766294a9800cb3b2ba50be7ff5167041190d8f1aca9e354a27122002",
+        "src/qs_ai/maintenance/schema_refactor/__main__.py": "bc2b650908681e6afefd1b1ecd8730be54cf9b410063a2dfda447bbf70ab2a5f",
+        "src/qs_ai/maintenance/schema_refactor/contracts.py": "863b53fc407ae27d04cc0fddf1576ed5fe05c13656f1e7c6a5e3d9ab371acef7",
+        "src/qs_ai/maintenance/schema_refactor/control.py": "98516a7da0b40948a2688cfac57f6078cab8b129efe0e23e002e28348818cbb4",
+        "src/qs_ai/maintenance/schema_refactor/conversion.py": "bf2d10dce45e71f0b0c97d7f57a2345f8ba4e5bd4c26fc013be2a68c473b6b5c",
+        "src/qs_ai/maintenance/schema_refactor/layouts.py": "43414fe2e905c09c46c970a7d5ef24a1fb3a3b0c18cac9f510b3133a3d177e9b",
+        "src/qs_ai/maintenance/schema_refactor/migrations.py": "32144b7c2092208be198b645136b1485c532cc563838d04cbc9b223285b0ee31",
+        "src/qs_ai/maintenance/schema_refactor/v0038.py": "94606b97bc616376447219b014a1ece237fe59e85f7996cb7bbba0fe98f02e0f",
+        "src/qs_ai/maintenance/schema_refactor/v0040.json": "1920802a64a4410fbd863873231d69694bc92b1ed36102191fc922975e837e92",
+        "src/qs_ai/maintenance/schema_refactor/validation.py": "0a9c591c56259b92e84299c2a71c20f91cfdae10f7b0a239743f81d751506f49"
+      },
+      "excluded_from_wheel": [
+        "migrations/env.py",
+        "scripts/retirement/stores.py",
+        "scripts/ci/smoke_single_process.py"
+      ],
+      "external_file_evidence": "Owned-online Alembic, retirement restoration and normal-command rebuilt Docker smoke separately verify the external scripts and image. The wheel byte comparison does not claim those files are packaged or validate production."
     }
   },
   "pending": {
@@ -881,7 +1001,8 @@
     "production_deployment_and_runtime": "pending",
     "real_business_acceptance": "pending",
     "production_read_only_operational_checks": "pending; prebound organization/natural-key expectations and original typed reads, beyond fixed four-class audit_assets and bounded messaging inventory",
-    "production_timeout_and_restore_budget": "pending; local bounded-connection tests do not prove hard OS/network recovery or production data-volume timing"
+    "production_timeout_and_restore_budget": "pending; local bounded-connection tests do not prove hard OS/network recovery or production data-volume timing",
+    "post_fix_pull_request_ci": "pending; initial head8996722 runs failed before complete partitions, with separate fixed local evidence only"
   },
   "retention": {
     "archive_days": 30,
@@ -950,9 +1071,10 @@
     "count_rule": "16 CLI timeout/cleanup cases and two digest deadline cases; the separate architecture rule is not a migration case. digest-deadline.xml is a prior rerun of these same two identities."
   },
   "final_migration_case_union": {
-    "unique_cases": 92,
+    "unique_cases": 93,
     "breakdown": {
       "original_schema_refactor_cases": 69,
+      "new_owned_online_final_head_case": 1,
       "new_native_timeout_cases": 5,
       "new_cli_timeout_cleanup_unit_cases": 16,
       "new_digest_deadline_unit_cases": 2
@@ -960,7 +1082,7 @@
     "file_case_counts": {
       "tests.integration.test_schema_refactor_cli": 1,
       "tests.integration.test_schema_refactor_collations": 12,
-      "tests.integration.test_schema_refactor_conversion": 9,
+      "tests.integration.test_schema_refactor_conversion": 10,
       "tests.integration.test_schema_refactor_disconnect": 4,
       "tests.integration.test_schema_refactor_legacy_runtime": 1,
       "tests.integration.test_schema_refactor_timeout": 5,
@@ -969,7 +1091,347 @@
       "tests.test_schema_refactor_deadline": 2,
       "tests.test_schema_refactor_timeout": 16
     },
-    "scope": "The 74 storage/native case identities passed on both isolated MySQL versions. The 18 database-independent units passed in final-boundary.xml. All case identities are counted once; full suites overlap and are not added."
+    "scope": "The 75 storage/native case identities passed on both isolated MySQL versions. The 18 database-independent units passed in final-boundary.xml. All case identities are counted once; full suites, retirement and replays are not added."
   },
-  "watchdog_boundary": "At deadline, the supervisor first attempts KILL CONNECTION only for this CLI owned connection on the same instance/account, then cancels and invalidates it. Query, insert/lock, metadata-lock RENAME, COMMIT/journal safety and expired pending actual-structure probes are scoped local evidence. Writers remain stopped and deployment locks held on timeout or unknown exchange; no blind RENAME retry or automatic old-image restoration."
+  "watchdog_boundary": "At deadline, the supervisor first attempts KILL CONNECTION only for this CLI owned connection on the same instance/account, then cancels and invalidates it. Query, insert/lock, metadata-lock RENAME, COMMIT/journal safety and expired pending actual-structure probes are scoped local evidence. Writers remain stopped and deployment locks held on timeout or unknown exchange; no blind RENAME retry or automatic old-image restoration.",
+  "first_pull_request_ci": {
+    "scope": "GitHub Actions only; disposable CI services; no production execution",
+    "pull_request": 149,
+    "pull_request_head_sha": "8996722b3d2de4b06f32c3e4593304edd344d287",
+    "checks": {
+      "run_id": 37746314115,
+      "url": "https://github.com/FangcunMount/qs-ai/actions/runs/37746314115",
+      "conclusion": "failure",
+      "verify_matrix_jobs": 8,
+      "complete_test_partitions_executed": 0
+    },
+    "m7": {
+      "run_id": 37746314075,
+      "url": "https://github.com/FangcunMount/qs-ai/actions/runs/37746314075",
+      "conclusion": "failure",
+      "mysql_versions": [
+        "8.0.36",
+        "8.4"
+      ],
+      "sealed_grpc_entry_executed": false,
+      "entry_review": "Workflow only lints the sealed rehearsal source; its actual executable acceptance steps are the two synthetic pytest groups. Both groups were skipped after initialization failed."
+    },
+    "findings": [
+      {
+        "kind": "migration_maintenance_privilege",
+        "original_error": "MySQL 1044: CREATE DATABASE ai_refactor_stage_<id> denied to the application schema-only qs_ai/m7 account",
+        "job_urls": [
+          "https://github.com/FangcunMount/qs-ai/actions/runs/37746314115/job/113208528302",
+          "https://github.com/FangcunMount/qs-ai/actions/runs/37746314075/job/113208527253"
+        ],
+        "correction": "Only the Alembic upgrade steps use existing disposable CI root maintenance DSNs. Alembic check, database_check, runtime and business tests retain their schema-only application account.",
+        "secondary_failures": "Missing XML/manifests and artifact upload failures followed skipped tests; not an independent completed acceptance result."
+      },
+      {
+        "kind": "legacy_retirement_version_binding",
+        "original_error": "Six tests failed at Stop('Legacy asset retirement requires recognized 0038 storage'); original MySQL 8.0 retirement run 81 passed/6 failed.",
+        "job_urls": [
+          "https://github.com/FangcunMount/qs-ai/actions/runs/37746314115/job/113208528276",
+          "https://github.com/FangcunMount/qs-ai/actions/runs/37746314115/job/113208528321"
+        ],
+        "correction": "Old fixture includes exact 0038 metadata. Source snapshot binds that exact known head, and a newly owned UUID scratch restore retains preserved version metadata. Unknown or merged source layouts remain refused."
+      },
+      {
+        "kind": "owned_online_migration_final_head_commit",
+        "original_error": "Built restricted image passed its no-network nonroot composition command; actual single-process smoke failed with RuntimeError('Unified process did not become ready'). Original CI did not include app container logs.",
+        "job_urls": [
+          "https://github.com/FangcunMount/qs-ai/actions/runs/37746314115/job/113208528014"
+        ],
+        "root_cause_evidence": "Owning agent's separate disposable reproduction identified final physical 44-table layout with uncommitted 0039 version marker, so exact-head startup safely refused it; the original CI readiness timeout alone does not establish that detailed cause.",
+        "correction": "The owned Alembic online path commits final head; caller-provided connections retain host-owned transaction boundaries. Image smoke diagnostic output is being improved and independently rerun."
+      }
+    ],
+    "post_fix_ci": "pending; do not infer successful CI from local regression or workflow changes"
+  },
+  "first_ci_fix_local_validation": {
+    "migration_step_privilege_scope": "YAML parse and explicit step-scope validation passed: four Alembic upgrade steps across three workflows use disposable test root; job-level app DSNs and check/runtime/test steps remain unchanged. Actual post-fix GitHub execution remains pending.",
+    "owned_online_final_head_case_ids": [
+      "tests.integration.test_schema_refactor_conversion::test_owned_migration_cli_commits_final_head_and_preserves_populated_source"
+    ],
+    "retirement_reports": {
+      "80": {
+        "artifact": "retirement-fixed80.xml",
+        "sha256": "03f800fe2efe71e5fc23922f5bca692d9b28be82091111528e584343d8a26853",
+        "tests": 99,
+        "passed": 99,
+        "failed": 0,
+        "errors": 0,
+        "skipped": 0,
+        "seconds": 35.529,
+        "failed_tests": [],
+        "skipped_tests": [],
+        "case_count_rule": "Existing CI retirement command exercises 93 identities. This local report also includes six existing layout-boundary units; independent subsystem coverage, never added to the 93 schema migration identities.",
+        "passed_case_ids": [
+          "scripts.retirement.test_live::test_active_mongo_profiler_blocks_inventory_before_business_scan",
+          "scripts.retirement.test_live::test_backup_restore_and_targeted_deletion_preserve_shared_data[False]",
+          "scripts.retirement.test_live::test_backup_restore_and_targeted_deletion_preserve_shared_data[True]",
+          "scripts.retirement.test_live::test_failed_partial_restore_removes_only_its_scratch_database[0]",
+          "scripts.retirement.test_live::test_failed_partial_restore_removes_only_its_scratch_database[1]",
+          "scripts.retirement.test_live::test_incoming_cross_database_reference_prevents_deletion",
+          "scripts.retirement.test_live::test_live_drift_blocks_every_database_before_first_drop",
+          "scripts.retirement.test_live::test_merged_asset_storage_blocks_plan_even_with_a_legacy_head",
+          "scripts.retirement.test_live::test_new_prompt_reference_blocks_apply_without_deleting_any_asset",
+          "scripts.retirement.test_live::test_prompt_backup_restore_deletes_only_unreferenced_exact_versions[False]",
+          "scripts.retirement.test_live::test_prompt_backup_restore_deletes_only_unreferenced_exact_versions[True]",
+          "scripts.retirement.test_live::test_prompt_cross_database_foreign_key_preserves_all_candidates",
+          "scripts.retirement.test_live::test_qs_protected_inventory_streams_large_rows_and_detects_same_count_change",
+          "scripts.retirement.test_live::test_restore_requires_exact_source_head_binding_before_creating_scratch[0040_module_table_names]",
+          "scripts.retirement.test_live::test_restore_requires_exact_source_head_binding_before_creating_scratch[None]",
+          "scripts.retirement.test_live::test_unknown_source_head_blocks_plan_before_deleting_any_data[0040_module_table_names]",
+          "scripts.retirement.test_live::test_unknown_source_head_blocks_plan_before_deleting_any_data[None]",
+          "tests.test_retirement::test_backup_inside_worktree_refused",
+          "tests.test_retirement::test_content_or_reference_drift_aborts_before_mutation[apply]",
+          "tests.test_retirement::test_content_or_reference_drift_aborts_before_mutation[backup]",
+          "tests.test_retirement::test_damaged_or_unapproved_plan_cannot_apply[archive]",
+          "tests.test_retirement::test_damaged_or_unapproved_plan_cannot_apply[evidence]",
+          "tests.test_retirement::test_damaged_or_unapproved_plan_cannot_apply[expired]",
+          "tests.test_retirement::test_damaged_or_unapproved_plan_cannot_apply[sha]",
+          "tests.test_retirement::test_damaged_or_unapproved_plan_cannot_apply[target]",
+          "tests.test_retirement::test_expired_retention_does_not_prevent_recovery",
+          "tests.test_retirement::test_failed_restore_does_not_issue_receipt",
+          "tests.test_retirement::test_fixed_whitelist_and_payload_ownership",
+          "tests.test_retirement::test_persisted_domain_event_envelope_is_selected[interpretation.ai_explanation.failed]",
+          "tests.test_retirement::test_persisted_domain_event_envelope_is_selected[interpretation.ai_explanation.generated]",
+          "tests.test_retirement::test_persisted_domain_event_envelope_is_selected[interpretation.ai_explanation.lease_recovery.requested]",
+          "tests.test_retirement::test_persisted_domain_event_envelope_is_selected[interpretation.ai_explanation.prompt_evaluation.step_requested]",
+          "tests.test_retirement::test_persisted_domain_event_envelope_is_selected[interpretation.ai_explanation.requested]",
+          "tests.test_retirement::test_persisted_domain_event_envelope_is_selected[interpretation.ai_explanation.retry.requested]",
+          "tests.test_retirement::test_private_backup_must_be_restored_before_apply",
+          "tests.test_retirement::test_shared_or_ambiguous_domain_events_are_preserved[envelope0]",
+          "tests.test_retirement::test_shared_or_ambiguous_domain_events_are_preserved[envelope1]",
+          "tests.test_retirement::test_shared_or_ambiguous_domain_events_are_preserved[envelope2]",
+          "tests.test_retirement::test_shared_or_ambiguous_domain_events_are_preserved[envelope3]",
+          "tests.test_retirement::test_shared_or_ambiguous_domain_events_are_preserved[envelope4]",
+          "tests.test_retirement::test_shared_or_ambiguous_domain_events_are_preserved[envelope5]",
+          "tests.test_retirement::test_shared_or_ambiguous_domain_events_are_preserved[envelope6]",
+          "tests.test_retirement::test_shared_or_ambiguous_domain_events_are_preserved[envelope7]",
+          "tests.test_retirement_layout_boundary::test_merged_asset_storage_is_rejected_before_rows_or_deletions",
+          "tests.test_retirement_layout_boundary::test_missing_alembic_head_cannot_be_inferred_as_legacy_storage",
+          "tests.test_retirement_layout_boundary::test_unknown_or_new_head_never_uses_legacy_physical_asset_cleanup[heads0]",
+          "tests.test_retirement_layout_boundary::test_unknown_or_new_head_never_uses_legacy_physical_asset_cleanup[heads1]",
+          "tests.test_retirement_layout_boundary::test_unknown_or_new_head_never_uses_legacy_physical_asset_cleanup[heads2]",
+          "tests.test_retirement_layout_boundary::test_unknown_or_new_head_never_uses_legacy_physical_asset_cleanup[heads3]",
+          "tests.test_retirement_prompt_policy::test_current_version_does_not_keep_unreferenced_history",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[fingerprint-configuration_publications]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[fingerprint-evaluation_runs]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[fingerprint-evaluation_suites]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[fingerprint-execution_configurations]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[fingerprint-interpretation_sessions]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[fingerprint-profile_assets]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[fingerprint-unknown_evidence]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[identity-configuration_publications]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[identity-evaluation_runs]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[identity-evaluation_suites]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[identity-execution_configurations]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[identity-interpretation_sessions]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[identity-profile_assets]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[identity-unknown_evidence]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[nested_json-configuration_publications]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[nested_json-evaluation_runs]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[nested_json-evaluation_suites]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[nested_json-execution_configurations]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[nested_json-interpretation_sessions]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[nested_json-profile_assets]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[nested_json-unknown_evidence]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[package-configuration_publications]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[package-evaluation_runs]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[package-evaluation_suites]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[package-execution_configurations]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[package-interpretation_sessions]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[package-profile_assets]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[package-unknown_evidence]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[unversioned-configuration_publications]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[unversioned-evaluation_runs]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[unversioned-evaluation_suites]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[unversioned-execution_configurations]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[unversioned-interpretation_sessions]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[unversioned-profile_assets]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[unversioned-unknown_evidence]",
+          "tests.test_retirement_prompt_policy::test_exact_v6_reference_does_not_hide_other_old_or_unknown_references",
+          "tests.test_retirement_prompt_policy::test_explicit_old_profile_reference_is_retained",
+          "tests.test_retirement_prompt_policy::test_incomplete_asset_identity_is_retained",
+          "tests.test_retirement_prompt_policy::test_known_published_suite_identifier_is_not_a_prompt_reference[id]",
+          "tests.test_retirement_prompt_policy::test_known_published_suite_identifier_is_not_a_prompt_reference[identity]",
+          "tests.test_retirement_prompt_policy::test_known_published_suite_identifier_is_not_a_prompt_reference[suite_id]",
+          "tests.test_retirement_prompt_policy::test_only_exact_five_versions_are_candidates",
+          "tests.test_retirement_prompt_policy::test_real_v6_profile_does_not_retain_v1_to_v5",
+          "tests.test_retirement_prompt_policy::test_unknown_suite_names_or_unstructured_mentions_still_retain",
+          "tests.test_retirement_prompt_policy::test_unknown_version_cannot_prove_unreferenced[6]",
+          "tests.test_retirement_prompt_policy::test_unknown_version_cannot_prove_unreferenced[None]",
+          "tests.test_retirement_prompt_policy::test_unknown_version_cannot_prove_unreferenced[]",
+          "tests.test_retirement_prompt_policy::test_unknown_version_cannot_prove_unreferenced[version3]",
+          "tests.test_retirement_prompt_policy::test_unrelated_version_does_not_qualify_prompt_reference"
+        ]
+      },
+      "84": {
+        "artifact": "retirement-fixed84.xml",
+        "sha256": "b3fd7f85633e306db064117827f7d19232696bc48ffbcf239030fbaa76da98f4",
+        "tests": 99,
+        "passed": 99,
+        "failed": 0,
+        "errors": 0,
+        "skipped": 0,
+        "seconds": 16.141,
+        "failed_tests": [],
+        "skipped_tests": [],
+        "case_count_rule": "Existing CI retirement command exercises 93 identities. This local report also includes six existing layout-boundary units; independent subsystem coverage, never added to the 93 schema migration identities.",
+        "passed_case_ids": [
+          "scripts.retirement.test_live::test_active_mongo_profiler_blocks_inventory_before_business_scan",
+          "scripts.retirement.test_live::test_backup_restore_and_targeted_deletion_preserve_shared_data[False]",
+          "scripts.retirement.test_live::test_backup_restore_and_targeted_deletion_preserve_shared_data[True]",
+          "scripts.retirement.test_live::test_failed_partial_restore_removes_only_its_scratch_database[0]",
+          "scripts.retirement.test_live::test_failed_partial_restore_removes_only_its_scratch_database[1]",
+          "scripts.retirement.test_live::test_incoming_cross_database_reference_prevents_deletion",
+          "scripts.retirement.test_live::test_live_drift_blocks_every_database_before_first_drop",
+          "scripts.retirement.test_live::test_merged_asset_storage_blocks_plan_even_with_a_legacy_head",
+          "scripts.retirement.test_live::test_new_prompt_reference_blocks_apply_without_deleting_any_asset",
+          "scripts.retirement.test_live::test_prompt_backup_restore_deletes_only_unreferenced_exact_versions[False]",
+          "scripts.retirement.test_live::test_prompt_backup_restore_deletes_only_unreferenced_exact_versions[True]",
+          "scripts.retirement.test_live::test_prompt_cross_database_foreign_key_preserves_all_candidates",
+          "scripts.retirement.test_live::test_qs_protected_inventory_streams_large_rows_and_detects_same_count_change",
+          "scripts.retirement.test_live::test_restore_requires_exact_source_head_binding_before_creating_scratch[0040_module_table_names]",
+          "scripts.retirement.test_live::test_restore_requires_exact_source_head_binding_before_creating_scratch[None]",
+          "scripts.retirement.test_live::test_unknown_source_head_blocks_plan_before_deleting_any_data[0040_module_table_names]",
+          "scripts.retirement.test_live::test_unknown_source_head_blocks_plan_before_deleting_any_data[None]",
+          "tests.test_retirement::test_backup_inside_worktree_refused",
+          "tests.test_retirement::test_content_or_reference_drift_aborts_before_mutation[apply]",
+          "tests.test_retirement::test_content_or_reference_drift_aborts_before_mutation[backup]",
+          "tests.test_retirement::test_damaged_or_unapproved_plan_cannot_apply[archive]",
+          "tests.test_retirement::test_damaged_or_unapproved_plan_cannot_apply[evidence]",
+          "tests.test_retirement::test_damaged_or_unapproved_plan_cannot_apply[expired]",
+          "tests.test_retirement::test_damaged_or_unapproved_plan_cannot_apply[sha]",
+          "tests.test_retirement::test_damaged_or_unapproved_plan_cannot_apply[target]",
+          "tests.test_retirement::test_expired_retention_does_not_prevent_recovery",
+          "tests.test_retirement::test_failed_restore_does_not_issue_receipt",
+          "tests.test_retirement::test_fixed_whitelist_and_payload_ownership",
+          "tests.test_retirement::test_persisted_domain_event_envelope_is_selected[interpretation.ai_explanation.failed]",
+          "tests.test_retirement::test_persisted_domain_event_envelope_is_selected[interpretation.ai_explanation.generated]",
+          "tests.test_retirement::test_persisted_domain_event_envelope_is_selected[interpretation.ai_explanation.lease_recovery.requested]",
+          "tests.test_retirement::test_persisted_domain_event_envelope_is_selected[interpretation.ai_explanation.prompt_evaluation.step_requested]",
+          "tests.test_retirement::test_persisted_domain_event_envelope_is_selected[interpretation.ai_explanation.requested]",
+          "tests.test_retirement::test_persisted_domain_event_envelope_is_selected[interpretation.ai_explanation.retry.requested]",
+          "tests.test_retirement::test_private_backup_must_be_restored_before_apply",
+          "tests.test_retirement::test_shared_or_ambiguous_domain_events_are_preserved[envelope0]",
+          "tests.test_retirement::test_shared_or_ambiguous_domain_events_are_preserved[envelope1]",
+          "tests.test_retirement::test_shared_or_ambiguous_domain_events_are_preserved[envelope2]",
+          "tests.test_retirement::test_shared_or_ambiguous_domain_events_are_preserved[envelope3]",
+          "tests.test_retirement::test_shared_or_ambiguous_domain_events_are_preserved[envelope4]",
+          "tests.test_retirement::test_shared_or_ambiguous_domain_events_are_preserved[envelope5]",
+          "tests.test_retirement::test_shared_or_ambiguous_domain_events_are_preserved[envelope6]",
+          "tests.test_retirement::test_shared_or_ambiguous_domain_events_are_preserved[envelope7]",
+          "tests.test_retirement_layout_boundary::test_merged_asset_storage_is_rejected_before_rows_or_deletions",
+          "tests.test_retirement_layout_boundary::test_missing_alembic_head_cannot_be_inferred_as_legacy_storage",
+          "tests.test_retirement_layout_boundary::test_unknown_or_new_head_never_uses_legacy_physical_asset_cleanup[heads0]",
+          "tests.test_retirement_layout_boundary::test_unknown_or_new_head_never_uses_legacy_physical_asset_cleanup[heads1]",
+          "tests.test_retirement_layout_boundary::test_unknown_or_new_head_never_uses_legacy_physical_asset_cleanup[heads2]",
+          "tests.test_retirement_layout_boundary::test_unknown_or_new_head_never_uses_legacy_physical_asset_cleanup[heads3]",
+          "tests.test_retirement_prompt_policy::test_current_version_does_not_keep_unreferenced_history",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[fingerprint-configuration_publications]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[fingerprint-evaluation_runs]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[fingerprint-evaluation_suites]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[fingerprint-execution_configurations]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[fingerprint-interpretation_sessions]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[fingerprint-profile_assets]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[fingerprint-unknown_evidence]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[identity-configuration_publications]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[identity-evaluation_runs]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[identity-evaluation_suites]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[identity-execution_configurations]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[identity-interpretation_sessions]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[identity-profile_assets]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[identity-unknown_evidence]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[nested_json-configuration_publications]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[nested_json-evaluation_runs]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[nested_json-evaluation_suites]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[nested_json-execution_configurations]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[nested_json-interpretation_sessions]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[nested_json-profile_assets]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[nested_json-unknown_evidence]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[package-configuration_publications]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[package-evaluation_runs]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[package-evaluation_suites]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[package-execution_configurations]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[package-interpretation_sessions]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[package-profile_assets]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[package-unknown_evidence]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[unversioned-configuration_publications]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[unversioned-evaluation_runs]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[unversioned-evaluation_suites]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[unversioned-execution_configurations]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[unversioned-interpretation_sessions]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[unversioned-profile_assets]",
+          "tests.test_retirement_prompt_policy::test_every_reference_preserves_candidate[unversioned-unknown_evidence]",
+          "tests.test_retirement_prompt_policy::test_exact_v6_reference_does_not_hide_other_old_or_unknown_references",
+          "tests.test_retirement_prompt_policy::test_explicit_old_profile_reference_is_retained",
+          "tests.test_retirement_prompt_policy::test_incomplete_asset_identity_is_retained",
+          "tests.test_retirement_prompt_policy::test_known_published_suite_identifier_is_not_a_prompt_reference[id]",
+          "tests.test_retirement_prompt_policy::test_known_published_suite_identifier_is_not_a_prompt_reference[identity]",
+          "tests.test_retirement_prompt_policy::test_known_published_suite_identifier_is_not_a_prompt_reference[suite_id]",
+          "tests.test_retirement_prompt_policy::test_only_exact_five_versions_are_candidates",
+          "tests.test_retirement_prompt_policy::test_real_v6_profile_does_not_retain_v1_to_v5",
+          "tests.test_retirement_prompt_policy::test_unknown_suite_names_or_unstructured_mentions_still_retain",
+          "tests.test_retirement_prompt_policy::test_unknown_version_cannot_prove_unreferenced[6]",
+          "tests.test_retirement_prompt_policy::test_unknown_version_cannot_prove_unreferenced[None]",
+          "tests.test_retirement_prompt_policy::test_unknown_version_cannot_prove_unreferenced[]",
+          "tests.test_retirement_prompt_policy::test_unknown_version_cannot_prove_unreferenced[version3]",
+          "tests.test_retirement_prompt_policy::test_unrelated_version_does_not_qualify_prompt_reference"
+        ]
+      }
+    }
+  },
+  "local_image_smoke": {
+    "artifact": "image-smoke-evidence.json",
+    "sha256": "785a4651f94f8fcef0a33bfe74b5454ca22efd5d8eefa8da66cafe7387813c7a",
+    "evidence": {
+      "scope": "local disposable synthetic Docker image smoke; no production or old production image",
+      "image_id": "sha256:83336f477a6c225f7a5c1b10848c1c19444351b5e2544728da57a057df3e1d85",
+      "image_tag": "qs-ai:refactor-ci",
+      "release_label": "refactor-ci-worktree",
+      "default_command": [
+        "/app/.venv/bin/python",
+        "-m",
+        "qs_ai.bootstrap.server"
+      ],
+      "nonroot_user": "app",
+      "before": {
+        "actual_heads": [
+          "0039_data_consolidation"
+        ],
+        "image_heads": [
+          "0040_module_table_names"
+        ],
+        "error": "Database migration version does not match the image"
+      },
+      "after": {
+        "single_process": true,
+        "mtls": "passed",
+        "database": "MySQL 8.4",
+        "broker": "NSQ 1.3.0",
+        "messaging": "required MQ topology and lifecycle",
+        "model_calls_created": 0,
+        "graceful_exit": 0,
+        "stop_seconds": 0.642
+      },
+      "cleanup": {
+        "remaining_smoke_containers": [],
+        "remaining_smoke_networks": []
+      },
+      "artifacts_sha256": {
+        ".interop/image-smoke-before.log": "e81d58d9ae5af6d493748f4396e3efb5dba50e7c4d25dc0263bde9625f76757b",
+        ".interop/image-smoke-trace.log": "151be2819e77aae06657629388839f8d3641bd50125fc1a590c646b2c93fb63f",
+        ".interop/image-head-before.log": "77600a898f457c8dd1f59010ee03c30e2b4d7589fc9ff966973e36a467d55f21",
+        ".interop/image-build-fixed.log": "a3c7b885416af4b3fb064ebdd7426de20e8611b6c1ffd21c978a87041a0ba4c1",
+        ".interop/image-smoke-fixed.log": "35bd9b9e59719bce3c7220cd6db7cf0f3d5cdbf140926651a2b6164771354535",
+        "scripts/ci/smoke_single_process.py": "0679d5ebbc838fcdb6087b55283933d3af1ec27960f1da90442b911704d70751",
+        "migrations/env.py": "59209b7c1bbf2169717edcc73b3b8ba653705ed206a467cecd0fec005f01c7fc",
+        "Dockerfile": "a228b397109b1627bee2c2cb66b3d33d3a2c7d4238a726c5b7e1a61503accf8a"
+      }
+    },
+    "count_rule": "Separate disposable Docker/runtime evidence; not included in pytest case counts and not production or old-production-image proof."
+  }
 }
