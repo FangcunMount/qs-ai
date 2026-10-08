@@ -5,7 +5,7 @@ import json
 from dataclasses import asdict
 from uuid import UUID
 
-from sqlalchemy import insert, select, update
+from sqlalchemy import select, update
 from sqlalchemy.engine import RowMapping
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,6 +17,12 @@ from qs_ai.domain.evaluation.checkpoint import ExecutionCheckpoint
 from qs_ai.domain.evaluation.identity import EvidenceReleaseIdentity, FrozenContractRef
 from qs_ai.domain.evaluation.preflight import AssertionReceipt
 from qs_ai.domain.evaluation.semantic_completion import SemanticCompletion
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    generation_completions as evaluation_generation_completions,
+)
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    semantic_completions as table,
+)
 from qs_ai.infrastructure.persistence.mysql.evaluation_assets import stored_run_suite
 from qs_ai.infrastructure.persistence.mysql.evaluation_candidate_completion import (
     complete_claim,
@@ -33,11 +39,7 @@ from qs_ai.infrastructure.persistence.mysql.evaluation_slot_claims import SlotCl
 from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_checkpoints,
     evaluation_dispatches,
-    evaluation_generation_completions,
     evaluation_runs,
-)
-from qs_ai.infrastructure.persistence.mysql.schema import (
-    evaluation_semantic_completions as table,
 )
 from qs_ai.infrastructure.qs_server.evaluation_assertions import (
     assertion_inventory,
@@ -107,13 +109,15 @@ async def complete_semantic(
         ):
             raise CheckpointConflict("Run version changed outside cancellation")
         expected_version = checkpoint["version"]
+    # Use the conditional unique key for the original single-candidate lock boundary.
     row = (
         (
             await db.execute(
-                select(evaluation_generation_completions)
+                evaluation_generation_completions.select()
                 .where(
                     evaluation_generation_completions.c.run_id == str(run_id),
-                    evaluation_generation_completions.c.candidate_id == completion.candidate_id,
+                    evaluation_generation_completions.c.gen_candidate_key
+                    == completion.candidate_id,
                 )
                 .with_for_update()
             )
@@ -159,9 +163,10 @@ async def complete_semantic(
     previous = (
         (
             await db.execute(
-                select(table)
+                table.select()
                 .where(
-                    table.c.run_id == str(run_id), table.c.candidate_id == completion.candidate_id
+                    table.c.run_id == str(run_id),
+                    table.c.sem_candidate_key == completion.candidate_id,
                 )
                 .order_by(table.c.execution_ordinal)
                 .with_for_update()
@@ -230,7 +235,7 @@ async def complete_semantic(
         evidence[key] = evidence[key].isoformat()
     evidence["output_fingerprint"] = completion.output_fingerprint
     await db.execute(
-        insert(table).values(
+        table.insert().values(
             run_id=str(run_id),
             execution_id=completion.execution_id,
             invocation_id=completion.invocation_id,
@@ -244,7 +249,7 @@ async def complete_semantic(
     )
     if result is not None:
         await db.execute(
-            update(evaluation_generation_completions)
+            evaluation_generation_completions.update()
             .where(
                 evaluation_generation_completions.c.run_id == str(run_id),
                 evaluation_generation_completions.c.execution_id == generated.execution_id,
@@ -286,7 +291,7 @@ async def complete_semantic(
         generations = (
             (
                 await db.execute(
-                    select(evaluation_generation_completions)
+                    evaluation_generation_completions.select()
                     .where(evaluation_generation_completions.c.run_id == str(run_id))
                     .with_for_update()
                 )
@@ -295,7 +300,11 @@ async def complete_semantic(
             .all()
         )
         semantics = (
-            (await db.execute(select(table).where(table.c.run_id == str(run_id)).with_for_update()))
+            (
+                await db.execute(
+                    table.select().where(table.c.run_id == str(run_id)).with_for_update()
+                )
+            )
             .mappings()
             .all()
         )

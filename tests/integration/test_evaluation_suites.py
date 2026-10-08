@@ -7,7 +7,7 @@ from datetime import timedelta
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import delete, select, update
+from sqlalchemy import select
 
 from qs_ai.application.governance.prompt_drafts import CreatePromptDraft, RevisePromptDraft
 from qs_ai.application.governance.prompt_freeze import FreezePromptDraft
@@ -15,24 +15,24 @@ from qs_ai.application.governance.suite_registration import RegisterSuite
 from qs_ai.application.interpretation.ports import NotFound
 from qs_ai.domain.evaluation.identity import FrozenContractRef
 from qs_ai.domain.governance.profile import AssetConflict
+from qs_ai.infrastructure.persistence.mysql.asset_records import prompt_assets
+from qs_ai.infrastructure.persistence.mysql.draft_records import (
+    prompt_draft_revisions,
+    prompt_drafts,
+)
 from qs_ai.infrastructure.persistence.mysql.evaluation_runs import MySQLRunCreator, create_run
 from qs_ai.infrastructure.persistence.mysql.evaluation_suites import (
     MySQLSuiteRegistrar,
     apply_registration,
     load_registered_suite,
 )
+from qs_ai.infrastructure.persistence.mysql.governance_records import delete, update
 from qs_ai.infrastructure.persistence.mysql.profile_assets import MySQLProfileAssets
 from qs_ai.infrastructure.persistence.mysql.prompt_assets import MySQLPromptAssets
 from qs_ai.infrastructure.persistence.mysql.prompt_drafts import MySQLPromptDrafts
 from qs_ai.infrastructure.persistence.mysql.prompt_freezes import MySQLPromptFreezer
 from qs_ai.infrastructure.persistence.mysql.route_assets import MySQLRouteAssets
-from qs_ai.infrastructure.persistence.mysql.schema import (
-    evaluation_suites,
-    prompt_assets,
-    prompt_draft_freezes,
-    prompt_draft_revisions,
-    prompt_drafts,
-)
+from qs_ai.infrastructure.persistence.mysql.schema import evaluation_suites, prompt_draft_freezes
 from qs_ai.infrastructure.persistence.mysql.schema_assets import MySQLSchemaAssets
 from qs_ai.infrastructure.qs_server.evaluation_suite import V6_PUBLISHED, load_suite
 from tests.integration.test_evaluation_runs import rows
@@ -315,7 +315,8 @@ async def test_suite_damage_after_dispatch_keeps_unknown_execution_pending(
 async def test_valid_changed_eligibility_requires_new_case_contract(
     suite_registration, registration
 ):
-    from qs_ai.infrastructure.persistence.mysql.schema import profile_assets, profile_registrations
+    from qs_ai.infrastructure.persistence.mysql.asset_records import profile_assets
+    from qs_ai.infrastructure.persistence.mysql.schema import profile_registrations
 
     tx, store, scope, command, at, *_ = suite_registration
     _, profiles, _, original, _, _ = registration

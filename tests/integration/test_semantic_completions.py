@@ -3,14 +3,18 @@ from dataclasses import replace
 from datetime import timedelta
 
 import pytest
-from sqlalchemy import delete, select
 
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict
 from qs_ai.domain.evaluation.preflight import AssertionReceipt
 from qs_ai.domain.evaluation.semantic_completion import SemanticCompletion
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    generation_completions as evaluation_generation_completions,
+)
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    semantic_completions as table,
+)
 from qs_ai.infrastructure.persistence.mysql.evaluation_dispatches import reserve_dispatch
 from qs_ai.infrastructure.persistence.mysql.evaluation_semantic import complete_semantic
-from qs_ai.infrastructure.persistence.mysql.schema import evaluation_semantic_completions as table
 from tests.integration.test_evaluation_completions import accept, next_prepared, stored
 from tests.integration.test_evaluation_completions import dispatched as dispatched
 from tests.integration.test_evaluation_runs import rows
@@ -78,7 +82,7 @@ async def judge(dispatched):
         yield tx, run_id, completion, routes
     finally:
         async with tx.open() as db:
-            await db.execute(delete(table).where(table.c.run_id == str(run_id)))
+            await db.execute(table.delete().where(table.c.run_id == str(run_id)))
             await db.commit()
 
 
@@ -99,7 +103,7 @@ async def complete(db, judge, **changes):
 async def evidence(tx, run_id):
     async with tx.open() as db:
         return (
-            (await db.execute(select(table).where(table.c.run_id == str(run_id)))).mappings().all()
+            (await db.execute(table.select().where(table.c.run_id == str(run_id)))).mappings().all()
         )
 
 
@@ -365,7 +369,6 @@ async def test_semantic_retry_keeps_candidate_and_generation_count(judge):
 
 @pytest.mark.parametrize("damage", ["missing", "bytes", "decision"])
 async def test_saved_semantic_evidence_damage_blocks_next_candidate(judge, damage):
-    from sqlalchemy import update
 
     from qs_ai.infrastructure.persistence.mysql.evaluation_preparation import prepare_execution
 
@@ -373,18 +376,20 @@ async def test_saved_semantic_evidence_damage_blocks_next_candidate(judge, damag
     async with tx.open() as db:
         await complete(db, judge)
         if damage == "missing":
-            await db.execute(delete(table).where(table.c.run_id == str(run_id)))
+            await db.execute(table.delete().where(table.c.run_id == str(run_id)))
         elif damage == "bytes":
             await db.execute(
-                update(table).where(table.c.run_id == str(run_id)).values(normalized_output=b"{}")
+                table.update().where(table.c.run_id == str(run_id)).values(normalized_output=b"{}")
             )
         else:
             result = (
-                await db.execute(select(table.c.result_json).where(table.c.run_id == str(run_id)))
+                await db.execute(
+                    table.select(table.c.result_json).where(table.c.run_id == str(run_id))
+                )
             ).scalar_one()
             result["decisions"][0]["status"] = "passed"
             await db.execute(
-                update(table).where(table.c.run_id == str(run_id)).values(result_json=result)
+                table.update().where(table.c.run_id == str(run_id)).values(result_json=result)
             )
         await db.commit()
     async with tx.open() as db:
@@ -404,9 +409,6 @@ async def test_saved_semantic_evidence_damage_blocks_next_candidate(judge, damag
 
 
 async def test_independent_semantic_pass_cannot_erase_deterministic_failure(judge):
-    from sqlalchemy import update
-
-    from qs_ai.infrastructure.persistence.mysql.schema import evaluation_generation_completions
 
     tx, run_id, value, _ = judge
     candidate = (await stored(tx, run_id))[0]["candidate_json"]
@@ -420,7 +422,7 @@ async def test_independent_semantic_pass_cannot_erase_deterministic_failure(judg
     value = replace(value, normalized_output=json.dumps(output).encode())
     async with tx.open() as db:
         await db.execute(
-            update(evaluation_generation_completions)
+            evaluation_generation_completions.update()
             .where(evaluation_generation_completions.c.run_id == str(run_id))
             .values(candidate_json=candidate)
         )

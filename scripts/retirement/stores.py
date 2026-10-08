@@ -237,6 +237,22 @@ class MySQLStore:
                 (self.database,),
             )
             names = [row["TABLE_NAME"] for row in cursor.fetchall()]
+            if self.name == "ai_mysql":
+                # This operator-only historical tool keeps its reviewed legacy
+                # whitelist. A merged asset table must never be inferred empty
+                # or become a new whole-table deletion target.
+                if "governance_asset_versions" in names:
+                    raise Stop(
+                        "Legacy asset retirement does not support merged storage; "
+                        "use schema_refactor cleanup only for recorded expired archives; "
+                        "typed asset retirement requires separate review"
+                    )
+                if "alembic_version" not in names:
+                    raise Stop("Legacy asset retirement requires recognized 0038 storage")
+                cursor.execute("SELECT version_num FROM alembic_version")
+                heads = [row["version_num"] for row in cursor.fetchall()]
+                if heads != ["0038_messaging_observations"]:
+                    raise Stop("Legacy asset retirement requires recognized 0038 storage")
             tables = {}
             if self.name == "ai_mysql":
                 # Native asset reference auditing is confined to the small AI store.

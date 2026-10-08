@@ -202,7 +202,7 @@ async def test_native_handoff_process_kill_preserves_atomic_ownership(legacy, tm
                 async with ddl_engine.begin() as ddl:
                     await ddl.execute(
                         text(
-                            "CREATE TRIGGER mq_tool_kill BEFORE UPDATE ON result_outbox "
+                            f"CREATE TRIGGER mq_tool_kill BEFORE UPDATE ON {result_outbox.name} "
                             "FOR EACH ROW "
                             "BEGIN IF NEW.mq_owned=TRUE AND OLD.mq_owned=FALSE THEN "
                             f"SET @mq_tool_marker=GET_LOCK('{marker}',0); "

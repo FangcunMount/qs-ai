@@ -213,7 +213,7 @@ class PayloadProbe(Probe):
         return await self.sql(
             self.ai,
             "SELECT message_id,stage,wire,body,wire_sha256,body_sha256 "
-            "FROM ai_messaging_outbox WHERE message_id=:id",
+            "FROM messaging_outbox WHERE message_id=:id",
             id=self.event_id,
         )
 
@@ -266,7 +266,7 @@ class PayloadProbe(Probe):
         )
         old = await self.sql(
             self.ai,
-            "SELECT delivered,mq_owned FROM result_outbox WHERE event_id=:id",
+            "SELECT delivered,mq_owned FROM interpretation_result_outbox WHERE event_id=:id",
             id=self.event_id,
         )
         return bool(
@@ -376,7 +376,8 @@ class PayloadProbe(Probe):
             old = (
                 await self.sql(
                     self.ai,
-                    "SELECT payload,created_at FROM result_outbox WHERE event_id=:id",
+                    "SELECT payload,created_at FROM interpretation_result_outbox "
+                    "WHERE event_id=:id",
                     id=self.event_id,
                 )
             )[0]

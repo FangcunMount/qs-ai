@@ -11,11 +11,19 @@ from pathlib import Path
 
 import grpc
 import pytest
-from sqlalchemy import delete
 
 from qs_ai.bootstrap.container import create_container
 from qs_ai.config import Settings
 from qs_ai.contracts.workflow import workflow_pb2_grpc as rpc
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    delete_records,
+)
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    generation_completions as evaluation_generation_completions,
+)
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    semantic_completions as evaluation_semantic_completions,
+)
 from qs_ai.infrastructure.persistence.mysql.evaluation_dispatches import reserve_dispatch
 from qs_ai.infrastructure.persistence.mysql.evaluation_preparation import prepare_execution
 from qs_ai.infrastructure.persistence.mysql.evaluation_progress import (
@@ -24,10 +32,6 @@ from qs_ai.infrastructure.persistence.mysql.evaluation_progress import (
 )
 from qs_ai.infrastructure.persistence.mysql.evaluation_recovery import recover_expired
 from qs_ai.infrastructure.persistence.mysql.evaluation_runs import create_run
-from qs_ai.infrastructure.persistence.mysql.schema import (
-    evaluation_generation_completions,
-    evaluation_semantic_completions,
-)
 from qs_ai.infrastructure.qs_server.semantic_assets import load_semantic_assets
 from qs_ai.transport.grpc.evaluation import EvaluationManagement
 from tests.integration.test_delivery import certificates
@@ -125,7 +129,7 @@ async def realtime_run(setup_run, decision):
     finally:
         async with tx.open() as db:
             for table in (evaluation_semantic_completions, evaluation_generation_completions):
-                await db.execute(delete(table).where(table.c.run_id == str(run_id)))
+                await db.execute(delete_records(table).where(table.c.run_id == str(run_id)))
             await db.commit()
 
 

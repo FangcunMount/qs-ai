@@ -6,14 +6,15 @@ from dataclasses import replace
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import delete, select
+from sqlalchemy import select
 
 from qs_ai.bootstrap.import_prompts import baseline_assets
 from qs_ai.domain.governance.profile import AssetConflict
 from qs_ai.domain.governance.prompt import PromptAsset
+from qs_ai.infrastructure.persistence.mysql.asset_records import prompt_assets
 from qs_ai.infrastructure.persistence.mysql.database import Database, Transactions
+from qs_ai.infrastructure.persistence.mysql.governance_records import delete
 from qs_ai.infrastructure.persistence.mysql.prompt_assets import MySQLPromptAssets
-from qs_ai.infrastructure.persistence.mysql.schema import prompt_assets
 
 pytestmark = pytest.mark.integration
 

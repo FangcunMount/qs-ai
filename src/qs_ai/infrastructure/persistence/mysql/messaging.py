@@ -43,7 +43,7 @@ TEXT_ID = sa.String(128, collation="utf8mb4_bin")
 HASH = mysql.CHAR(64, charset="ascii", collation="ascii_bin")
 UTC = mysql.DATETIME(fsp=6)
 outbox = sa.Table(
-    "ai_messaging_outbox",
+    "messaging_outbox",
     metadata,
     sa.Column("producer", sa.String(64, collation="ascii_bin"), primary_key=True),
     sa.Column("destination", sa.String(64, collation="ascii_bin"), primary_key=True),
@@ -68,9 +68,11 @@ outbox = sa.Table(
     sa.Column(
         "error_code", sa.String(128, collation="ascii_bin"), nullable=False, server_default=""
     ),
-    sa.Index("ix_ai_messaging_pending", "stage", "available_at", "message_id"),
     sa.Index(
-        "ix_ai_messaging_order",
+        "idx_messaging_outbox_stage_available_at_message_id", "stage", "available_at", "message_id"
+    ),
+    sa.Index(
+        "idx_messaging_outbox_producer_destination_aggregate_key_ca00d30f",
         "producer",
         "destination",
         "aggregate_key",
@@ -82,7 +84,7 @@ outbox = sa.Table(
     mysql_charset="utf8mb4",
 )
 inbox = sa.Table(
-    "ai_messaging_inbox",
+    "messaging_inbox",
     metadata,
     sa.Column("producer", sa.String(64, collation="ascii_bin"), primary_key=True),
     sa.Column("message_id", TEXT_ID, primary_key=True),
@@ -100,7 +102,7 @@ inbox = sa.Table(
     mysql_charset="utf8mb4",
 )
 quarantine = sa.Table(
-    "ai_messaging_quarantine",
+    "messaging_quarantine",
     metadata,
     sa.Column("wire_sha256", HASH, primary_key=True),
     sa.Column("wire", mysql.MEDIUMBLOB, nullable=False),
@@ -113,7 +115,9 @@ quarantine = sa.Table(
     sa.Column("first_seen_at", UTC, nullable=False),
     sa.Column("last_seen_at", UTC, nullable=False),
     sa.UniqueConstraint(
-        "logical_producer", "logical_message_id", name="uq_ai_messaging_failure_identity"
+        "logical_producer",
+        "logical_message_id",
+        name="uk_messaging_quarantine_logical_producer_logical_message_id",
     ),
     mysql_engine="InnoDB",
     mysql_charset="utf8mb4",
@@ -121,8 +125,11 @@ quarantine = sa.Table(
 
 
 class MessagingStore:
-    def __init__(self) -> None:
-        self.outbox = MySQLDurableOutbox(outbox)
+    def __init__(self, *, outbox_table: sa.Table = outbox) -> None:
+        # A reviewed one-shot handoff may stage into frozen 0038 storage. Runtime
+        # always uses the default; this does not install schema or own resources.
+        self.outbox_table = outbox_table
+        self.outbox = MySQLDurableOutbox(outbox_table)
 
     async def stage(
         self,
@@ -133,6 +140,7 @@ class MessagingStore:
         sequence: int,
         ordered: bool = False,
     ) -> Any:
+        outbox = self.outbox_table
         envelope = message.envelope
         parse_body(envelope, message.body)
         if not valid_number(organization_id) or not 0 < sequence < 2**64:

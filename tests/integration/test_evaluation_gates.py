@@ -19,7 +19,6 @@ from qs_ai.infrastructure.persistence.mysql.evaluation_gates import preview_gate
 from qs_ai.infrastructure.persistence.mysql.evaluation_management import MySQLEvaluationManagement
 from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_dispatches,
-    evaluation_run_policies,
     evaluation_runs,
 )
 from qs_ai.transport.grpc.evaluation import EvaluationManagement
@@ -134,9 +133,9 @@ async def test_corrupt_frozen_or_closed_evidence_cannot_produce_a_gate_preview(r
         )
         if case == "policy":
             await db.execute(
-                update(evaluation_run_policies)
-                .where(evaluation_run_policies.c.run_id == str(scope.run_id))
-                .values(fingerprint="sha256:" + "0" * 64)
+                update(evaluation_runs)
+                .where(evaluation_runs.c.run_id == str(scope.run_id))
+                .values(frozen_execution_policy_fingerprint="sha256:" + "0" * 64)
             )
         if case == "dispatch":
             await db.execute(

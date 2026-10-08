@@ -6,21 +6,22 @@ from dataclasses import replace
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import delete, select, update
+from sqlalchemy import select
 
 from qs_ai.application.governance.prompt_drafts import CreatePromptDraft, RevisePromptDraft
 from qs_ai.application.governance.prompt_freeze import FreezePromptDraft
 from qs_ai.application.interpretation.ports import NotFound
 from qs_ai.application.interpretation.prompts import InvalidPrompt
 from qs_ai.domain.governance.prompt_draft import DraftConflict
-from qs_ai.infrastructure.persistence.mysql.prompt_assets import MySQLPromptAssets
-from qs_ai.infrastructure.persistence.mysql.prompt_freezes import MySQLPromptFreezer, apply_freeze
-from qs_ai.infrastructure.persistence.mysql.schema import (
-    prompt_assets,
-    prompt_draft_freezes,
+from qs_ai.infrastructure.persistence.mysql.asset_records import prompt_assets
+from qs_ai.infrastructure.persistence.mysql.draft_records import (
     prompt_draft_revisions,
     prompt_drafts,
 )
+from qs_ai.infrastructure.persistence.mysql.governance_records import delete, update
+from qs_ai.infrastructure.persistence.mysql.prompt_assets import MySQLPromptAssets
+from qs_ai.infrastructure.persistence.mysql.prompt_freezes import MySQLPromptFreezer, apply_freeze
+from qs_ai.infrastructure.persistence.mysql.schema import prompt_draft_freezes
 from tests.integration.test_prompt_drafts import kit as kit
 
 pytestmark = pytest.mark.integration

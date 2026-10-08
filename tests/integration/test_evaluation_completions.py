@@ -2,11 +2,13 @@ from dataclasses import replace
 from datetime import timedelta
 
 import pytest
-from sqlalchemy import delete, select
 
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict
 from qs_ai.domain.evaluation.failure import ClassifiedFailure
 from qs_ai.domain.evaluation.preflight import AssertionReceipt
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    generation_completions as table,
+)
 from qs_ai.infrastructure.persistence.mysql.evaluation_completions import complete_generation
 from qs_ai.infrastructure.persistence.mysql.evaluation_dispatches import reserve_dispatch
 from qs_ai.infrastructure.persistence.mysql.evaluation_preparation import prepare_execution
@@ -14,7 +16,6 @@ from qs_ai.infrastructure.persistence.mysql.evaluation_progress import (
     execute_preflight,
     transition_requested,
 )
-from qs_ai.infrastructure.persistence.mysql.schema import evaluation_generation_completions as table
 from tests.integration.test_evaluation_runs import create, rows
 from tests.integration.test_evaluation_runs import setup_run as setup_run
 from tests.test_generation_completion_assets import assets
@@ -63,7 +64,7 @@ async def dispatched(setup_run):
         yield tx, run_id, value, routes, schemas
     finally:
         async with tx.open() as db:
-            await db.execute(delete(table).where(table.c.run_id == str(run_id)))
+            await db.execute(table.delete().where(table.c.run_id == str(run_id)))
             await db.commit()
 
 
@@ -91,7 +92,7 @@ async def accept(db, context, **changes):
 async def stored(tx, run_id):
     async with tx.open() as db:
         return (
-            (await db.execute(select(table).where(table.c.run_id == str(run_id)))).mappings().all()
+            (await db.execute(table.select().where(table.c.run_id == str(run_id)))).mappings().all()
         )
 
 
@@ -268,20 +269,19 @@ async def test_contract_failure_plans_second_generation_in_same_slot(dispatched)
 
 @pytest.mark.parametrize("damage", ["missing_completion", "changed_bytes", "missing_candidate"])
 async def test_projection_does_not_regenerate_when_evidence_is_incomplete(dispatched, damage):
-    from sqlalchemy import update
 
     tx, run_id, value, _, _ = dispatched
     async with tx.open() as db:
         await accept(db, dispatched)
         if damage == "missing_completion":
-            await db.execute(delete(table).where(table.c.run_id == str(run_id)))
+            await db.execute(table.delete().where(table.c.run_id == str(run_id)))
         else:
             changes = (
                 {"normalized_output": b"{}"}
                 if damage == "changed_bytes"
                 else {"candidate_json": None}
             )
-            await db.execute(update(table).where(table.c.run_id == str(run_id)).values(**changes))
+            await db.execute(table.update().where(table.c.run_id == str(run_id)).values(**changes))
         await db.commit()
     async with tx.open() as db:
         with pytest.raises((ValueError, CheckpointConflict)):

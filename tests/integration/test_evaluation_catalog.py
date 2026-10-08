@@ -6,16 +6,20 @@ from datetime import UTC, datetime, timedelta, timezone
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import delete, insert, select, update
+from sqlalchemy import delete, select, update
 
 from qs_ai.application.evaluation.catalog import EvaluationCatalogQuery
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    delete_records,
+)
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    generation_completions as evaluation_generation_completions,
+)
 from qs_ai.infrastructure.persistence.mysql.evaluation_catalog import MySQLEvaluationCatalog
 from qs_ai.infrastructure.persistence.mysql.evaluation_runs import create_run
 from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_checkpoints,
-    evaluation_generation_completions,
-    evaluation_run_policies,
     evaluation_runs,
 )
 from tests.integration.test_evaluation_runs import rows
@@ -43,10 +47,11 @@ async def catalog_runs(setup_run):
             for table in (
                 evaluation_generation_completions,
                 evaluation_checkpoints,
-                evaluation_run_policies,
                 evaluation_runs,
             ):
-                await db.execute(delete(table).where(table.c.run_id.in_([str(v) for v in ids])))
+                await db.execute(
+                    delete_records(table).where(table.c.run_id.in_([str(v) for v in ids]))
+                )
             await db.commit()
 
 
@@ -244,7 +249,7 @@ async def test_summary_counts_do_not_return_provider_output(catalog_runs):
     async with tx.open() as db:
         for ordinal in (1, 2):
             await db.execute(
-                insert(evaluation_generation_completions).values(
+                evaluation_generation_completions.insert().values(
                     run_id=str(ids[2]),
                     execution_id=f"execution:{ordinal}",
                     invocation_id=f"invocation:{ordinal}",

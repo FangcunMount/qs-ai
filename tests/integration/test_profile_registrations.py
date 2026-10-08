@@ -7,19 +7,21 @@ from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import delete, select, update
+from sqlalchemy import select
 
 from qs_ai.application.governance.profile_registration import RegisterProfile
 from qs_ai.application.governance.prompt_drafts import DraftScope
 from qs_ai.application.interpretation.ports import NotFound
 from qs_ai.domain.governance.profile import AssetConflict
+from qs_ai.infrastructure.persistence.mysql.asset_records import profile_assets
 from qs_ai.infrastructure.persistence.mysql.asset_snapshot import generation_snapshot
+from qs_ai.infrastructure.persistence.mysql.governance_records import delete, update
 from qs_ai.infrastructure.persistence.mysql.profile_registrations import (
     MySQLProfileRegistrar,
     apply_registration,
     reference,
 )
-from qs_ai.infrastructure.persistence.mysql.schema import profile_assets, profile_registrations
+from qs_ai.infrastructure.persistence.mysql.schema import profile_registrations
 from tests.integration.test_evaluation_creation_interop import persisted_assets as persisted_assets
 from tests.integration.test_evaluation_runs import setup_run as setup_run
 from tests.test_generation_manifest import assets as assets
@@ -189,14 +191,14 @@ async def test_tampered_registration_is_not_reported_as_confirmed(registration, 
 async def test_register_binds_a_new_native_prompt_without_publishing(registration):
     from qs_ai.application.governance.prompt_drafts import CreatePromptDraft
     from qs_ai.application.governance.prompt_freeze import FreezePromptDraft
-    from qs_ai.infrastructure.persistence.mysql.prompt_drafts import MySQLPromptDrafts
-    from qs_ai.infrastructure.persistence.mysql.prompt_freezes import MySQLPromptFreezer
-    from qs_ai.infrastructure.persistence.mysql.schema import (
-        prompt_assets,
-        prompt_draft_freezes,
+    from qs_ai.infrastructure.persistence.mysql.asset_records import prompt_assets
+    from qs_ai.infrastructure.persistence.mysql.draft_records import (
         prompt_draft_revisions,
         prompt_drafts,
     )
+    from qs_ai.infrastructure.persistence.mysql.prompt_drafts import MySQLPromptDrafts
+    from qs_ai.infrastructure.persistence.mysql.prompt_freezes import MySQLPromptFreezer
+    from qs_ai.infrastructure.persistence.mysql.schema import prompt_draft_freezes
 
     tx, store, scope, command, at, _ = registration
     draft_id = uuid4()

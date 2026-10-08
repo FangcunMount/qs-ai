@@ -23,7 +23,6 @@ from qs_ai.infrastructure.persistence.mysql.route_assets import MySQLRouteAssets
 from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_checkpoints,
     evaluation_dispatches,
-    evaluation_run_policies,
     evaluation_runs,
 )
 from qs_ai.infrastructure.persistence.mysql.schema_assets import MySQLSchemaAssets
@@ -59,7 +58,6 @@ async def execution_counts(tx):
                 for table in (
                     evaluation_runs,
                     evaluation_checkpoints,
-                    evaluation_run_policies,
                     evaluation_dispatches,
                 )
             ]

@@ -7,7 +7,6 @@ import re
 from dataclasses import asdict
 from typing import Any
 
-from sqlalchemy import Table, insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from qs_ai.bootstrap.import_evaluation_suites import install_baseline
@@ -17,16 +16,18 @@ from qs_ai.domain.governance.profile import AssetConflict, ProfileAsset
 from qs_ai.domain.governance.prompt import PromptAsset
 from qs_ai.domain.governance.route import RouteAsset
 from qs_ai.domain.governance.schema import SchemaAsset
-from qs_ai.infrastructure.persistence.mysql.asset_snapshot import AssetSnapshotReader
-from qs_ai.infrastructure.persistence.mysql.database import Database, Transactions
-from qs_ai.infrastructure.persistence.mysql.evaluation_asset_registry import read_policy
-from qs_ai.infrastructure.persistence.mysql.schema import (
+from qs_ai.infrastructure.persistence.mysql.asset_records import (
+    asset_select,
     profile_assets,
     prompt_assets,
     route_assets,
     schema_assets,
     semantic_prompt_assets,
 )
+from qs_ai.infrastructure.persistence.mysql.asset_snapshot import AssetSnapshotReader
+from qs_ai.infrastructure.persistence.mysql.database import Database, Transactions
+from qs_ai.infrastructure.persistence.mysql.evaluation_asset_registry import read_policy
+from qs_ai.infrastructure.persistence.mysql.governance_records import identity_columns, insert
 from qs_ai.infrastructure.qs_server.evaluation_release import validate_release_assets
 from qs_ai.infrastructure.qs_server.mbti_assets import (
     MBTIRootAssets,
@@ -38,11 +39,11 @@ from qs_ai.infrastructure.qs_server.semantic_assets import semantic_assets
 
 
 async def insert_exact(
-    db: AsyncSession, table: Table, values: dict[str, Any], source: str, imported_by: str
+    db: AsyncSession, table: Any, values: dict[str, Any], source: str, imported_by: str
 ) -> bool:
-    condition = [column == values[column.name] for column in table.primary_key.columns]
+    condition = [column == values[column.name] for column in identity_columns(table)]
     row = (
-        (await db.execute(select(table).where(*condition).with_for_update()))
+        (await db.execute(asset_select(table, *condition).with_for_update()))
         .mappings()
         .one_or_none()
     )

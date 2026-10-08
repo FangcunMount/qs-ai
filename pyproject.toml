@@ -30,6 +30,7 @@ dev = [
   "pytest-asyncio>=1,<2",
   "ruff>=0.12,<1",
   "mypy>=1.15,<2",
+  "pymysql>=1.1,<2",
   "grpcio-tools>=1.68,<2",
   "types-pyyaml>=6,<7",
   "types-grpcio>=1.83.0.20260730",

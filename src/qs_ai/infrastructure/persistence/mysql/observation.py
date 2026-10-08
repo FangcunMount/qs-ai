@@ -13,7 +13,7 @@ SELECTED = """WITH selected AS (
  SELECT s.id, s.status, s.created_at
  FROM interpretation_sessions s
  JOIN execution_configurations c ON c.session_id = s.id
- JOIN configuration_publications p ON p.publication_id = c.publication_id
+ JOIN publication_records p ON p.publication_id = c.publication_id
  WHERE s.workflow_version IN ('qs-published-snapshot-v1', 'qs-published-snapshot-v2')
  AND JSON_UNQUOTE(JSON_EXTRACT(p.content_json,
  '$.publication.evidence.manifest.profile.fingerprint')) = :profile
@@ -82,7 +82,7 @@ async def observe(
             JSON_EXTRACT(m.response_json, '$.input_tokens') AS input_tokens,
             JSON_EXTRACT(m.response_json, '$.output_tokens') AS output_tokens
             FROM selected s JOIN interpretation_runs r ON r.session_id=s.id
-            JOIN model_calls m ON m.run_id=r.id WHERE {COHORT}""")
+            JOIN execution_model_calls m ON m.run_id=r.id WHERE {COHORT}""")
         generation = await rows(f"""SELECT
             TIMESTAMPDIFF(MICROSECOND,s.created_at,a.created_at)/1000 AS ms
             FROM selected s JOIN interpretation_artifacts a ON a.session_id=s.id WHERE {COHORT}""")
@@ -90,7 +90,7 @@ async def observe(
             TIMESTAMPDIFF(MICROSECOND,e.created_at,e.delivered_at)/1000 AS delivery_ms,
             CASE WHEN e.created_at IS NOT NULL THEN
                 TIMESTAMPDIFF(MICROSECOND,s.created_at,e.delivered_at)/1000 END AS total_ms
-            FROM selected s JOIN result_outbox e ON e.session_id=s.id
+            FROM selected s JOIN interpretation_result_outbox e ON e.session_id=s.id
             WHERE {COHORT} AND JSON_UNQUOTE(JSON_EXTRACT(e.payload,'$.status'))='completed'""")
         # Backlog intentionally includes older sessions of this Profile, beyond the cohort.
         queue = await rows("""SELECT j.status, j.available_at <= :now AS due,
@@ -101,7 +101,8 @@ async def observe(
             WHERE j.status IN ('queued','leased')""")
         pending = await rows("""SELECT e.attempts,
             TIMESTAMPDIFF(MICROSECOND,e.created_at,:now)/1000 AS age_ms
-            FROM selected s JOIN result_outbox e ON e.session_id=s.id WHERE e.delivered=0""")
+            FROM selected s JOIN interpretation_result_outbox e ON e.session_id=s.id
+            WHERE e.delivered=0""")
         connections = await db.scalar(
             text("""SELECT COUNT(*) FROM information_schema.PROCESSLIST
             WHERE USER=SUBSTRING_INDEX(CURRENT_USER(),'@',1) AND DB=DATABASE()""")

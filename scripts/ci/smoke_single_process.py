@@ -272,7 +272,7 @@ for topic,channel in json.load(open('/tls/topology.json')).items():
                 "-Dqs_ai",
                 "-N",
                 "-B",
-                "-eSELECT (SELECT COUNT(*) FROM model_calls),"
+                "-eSELECT (SELECT COUNT(*) FROM execution_model_calls),"
                 "(SELECT COUNT(*) FROM evaluation_dispatches)",
             )
             assert counters.strip() == "0\t0", "Smoke must not create model execution records"

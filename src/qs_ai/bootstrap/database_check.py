@@ -11,6 +11,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from qs_ai.config import Settings
+from qs_ai.maintenance.schema_refactor.validation import require_schema
 
 
 async def check(require_head: bool) -> dict:
@@ -34,6 +35,8 @@ async def check(require_head: bool) -> dict:
                 scripts.get_revision(revision)
             if require_head and current != expected:
                 raise RuntimeError("Database migration version does not match the image")
+            if require_head:
+                await connection.run_sync(require_schema)
             return {"mysql_version": version, "current": current, "expected": expected}
     finally:
         await engine.dispose()

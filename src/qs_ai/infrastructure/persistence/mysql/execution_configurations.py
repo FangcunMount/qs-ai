@@ -7,7 +7,7 @@ from uuid import UUID
 
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError
-from sqlalchemy import insert, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from qs_ai.application.execution.configuration import (
@@ -37,12 +37,18 @@ from qs_ai.domain.governance.route import RouteAsset
 from qs_ai.domain.governance.schema import SchemaAsset
 from qs_ai.domain.interpretation.model import EvidenceSet, RuleViolation, Session
 from qs_ai.infrastructure.persistence.model_call_codec import JSONModelCallCodec
+from qs_ai.infrastructure.persistence.mysql.asset_records import (
+    prompt_assets,
+    route_assets,
+    schema_assets,
+)
 from qs_ai.infrastructure.persistence.mysql.asset_snapshot import (
     AssetSnapshotReader,
     generation_snapshot,
 )
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
 from qs_ai.infrastructure.persistence.mysql.evaluation_suites import load_registered_suite
+from qs_ai.infrastructure.persistence.mysql.governance_records import insert
 from qs_ai.infrastructure.persistence.mysql.publication_records import (
     load_pointer,
     load_publication,
@@ -54,12 +60,7 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
 from qs_ai.infrastructure.persistence.mysql.schema import (
     configuration_publication_pointers as pointers,
 )
-from qs_ai.infrastructure.persistence.mysql.schema import (
-    evaluation_runs,
-    prompt_assets,
-    route_assets,
-    schema_assets,
-)
+from qs_ai.infrastructure.persistence.mysql.schema import evaluation_runs
 from qs_ai.infrastructure.persistence.mysql.schema import (
     execution_configurations as bindings,
 )

@@ -6,18 +6,25 @@ from datetime import timedelta
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import select, update
+from sqlalchemy import update
 
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict
 from qs_ai.application.evaluation.management import ManagementScope
 from qs_ai.application.interpretation.ports import NotFound
 from qs_ai.infrastructure.persistence.mysql import evaluation_unknowns
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    generation_completions as evaluation_generation_completions,
+)
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    select_records,
+)
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    semantic_completions as evaluation_semantic_completions,
+)
 from qs_ai.infrastructure.persistence.mysql.evaluation_management import MySQLEvaluationManagement
 from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_dispatches,
-    evaluation_generation_completions,
     evaluation_runs,
-    evaluation_semantic_completions,
 )
 from qs_ai.infrastructure.workflows.evaluation import execute_step
 from tests.integration.test_evaluation_recovery import EXPIRY, pending, recover
@@ -33,7 +40,7 @@ pytestmark = pytest.mark.integration
 async def snapshot(tx, run_id):
     async with tx.open() as db:
         records = [
-            list((await db.execute(select(t).where(t.c.run_id == str(run_id)))).mappings())
+            list((await db.execute(select_records(t).where(t.c.run_id == str(run_id)))).mappings())
             for t in (
                 evaluation_dispatches,
                 evaluation_generation_completions,
@@ -207,7 +214,7 @@ async def test_inconsistent_persisted_evidence_is_never_presented_as_a_resolutio
             )
         else:
             await db.execute(
-                update(evaluation_generation_completions)
+                evaluation_generation_completions.update()
                 .where(evaluation_generation_completions.c.run_id == str(run_id))
                 .values(normalized_output=b'{"injected":true}')
             )

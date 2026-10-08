@@ -16,6 +16,15 @@ from qs_ai.application.evaluation.diagnostics import (
     ExecutionSummary,
 )
 from qs_ai.application.interpretation.ports import NotFound
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    generation_completions as gen,
+)
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    select_records,
+)
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    semantic_completions as sem,
+)
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
 from qs_ai.infrastructure.persistence.mysql.evaluation_checkpoints import decode
 from qs_ai.infrastructure.persistence.mysql.evaluation_creation_receipt import creation_receipt
@@ -25,8 +34,6 @@ from qs_ai.infrastructure.persistence.mysql.evaluation_projection import (
 )
 from qs_ai.infrastructure.persistence.mysql.evaluation_snapshot import header
 from qs_ai.infrastructure.persistence.mysql.schema import evaluation_dispatches as dispatches
-from qs_ai.infrastructure.persistence.mysql.schema import evaluation_generation_completions as gen
-from qs_ai.infrastructure.persistence.mysql.schema import evaluation_semantic_completions as sem
 
 
 async def _header(db: AsyncSession, query: ExecutionQuery) -> Any:
@@ -41,7 +48,8 @@ async def _completions(db: AsyncSession, run_id: str, ids: list[str]) -> dict[st
     values: dict[str, Any] = {}
     for kind, table in (("generation", gen), ("semantic", sem)):
         # Selecting lengths keeps all raw/normalized bodies out of the list query.
-        statement = select(
+        statement = select_records(
+            table,
             table.c.execution_id,
             table.c.evidence_json,
             func.length(table.c.raw_output).label("raw_size"),
@@ -187,7 +195,7 @@ class MySQLEvaluationDiagnostics:
                 row = (
                     (
                         await db.execute(
-                            select(table).where(
+                            select_records(table).where(
                                 table.c.run_id == run_id,
                                 table.c.execution_id == execution_id,
                             )
@@ -208,7 +216,7 @@ class MySQLEvaluationDiagnostics:
                     candidate = (
                         (
                             await db.execute(
-                                select(gen).where(
+                                gen.select().where(
                                     gen.c.run_id == run_id,
                                     gen.c.candidate_id == cp.candidate_id,
                                 )

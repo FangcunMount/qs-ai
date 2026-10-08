@@ -1,16 +1,20 @@
 from datetime import timedelta
 
 import pytest
-from sqlalchemy import select
 
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    generation_completions as evaluation_generation_completions,
+)
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    select_records,
+)
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    semantic_completions as evaluation_semantic_completions,
+)
 from qs_ai.infrastructure.persistence.mysql.evaluation_dispatches import reserve_dispatch
 from qs_ai.infrastructure.persistence.mysql.evaluation_preparation import prepare_execution
 from qs_ai.infrastructure.persistence.mysql.evaluation_recovery import recover_expired
-from qs_ai.infrastructure.persistence.mysql.schema import (
-    evaluation_generation_completions,
-    evaluation_semantic_completions,
-)
 from tests.integration.test_evaluation_runs import rows
 from tests.integration.test_evaluation_runs import setup_run as setup_run
 from tests.integration.test_evaluation_step import AT, Gateway, step
@@ -82,7 +86,7 @@ async def test_dispatched_unknown_blocks_and_preserves_audit(ready, semantic):
         saved = (
             (
                 await db.execute(
-                    select(table).where(
+                    select_records(table).where(
                         table.c.run_id == str(run_id), table.c.invocation_id == "invocation:dead"
                     )
                 )

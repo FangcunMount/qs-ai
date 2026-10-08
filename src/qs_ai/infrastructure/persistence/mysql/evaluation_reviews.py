@@ -17,6 +17,12 @@ from qs_ai.domain.evaluation.review import (
     ReviewCandidate,
     add_human_reviews,
 )
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    generation_completions as evaluation_generation_completions,
+)
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    semantic_completions as evaluation_semantic_completions,
+)
 from qs_ai.infrastructure.persistence.mysql.evaluation_checkpoints import save_checkpoint
 from qs_ai.infrastructure.persistence.mysql.evaluation_frozen_policies import frozen_policies
 from qs_ai.infrastructure.persistence.mysql.evaluation_gates import evaluate_snapshot
@@ -32,9 +38,7 @@ from qs_ai.infrastructure.persistence.mysql.evaluation_review_history import has
 from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_checkpoints,
     evaluation_dispatches,
-    evaluation_generation_completions,
     evaluation_runs,
-    evaluation_semantic_completions,
 )
 
 
@@ -111,7 +115,7 @@ async def accept_reviews(
     generations = list(
         (
             await db.execute(
-                select(evaluation_generation_completions).where(
+                evaluation_generation_completions.select().where(
                     evaluation_generation_completions.c.run_id == str(scope.run_id)
                 )
             )
@@ -122,7 +126,7 @@ async def accept_reviews(
     semantics = list(
         (
             await db.execute(
-                select(evaluation_semantic_completions).where(
+                evaluation_semantic_completions.select().where(
                     evaluation_semantic_completions.c.run_id == str(scope.run_id)
                 )
             )

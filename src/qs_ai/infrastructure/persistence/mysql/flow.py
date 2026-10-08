@@ -17,6 +17,7 @@ from qs_ai.domain.evaluation.assets import PolicyKind
 from qs_ai.domain.evaluation.identity import EvidenceReleaseIdentity
 from qs_ai.domain.governance.flow import SCHEMA, describe
 from qs_ai.domain.governance.prompt import PromptAsset
+from qs_ai.infrastructure.persistence.mysql.asset_records import prompt_assets
 from qs_ai.infrastructure.persistence.mysql.asset_snapshot import (
     AssetSnapshotReader,
     generation_snapshot,
@@ -29,7 +30,6 @@ from qs_ai.infrastructure.persistence.mysql.publication_records import load_publ
 from qs_ai.infrastructure.persistence.mysql.schema import (
     configuration_publications,
     execution_configurations,
-    prompt_assets,
     sessions,
 )
 from qs_ai.infrastructure.persistence.mysql.solution_assets import (

@@ -3,13 +3,15 @@
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import func, select, update
+from sqlalchemy import func, select
 
 from qs_ai.application.governance.prompt_drafts import DraftScope
 from qs_ai.application.governance.solutions import PrepareSolution
 from qs_ai.application.interpretation.ports import NotFound
+from qs_ai.infrastructure.persistence.mysql import asset_records, draft_records
 from qs_ai.infrastructure.persistence.mysql import schema as tables
 from qs_ai.infrastructure.persistence.mysql.flow import MySQLFlowReader
+from qs_ai.infrastructure.persistence.mysql.governance_records import update
 from tests.integration.test_solutions import assets as assets
 from tests.integration.test_solutions import complete_release as complete_release
 from tests.integration.test_solutions import edit
@@ -103,13 +105,12 @@ async def test_publication_flow_remains_fixed_after_pointer_pause(ready, publish
 async def test_flow_uses_selected_org_judge_before_and_after_freeze(workspace):
     from dataclasses import asdict
 
-    from sqlalchemy import delete
-
     from qs_ai.application.governance.semantic_drafts import (
         CreateSemanticDraft,
         FreezeSemanticDraft,
         ReviseSemanticDraft,
     )
+    from qs_ai.infrastructure.persistence.mysql.governance_records import delete
     from qs_ai.infrastructure.persistence.mysql.semantic_drafts import MySQLSemanticDrafts
     from qs_ai.infrastructure.persistence.mysql.solution_assets import release_from
 
@@ -173,13 +174,13 @@ async def test_flow_uses_selected_org_judge_before_and_after_freeze(workspace):
         async with tx.open() as db:
             for table in (
                 tables.semantic_draft_commands,
-                tables.semantic_draft_versions,
-                tables.semantic_draft_heads,
+                draft_records.semantic_draft_versions,
+                draft_records.semantic_draft_heads,
             ):
                 await db.execute(delete(table).where(table.c.draft_id == str(draft_id)))
             await db.execute(
-                delete(tables.semantic_prompt_assets).where(
-                    tables.semantic_prompt_assets.c.version == version
+                delete(asset_records.semantic_prompt_assets).where(
+                    asset_records.semantic_prompt_assets.c.version == version
                 )
             )
             await db.commit()
@@ -188,11 +189,10 @@ async def test_flow_uses_selected_org_judge_before_and_after_freeze(workspace):
 async def test_flow_tracks_selected_suite_instead_of_source_suite(workspace):
     from dataclasses import asdict
 
-    from sqlalchemy import delete
-
     from qs_ai.application.governance.suite_registration import RegisterSuite
     from qs_ai.infrastructure.persistence.mysql.asset_snapshot import generation_snapshot
     from qs_ai.infrastructure.persistence.mysql.evaluation_suites import MySQLSuiteRegistrar
+    from qs_ai.infrastructure.persistence.mysql.governance_records import delete
     from qs_ai.infrastructure.persistence.mysql.solution_assets import release_from
 
     tx, store, scope, sid, command, at = workspace

@@ -3,15 +3,19 @@ from dataclasses import replace
 from datetime import timedelta
 
 import pytest
-from sqlalchemy import select
 
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict
 from qs_ai.domain.evaluation.resolution import ResultUnknownResolution
-from qs_ai.infrastructure.persistence.mysql.evaluation_resolution import accept_resolution
-from qs_ai.infrastructure.persistence.mysql.schema import (
-    evaluation_generation_completions,
-    evaluation_semantic_completions,
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    generation_completions as evaluation_generation_completions,
 )
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    select_records,
+)
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    semantic_completions as evaluation_semantic_completions,
+)
+from qs_ai.infrastructure.persistence.mysql.evaluation_resolution import accept_resolution
 from qs_ai.infrastructure.workflows.evaluation import execute_step
 from tests.integration.test_evaluation_recovery import EXPIRY, pending, recover
 from tests.integration.test_evaluation_runs import rows
@@ -57,7 +61,7 @@ async def test_decision_unblocks_exact_execution_and_preserves_original(ready, s
         original = (
             (
                 await db.execute(
-                    select(table).where(
+                    select_records(table).where(
                         table.c.run_id == str(run_id), table.c.execution_id == "execution:dead"
                     )
                 )
@@ -83,7 +87,7 @@ async def test_decision_unblocks_exact_execution_and_preserves_original(ready, s
         unchanged = (
             (
                 await db.execute(
-                    select(table).where(
+                    select_records(table).where(
                         table.c.run_id == str(run_id), table.c.execution_id == "execution:dead"
                     )
                 )
@@ -92,7 +96,9 @@ async def test_decision_unblocks_exact_execution_and_preserves_original(ready, s
             .one()
         )
         all_records = (
-            (await db.execute(select(table).where(table.c.run_id == str(run_id)))).mappings().all()
+            (await db.execute(select_records(table).where(table.c.run_id == str(run_id))))
+            .mappings()
+            .all()
         )
     assert dict(original) == dict(unchanged)
     assert sorted(r["execution_ordinal"] for r in all_records) == [1, 2]
@@ -164,7 +170,7 @@ async def test_second_unknown_cannot_be_authorized_past_budget(ready):
         target = (
             (
                 await db.execute(
-                    select(evaluation_generation_completions).where(
+                    evaluation_generation_completions.select().where(
                         evaluation_generation_completions.c.run_id == str(run_id),
                         evaluation_generation_completions.c.execution_ordinal == 2,
                     )

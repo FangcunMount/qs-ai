@@ -405,6 +405,61 @@ def probe(release: Path, require_head: bool = False) -> dict:
     return json.loads(output.strip().splitlines()[-1])
 
 
+def expected_heads(release: Path) -> list[str]:
+    """Read the target image's migration contract without connecting to a database."""
+    output = run(
+        "image schema contract",
+        compose(
+            release,
+            "run",
+            "--rm",
+            "--no-deps",
+            "-T",
+            runtime_service(release),
+            "/app/.venv/bin/python",
+            "-c",
+            "import json; from alembic.config import Config; "
+            "from alembic.script import ScriptDirectory; "
+            "print(json.dumps(sorted(ScriptDirectory.from_config(Config('alembic.ini')).get_heads())))",
+        ),
+    )
+    heads = json.loads(output.strip().splitlines()[-1])
+    if not isinstance(heads, list) or not heads or any(not isinstance(v, str) for v in heads):
+        raise DeploymentError("Image schema contract unavailable")
+    return heads
+
+
+def guard_schema_transition(current: list[str], expected: list[str]) -> None:
+    """Never run destructive family conversion through ordinary deploy or rollback."""
+    if not isinstance(current, list) or not isinstance(expected, list):
+        raise DeploymentError("Database schema contract unavailable")
+    for heads in (current, expected):
+        if len(heads) > 1 or any(not isinstance(v, str) for v in heads):
+            raise DeploymentError("Database schema contract unavailable")
+    if not expected:
+        raise DeploymentError("Image schema contract unavailable")
+
+    def family(heads: list[str]) -> str:
+        if not heads:
+            return "empty"
+        match = re.fullmatch(r"([0-9]{4})_[a-z0-9_]+", heads[0])
+        if not match:
+            return "unknown"
+        number = int(match[1])
+        return "legacy" if number <= 38 else ("transition" if number == 39 else "modules")
+
+    source, target = family(current), family(expected)
+    if "unknown" in (source, target):
+        raise DeploymentError("Database schema contract unavailable")
+    if "transition" in (source, target) or (
+        source != target and "modules" in (source, target) and source != "empty"
+    ):
+        raise DeploymentError(
+            "Schema conversion requires python -m qs_ai.maintenance.schema_refactor; "
+            "ordinary deploy/rollback cannot preserve data across this boundary"
+        )
+
+
 def verify(release: Path) -> dict:
     expected_image = release_image_id(release, verify_identity=True)
     run(
@@ -545,9 +600,11 @@ def restore(state: dict) -> None:
     messaging_transition(release_path(state["current"]), target)
     release_image_id(target, verify_identity=True)
     messaging_key_preflight(target)
+    current = release_path(state["current"])
+    before = probe(current, True)
+    guard_schema_transition(before["current"], expected_heads(target))
     # Old image must recognize the current schema and require its own exact head.
     probe(target, True)
-    current = release_path(state["current"])
     try:
         stop_release(current)
         verify(target)
@@ -625,6 +682,7 @@ def apply(release: Path, state: dict) -> None:
             ),
         )
     before = probe(release)
+    guard_schema_transition(before["current"], before["expected"])
     write_json(release / "verification.json", {"phase": "preflight", "database": before})
     # A migration failure never replaces a healthy service. MySQL DDL may be partial.
     run(

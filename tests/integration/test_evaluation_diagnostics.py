@@ -7,7 +7,6 @@ from datetime import timedelta
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import select, update
 
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict
 from qs_ai.application.evaluation.diagnostics import EvaluationDiagnostics, ExecutionQuery
@@ -16,9 +15,11 @@ from qs_ai.application.interpretation.ports import NotFound
 from qs_ai.application.interpretation.provider import ModelResponse
 from qs_ai.bootstrap.container import create_container
 from qs_ai.config import Settings
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    generation_completions as gen,
+)
 from qs_ai.infrastructure.persistence.mysql.evaluation_diagnostics import MySQLEvaluationDiagnostics
 from qs_ai.infrastructure.persistence.mysql.evaluation_management import MySQLEvaluationManagement
-from qs_ai.infrastructure.persistence.mysql.schema import evaluation_generation_completions as gen
 from tests.integration.test_evaluation_recovery import pending
 from tests.integration.test_evaluation_runs import setup_run as setup_run
 from tests.integration.test_evaluation_step import AT, Gateway, step
@@ -86,7 +87,7 @@ async def test_non_candidate_failure_exposes_diagnosis_and_original_output_witho
         assert b"not-json" in result.raw_output
     async with tx.open() as db:
         assert (
-            await db.execute(select(gen.c.candidate_id).where(gen.c.run_id == str(run_id)))
+            await db.execute(gen.select(gen.c.candidate_id).where(gen.c.run_id == str(run_id)))
         ).scalar_one() is None
     assert gateway.calls == 1 and await snapshot(tx, run_id) == before
 
@@ -132,7 +133,7 @@ async def test_corrupt_normalized_output_is_not_returned_as_valid_evidence(ready
     item = (await store.list(query)).executions[0]
     async with tx.open() as db:
         await db.execute(
-            update(gen).where(gen.c.run_id == str(run_id)).values(normalized_output=b"{}")
+            gen.update().where(gen.c.run_id == str(run_id)).values(normalized_output=b"{}")
         )
         await db.commit()
     with pytest.raises(ValueError, match="fingerprint"):

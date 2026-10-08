@@ -15,12 +15,12 @@ from qs_ai.application.interpretation.schema_assets import SchemaAssets
 from qs_ai.domain.evaluation.identity import EvidenceReleaseIdentity, FrozenContractRef
 from qs_ai.domain.governance.prompt import PromptAsset
 from qs_ai.domain.governance.route import RouteAsset
+from qs_ai.infrastructure.persistence.mysql.asset_records import prompt_assets, route_assets
 from qs_ai.infrastructure.persistence.mysql.asset_snapshot import (
     AssetSnapshotReader,
     generation_snapshot,
 )
 from qs_ai.infrastructure.persistence.mysql.evaluation_suites import load_registered_suite
-from qs_ai.infrastructure.persistence.mysql.schema import prompt_assets, route_assets
 from qs_ai.infrastructure.qs_server.evaluation_case import (
     prepare_asset_evaluation_case,
 )

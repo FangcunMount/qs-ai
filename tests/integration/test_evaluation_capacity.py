@@ -15,7 +15,6 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_admission_locks,
     evaluation_capacity_reservations,
     evaluation_checkpoints,
-    evaluation_run_policies,
     evaluation_runs,
 )
 from qs_ai.infrastructure.qs_server.evaluation_policies import load_execution_policy
@@ -44,7 +43,6 @@ async def batch(setup_run):
             for table in (
                 evaluation_capacity_reservations,
                 evaluation_checkpoints,
-                evaluation_run_policies,
                 evaluation_runs,
             ):
                 await db.execute(

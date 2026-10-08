@@ -8,13 +8,17 @@ from sqlalchemy import insert, select, text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    generation_completions as evaluation_generation_completions,
+)
+from qs_ai.infrastructure.persistence.mysql.messaging import inbox
 from qs_ai.infrastructure.persistence.mysql.schema import (
-    evaluation_generation_completions,
     model_calls,
     result_outbox,
     runs,
 )
 from qs_ai.maintenance.messaging_audit import inventory
+from qs_ai.maintenance.schema_refactor.layouts import NEW_HEAD
 from tests.integration.test_interpretation import kit as kit
 from tests.integration.test_mq_admission import mq_env as mq_env
 from tests.integration.test_mq_admission import saved
@@ -34,7 +38,7 @@ async def test_messaging_inventory_is_read_only_and_borrowed_pool_survives(legac
         value = await execute(db, statement, *args, **kwargs)
         if str(statement) == "START TRANSACTION WITH CONSISTENT SNAPSHOT, READ ONLY":
             with pytest.raises(DBAPIError) as error:
-                await execute(db, text("UPDATE result_outbox SET attempts=7"))
+                await execute(db, text(f"UPDATE {result_outbox.name} SET attempts=7"))
             assert error.value.orig.args[0] == 1792
             checked.append(True)
         return value
@@ -57,16 +61,16 @@ async def test_messaging_inventory_is_read_only_and_borrowed_pool_survives(legac
 async def test_messaging_inventory_missing_table_is_unavailable_not_empty(legacy):
     tx, *_ = legacy
     async with tx.open() as db:
-        await db.execute(text("RENAME TABLE ai_messaging_inbox TO mq_inventory_hidden"))
+        await db.execute(text(f"RENAME TABLE {inbox.name} TO mq_inventory_hidden"))
     try:
         report = await inventory(tx)
         section = report["sections"]["ai_messaging_inbox"]
         assert not report["complete"] and not section["table_exists"]
         assert section["rows"] is None and section["total"] is None
-        assert report["schema_heads"] == ["0038_messaging_observations"]
+        assert report["schema_heads"] == [NEW_HEAD]
     finally:
         async with tx.open() as db:
-            await db.execute(text("RENAME TABLE mq_inventory_hidden TO ai_messaging_inbox"))
+            await db.execute(text(f"RENAME TABLE mq_inventory_hidden TO {inbox.name}"))
 
 
 async def test_messaging_inventory_truncation_never_claims_complete(legacy):
@@ -100,7 +104,7 @@ async def test_messaging_inventory_keeps_unknown_facts_without_body_or_retry_aut
             )
         )
         await db.execute(
-            insert(evaluation_generation_completions).values(
+            evaluation_generation_completions.insert().values(
                 run_id=evaluation_id,
                 execution_id=execution_id,
                 invocation_id=invocation_id,

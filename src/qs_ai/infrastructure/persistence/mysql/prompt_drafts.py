@@ -8,7 +8,7 @@ from typing import Any, cast
 from uuid import UUID
 
 from pydantic import TypeAdapter
-from sqlalchemy import insert, select, update
+from sqlalchemy import select
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -27,18 +27,14 @@ from qs_ai.domain.governance.prompt_draft import (
     nonzero_uuid,
     positive,
 )
+from qs_ai.infrastructure.persistence.mysql.asset_records import prompt_assets
 from qs_ai.infrastructure.persistence.mysql.asset_snapshot import AssetSnapshotReader
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
-from qs_ai.infrastructure.persistence.mysql.schema import (
-    prompt_assets,
-    prompt_draft_freezes,
-)
-from qs_ai.infrastructure.persistence.mysql.schema import (
-    prompt_draft_revisions as revisions,
-)
-from qs_ai.infrastructure.persistence.mysql.schema import (
-    prompt_drafts as heads,
-)
+from qs_ai.infrastructure.persistence.mysql.draft_records import draft_head_select
+from qs_ai.infrastructure.persistence.mysql.draft_records import prompt_draft_revisions as revisions
+from qs_ai.infrastructure.persistence.mysql.draft_records import prompt_drafts as heads
+from qs_ai.infrastructure.persistence.mysql.governance_records import insert, update
+from qs_ai.infrastructure.persistence.mysql.schema import prompt_draft_freezes
 
 SNAPSHOT = TypeAdapter(PromptDraft)
 
@@ -140,8 +136,8 @@ async def read_draft(
 ) -> PromptDraft:
     if not nonzero_uuid(draft_id) or revision is not None and not positive(revision):
         raise ValueError("Valid draft identity and revision required")
-    query = select(heads).where(
-        heads.c.draft_id == str(draft_id), heads.c.organization_id == scope.organization_id
+    query = draft_head_select(
+        heads, heads.c.draft_id == str(draft_id), heads.c.organization_id == scope.organization_id
     )
     head = (await db.execute(query.with_for_update() if lock else query)).mappings().one_or_none()
     if head is None or revision is not None and revision > head["revision"]:

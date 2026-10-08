@@ -6,7 +6,6 @@ from uuid import UUID, uuid4
 
 import grpc
 import pytest
-from sqlalchemy import update
 
 from qs_ai.application.governance.prompt_drafts import RevisePromptDraft
 from qs_ai.application.interpretation.ports import NotFound
@@ -14,8 +13,10 @@ from qs_ai.contracts.workflow import workflow_pb2 as pb
 from qs_ai.contracts.workflow import workflow_pb2_grpc as rpc
 from qs_ai.domain.governance.prompt_draft import DraftConflict
 from qs_ai.infrastructure.persistence.mysql import prompt_lifecycle as lifecycle_module
+from qs_ai.infrastructure.persistence.mysql.asset_records import prompt_assets
+from qs_ai.infrastructure.persistence.mysql.governance_records import update
 from qs_ai.infrastructure.persistence.mysql.prompt_lifecycle import MySQLPromptLifecycleReader
-from qs_ai.infrastructure.persistence.mysql.schema import prompt_assets, prompt_draft_freezes
+from qs_ai.infrastructure.persistence.mysql.schema import prompt_draft_freezes
 from tests.integration.test_prompt_draft_grpc import rpc_server as rpc_server
 from tests.integration.test_prompt_draft_grpc import server as server
 from tests.integration.test_prompt_drafts import kit as kit

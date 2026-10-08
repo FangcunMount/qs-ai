@@ -26,6 +26,9 @@ from qs_ai.domain.evaluation.failure import ClassifiedFailure, ProviderDiagnosti
 from qs_ai.domain.evaluation.identity import EvidenceReleaseIdentity, FrozenContractRef
 from qs_ai.domain.evaluation.preflight import AssertionReceipt
 from qs_ai.domain.evaluation.semantic_completion import SemanticCompletion
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    generation_completions as evaluation_generation_completions,
+)
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
 from qs_ai.infrastructure.persistence.mysql.evaluation_assets import (
     frozen_output_schema,
@@ -44,7 +47,6 @@ from qs_ai.infrastructure.persistence.mysql.evaluation_projection import decode_
 from qs_ai.infrastructure.persistence.mysql.evaluation_semantic import complete_semantic
 from qs_ai.infrastructure.persistence.mysql.evaluation_slot_claims import SlotClaim, dispatch_claim
 from qs_ai.infrastructure.persistence.mysql.schema import (
-    evaluation_generation_completions,
     evaluation_runs,
 )
 from qs_ai.infrastructure.qs_server.evaluation_assertions import (
@@ -204,7 +206,7 @@ async def _prepare_step(
             row = (
                 (
                     await db.execute(
-                        select(evaluation_generation_completions).where(
+                        evaluation_generation_completions.select().where(
                             evaluation_generation_completions.c.run_id == str(run_id),
                             evaluation_generation_completions.c.candidate_id == cp.candidate_id,
                         )

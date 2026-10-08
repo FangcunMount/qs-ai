@@ -8,7 +8,7 @@ from datetime import datetime
 from uuid import UUID
 
 from pydantic import TypeAdapter
-from sqlalchemy import insert, select, update
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,16 +23,21 @@ from qs_ai.application.interpretation.ports import NotFound
 from qs_ai.domain.evaluation.semantic_draft import SemanticDraft, validate_semantic_markdown
 from qs_ai.domain.governance.prompt_draft import DraftConflict
 from qs_ai.domain.governance.schema import SchemaAsset
+from qs_ai.infrastructure.persistence.mysql.asset_records import (
+    schema_assets,
+    semantic_prompt_assets,
+)
 from qs_ai.infrastructure.persistence.mysql.asset_snapshot import AssetSnapshotReader
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
+from qs_ai.infrastructure.persistence.mysql.draft_records import draft_head_select
+from qs_ai.infrastructure.persistence.mysql.draft_records import semantic_draft_heads as heads
+from qs_ai.infrastructure.persistence.mysql.draft_records import semantic_draft_versions as versions
 from qs_ai.infrastructure.persistence.mysql.evaluation_asset_registry import (
     duplicate,
     read_semantic_prompt,
 )
-from qs_ai.infrastructure.persistence.mysql.schema import schema_assets, semantic_prompt_assets
+from qs_ai.infrastructure.persistence.mysql.governance_records import insert, update
 from qs_ai.infrastructure.persistence.mysql.schema import semantic_draft_commands as commands
-from qs_ai.infrastructure.persistence.mysql.schema import semantic_draft_heads as heads
-from qs_ai.infrastructure.persistence.mysql.schema import semantic_draft_versions as versions
 from qs_ai.infrastructure.qs_server.semantic_assets import semantic_assets
 
 SNAPSHOT = TypeAdapter(SemanticDraft)
@@ -86,8 +91,11 @@ async def prior(
 async def read(
     db: AsyncSession, scope: DraftScope, draft_id: UUID, revision: int = 0, *, lock: bool = False
 ) -> SemanticDraft:
-    statement = select(heads.c.revision).where(
-        heads.c.organization_id == scope.organization_id, heads.c.draft_id == str(draft_id)
+    statement = draft_head_select(
+        heads,
+        heads.c.organization_id == scope.organization_id,
+        heads.c.draft_id == str(draft_id),
+        revision_only=True,
     )
     if lock:
         statement = statement.with_for_update()

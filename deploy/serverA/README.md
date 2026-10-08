@@ -1,12 +1,12 @@
 # serverA 内部基础服务部署
 
-源码基线 `c977cb9` 的发布目标为单容器、单进程 qs-ai：HTTP 运维端点、mTLS gRPC、生成、评测及 MQ relay/订阅/发布共享生命周期和连接池。常驻入口要求 MQ；readiness 同时检查组件和数据库，部署另核对 schema、镜像版本、TLS 与 MQ 密钥。具体生产运行状态由本次准确版本的部署证据确认。
+当前 `0040_module_table_names` 工作区的发布目标为单容器、单进程 qs-ai：HTTP 运维端点、mTLS gRPC、生成、评测及 MQ relay/订阅/发布共享生命周期和连接池。常驻入口要求 MQ；readiness 同时检查组件和数据库，部署另核对 schema、镜像版本、TLS 与 MQ 密钥。具体生产运行状态由本次准确版本的部署证据确认。
 
 ## 工作流
 
 [Deploy serverA](../../.github/workflows/deploy.yml) 使用 GitHub runner 构建 linux/amd64 镜像并发布 ACR，qlume 组 Mac mini runner 导出镜像，以固定主机公钥验证 SSH 后上传 serverA。服务器校验镜像归档摘要、镜像 ID、架构与提交标签，再迁移、启动并核对运行版本。
 
-手动操作要求工作流运行于 main；revision 留空选择当前提交，也可填写 main 上已通过 push CI 的完整 SHA。operation=rollback 恢复 serverA 记录的上一成功发布。只有数据库仍匹配旧镜像的迁移 head 时才允许回滚。
+手动操作要求工作流运行于 main；revision 留空选择当前提交，也可填写 main 上已通过 push CI 的完整 SHA。operation=rollback 恢复 serverA 记录的上一成功发布。普通镜像回滚仅在数据库匹配旧镜像head和存储布局时允许。0038/0040任一方向必须进入[双向全量数据转换](../../docs/04-接口与运维/09-模块数据表与双向迁移.md)，完整保留当前新增事实。
 
 自动发布由 main 的 checks 成功触发，同时要求仓库变量 AUTO_DEPLOY_ENABLED=true；是否已启用需读取仓库当前设置。并发部署串行，serverA 另外使用文件锁防止手动操作重叠。
 
@@ -28,13 +28,13 @@ QS_AI_MESSAGING_BINDING 是经审阅的非秘密 JSON，包含 binding_revision�
 
 ## 迁移、验收和失败处理
 
-数据库探针核对 MySQL 版本、当前与目标 Alembic heads；迁移后必须与镜像的全部 heads 完全相同。云实例须支持当前 MySQL 任务实现；CI 版本兼容性另行核验。迁移单独执行，不与服务启动绑定；MySQL DDL 失败可能部分完成，须核对实际结构后处置。
+数据库探针核对 MySQL 版本、当前与目标 Alembic heads；迁移后必须与镜像的全部 heads 完全相同。云实例须支持当前 MySQL 任务实现；CI 版本兼容性另行核验。普通部署在Alembic或停止旧服务前拒绝跨0038/0040及0039中间态；对应自动部署同样受阻。迁移单独执行，不与服务启动绑定；MySQL DDL 失败可能部分完成，须核对实际结构后处置。
 
 迁移或迁移后 schema 检查失败时不切换服务。服务切换失败且 schema 未变化时恢复旧版本；schema 已变化时要求兼容性处理，不自动降级数据库。首次没有旧版本的服务启动失败会停止本次容器。
 
 state.json 仅在脚本自动部署检查（readiness、准确镜像、mTLS和数据库）通过后更新，保存 current/previous 发布目录。每个发布目录有 manifest.json（提交、镜像 ID/digest、归档摘要）、verification.json（迁移版本与阶段）；失败时另有 failure.json（脱敏阶段）。成功后删除大体积镜像归档，Docker 镜像和受限运行配置保留用于恢复。旧版本清理目前由运维按保留策略进行，须保留 current/previous。
 
-回滚可由 GitHub 手动工作流 operation=rollback 发起，也可以使用成功发布目录保留的 deploy.py rollback。回滚不调用模型，不修改业务数据，不执行 Alembic downgrade。目标镜像须识别当前持久契约、通过自身 exact-head 探针及 MQ 密钥预检；已经 MQ-enabled 的发布不得回落 messaging-disabled。禁止删除消息表、mq_owned 或原回执来绕过归属限制。
+回滚可由 GitHub 手动工作流 operation=rollback 发起，也可以使用成功发布目录保留的 deploy.py rollback。回滚不调用模型，不修改业务数据，不执行 Alembic downgrade。目标镜像须识别当前持久契约，先比较current数据库与目标镜像离线head、通过自身exact-head结构探针及MQ密钥预检；已经 MQ-enabled 的发布不得回落 messaging-disabled。禁止删除消息表、mq_owned 或原回执来绕过归属限制。
 
 ## 运行范围
 

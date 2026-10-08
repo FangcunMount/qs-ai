@@ -1,9 +1,9 @@
 """Immutable asset reads in the caller's existing transaction and snapshot."""
 
 from dataclasses import fields
-from typing import Generic, TypeVar
+from typing import Any, Generic, TypeVar
 
-from sqlalchemy import Table, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from qs_ai.application.evaluation.release import resolve_generation_assets
@@ -13,24 +13,25 @@ from qs_ai.domain.governance.profile import ProfileAsset
 from qs_ai.domain.governance.prompt import PromptAsset
 from qs_ai.domain.governance.route import RouteAsset
 from qs_ai.domain.governance.schema import SchemaAsset
-from qs_ai.infrastructure.persistence.mysql.schema import (
+from qs_ai.infrastructure.persistence.mysql.asset_records import (
     profile_assets,
     prompt_assets,
     route_assets,
     schema_assets,
 )
+from qs_ai.infrastructure.persistence.mysql.governance_records import identity_columns
 
 Asset = TypeVar("Asset", ProfileAsset, PromptAsset, RouteAsset, SchemaAsset)
 
 
 class AssetSnapshotReader(Generic[Asset]):
-    def __init__(self, db: AsyncSession, table: Table, asset_type: type[Asset]) -> None:
+    def __init__(self, db: AsyncSession, table: Any, asset_type: type[Asset]) -> None:
         self.db = db
         self.table = table
         self.asset_type: type[Asset] = asset_type
 
     async def get(self, identity: str, version: str, /) -> Asset | None:
-        keys = list(self.table.primary_key.columns)
+        keys = identity_columns(self.table)
         row = (
             (
                 await self.db.execute(

@@ -6,14 +6,16 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4, uuid5
 
 import pytest
-from sqlalchemy import delete, select, update
+from sqlalchemy import select
 
 from qs_ai.application.governance.prompt_drafts import DraftScope
 from qs_ai.application.governance.solutions import CreateSolution, PrepareSolution
 from qs_ai.application.interpretation.ports import NotFound
 from qs_ai.config import Settings
 from qs_ai.domain.governance.prompt_draft import DraftConflict
+from qs_ai.infrastructure.persistence.mysql import asset_records, draft_records
 from qs_ai.infrastructure.persistence.mysql import schema as tables
+from qs_ai.infrastructure.persistence.mysql.governance_records import delete, update
 from qs_ai.infrastructure.persistence.mysql.solution_templates import (
     template_catalog,
     template_release,
@@ -81,15 +83,15 @@ async def workspace(initialized_dependencies):
             )
             for table in (
                 tables.prompt_draft_freezes,
-                tables.prompt_draft_revisions,
-                tables.prompt_drafts,
+                draft_records.prompt_draft_revisions,
+                draft_records.prompt_drafts,
             ):
                 await db.execute(delete(table).where(table.c.draft_id == draft_id))
-            for table in (tables.profile_assets, tables.prompt_assets):
+            for table in (asset_records.profile_assets, asset_records.prompt_assets):
                 await db.execute(delete(table).where(table.c.version == version))
             await db.execute(
-                delete(tables.route_assets).where(
-                    tables.route_assets.c.revision.in_(
+                delete(asset_records.route_assets).where(
+                    asset_records.route_assets.c.revision.in_(
                         [version + "-generation", version + "-semantic"]
                     )
                 )
@@ -165,8 +167,8 @@ async def test_template_damaged_prompt_cannot_adopt_new_content(workspace):
     tx, store, scope, sid, command, at = workspace
     async with tx.open() as db:
         await db.execute(
-            update(tables.prompt_assets)
-            .where(tables.prompt_assets.c.template_id == MBTI_ROOT.id)
+            update(asset_records.prompt_assets)
+            .where(asset_records.prompt_assets.c.template_id == MBTI_ROOT.id)
             .values(fingerprint="sha256:" + "0" * 64)
         )
         await db.commit()
@@ -211,7 +213,7 @@ async def test_complete_mbti_run_uses_existing_graph_and_frozen_assets(
                 for route in proof["routes"].values():
                     await insert_exact(
                         db,
-                        tables.route_assets,
+                        asset_records.route_assets,
                         {
                             "route": route["reference"]["id"],
                             "revision": route["reference"]["version"],

@@ -6,19 +6,25 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
 from sqlalchemy.engine import RowMapping
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict
 from qs_ai.domain.evaluation.policy import ExecutionPolicy
 from qs_ai.domain.evaluation.resolution import ResultUnknownResolution, UnknownExecution
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    generation_completions as evaluation_generation_completions,
+)
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    select_records,
+)
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    semantic_completions as evaluation_semantic_completions,
+)
 from qs_ai.infrastructure.persistence.mysql.evaluation_frozen_policies import frozen_policies
 from qs_ai.infrastructure.persistence.mysql.evaluation_projection import project_slots
 from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_dispatches,
-    evaluation_generation_completions,
-    evaluation_semantic_completions,
 )
 
 
@@ -54,7 +60,7 @@ async def load_resolution_evidence(
         rows = list(
             (
                 await db.execute(
-                    select(table).where(table.c.run_id == str(run_id)).limit(limit + 1)
+                    select_records(table).where(table.c.run_id == str(run_id)).limit(limit + 1)
                 )
             ).mappings()
         )

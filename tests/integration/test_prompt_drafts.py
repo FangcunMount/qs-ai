@@ -8,7 +8,7 @@ from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import delete, select, update
+from sqlalchemy import select
 
 from qs_ai.application.governance.prompt_drafts import (
     CreatePromptDraft,
@@ -19,18 +19,13 @@ from qs_ai.application.interpretation.ports import NotFound
 from qs_ai.bootstrap.import_prompts import baseline_assets
 from qs_ai.domain.governance.manifest import AssetReference
 from qs_ai.domain.governance.prompt_draft import DraftConflict
+from qs_ai.infrastructure.persistence.mysql.asset_records import prompt_assets
 from qs_ai.infrastructure.persistence.mysql.database import Database, Transactions
+from qs_ai.infrastructure.persistence.mysql.draft_records import prompt_draft_revisions as revisions
+from qs_ai.infrastructure.persistence.mysql.draft_records import prompt_drafts as heads
+from qs_ai.infrastructure.persistence.mysql.governance_records import delete, update
 from qs_ai.infrastructure.persistence.mysql.prompt_assets import MySQLPromptAssets
 from qs_ai.infrastructure.persistence.mysql.prompt_drafts import MySQLPromptDrafts, apply_draft
-from qs_ai.infrastructure.persistence.mysql.schema import (
-    prompt_assets,
-)
-from qs_ai.infrastructure.persistence.mysql.schema import (
-    prompt_draft_revisions as revisions,
-)
-from qs_ai.infrastructure.persistence.mysql.schema import (
-    prompt_drafts as heads,
-)
 
 pytestmark = pytest.mark.integration
 

@@ -14,7 +14,7 @@
 | /readyz | 本次数据库探测与 runtime ready/healthy 是否成立 | 不验证模型key/余额、报告质量或某条消息已落库 |
 | 结构化operation日志 | 安全身份、阶段、分类错误及耗时线索 | 可丢失/合并，不是事务提交证据 |
 | /metrics | 当前一致数据库快照的固定聚合值及日志管道计数 | 不返回单请求身份/正文，不重建缺失历史 |
-| runtime_milestones | 与特定业务提交同事务的小型阶段事实 | 会按期限删除，不能替代永久调用/结果/发布证据 |
+| operations_runtime_milestones | 与特定业务提交同事务的小型阶段事实 | 会按期限删除，不能替代永久调用/结果/发布证据 |
 | 原Run/ModelCall/完成回执/Outbox/业务ACK | 精确执行、响应和业务接受事实 | 不能由日志/聚合值覆盖或自动清理 |
 
 [HTTP健康实现](../../../src/qs_ai/transport/http/health.py) 的 /readyz 每次调用 [MySQLProbe](../../../src/qs_ai/infrastructure/persistence/mysql/database.py)：共享APP池连接执行 SELECT 1，最多五秒。未配置数据库为 not_configured，连接错误为 unavailable；再叠加 runtime.ready 和 healthy，成功200，否则503。启动的迁移和各组件检查由 runtime负责，SELECT 1 不重新完成全部启动预检。关闭过程的就绪窗口与组件故障见 [生命周期](../../01-运行时/04-生命周期与优雅关闭.md)。
@@ -80,8 +80,8 @@ qs_ai_mq_observation_available 0
 | ready_jobs / oldest_ready_job_seconds | queued且available_at已到；年龄按available_at | 不含未来重试；不是从用户提交开始的总耗时 |
 | expired_job_leases | leased且lease_until已到 | 租约过期不能证明供应商未执行 |
 | unresolved_model_calls | 绑定Session当前active Run、Session非completed/cancelled；unknown或dispatched已超过五分钟 | 不含完整评测调用账本，不是全历史unknown总数；五分钟只是观测口径 |
-| pending_results / oldest_pending_result_seconds | result_outbox.delivered=0，年龄按created_at | 与RM staged/due不是同一层；历史NULL时间另计without_timestamp，不补造年龄 |
-| provider_response_samples_5m / max_seconds_5m | model_calls已有response_received且有response_json，按call.created_at进入近五分钟 | 不含丢响应/unknown，不代表所有请求时延，也不是收到响应时间的窗口 |
+| pending_results / oldest_pending_result_seconds | interpretation_result_outbox.delivered=0，年龄按created_at | 与RM staged/due不是同一层；历史NULL时间另计without_timestamp，不补造年龄 |
+| provider_response_samples_5m / max_seconds_5m | execution_model_calls已有response_received且有response_json，按call.created_at进入近五分钟 | 不含丢响应/unknown，不代表所有请求时延，也不是收到响应时间的窗口 |
 | capacity_rejections_24h | Session创建近24小时且failure_code=participant_daily_capacity_exceeded | 不是所有组织配额/模型容量拒绝总数 |
 | database_account_connections | 当前数据库、当前MySQL账号的PROCESSLIST，含本次scrape连接 | 不是仅APP池连接数或全服务器连接数 |
 

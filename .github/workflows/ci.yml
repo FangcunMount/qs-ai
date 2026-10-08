@@ -32,6 +32,8 @@ jobs:
     env:
       QS_AI_DATABASE_URL: mysql+asyncmy://qs_ai:qs_ai_local@127.0.0.1:3306/qs_ai
       QS_AI_TEST_MYSQL_DSN: mysql://qs_ai:qs_ai_local@127.0.0.1:3306/qs_ai
+      QS_AI_SCHEMA_TEST_SERVER: mysql+pymysql://root:qs_ai_local_root@127.0.0.1:3306/mysql
+      QS_AI_LEGACY_SOURCE: ${{ github.workspace }}/.interop/qs-ai-0038
       QS_MQ_MYSQL_URL: mysql+asyncmy://qs_ai:qs_ai_local@127.0.0.1:3306/qs_mq
       QS_MQ_FAULT_DDL_MYSQL_URL: mysql+asyncmy://root:qs_ai_local_root@127.0.0.1:3306/qs_ai
       QS_MQ_NSQ_TCP_ADDRESS: 127.0.0.1:4150
@@ -39,6 +41,11 @@ jobs:
       QS_MQ_CONTRACT_PROBE: ${{ github.workspace }}/.interop/qs-mq-probe
     steps:
       - uses: actions/checkout@v4
+      - name: Read-only 0038 runtime for reverse-migration compatibility
+        uses: actions/checkout@v4
+        with:
+          ref: a533afef3f390a0726ff26657c93c045d07300b7
+          path: .interop/qs-ai-0038
       - uses: astral-sh/setup-uv@v6
         with:
           version: "0.12.13"

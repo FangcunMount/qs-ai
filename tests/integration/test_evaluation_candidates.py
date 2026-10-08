@@ -2,15 +2,16 @@ import json
 from dataclasses import replace
 
 import pytest
-from sqlalchemy import update
 
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict
 from qs_ai.application.interpretation.ports import NotFound
-from qs_ai.infrastructure.persistence.mysql.evaluation_management import MySQLEvaluationManagement
-from qs_ai.infrastructure.persistence.mysql.schema import (
-    evaluation_generation_completions,
-    evaluation_semantic_completions,
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    generation_completions as evaluation_generation_completions,
 )
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    semantic_completions as evaluation_semantic_completions,
+)
+from qs_ai.infrastructure.persistence.mysql.evaluation_management import MySQLEvaluationManagement
 from tests.integration.test_evaluation_completions import dispatched as dispatched
 from tests.integration.test_evaluation_reviews import outputs
 from tests.integration.test_evaluation_reviews import reviewable as reviewable
@@ -101,7 +102,7 @@ async def test_corrupt_evidence_never_becomes_a_review_view(reviewable, kind):
         }
     async with tx.open() as db:
         await db.execute(
-            update(table)
+            table.update()
             .where(table.c.run_id == str(scope.run_id), table.c.candidate_id == "candidate:1")
             .values(**values)
         )

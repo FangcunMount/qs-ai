@@ -2,12 +2,13 @@ from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from contextlib import asynccontextmanager
 from dataclasses import asdict
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 from uuid import uuid4
 
 from jsonschema.exceptions import SchemaError
 from sqlalchemy import func, insert, select, update
 from sqlalchemy.dialects.mysql import insert as mysql_insert
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from qs_ai.application.execution.capacity import (
@@ -37,7 +38,6 @@ from qs_ai.infrastructure.persistence.mysql.result_outbox import stage_state
 from qs_ai.infrastructure.persistence.mysql.schema import (
     evidence_sets,
     execution_leases,
-    external_requests,
     idempotency,
     jobs,
     questions,
@@ -146,9 +146,13 @@ class MySQLUnitOfWork:
             raise AdmissionRejected("admission_configuration_invalid") from None
 
     async def bind_request(self, session_id: str, request_id: str) -> None:
-        await self.db.execute(
-            insert(external_requests).values(session_id=session_id, request_id=request_id)
+        result = await self.db.execute(
+            update(sessions)
+            .where(sessions.c.id == session_id, sessions.c.request_id.is_(None))
+            .values(request_id=request_id)
         )
+        if cast(CursorResult, result).rowcount != 1:
+            raise RuleViolation("idempotency_conflict")
 
     async def add(self, session: Session) -> None:
         await self.db.execute(

@@ -40,7 +40,7 @@ async def collect_messaging_snapshot(
                 COALESCE(GREATEST(MAX(CASE WHEN stage='awaiting_receipt' THEN
                     TIMESTAMPDIFF(MICROSECOND,created_at,:at) END),0)/1000000,0)
                     AS mq_oldest_awaiting_receipt_seconds
-                FROM ai_messaging_outbox"""
+                FROM messaging_outbox"""
                     + where
                 ),
                 {"at": observed_at, "org": organization_id},
@@ -57,7 +57,7 @@ async def collect_messaging_snapshot(
             await db.scalar(
                 text(
                     "SELECT /*+ MAX_EXECUTION_TIME(1000) */ COUNT(*) "
-                    "FROM ai_messaging_inbox WHERE decision='held'"
+                    "FROM messaging_inbox WHERE decision='held'"
                 )
             )
         )
@@ -66,7 +66,7 @@ async def collect_messaging_snapshot(
                 await db.execute(
                     text(
                         "SELECT /*+ MAX_EXECUTION_TIME(1000) */ code,COUNT(*) n "
-                        "FROM ai_messaging_quarantine WHERE code IN "
+                        "FROM messaging_quarantine WHERE code IN "
                         "('identity_conflict','authentication_failed','invalid_wire',"
                         "'invalid_failure_wire','handler_failed') GROUP BY code"
                     )

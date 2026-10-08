@@ -1,6 +1,6 @@
 """Exact version reads in the caller's transaction; no latest or filesystem fallback."""
 
-from sqlalchemy import insert, select
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -8,9 +8,12 @@ from qs_ai.application.interpretation.ports import NotFound
 from qs_ai.domain.evaluation.assets import PolicyAsset, PolicyKind, SemanticPromptAsset
 from qs_ai.domain.evaluation.identity import FrozenContractRef
 from qs_ai.domain.governance.profile import AssetConflict
+from qs_ai.infrastructure.persistence.mysql.asset_records import (
+    evaluation_policy_assets as policies,
+)
+from qs_ai.infrastructure.persistence.mysql.asset_records import semantic_prompt_assets as prompts
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
-from qs_ai.infrastructure.persistence.mysql.schema import evaluation_policy_assets as policies
-from qs_ai.infrastructure.persistence.mysql.schema import semantic_prompt_assets as prompts
+from qs_ai.infrastructure.persistence.mysql.governance_records import insert
 from qs_ai.infrastructure.qs_server.evaluation_policies import (
     FrozenPolicyDocument,
     execution_policy,

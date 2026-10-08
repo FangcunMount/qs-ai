@@ -12,6 +12,8 @@ import sqlalchemy as sa
 from qs_ai.infrastructure.persistence.mysql.database import Database, Transactions
 from qs_ai.infrastructure.workflow_transport.messaging import INLINE_BODY
 from qs_ai.maintenance.legacy_results import timestamp
+from qs_ai.maintenance.schema_layout import physical_table, require_known_head
+from qs_ai.maintenance.schema_refactor.layouts import NEW_HEAD
 
 
 async def inventory(transactions: Transactions, *, max_rows: int = 1000) -> dict[str, Any]:
@@ -34,11 +36,12 @@ async def inventory(transactions: Transactions, *, max_rows: int = 1000) -> dict
             if "version_num" in columns.get("alembic_version", set())
             else None
         )
+        schema_head = require_known_head(heads)
         report: dict[str, Any] = {
             "revision": "qs-ai-messaging-audit/v1",
             "database": database,
             "schema_heads": heads,
-            "handoff_schema_compatible": heads == ["0038_messaging_observations"],
+            "handoff_schema_compatible": True,
             "complete": True,
             "sections": {},
             "classification": "stored facts only; no recovery or model retry authorization",
@@ -54,18 +57,30 @@ async def inventory(transactions: Transactions, *, max_rows: int = 1000) -> dict
             order: str = "",
         ) -> None:
             # All names/expressions are fixed below, never supplied by CLI input.
-            available = columns.get(name)
-            entry: dict[str, Any] = {"table_exists": available is not None}
+            table = physical_table(schema_head, name)
+            predicate = ""
+            if schema_head == NEW_HEAD and name in (
+                "evaluation_generation_completions",
+                "evaluation_semantic_completions",
+            ):
+                kind = "generation" if name == "evaluation_generation_completions" else "semantic"
+                predicate = f" WHERE kind='{kind}'"
+                required = (required or set()) | {"kind"}
+            available = columns.get(table)
+            entry: dict[str, Any] = {
+                "table_exists": available is not None,
+                "physical_table": table,
+            }
             report["sections"][name] = entry
             if available is None or not set(fields).union(required or set()).issubset(available):
                 entry.update(available=False, total=None, rows=None)
                 report["complete"] = False
                 return
-            total = int(await db.scalar(sa.text(f"SELECT COUNT(*) FROM `{name}`")) or 0)
+            total = int(await db.scalar(sa.text(f"SELECT COUNT(*) FROM `{table}`{predicate}")) or 0)
             rows = (
                 await db.execute(
                     sa.text(
-                        f"SELECT {','.join(fields)}{extras} FROM `{name}` "
+                        f"SELECT {','.join(fields)}{extras} FROM `{table}`{predicate} "
                         f"ORDER BY {order or fields[0]} LIMIT :limit"
                     ),
                     {"limit": max_rows},
@@ -79,7 +94,11 @@ async def inventory(transactions: Transactions, *, max_rows: int = 1000) -> dict
             if total > max_rows:
                 report["complete"] = False
 
-        owned = "mq_owned" if "mq_owned" in columns.get("result_outbox", set()) else "NULL"
+        owned = (
+            "mq_owned"
+            if "mq_owned" in columns.get(physical_table(schema_head, "result_outbox"), set())
+            else "NULL"
+        )
         await section(
             "result_outbox",
             [

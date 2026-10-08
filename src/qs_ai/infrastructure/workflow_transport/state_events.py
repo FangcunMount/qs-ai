@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from qs_ai.contracts.workflow import messaging_pb2 as pb
 from qs_ai.contracts.workflow import workflow_pb2 as workflow
-from qs_ai.infrastructure.persistence.mysql.messaging import MessagingStore, metadata, outbox
+from qs_ai.infrastructure.persistence.mysql.messaging import MessagingStore, metadata
 from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_checkpoints,
     evaluation_runs,
@@ -32,7 +32,7 @@ from qs_ai.infrastructure.workflow_transport.messaging import (
 
 # Independent from Run/checkpoint schema: no historical state is synthesized on upgrade.
 evaluation_sequences = sa.Table(
-    "ai_messaging_evaluation_sequences",
+    "messaging_evaluation_sequences",
     metadata,
     sa.Column("run_id", sa.CHAR(36), primary_key=True),
     sa.Column("sequence", sa.BigInteger, nullable=False),
@@ -43,8 +43,16 @@ evaluation_sequences = sa.Table(
 
 
 class StateEventRecorder:
-    def __init__(self, store: MessagingStore, signing_key: Any, recipient_key: Any) -> None:
+    def __init__(
+        self,
+        store: MessagingStore,
+        signing_key: Any,
+        recipient_key: Any,
+        *,
+        result_table: sa.Table = result_outbox,
+    ) -> None:
         self.store, self.signing_key, self.recipient_key = store, signing_key, recipient_key
+        self.result_table = result_table
 
     async def record_interpretation(self, db: AsyncSession, row: Mapping[Any, Any]) -> None:
         # Repeated stage_state saves also reuse the first wire without resealing it.
@@ -60,6 +68,7 @@ class StateEventRecorder:
         No scans, connections, PUBs, or task creation belong to this entry point.
         True means ownership changed in this transaction, not consumer delivery.
         """
+        result_outbox, outbox = self.result_table, self.store.outbox_table
         original = bind(db)
         await original.validate()
         if any(c.name not in locked_row for c in result_outbox.columns):

@@ -22,7 +22,6 @@ from qs_ai.infrastructure.persistence.mysql.database import Transactions
 from qs_ai.infrastructure.persistence.mysql.interpretation import MySQLUnitOfWork, session_from
 from qs_ai.infrastructure.persistence.mysql.schema import (
     execution_configurations,
-    external_requests,
     jobs,
     model_calls,
     participant_retries,
@@ -60,8 +59,8 @@ class MySQLParticipantRetries:
                 raise NotFound
             session = session_from(row)
             request_id = await db.scalar(
-                select(external_requests.c.request_id).where(
-                    external_requests.c.session_id == session.id,
+                select(sessions.c.request_id).where(
+                    sessions.c.id == session.id,
                 )
             )
             if not session.uses_qs_snapshot or request_id is None or session.active_run_id is None:
@@ -186,9 +185,7 @@ class MySQLParticipantRetries:
             if source_run is None or source_run["status"] != "blocked":
                 raise RuleViolation("participant_retry_requires_blocked_run")
             request_id = await db.scalar(
-                select(external_requests.c.request_id).where(
-                    external_requests.c.session_id == session.id
-                )
+                select(sessions.c.request_id).where(sessions.c.id == session.id)
             )
             if request_id is None:
                 raise RuleViolation("participant_retry_requires_external_request")
