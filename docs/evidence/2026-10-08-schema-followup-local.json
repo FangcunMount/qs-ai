@@ -1,0 +1,165 @@
+{
+  "version": 1,
+  "scope": "local tests only; not production or human business acceptance",
+  "implementation_commit": "5415bfdf1fdae275b42f9843b9b8db98f8252cc3",
+  "baseline_commit": "7c4f60def8afbda46deba2c00ef8b73dd2d3d3a0",
+  "head": "0040_module_table_names",
+  "tables": 44,
+  "frozen_sha256": {
+    "src/qs_ai/maintenance/schema_refactor/v0038.py": "94606b97bc616376447219b014a1ece237fe59e85f7996cb7bbba0fe98f02e0f",
+    "src/qs_ai/maintenance/schema_refactor/v0040.json": "1920802a64a4410fbd863873231d69694bc92b1ed36102191fc922975e837e92",
+    "src/qs_ai/maintenance/schema_refactor/backup_format.py": "d6e7954a645d5d1db5ed5d3e2ccd98a9cdfdc99bd1a7effd8e8e84769b52c119",
+    "deploy/serverA/schema_maintenance.py": "0d064a9814aae8cf7c20dabb3efc2dca19ab87e8477bb21472cd494e84b744b5",
+    "migrations/env.py": "59209b7c1bbf2169717edcc73b3b8ba653705ed206a467cecd0fec005f01c7fc",
+    "migrations/versions/0001_baseline.py": "1859c2fe9b48cba783d487bfc5395392709bd8e0f64719c247f58ef0e6a23c72",
+    "migrations/versions/0002_checkpoint_leases.py": "3c9e548892ec9f23192e70aa92059ed5321638baec18d9aa4d8f6a16e04e179b",
+    "migrations/versions/0003_interpretation.py": "86331bbef35b4bcbf8672d593c4715afe9f834908b3f41522374b82b4c9c9dc1",
+    "migrations/versions/0004_delivery.py": "3e5230c76ee8ce2d0d5f6976078860fe9b6dac32ea1ac91bdf3befc9426d3e94",
+    "migrations/versions/0005_model_calls.py": "21e47457fbb4bad49b9f24fcf2c488c4a84100143c5c193674af9f054236a85c",
+    "migrations/versions/0006_artifacts.py": "d45162143279169ab8602e2b38757f5b41dd4873137500d68e1280cf2e4b53e9",
+    "migrations/versions/0007_profile_assets.py": "5dfb31b0f8b53525e700faf44b730ef97dcd787e120e4a22bcbd8ea4c9091623",
+    "migrations/versions/0008_prompt_assets.py": "02bcc5ea5da81b0212e1a2d873acc703c10d8df5a762f478c555828a716ac35d",
+    "migrations/versions/0009_route_assets.py": "a9c0ce93edc4967dbaaaef3b85a7f8ec1dcc46a38209f1187a758338530cb268",
+    "migrations/versions/0010_schema_assets.py": "f444111b1b9cfea49bfafb001f2fb8e946f4029a0c67e5964da241abc068900b",
+    "migrations/versions/0011_evaluation_checkpoints.py": "bc9ff199558005a45dc2314c4bf69a90c33e5457b74f0d0804467aedb473b819",
+    "migrations/versions/0012_evaluation_dispatches.py": "030885e202c7461d0e542ff660f5b178f374fdcd52c03783c450a5ed7fd1aa2c",
+    "migrations/versions/0013_evaluation_runs.py": "42ff2485f0fd74ff56d47e34fd07a94b50cf7d54f7884274f8c64f9a7d6950b9",
+    "migrations/versions/0014_evaluation_progress.py": "64ead21876fc3c8cd42136b4d60c4792fe88142ed01f76cdae1b4bcf2cb228a0",
+    "migrations/versions/0015_generation_completions.py": "3a29b2992bb4d284d7bf1d9d04186b0eaa89b0b92df723a42f43213b63d0d57b",
+    "migrations/versions/0016_semantic_completions.py": "b3f48132c9211d6d91184e46e1131e2190ca60e2de24188e517b7482cc6d077e",
+    "migrations/versions/0017_configuration_publications.py": "98052869326c6726b17dcaf2051f39f505605d5f01a4bc28a90af09e230d88be",
+    "migrations/versions/0018_execution_configurations.py": "a8c2008f210abe5012671ae14571bd0a3ab479de8fd65d226c6e87da3e479197",
+    "migrations/versions/0019_prompt_drafts.py": "f98e701bd6c18ed4eccf10e0526655d2414f5a611fc010be60c8f09bd6c1a7bc",
+    "migrations/versions/0020_prompt_freezes.py": "f429b4a6c9880667593b5e57ccc2460d007ed598945f87acdce4f3f575ec765c",
+    "migrations/versions/0021_profile_registrations.py": "3977ada5852ff5bebab1c2f96be2760b77422433a3553fb5e3eb2caf0477133d",
+    "migrations/versions/0022_evaluation_suites.py": "f74188e7a9620f73114fb665aadefc041838d5cfd92d7d08c7e58b6f36d026f9",
+    "migrations/versions/0023_evaluation_catalog_index.py": "5f6edf1fb331dad230f845fdb15ca142bf0094169eea7b08f6cb103737820d80",
+    "migrations/versions/0024_evaluation_capacity.py": "98f77f1efd6d80886a24de181cd2a62a02398e006034bd6925c20565b78c6a9f",
+    "migrations/versions/0025_participant_capacity.py": "d923cdf730b0c9a40b4dd0b144ee504be98f990aef7c1df009228666563105d6",
+    "migrations/versions/0026_participant_retries.py": "acb48e0130c827c80ee1f463c09e2735b7e0a68b2d13dfbf0d67c75ff8886114",
+    "migrations/versions/0027_delivery_timestamps.py": "e0ef73d70cc5b9b1d7d5d0424cc8548e78b8398c0a0d6245fe2dd6e2c0bb4519",
+    "migrations/versions/0028_execution_leases.py": "2f790439417dfc9183ed0b83d06dc19aaa2971b21a01086e0327caec747dea39",
+    "migrations/versions/0029_solution_revisions.py": "5754aa84c844bf7e0cfb158fbae95400f1a13f8e57bc7a640d923905112fa8be",
+    "migrations/versions/0030_organization_quotas.py": "2b139d1a2a09b5a5fcc705871da05e499cc1af6237876845a092383b4303b7ee",
+    "migrations/versions/0031_evaluation_policy_assets.py": "2dba9ace1b448349753045daa50584dea0a03800f6b8e65d8033aef5047aec3e",
+    "migrations/versions/0032_runtime_milestones.py": "52febb9643ead4e62489e93da38d8fe3918ca01a29cdb54002c6362f31fe57c8",
+    "migrations/versions/0033_semantic_prompt_drafts.py": "7523e11cb55beea98723050042d6737b74152f623c51917b166fba5bb3843440",
+    "migrations/versions/0034_evaluation_suite_sources.py": "614a6dc59cbf8bf4b2872640151224b51165ba57a1784de78fa650bfb315aac5",
+    "migrations/versions/0035_runtime_utc_timestamps.py": "366fcef80027aa979d9d74222b9ff88f5a83612165ba0d0ea147e499506ab825",
+    "migrations/versions/0036_evaluation_slot_claims.py": "92f8eb1ff24aea68342242dad3a6a28aae04164de8b9f27fcfa6d069ad0c6757",
+    "migrations/versions/0037_workflow_messaging.py": "8663cda4a6263bb1f99b5766d571487f067923d95414560efa84915bf3d66c2a",
+    "migrations/versions/0038_messaging_observations.py": "052520bdf81107128872608ca20d5ab2a37773677160aa6d96ce94e22dd63882",
+    "migrations/versions/0039_data_consolidation.py": "b9d27aab1ae323afc150df07a2bed3c21c4d4978f1262c4e178e37e16bcd5f93",
+    "migrations/versions/0040_module_table_names.py": "4c4ab3cdc7b871b5d3e0577ead40be96ee5ebfb568ef84acc712cd58b2ab32e9"
+  },
+  "regression": {
+    "unique_cases": 2167,
+    "passed": 2167,
+    "failed": 0,
+    "skipped": 0,
+    "reports": [
+      {
+        "path": ".interop/followup-unit-stable.xml",
+        "sha256": "45e923168fe33fa5f02ee4589e1b9e6e37f4019ea3d97b2011b12f87ab88712f"
+      }
+    ]
+  },
+  "mysql": {
+    "8.0.36": {
+      "auto_increment": {
+        "unique_cases": 20,
+        "passed": 20,
+        "failed": 0,
+        "skipped": 0,
+        "reports": [
+          {
+            "path": ".interop/followup-auto-33080.xml",
+            "sha256": "48a52ffb984043c36bc987ab6973a18e49826f0996ba10a3c4eb4df8d4f5cf72"
+          }
+        ]
+      },
+      "prompt_retirement": {
+        "unique_cases": 16,
+        "passed": 16,
+        "failed": 0,
+        "skipped": 0,
+        "reports": [
+          {
+            "path": ".interop/prompt-retirement-final80.xml",
+            "sha256": "371dba928461a9a76780fd29036c72ab0f102dc6ac321e7ccb944321bdd2d72a"
+          },
+          {
+            "path": ".interop/prompt-retirement-metadata80.xml",
+            "sha256": "dce15088adfaf05d5948a78ae5911c62e6464371ccb54efb1c033081b9957395"
+          }
+        ]
+      },
+      "real_host_reader_and_new_facts_inverse": {
+        "unique_cases": 2,
+        "passed": 2,
+        "failed": 0,
+        "skipped": 0,
+        "reports": [
+          {
+            "path": ".interop/followup-runtime-final-33080.xml",
+            "sha256": "0f58ee72e4006dd5fbb11ed3945918bc3a98ca3a68326281b4c6a95cadbdf865"
+          }
+        ]
+      }
+    },
+    "8.4": {
+      "auto_increment": {
+        "unique_cases": 20,
+        "passed": 20,
+        "failed": 0,
+        "skipped": 0,
+        "reports": [
+          {
+            "path": ".interop/followup-auto-33084.xml",
+            "sha256": "39daad5b7e3ae7fdf0866f6654d5573fd10d9995b96e9aba80699b9cae1f761c"
+          }
+        ]
+      },
+      "prompt_retirement": {
+        "unique_cases": 16,
+        "passed": 16,
+        "failed": 0,
+        "skipped": 0,
+        "reports": [
+          {
+            "path": ".interop/prompt-retirement-final84.xml",
+            "sha256": "2c20f386a296540aa7e56a31677b4598f445c268ae5c4f2855181f539f29f55a"
+          },
+          {
+            "path": ".interop/prompt-retirement-metadata84.xml",
+            "sha256": "76b5db9eaff31d5ebfe192d58512cc97a5ff30cf3ea007ba8250b1e286704df9"
+          }
+        ]
+      },
+      "real_host_reader_and_new_facts_inverse": {
+        "unique_cases": 2,
+        "passed": 2,
+        "failed": 0,
+        "skipped": 0,
+        "reports": [
+          {
+            "path": ".interop/followup-runtime-final-33084.xml",
+            "sha256": "5ce9f7079375fd5dc1d3f822017016c7ab389ba8cf52cfdb1d4155a5446fae13"
+          }
+        ]
+      }
+    }
+  },
+  "ci": "pending",
+  "production_runtime": "pending",
+  "business_acceptance": "not covered by these tests",
+  "production_asset_deletion": "not performed",
+  "production_inverse_migration": "not performed",
+  "coverage_receipt_commit": "e23277732ab1b5831a8751661f686a5a409e0c91",
+  "coverage_receipt_regression": {
+    "passed": 153,
+    "failed": 0,
+    "report": ".interop/schema-followup-coverage.xml",
+    "sha256": "2abd8f28193fe0ea600a43593abf4e3e109c0ba86ba6a0424f13283430fc14ca"
+  }
+}

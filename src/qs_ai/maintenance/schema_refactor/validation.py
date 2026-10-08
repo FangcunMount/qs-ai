@@ -15,6 +15,7 @@ from qs_ai.maintenance.schema_refactor.layouts import (
     OLD_HEAD,
     physical,
 )
+from qs_ai.maintenance.schema_refactor.validation_contract import auto_increment_columns
 
 
 def _normal(value: Any) -> str:
@@ -215,6 +216,25 @@ def _require_index_options(conn: Connection, schema: str) -> None:
         raise ValueError("Unknown prefix, invisible, descending or non-BTREE index drift")
 
 
+def _require_auto_increment(conn: Connection, schema: str, head: str) -> None:
+    # EXTRA describes the column attribute; TABLES.AUTO_INCREMENT is a mutable
+    # next-value counter and cannot prove whether the identity attribute exists.
+    expected = auto_increment_columns(head)
+    actual = {
+        (table, column)
+        for table, column, extra in conn.execute(
+            sa.text(
+                "SELECT TABLE_NAME,COLUMN_NAME,EXTRA FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA=:schema"
+            ),
+            {"schema": schema},
+        )
+        if "auto_increment" in extra.lower().split()
+    }
+    if actual != expected:
+        raise ValueError("AUTO_INCREMENT column attributes have drifted")
+
+
 def _legacy_indexes(table: sa.Table) -> Counter[tuple[tuple[str, ...], bool]]:
     values = [
         (tuple(column.name for column in index.columns), bool(index.unique))
@@ -240,6 +260,7 @@ def require_schema(
     schema: str | None = None,
     *,
     column_collations: contracts.ColumnCollations | None = None,
+    allow_external_incoming: bool = False,
 ) -> None:
     schema = schema or str(conn.scalar(sa.text("SELECT DATABASE()")))
     actual = contracts.tables(conn, schema)
@@ -257,6 +278,7 @@ def require_schema(
     ).all()
     if any(engine != "InnoDB" or kind != "BASE TABLE" for _, engine, kind in objects):
         raise ValueError("Conversion requires only InnoDB base tables")
+    _require_auto_increment(conn, schema, head)
     triggers = conn.scalar(
         sa.text("SELECT COUNT(*) FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA=:schema"),
         {"schema": schema},
@@ -306,7 +328,7 @@ def require_schema(
         ),
         {"schema": schema},
     )
-    if external:
+    if external and not allow_external_incoming:
         raise ValueError("External foreign key prevents exchange")
     if head == OLD_HEAD:
         # Historical migrations use inherited defaults and unnamed constraints.

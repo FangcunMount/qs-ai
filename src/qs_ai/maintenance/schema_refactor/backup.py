@@ -687,6 +687,7 @@ def preflight(
     *,
     expected_server_uuid: str | None = None,
     expected_head: str | None = None,
+    allow_external_incoming: bool = False,
 ) -> dict[str, Any]:
     """Report grants and effective metadata only; never test permission with CREATE."""
     identifier(schema)
@@ -743,7 +744,13 @@ def preflight(
         <= _privileges(grants, "ai_refactor_old_", partial, prefix=True),
     }
     missing = [name for name, allowed in capabilities.items() if not allowed]
-    require_schema(conn, head, schema, column_collations={})
+    require_schema(
+        conn,
+        head,
+        schema,
+        column_collations={},
+        allow_external_incoming=allow_external_incoming,
+    )
     objects = {
         table.lower(): int(
             conn.scalar(
