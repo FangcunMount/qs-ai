@@ -5,7 +5,7 @@ import asyncio
 import hashlib
 import json
 
-from sqlalchemy import insert, select, update
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from qs_ai.bootstrap.import_evaluation_assets import baseline_assets
@@ -14,6 +14,10 @@ from qs_ai.domain.evaluation.assets import PolicyKind
 from qs_ai.domain.evaluation.identity import FrozenContractRef
 from qs_ai.domain.evaluation.suite_contracts import SuiteContracts
 from qs_ai.domain.governance.schema import SchemaAsset
+from qs_ai.infrastructure.persistence.mysql.asset_records import (
+    schema_assets,
+    semantic_prompt_assets,
+)
 from qs_ai.infrastructure.persistence.mysql.asset_snapshot import AssetSnapshotReader
 from qs_ai.infrastructure.persistence.mysql.database import Database, Transactions
 from qs_ai.infrastructure.persistence.mysql.evaluation_asset_registry import (
@@ -23,12 +27,8 @@ from qs_ai.infrastructure.persistence.mysql.evaluation_suites import (
     decode_record,
     load_registered_suite,
 )
-from qs_ai.infrastructure.persistence.mysql.schema import (
-    evaluation_runs,
-    evaluation_suites,
-    schema_assets,
-    semantic_prompt_assets,
-)
+from qs_ai.infrastructure.persistence.mysql.governance_records import insert, update
+from qs_ai.infrastructure.persistence.mysql.schema import evaluation_runs, evaluation_suites
 from qs_ai.infrastructure.persistence.mysql.suite_contracts import decode, encode
 from qs_ai.infrastructure.qs_server.evaluation_suite import V6_PUBLISHED, FrozenSuite, load_suite
 from qs_ai.infrastructure.qs_server.semantic_assets import load_semantic_assets

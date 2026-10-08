@@ -29,7 +29,7 @@ KINDS = (
 MAX_COUNT = 2**64 - 1
 metadata = sa.MetaData()
 observations = sa.Table(
-    "ai_messaging_observations",
+    "messaging_observations",
     metadata,
     sa.Column("kind", sa.String(64, collation="ascii_bin"), primary_key=True),
     sa.Column("recorded_count", mysql.BIGINT(unsigned=True), nullable=False),
@@ -80,7 +80,7 @@ async def collect_observations(db: AsyncSession) -> dict[str, float]:
                 sa.text(
                     "SELECT /*+ MAX_EXECUTION_TIME(1000) */ kind,recorded_count,"
                     "TIMESTAMPDIFF(MICROSECOND,'1970-01-01 00:00:00',recording_since)"
-                    "/1000000 AS since_epoch_seconds FROM ai_messaging_observations"
+                    "/1000000 AS since_epoch_seconds FROM messaging_observations"
                 )
             )
         )

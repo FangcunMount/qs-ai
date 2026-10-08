@@ -23,6 +23,12 @@ from qs_ai.domain.evaluation.identity import EvidenceReleaseIdentity, FrozenCont
 from qs_ai.domain.evaluation.preflight import AssertionReceipt
 from qs_ai.domain.evaluation.review import ReviewCandidate
 from qs_ai.domain.evaluation.semantic_completion import SemanticCompletion
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    generation_completions as generations,
+)
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    semantic_completions as semantics,
+)
 from qs_ai.infrastructure.persistence.mysql.evaluation_assets import prepare_run_case
 from qs_ai.infrastructure.persistence.mysql.evaluation_cancellation import read_cancellation
 from qs_ai.infrastructure.persistence.mysql.evaluation_finalization import read_finalization
@@ -41,12 +47,6 @@ from qs_ai.infrastructure.persistence.mysql.evaluation_snapshot import header
 from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_dispatches,
 )
-from qs_ai.infrastructure.persistence.mysql.schema import (
-    evaluation_generation_completions as generations,
-)
-from qs_ai.infrastructure.persistence.mysql.schema import (
-    evaluation_semantic_completions as semantics,
-)
 
 
 async def list_candidates(db: AsyncSession, scope: ManagementScope) -> CandidateIndex:
@@ -54,7 +54,7 @@ async def list_candidates(db: AsyncSession, scope: ManagementScope) -> Candidate
     rows = (
         (
             await db.execute(
-                select(
+                generations.select(
                     generations.c.candidate_id, generations.c.case_id, generations.c.slot_ordinal
                 )
                 .where(
@@ -89,7 +89,7 @@ async def get_candidate(
     selected = (
         (
             await db.execute(
-                select(generations).where(
+                generations.select().where(
                     generations.c.run_id == str(scope.run_id),
                     generations.c.candidate_id == candidate_id,
                 )
@@ -112,7 +112,7 @@ async def get_candidate(
     records = list(
         (
             await db.execute(
-                select(generations).where(
+                generations.select().where(
                     generations.c.run_id == str(scope.run_id),
                     generations.c.case_id == slot["case_id"],
                     generations.c.slot_ordinal == slot["ordinal"],
@@ -123,7 +123,7 @@ async def get_candidate(
     semantic_records = list(
         (
             await db.execute(
-                select(semantics).where(
+                semantics.select().where(
                     semantics.c.run_id == str(scope.run_id),
                     semantics.c.candidate_id == candidate_id,
                 )

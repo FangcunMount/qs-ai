@@ -8,16 +8,16 @@ import pwd
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import select
-
 from qs_ai.config import Settings
 from qs_ai.domain.evaluation.contract_recovery import ContractRecovery
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    semantic_completions as evaluation_semantic_completions,
+)
 from qs_ai.infrastructure.persistence.mysql.database import Database, Transactions
 from qs_ai.infrastructure.persistence.mysql.evaluation_contract_recovery import (
     authorize_contract_recovery,
 )
 from qs_ai.infrastructure.persistence.mysql.evaluation_projection import decode_semantic_completion
-from qs_ai.infrastructure.persistence.mysql.schema import evaluation_semantic_completions
 
 
 async def run(args: argparse.Namespace) -> dict:
@@ -30,7 +30,7 @@ async def run(args: argparse.Namespace) -> dict:
             row = (
                 (
                     await db.execute(
-                        select(evaluation_semantic_completions).where(
+                        evaluation_semantic_completions.select().where(
                             evaluation_semantic_completions.c.run_id == str(args.run_id),
                             evaluation_semantic_completions.c.execution_id == args.execution_id,
                         )

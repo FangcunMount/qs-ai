@@ -8,6 +8,15 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict, CheckpointState
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    generation_completions as evaluation_generation_completions,
+)
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    select_records,
+)
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    semantic_completions as evaluation_semantic_completions,
+)
 from qs_ai.infrastructure.persistence.mysql.evaluation_candidate_plan import candidate_plan
 from qs_ai.infrastructure.persistence.mysql.evaluation_checkpoints import save_checkpoint
 from qs_ai.infrastructure.persistence.mysql.evaluation_slot_claims import (
@@ -18,9 +27,7 @@ from qs_ai.infrastructure.persistence.mysql.evaluation_slot_claims import (
     require_claim,
 )
 from qs_ai.infrastructure.persistence.mysql.schema import (
-    evaluation_generation_completions,
     evaluation_runs,
-    evaluation_semantic_completions,
 )
 
 
@@ -37,7 +44,7 @@ async def _blocked_execution(
             rows.extend(
                 (
                     await db.execute(
-                        select(table.c.execution_id, table.c.evidence_json).where(
+                        select_records(table, table.c.execution_id, table.c.evidence_json).where(
                             table.c.run_id == str(run_id)
                         )
                     )
@@ -70,7 +77,7 @@ async def _blocked_execution(
         row = (
             (
                 await db.execute(
-                    select(table.c.execution_id, table.c.evidence_json).where(
+                    select_records(table, table.c.execution_id, table.c.evidence_json).where(
                         table.c.run_id == str(run_id),
                         table.c.execution_ordinal == action.execution_ordinal - 1,
                         *conditions,
@@ -186,8 +193,6 @@ async def completed_claim_state(
     from qs_ai.infrastructure.persistence.mysql.evaluation_checkpoints import decode
     from qs_ai.infrastructure.persistence.mysql.schema import (
         evaluation_dispatches,
-        evaluation_generation_completions,
-        evaluation_semantic_completions,
     )
 
     _, version = await lock_run(db, claim.run_id, organization_id)
@@ -228,7 +233,7 @@ async def completed_claim_state(
     )
     record = (
         await db.execute(
-            select(table.c.execution_id)
+            select_records(table, table.c.execution_id)
             .where(table.c.run_id == str(claim.run_id), table.c.invocation_id == cp.invocation_id)
             .with_for_update()
         )

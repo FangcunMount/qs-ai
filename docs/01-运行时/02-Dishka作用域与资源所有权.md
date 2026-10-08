@@ -95,7 +95,7 @@ Transactions 工厂只接受 APP Database。每次 `open()` 都创建新的 Even
 
 `EventSession.commit()` 还多做一步：当本 Session 有 recorder 和活动事务时，先 `recorder.flush(self)`，把标记的评测 Run 状态写进原事务，再执行底层 root commit。`changed_evaluation` 只标记本 Session 的 Run ID；rollback 会清除标记。这样“评测状态变了、状态事件没写入”不会变成两次独立提交。
 
-参与者结果事件并不是都由这个 flush 自动补写。`stage_state` 在保存解释状态时，就通过 `db.info["state_events"]` 调用 recorder，把原 result_outbox 与 MQ 记录放进当前事务；评测标记则在根提交前 flush。两条路径都借用同一原 Session，不能先提交业务再在另一个事务补事件。
+参与者结果事件并不是都由这个 flush 自动补写。`stage_state` 在保存解释状态时，就通过 `db.info["state_events"]` 调用 recorder，把原 interpretation_result_outbox 与 MQ 记录放进当前事务；评测标记则在根提交前 flush。两条路径都借用同一原 Session，不能先提交业务再在另一个事务补事件。
 
 ## MQ Start 为什么必须借用原根事务
 
@@ -160,6 +160,6 @@ sequenceDiagram
 | 共享 pool 不共享 Session，也能在连接失效后继续使用 | [Database / Transactions / EventSession](../../src/qs_ai/infrastructure/persistence/mysql/database.py) | [test_shared_runtime_pool.py](../../tests/integration/test_shared_runtime_pool.py)：五种职责模拟共池，100 个不同 Session，退出后连接归还、失效连接后继续查询；需要隔离 MySQL，不是实际五种 listener 的业务压力测试 |
 | MQ runtime 借用 APP pool，自有载荷通道和传输资源 | [MessagingRuntime](../../src/qs_ai/bootstrap/messaging.py) | [test_messaging_runtime.py](../../tests/test_messaging_runtime.py)：替身断言预检先 rollback/close 再建传输、runtime 关闭 channel/移除 recorder，未 dispose engine；[真实预检测试](../../tests/integration/test_messaging_preflight.py) 另验证隔离 MySQL 的只读预检 |
 | UOW commit 如何从自有切到借用 | [事务包装器](../../src/qs_ai/infrastructure/persistence/mysql/database.py)、[UOW 工厂](../../src/qs_ai/infrastructure/persistence/mysql/interpretation.py)、[命令适配](../../src/qs_ai/infrastructure/workflow_transport/command_admission.py) | [test_mq_admission.py](../../tests/integration/test_mq_admission.py)：版本拒绝撤销局部预留但持久 Inbox；首回执失败撤销业务与 Inbox；成功/拒绝原命令重放 |
-| 状态事件与原业务是否共同接受 | [result_outbox](../../src/qs_ai/infrastructure/persistence/mysql/result_outbox.py)、[StateEventRecorder](../../src/qs_ai/infrastructure/workflow_transport/state_events.py)、[CommandReceiver](../../src/qs_ai/infrastructure/workflow_transport/mq_receiver.py) | 同一 [MQ 接单测试](../../tests/integration/test_mq_admission.py) 的 `test_failed_evaluation_event_rolls_back_projection_and_sequence` 验证状态、序号、Inbox/Outbox 一起回滚，再以原消息成功提交 |
+| 状态事件与原业务是否共同接受 | [interpretation_result_outbox](../../src/qs_ai/infrastructure/persistence/mysql/result_outbox.py)、[StateEventRecorder](../../src/qs_ai/infrastructure/workflow_transport/state_events.py)、[CommandReceiver](../../src/qs_ai/infrastructure/workflow_transport/mq_receiver.py) | 同一 [MQ 接单测试](../../tests/integration/test_mq_admission.py) 的 `test_failed_evaluation_event_rolls_back_projection_and_sequence` 验证状态、序号、Inbox/Outbox 一起回滚，再以原消息成功提交 |
 
 这些入口分别证明对象装配、替身清理断言和数据库事务行为。只运行容器单元测试不能证明 MySQL 原子性；集成测试 skip 也不能当成已验证。所有连接类验证需要一次性环境，不应为了补文档证据连接生产。

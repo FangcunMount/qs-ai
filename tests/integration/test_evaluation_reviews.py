@@ -4,7 +4,7 @@ from dataclasses import replace
 from datetime import datetime, timedelta
 
 import pytest
-from sqlalchemy import select, update
+from sqlalchemy import update
 
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict
 from qs_ai.application.evaluation.management import ManagementScope
@@ -14,12 +14,19 @@ from qs_ai.domain.evaluation.review import (
     CandidateHumanReview,
     SemanticContradictionReview,
 )
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    generation_completions as evaluation_generation_completions,
+)
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    select_records,
+)
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    semantic_completions as evaluation_semantic_completions,
+)
 from qs_ai.infrastructure.persistence.mysql.evaluation_management import MySQLEvaluationManagement
 from qs_ai.infrastructure.persistence.mysql.evaluation_reviews import accept_reviews, decode_reviews
 from qs_ai.infrastructure.persistence.mysql.schema import (
-    evaluation_generation_completions,
     evaluation_runs,
-    evaluation_semantic_completions,
 )
 from tests.integration.test_evaluation_completions import dispatched as dispatched
 from tests.integration.test_evaluation_runs import rows
@@ -63,7 +70,7 @@ async def outputs(tx, run_id):
             list(
                 (
                     await db.execute(
-                        select(table)
+                        select_records(table)
                         .where(table.c.run_id == str(run_id))
                         .order_by(table.c.execution_id)
                     )
@@ -140,7 +147,7 @@ async def test_closed_flag_without_terminal_evidence_is_not_reviewable(reviewabl
     tx, scope, *_ = reviewable
     async with tx.open() as db:
         await db.execute(
-            update(evaluation_semantic_completions)
+            evaluation_semantic_completions.update()
             .where(evaluation_semantic_completions.c.run_id == str(scope.run_id))
             .values(normalized_output=b'{"corrupt":true}')
         )

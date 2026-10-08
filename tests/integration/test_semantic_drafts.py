@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import delete, func, select
+from sqlalchemy import func, select
 
 from qs_ai.application.governance.prompt_drafts import DraftScope
 from qs_ai.application.governance.semantic_drafts import (
@@ -18,17 +18,18 @@ from qs_ai.application.governance.semantic_drafts import (
 from qs_ai.application.interpretation.ports import NotFound
 from qs_ai.bootstrap.import_evaluation_assets import baseline_assets
 from qs_ai.domain.governance.prompt_draft import DraftConflict
+from qs_ai.infrastructure.persistence.mysql.asset_records import semantic_prompt_assets
 from qs_ai.infrastructure.persistence.mysql.database import Database, Transactions
+from qs_ai.infrastructure.persistence.mysql.draft_records import (
+    semantic_draft_heads,
+    semantic_draft_versions,
+)
 from qs_ai.infrastructure.persistence.mysql.evaluation_asset_registry import (
     MySQLEvaluationAssets,
     read_semantic_prompt,
 )
-from qs_ai.infrastructure.persistence.mysql.schema import (
-    semantic_draft_commands,
-    semantic_draft_heads,
-    semantic_draft_versions,
-    semantic_prompt_assets,
-)
+from qs_ai.infrastructure.persistence.mysql.governance_records import delete
+from qs_ai.infrastructure.persistence.mysql.schema import semantic_draft_commands
 from qs_ai.infrastructure.persistence.mysql.schema_assets import MySQLSchemaAssets
 from qs_ai.infrastructure.persistence.mysql.semantic_drafts import MySQLSemanticDrafts
 from qs_ai.infrastructure.qs_server.semantic_assets import load_semantic_assets

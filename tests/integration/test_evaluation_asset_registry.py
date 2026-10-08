@@ -6,22 +6,22 @@ from dataclasses import replace
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import delete, update
 
 from qs_ai.application.interpretation.ports import NotFound
 from qs_ai.bootstrap.import_evaluation_assets import baseline_assets
 from qs_ai.domain.evaluation.identity import FrozenContractRef
 from qs_ai.domain.governance.profile import AssetConflict
+from qs_ai.infrastructure.persistence.mysql.asset_records import (
+    evaluation_policy_assets,
+    semantic_prompt_assets,
+)
 from qs_ai.infrastructure.persistence.mysql.database import Database, Transactions
 from qs_ai.infrastructure.persistence.mysql.evaluation_asset_registry import (
     MySQLEvaluationAssets,
     read_policy,
     read_semantic_prompt,
 )
-from qs_ai.infrastructure.persistence.mysql.schema import (
-    evaluation_policy_assets,
-    semantic_prompt_assets,
-)
+from qs_ai.infrastructure.persistence.mysql.governance_records import delete, update
 
 pytestmark = pytest.mark.integration
 

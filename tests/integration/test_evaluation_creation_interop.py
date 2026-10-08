@@ -8,7 +8,6 @@ from dataclasses import asdict, replace
 
 import grpc
 import pytest
-from sqlalchemy import delete
 
 from qs_ai.bootstrap.container import create_container
 from qs_ai.bootstrap.import_profiles import baseline_assets as profiles
@@ -18,15 +17,16 @@ from qs_ai.bootstrap.import_schemas import baseline_assets as schemas
 from qs_ai.config import Settings
 from qs_ai.contracts.workflow import workflow_pb2 as pb
 from qs_ai.contracts.workflow import workflow_pb2_grpc as rpc
-from qs_ai.infrastructure.persistence.mysql.profile_assets import MySQLProfileAssets
-from qs_ai.infrastructure.persistence.mysql.prompt_assets import MySQLPromptAssets
-from qs_ai.infrastructure.persistence.mysql.route_assets import MySQLRouteAssets
-from qs_ai.infrastructure.persistence.mysql.schema import (
+from qs_ai.infrastructure.persistence.mysql.asset_records import (
     profile_assets,
     prompt_assets,
     route_assets,
     schema_assets,
 )
+from qs_ai.infrastructure.persistence.mysql.governance_records import delete, identity_columns
+from qs_ai.infrastructure.persistence.mysql.profile_assets import MySQLProfileAssets
+from qs_ai.infrastructure.persistence.mysql.prompt_assets import MySQLPromptAssets
+from qs_ai.infrastructure.persistence.mysql.route_assets import MySQLRouteAssets
 from qs_ai.infrastructure.persistence.mysql.schema_assets import MySQLSchemaAssets
 from qs_ai.infrastructure.qs_server.evaluation_suite import V6, V6_PUBLISHED
 from qs_ai.transport.grpc.evaluation import EvaluationManagement
@@ -53,7 +53,7 @@ async def persisted_assets(setup_run):
             (MySQLSchemaAssets, schemas, schema_assets),
         ):
             source, values = load()
-            keys = list(table.primary_key.columns)
+            keys = identity_columns(table)
             for value in values:
                 if await cls(tx).put(value, source, "integration:creation-interop"):
                     condition = (keys[0] == getattr(value, keys[0].name)) & (

@@ -8,9 +8,9 @@
 
 | 控制 | 计数单位与状态来源 | 取得与结束的时点 | 跨实例协调 |
 | --- | --- | --- | --- |
-| Participant 日额度 | `participant_capacity_reservations`，按组织 / subject / 每个 assessment、UTC 日计数 | 接单事务为 Run 预留；完成、失败、取消均保留当天记录 | 同组织 admission 锁与当前读 |
+| Participant 日额度 | `quota_participant_capacity_reservations`，按组织 / subject / 每个 assessment、UTC 日计数 | 接单事务为 Run 预留；完成、失败、取消均保留当天记录 | 同组织 admission 锁与当前读 |
 | Participant 活跃槽 | 同一 reservation 的 `active`，不按日期过滤 | 领取 Job 时取得；持久终态或取消事务释放 | MySQL 状态共享；租约重领复用 |
-| Evaluation 日预算与活跃 Run | `evaluation_capacity_reservations` 和 Run 的持久 progress | Start 预留冻结策略最坏调用预算；活跃数按状态查询 | 同组织 admission 锁 |
+| Evaluation 日预算与活跃 Run | `quota_evaluation_capacity_reservations` 和 Run 的持久 progress | Start 预留冻结策略最坏调用预算；活跃数按状态查询 | 同组织 admission 锁 |
 | 执行所有权 | 生成的 Session / Job / Lease；评测的 checkpoint / slot Claim | 短事务领取，按租约续期，终态事务结束或受控恢复 | 行锁、版本检查、唯一键及 fence |
 | 本地模型容量 | APP 作用域的 `ModelCapacity` 计数 | 新 dispatch 前取得；调用路径退出时归还 | 只在当前进程的同一事件循环共享 |
 | 消费者数量 | `worker.concurrency`、`evaluation.concurrency`、Subscriber `max_in_flight` | 启动时创建；一个 consumer 同时执行一轮 attempt | 每实例独立，不是持久额度 |
@@ -21,7 +21,7 @@
 
 ## Participant：日额度一次预留，活跃槽随执行占用
 
-[`participant_capacity.reserve`](../../../src/qs_ai/infrastructure/persistence/mysql/participant_capacity.py) 在接单事务中先锁 `participant_admission_locks` 的组织行，再读取同组织、同 UTC 日的 reservations。组织计数取全部行，用户计数按 subject，assessment 计数逐一检查 Session 中的测评 ID。只有三个维度都还有额度，才插入以 active Run ID 定位的 reservation；行内同时保存 Session、组织、subject、assessment 列表和接单时 quota 快照。
+[`participant_capacity.reserve`](../../../src/qs_ai/infrastructure/persistence/mysql/participant_capacity.py) 在接单事务中先锁 `quota_participant_admission_locks` 的组织行，再读取同组织、同 UTC 日的 reservations。组织计数取全部行，用户计数按 subject，assessment 计数逐一检查 Session 中的测评 ID。只有三个维度都还有额度，才插入以 active Run ID 定位的 reservation；行内同时保存 Session、组织、subject、assessment 列表和接单时 quota 快照。
 
 组织锁通过 insert/upsert 建立，所以“目前一条 reservation 都没有”也能串行接单。reservation 查询用 `FOR UPDATE` 的当前读，避免接单事务此前读取幂等回执时形成的旧快照漏掉刚提交的预留。重放同一 Run 会先校验既有 reservation 的身份，再复用原记录；不会跨到第二天重新收费。日额度拒绝被接单服务写成 blocked Session 和结果回执，不插入生成 Job；重复原命令返回原决定。
 
@@ -37,7 +37,7 @@
 
 当前活跃谓词是 **collecting，或 blocked 且 `cancel_requested.status=cancel_requested`**。awaiting_review 和没有待取消意图的普通 blocked 不计入此集合；待取消且仍有未知证据的 Run 保留槽，直到取消可以排空。这里的活跃 Run 数不是活跃模型调用数，也不是 Candidate 数。
 
-日预算来自 Run 已冻结、且与 `evaluation_run_policies` 原字节和 hash 匹配的执行策略。当前注册的 [`release-evaluation-bounded-recovery@v2`](../../../integrations/qs_server/evaluation/policies.json) 有 7 个生成 case，每个 5 个 slot，共 35 个候选目标；每槽生成最多 2 次，每候选语义评测最多 2 次，两阶段各最多 70 次。因此：
+日预算来自 Run 已冻结、且与 `evaluation_runs.frozen_execution_policy_json` 原字节和 hash 匹配的执行策略。当前注册的 [`release-evaluation-bounded-recovery@v2`](../../../integrations/qs_server/evaluation/policies.json) 有 7 个生成 case，每个 5 个 slot，共 35 个候选目标；每槽生成最多 2 次，每候选语义评测最多 2 次，两阶段各最多 70 次。因此：
 
 ```text
 一次无恢复的完整链：35 generation + 35 semantic = 70 次
@@ -81,7 +81,7 @@ Participant 和 evaluation 的组织锁是不同表，避免把两个业务链�
 
 考虑一个初始 version=1 的 Session：queue 后 v2，A 领取后 v3 / fence=1 / attempt=1。A 停顿到租约失效，B 重领后 v4 / fence=2 / attempt=2；A 的旧响应和 finish 都不能通过 guard。B 的 heartbeat 更新 Job 与 lease expiry，不增加 v4、fence 或 attempt。B 正常完成才继续推进 Session 版本。
 
-[`model_calls`](../../../src/qs_ai/infrastructure/persistence/mysql/schema.py) 以 run_id 为主键，另有唯一 invocation ID。首次发送前，[`begin_model_call`](../../../src/qs_ai/infrastructure/persistence/mysql/execution.py) 先提交 dispatched、原 request JSON、invocation 和 Claim fence；存在记录就返回原记录，不改成新 fence，也不为 B 生成新 invocation。于是 B 的后续权限由持久证据决定：
+[`execution_model_calls`](../../../src/qs_ai/infrastructure/persistence/mysql/schema.py) 以 run_id 为主键，另有唯一 invocation ID。首次发送前，[`begin_model_call`](../../../src/qs_ai/infrastructure/persistence/mysql/execution.py) 先提交 dispatched、原 request JSON、invocation 和 Claim fence；存在记录就返回原记录，不改成新 fence，也不为 B 生成新 invocation。于是 B 的后续权限由持久证据决定：
 
 | A 中断前留下的证据 | B 能做什么 |
 | --- | --- |

@@ -1,0 +1,4524 @@
+{
+  "head": "0040_module_table_names",
+  "tables": [
+    {
+      "name": "evaluation_checkpoints",
+      "create_sql": "\nCREATE TABLE evaluation_checkpoints (\n\trun_id CHAR(36) NOT NULL, \n\tversion BIGINT NOT NULL, \n\tcheckpoint_json JSON, \n\tCONSTRAINT pk_evaluation_checkpoints PRIMARY KEY (run_id)\n)ENGINE=InnoDB CHARSET=utf8mb4\n\n",
+      "index_sql": [],
+      "columns": [
+        {
+          "name": "run_id",
+          "type": "CHAR(36)",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "version",
+          "type": "BIGINT",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "checkpoint_json",
+          "type": "JSON",
+          "nullable": true,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        }
+      ],
+      "primary_key": [
+        "run_id"
+      ],
+      "indexes": [],
+      "foreign_keys": [],
+      "checks": []
+    },
+    {
+      "name": "evaluation_completions",
+      "create_sql": "\nCREATE TABLE evaluation_completions (\n\tkind VARCHAR(16) COLLATE ascii_bin NOT NULL, \n\trun_id CHAR(36) NOT NULL, \n\texecution_id VARCHAR(128) COLLATE utf8mb4_bin NOT NULL, \n\tinvocation_id VARCHAR(128) COLLATE utf8mb4_bin NOT NULL, \n\tcase_id VARCHAR(128) COLLATE utf8mb4_bin, \n\tslot_ordinal INTEGER, \n\texecution_ordinal INTEGER NOT NULL, \n\tcandidate_id VARCHAR(128) COLLATE utf8mb4_bin, \n\tcandidate_json JSON, \n\tevidence_json JSON NOT NULL, \n\tresult_json JSON, \n\traw_output MEDIUMBLOB NOT NULL, \n\tnormalized_output MEDIUMBLOB NOT NULL, \n\tgen_candidate_key VARCHAR(128) COLLATE utf8mb4_bin GENERATED ALWAYS AS (CASE WHEN kind='generation' THEN candidate_id ELSE NULL END) VIRTUAL, \n\tgen_case_key VARCHAR(128) COLLATE utf8mb4_bin GENERATED ALWAYS AS (CASE WHEN kind='generation' THEN case_id ELSE NULL END) VIRTUAL, \n\tgen_slot_key INTEGER GENERATED ALWAYS AS (CASE WHEN kind='generation' THEN slot_ordinal ELSE NULL END) VIRTUAL, \n\tsem_candidate_key VARCHAR(128) COLLATE utf8mb4_bin GENERATED ALWAYS AS (CASE WHEN kind='semantic' THEN candidate_id ELSE NULL END) VIRTUAL, \n\tCONSTRAINT pk_evaluation_completions PRIMARY KEY (kind, run_id, execution_id), \n\tCONSTRAINT ck_evaluation_completions_shape CHECK ((kind='generation' AND case_id IS NOT NULL AND slot_ordinal IS NOT NULL AND result_json IS NULL) OR (kind='semantic' AND candidate_id IS NOT NULL AND case_id IS NULL AND slot_ordinal IS NULL AND candidate_json IS NULL)), \n\tCONSTRAINT uk_evaluation_completions_run_id_gen_candidate_key UNIQUE (run_id, gen_candidate_key), \n\tCONSTRAINT uk_evaluation_completions_run_id_gen_case_key_gen_slot__2792b280 UNIQUE (run_id, gen_case_key, gen_slot_key, execution_ordinal), \n\tCONSTRAINT uk_evaluation_completions_run_id_sem_candidate_key_exec_e97c7f78 UNIQUE (run_id, sem_candidate_key, execution_ordinal), \n\tCONSTRAINT uk_evaluation_completions_kind_run_id_invocation_id UNIQUE (kind, run_id, invocation_id), \n\tCONSTRAINT ck_evaluation_completions_kind CHECK (kind IN ('generation','semantic'))\n)ENGINE=InnoDB CHARSET=utf8mb4\n\n",
+      "index_sql": [
+        "CREATE INDEX idx_evaluation_completions_kind_run_id_candidate_id_exe_06f69b1e ON evaluation_completions (kind, run_id, candidate_id, execution_ordinal)",
+        "CREATE INDEX idx_evaluation_completions_kind_run_id_case_id_slot_ord_16982959 ON evaluation_completions (kind, run_id, case_id, slot_ordinal, execution_ordinal)"
+      ],
+      "columns": [
+        {
+          "name": "kind",
+          "type": "VARCHAR(16) COLLATE ascii_bin",
+          "nullable": false,
+          "collation": "ascii_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "run_id",
+          "type": "CHAR(36)",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "execution_id",
+          "type": "VARCHAR(128) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "invocation_id",
+          "type": "VARCHAR(128) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "case_id",
+          "type": "VARCHAR(128) COLLATE utf8mb4_bin",
+          "nullable": true,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "slot_ordinal",
+          "type": "INTEGER",
+          "nullable": true,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "execution_ordinal",
+          "type": "INTEGER",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "candidate_id",
+          "type": "VARCHAR(128) COLLATE utf8mb4_bin",
+          "nullable": true,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "candidate_json",
+          "type": "JSON",
+          "nullable": true,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "evidence_json",
+          "type": "JSON",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "result_json",
+          "type": "JSON",
+          "nullable": true,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "raw_output",
+          "type": "MEDIUMBLOB",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "normalized_output",
+          "type": "MEDIUMBLOB",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "gen_candidate_key",
+          "type": "VARCHAR(128) COLLATE utf8mb4_bin",
+          "nullable": true,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": "CASE WHEN kind='generation' THEN candidate_id ELSE NULL END",
+          "persisted": false
+        },
+        {
+          "name": "gen_case_key",
+          "type": "VARCHAR(128) COLLATE utf8mb4_bin",
+          "nullable": true,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": "CASE WHEN kind='generation' THEN case_id ELSE NULL END",
+          "persisted": false
+        },
+        {
+          "name": "gen_slot_key",
+          "type": "INTEGER",
+          "nullable": true,
+          "collation": null,
+          "default": null,
+          "computed": "CASE WHEN kind='generation' THEN slot_ordinal ELSE NULL END",
+          "persisted": false
+        },
+        {
+          "name": "sem_candidate_key",
+          "type": "VARCHAR(128) COLLATE utf8mb4_bin",
+          "nullable": true,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": "CASE WHEN kind='semantic' THEN candidate_id ELSE NULL END",
+          "persisted": false
+        }
+      ],
+      "primary_key": [
+        "kind",
+        "run_id",
+        "execution_id"
+      ],
+      "indexes": [
+        {
+          "name": "idx_evaluation_completions_kind_run_id_case_id_slot_ord_16982959",
+          "columns": [
+            "kind",
+            "run_id",
+            "case_id",
+            "slot_ordinal",
+            "execution_ordinal"
+          ],
+          "unique": false
+        },
+        {
+          "name": "idx_evaluation_completions_kind_run_id_candidate_id_exe_06f69b1e",
+          "columns": [
+            "kind",
+            "run_id",
+            "candidate_id",
+            "execution_ordinal"
+          ],
+          "unique": false
+        },
+        {
+          "name": "uk_evaluation_completions_run_id_sem_candidate_key_exec_e97c7f78",
+          "columns": [
+            "run_id",
+            "sem_candidate_key",
+            "execution_ordinal"
+          ],
+          "unique": true
+        },
+        {
+          "name": "uk_evaluation_completions_kind_run_id_invocation_id",
+          "columns": [
+            "kind",
+            "run_id",
+            "invocation_id"
+          ],
+          "unique": true
+        },
+        {
+          "name": "uk_evaluation_completions_run_id_gen_candidate_key",
+          "columns": [
+            "run_id",
+            "gen_candidate_key"
+          ],
+          "unique": true
+        },
+        {
+          "name": "uk_evaluation_completions_run_id_gen_case_key_gen_slot__2792b280",
+          "columns": [
+            "run_id",
+            "gen_case_key",
+            "gen_slot_key",
+            "execution_ordinal"
+          ],
+          "unique": true
+        }
+      ],
+      "foreign_keys": [],
+      "checks": [
+        {
+          "name": "ck_evaluation_completions_shape",
+          "sql": "(kind='generation' AND case_id IS NOT NULL AND slot_ordinal IS NOT NULL AND result_json IS NULL) OR (kind='semantic' AND candidate_id IS NOT NULL AND case_id IS NULL AND slot_ordinal IS NULL AND candidate_json IS NULL)"
+        },
+        {
+          "name": "ck_evaluation_completions_kind",
+          "sql": "kind IN ('generation','semantic')"
+        }
+      ]
+    },
+    {
+      "name": "evaluation_dispatches",
+      "create_sql": "\nCREATE TABLE evaluation_dispatches (\n\trun_id CHAR(36) NOT NULL, \n\tinvocation_id VARCHAR(128) COLLATE utf8mb4_bin NOT NULL, \n\texecution_id VARCHAR(128) COLLATE utf8mb4_bin NOT NULL, \n\tkind VARCHAR(16) NOT NULL, \n\tcase_id VARCHAR(128) COLLATE utf8mb4_bin NOT NULL, \n\tslot_ordinal INTEGER NOT NULL, \n\tcandidate_id VARCHAR(128) COLLATE utf8mb4_bin NOT NULL, \n\tcheckpoint_json JSON NOT NULL, \n\tCONSTRAINT pk_evaluation_dispatches PRIMARY KEY (run_id, invocation_id), \n\tCONSTRAINT uk_evaluation_dispatches_run_id_execution_id UNIQUE (run_id, execution_id)\n)ENGINE=InnoDB CHARSET=utf8mb4\n\n",
+      "index_sql": [],
+      "columns": [
+        {
+          "name": "run_id",
+          "type": "CHAR(36)",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "invocation_id",
+          "type": "VARCHAR(128) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "execution_id",
+          "type": "VARCHAR(128) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "kind",
+          "type": "VARCHAR(16)",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "case_id",
+          "type": "VARCHAR(128) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "slot_ordinal",
+          "type": "INTEGER",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "candidate_id",
+          "type": "VARCHAR(128) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "checkpoint_json",
+          "type": "JSON",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        }
+      ],
+      "primary_key": [
+        "run_id",
+        "invocation_id"
+      ],
+      "indexes": [
+        {
+          "name": "uk_evaluation_dispatches_run_id_execution_id",
+          "columns": [
+            "run_id",
+            "execution_id"
+          ],
+          "unique": true
+        }
+      ],
+      "foreign_keys": [],
+      "checks": []
+    },
+    {
+      "name": "evaluation_runs",
+      "create_sql": "\nCREATE TABLE evaluation_runs (\n\trun_id CHAR(36) NOT NULL, \n\texecution_mode VARCHAR(32) NOT NULL DEFAULT 'serial_v1', \n\torganization_id BIGINT NOT NULL, \n\trequested_by VARCHAR(128) COLLATE utf8mb4_bin NOT NULL, \n\tdefinition_json LONGTEXT NOT NULL, \n\tprogress_json JSON, \n\tfrozen_execution_policy_fingerprint VARCHAR(71), \n\tfrozen_execution_policy_json LONGTEXT, \n\tCONSTRAINT pk_evaluation_runs PRIMARY KEY (run_id), \n\tCONSTRAINT ck_evaluation_runs_frozen_policy CHECK ((frozen_execution_policy_fingerprint IS NULL AND frozen_execution_policy_json IS NULL) OR (frozen_execution_policy_fingerprint IS NOT NULL AND frozen_execution_policy_json IS NOT NULL))\n)ENGINE=InnoDB CHARSET=utf8mb4\n\n",
+      "index_sql": [
+        "CREATE INDEX idx_evaluation_runs_organization_id ON evaluation_runs (organization_id)"
+      ],
+      "columns": [
+        {
+          "name": "run_id",
+          "type": "CHAR(36)",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "execution_mode",
+          "type": "VARCHAR(32)",
+          "nullable": false,
+          "collation": null,
+          "default": "serial_v1",
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "organization_id",
+          "type": "BIGINT",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "requested_by",
+          "type": "VARCHAR(128) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "definition_json",
+          "type": "LONGTEXT",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "progress_json",
+          "type": "JSON",
+          "nullable": true,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "frozen_execution_policy_fingerprint",
+          "type": "VARCHAR(71)",
+          "nullable": true,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "frozen_execution_policy_json",
+          "type": "LONGTEXT",
+          "nullable": true,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        }
+      ],
+      "primary_key": [
+        "run_id"
+      ],
+      "indexes": [
+        {
+          "name": "idx_evaluation_runs_organization_id",
+          "columns": [
+            "organization_id"
+          ],
+          "unique": false
+        }
+      ],
+      "foreign_keys": [],
+      "checks": [
+        {
+          "name": "ck_evaluation_runs_frozen_policy",
+          "sql": "(frozen_execution_policy_fingerprint IS NULL AND frozen_execution_policy_json IS NULL) OR (frozen_execution_policy_fingerprint IS NOT NULL AND frozen_execution_policy_json IS NOT NULL)"
+        }
+      ]
+    },
+    {
+      "name": "evaluation_suites",
+      "create_sql": "\nCREATE TABLE evaluation_suites (\n\tsuite_id VARCHAR(128) COLLATE utf8mb4_bin NOT NULL, \n\tsuite_version VARCHAR(128) COLLATE utf8mb4_bin NOT NULL, \n\tfingerprint VARCHAR(71) NOT NULL, \n\tdefinition_json LONGTEXT NOT NULL, \n\tcommand_id CHAR(36), \n\torganization_id BIGINT NOT NULL, \n\toperator_user_id BIGINT, \n\treceipt_json LONGTEXT, \n\treceipt_sha256 CHAR(64), \n\tsource_ref VARCHAR(255), \n\timported_by VARCHAR(128), \n\tcontracts_json LONGTEXT, \n\tcontracts_sha256 CHAR(64), \n\tCONSTRAINT pk_evaluation_suites PRIMARY KEY (suite_id, suite_version), \n\tCONSTRAINT uk_evaluation_suites_command_id UNIQUE (command_id)\n)ENGINE=InnoDB CHARSET=utf8mb4\n\n",
+      "index_sql": [],
+      "columns": [
+        {
+          "name": "suite_id",
+          "type": "VARCHAR(128) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "suite_version",
+          "type": "VARCHAR(128) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "fingerprint",
+          "type": "VARCHAR(71)",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "definition_json",
+          "type": "LONGTEXT",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "command_id",
+          "type": "CHAR(36)",
+          "nullable": true,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "organization_id",
+          "type": "BIGINT",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "operator_user_id",
+          "type": "BIGINT",
+          "nullable": true,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "receipt_json",
+          "type": "LONGTEXT",
+          "nullable": true,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "receipt_sha256",
+          "type": "CHAR(64)",
+          "nullable": true,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "source_ref",
+          "type": "VARCHAR(255)",
+          "nullable": true,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "imported_by",
+          "type": "VARCHAR(128)",
+          "nullable": true,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "contracts_json",
+          "type": "LONGTEXT",
+          "nullable": true,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "contracts_sha256",
+          "type": "CHAR(64)",
+          "nullable": true,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        }
+      ],
+      "primary_key": [
+        "suite_id",
+        "suite_version"
+      ],
+      "indexes": [
+        {
+          "name": "uk_evaluation_suites_command_id",
+          "columns": [
+            "command_id"
+          ],
+          "unique": true
+        }
+      ],
+      "foreign_keys": [],
+      "checks": []
+    },
+    {
+      "name": "execution_leases",
+      "create_sql": "\nCREATE TABLE execution_leases (\n\tthread_id VARCHAR(191) COLLATE utf8mb4_bin NOT NULL, \n\tfence BIGINT UNSIGNED NOT NULL, \n\texpires_at DATETIME(6) NOT NULL, \n\tCONSTRAINT pk_execution_leases PRIMARY KEY (thread_id)\n)ENGINE=InnoDB CHARSET=utf8mb4\n\n",
+      "index_sql": [],
+      "columns": [
+        {
+          "name": "thread_id",
+          "type": "VARCHAR(191) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "fence",
+          "type": "BIGINT UNSIGNED",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "expires_at",
+          "type": "DATETIME(6)",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        }
+      ],
+      "primary_key": [
+        "thread_id"
+      ],
+      "indexes": [],
+      "foreign_keys": [],
+      "checks": []
+    },
+    {
+      "name": "execution_participant_retries",
+      "create_sql": "\nCREATE TABLE execution_participant_retries (\n\torganization_id BIGINT UNSIGNED NOT NULL, \n\tcommand_id VARCHAR(36) COLLATE utf8mb4_bin NOT NULL, \n\tsession_id VARCHAR(36) COLLATE utf8mb4_bin NOT NULL, \n\trequest_id VARCHAR(36) COLLATE utf8mb4_bin NOT NULL, \n\tsource_run_id VARCHAR(36) COLLATE utf8mb4_bin NOT NULL, \n\trun_id VARCHAR(36) COLLATE utf8mb4_bin NOT NULL, \n\toperator_user_id BIGINT UNSIGNED NOT NULL, \n\texpected_version INTEGER NOT NULL, \n\treason TEXT NOT NULL, \n\taccepted_unknown_risk BOOL NOT NULL, \n\tsource_failure_code VARCHAR(64), \n\tfrozen_request_json LONGTEXT, \n\treceipt JSON NOT NULL, \n\tcreated_at DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6), \n\tCONSTRAINT pk_execution_participant_retries PRIMARY KEY (organization_id, command_id), \n\tCONSTRAINT uk_execution_participant_retries_run_id UNIQUE (run_id), \n\tCONSTRAINT uk_execution_participant_retries_source_run_id UNIQUE (source_run_id)\n)ENGINE=InnoDB CHARSET=utf8mb4\n\n",
+      "index_sql": [
+        "CREATE INDEX idx_execution_participant_retries_session_id ON execution_participant_retries (session_id)"
+      ],
+      "columns": [
+        {
+          "name": "organization_id",
+          "type": "BIGINT UNSIGNED",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "command_id",
+          "type": "VARCHAR(36) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "session_id",
+          "type": "VARCHAR(36) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "request_id",
+          "type": "VARCHAR(36) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "source_run_id",
+          "type": "VARCHAR(36) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "run_id",
+          "type": "VARCHAR(36) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "operator_user_id",
+          "type": "BIGINT UNSIGNED",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "expected_version",
+          "type": "INTEGER",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "reason",
+          "type": "TEXT",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "accepted_unknown_risk",
+          "type": "BOOL",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "source_failure_code",
+          "type": "VARCHAR(64)",
+          "nullable": true,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "frozen_request_json",
+          "type": "LONGTEXT",
+          "nullable": true,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "receipt",
+          "type": "JSON",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "created_at",
+          "type": "DATETIME(6)",
+          "nullable": true,
+          "collation": null,
+          "default": "CURRENT_TIMESTAMP(6)",
+          "computed": null,
+          "persisted": null
+        }
+      ],
+      "primary_key": [
+        "organization_id",
+        "command_id"
+      ],
+      "indexes": [
+        {
+          "name": "idx_execution_participant_retries_session_id",
+          "columns": [
+            "session_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "uk_execution_participant_retries_run_id",
+          "columns": [
+            "run_id"
+          ],
+          "unique": true
+        },
+        {
+          "name": "uk_execution_participant_retries_source_run_id",
+          "columns": [
+            "source_run_id"
+          ],
+          "unique": true
+        }
+      ],
+      "foreign_keys": [],
+      "checks": []
+    },
+    {
+      "name": "governance_asset_versions",
+      "create_sql": "\nCREATE TABLE governance_asset_versions (\n\tasset_row_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, \n\tasset_kind VARCHAR(32) COLLATE ascii_bin NOT NULL, \n\towner_organization_id BIGINT UNSIGNED NOT NULL DEFAULT '0', \n\tasset_id VARCHAR(255) COLLATE utf8mb4_0900_bin NOT NULL, \n\tversion VARCHAR(128) COLLATE utf8mb4_bin NOT NULL, \n\tfingerprint VARCHAR(71) COLLATE utf8mb4_bin NOT NULL, \n\tbody_format VARCHAR(32) COLLATE ascii_bin NOT NULL, \n\tbody_bytes LONGBLOB NOT NULL, \n\tpackage_sha256 VARCHAR(64) COLLATE utf8mb4_bin, \n\tsource_ref VARCHAR(255) COLLATE utf8mb4_bin NOT NULL, \n\timported_by VARCHAR(255) COLLATE utf8mb4_bin NOT NULL, \n\tcreated_at DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6), \n\tnative_id_key VARCHAR(255) COLLATE utf8mb4_0900_bin GENERATED ALWAYS AS (CASE WHEN asset_kind IN ('profile','prompt','route','schema') THEN asset_id ELSE NULL END) STORED, \n\tscoped_id_key VARCHAR(128) COLLATE utf8mb4_bin GENERATED ALWAYS AS (CASE WHEN asset_kind IN ('execution_policy','gate_policy','semantic_prompt') THEN asset_id ELSE NULL END) STORED, \n\tprofile_id_key VARCHAR(255) COLLATE utf8mb4_0900_bin GENERATED ALWAYS AS (CASE WHEN asset_kind='profile' THEN asset_id ELSE NULL END) STORED, \n\tcatalog_version_key VARCHAR(128) COLLATE utf8mb4_0900_bin GENERATED ALWAYS AS (version) STORED, \n\tCONSTRAINT pk_governance_asset_versions PRIMARY KEY (asset_row_id), \n\tCONSTRAINT ck_governance_asset_versions_scope CHECK (asset_kind='semantic_prompt' OR owner_organization_id=0), \n\tCONSTRAINT ck_governance_asset_versions_shape CHECK ((asset_kind='prompt' AND body_format='prompt_package_json' AND package_sha256 IS NOT NULL) OR (asset_kind='semantic_prompt' AND body_format='semantic_markdown' AND package_sha256 IS NULL) OR (asset_kind IN ('profile','route','schema','execution_policy','gate_policy') AND body_format='definition_json' AND package_sha256 IS NULL)), \n\tCONSTRAINT uk_governance_asset_versions_profile_id_key_version UNIQUE (profile_id_key, version), \n\tCONSTRAINT ck_governance_asset_versions_time CHECK (asset_kind NOT IN ('execution_policy','gate_policy','semantic_prompt') OR created_at IS NOT NULL), \n\tCONSTRAINT ck_governance_asset_versions_kind CHECK (asset_kind IN ('profile','prompt','route','schema','execution_policy','gate_policy','semantic_prompt')), \n\tCONSTRAINT ck_governance_asset_versions_identity CHECK (asset_kind NOT IN ('execution_policy','gate_policy','semantic_prompt') OR CHAR_LENGTH(asset_id)<=128), \n\tCONSTRAINT uk_governance_asset_versions_asset_kind_owner_organizat_27e4f6ea UNIQUE (asset_kind, owner_organization_id, scoped_id_key, version), \n\tCONSTRAINT uk_governance_asset_versions_asset_kind_owner_organizat_82a62697 UNIQUE (asset_kind, owner_organization_id, native_id_key, version)\n)ENGINE=InnoDB CHARSET=utf8mb4\n\n",
+      "index_sql": [
+        "CREATE INDEX idx_governance_asset_versions_asset_kind_owner_organiza_e150eb87 ON governance_asset_versions (asset_kind, owner_organization_id, asset_id, catalog_version_key)"
+      ],
+      "columns": [
+        {
+          "name": "asset_row_id",
+          "type": "BIGINT UNSIGNED",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "asset_kind",
+          "type": "VARCHAR(32) COLLATE ascii_bin",
+          "nullable": false,
+          "collation": "ascii_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "owner_organization_id",
+          "type": "BIGINT UNSIGNED",
+          "nullable": false,
+          "collation": null,
+          "default": "0",
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "asset_id",
+          "type": "VARCHAR(255) COLLATE utf8mb4_0900_bin",
+          "nullable": false,
+          "collation": "utf8mb4_0900_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "version",
+          "type": "VARCHAR(128) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "fingerprint",
+          "type": "VARCHAR(71) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "body_format",
+          "type": "VARCHAR(32) COLLATE ascii_bin",
+          "nullable": false,
+          "collation": "ascii_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "body_bytes",
+          "type": "LONGBLOB",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "package_sha256",
+          "type": "VARCHAR(64) COLLATE utf8mb4_bin",
+          "nullable": true,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "source_ref",
+          "type": "VARCHAR(255) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "imported_by",
+          "type": "VARCHAR(255) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "created_at",
+          "type": "DATETIME(6)",
+          "nullable": true,
+          "collation": null,
+          "default": "CURRENT_TIMESTAMP(6)",
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "native_id_key",
+          "type": "VARCHAR(255) COLLATE utf8mb4_0900_bin",
+          "nullable": true,
+          "collation": "utf8mb4_0900_bin",
+          "default": null,
+          "computed": "CASE WHEN asset_kind IN ('profile','prompt','route','schema') THEN asset_id ELSE NULL END",
+          "persisted": true
+        },
+        {
+          "name": "scoped_id_key",
+          "type": "VARCHAR(128) COLLATE utf8mb4_bin",
+          "nullable": true,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": "CASE WHEN asset_kind IN ('execution_policy','gate_policy','semantic_prompt') THEN asset_id ELSE NULL END",
+          "persisted": true
+        },
+        {
+          "name": "profile_id_key",
+          "type": "VARCHAR(255) COLLATE utf8mb4_0900_bin",
+          "nullable": true,
+          "collation": "utf8mb4_0900_bin",
+          "default": null,
+          "computed": "CASE WHEN asset_kind='profile' THEN asset_id ELSE NULL END",
+          "persisted": true
+        },
+        {
+          "name": "catalog_version_key",
+          "type": "VARCHAR(128) COLLATE utf8mb4_0900_bin",
+          "nullable": true,
+          "collation": "utf8mb4_0900_bin",
+          "default": null,
+          "computed": "version",
+          "persisted": true
+        }
+      ],
+      "primary_key": [
+        "asset_row_id"
+      ],
+      "indexes": [
+        {
+          "name": "idx_governance_asset_versions_asset_kind_owner_organiza_e150eb87",
+          "columns": [
+            "asset_kind",
+            "owner_organization_id",
+            "asset_id",
+            "catalog_version_key"
+          ],
+          "unique": false
+        },
+        {
+          "name": "uk_governance_asset_versions_asset_kind_owner_organizat_27e4f6ea",
+          "columns": [
+            "asset_kind",
+            "owner_organization_id",
+            "scoped_id_key",
+            "version"
+          ],
+          "unique": true
+        },
+        {
+          "name": "uk_governance_asset_versions_profile_id_key_version",
+          "columns": [
+            "profile_id_key",
+            "version"
+          ],
+          "unique": true
+        },
+        {
+          "name": "uk_governance_asset_versions_asset_kind_owner_organizat_82a62697",
+          "columns": [
+            "asset_kind",
+            "owner_organization_id",
+            "native_id_key",
+            "version"
+          ],
+          "unique": true
+        }
+      ],
+      "foreign_keys": [],
+      "checks": [
+        {
+          "name": "ck_governance_asset_versions_kind",
+          "sql": "asset_kind IN ('profile','prompt','route','schema','execution_policy','gate_policy','semantic_prompt')"
+        },
+        {
+          "name": "ck_governance_asset_versions_time",
+          "sql": "asset_kind NOT IN ('execution_policy','gate_policy','semantic_prompt') OR created_at IS NOT NULL"
+        },
+        {
+          "name": "ck_governance_asset_versions_identity",
+          "sql": "asset_kind NOT IN ('execution_policy','gate_policy','semantic_prompt') OR CHAR_LENGTH(asset_id)<=128"
+        },
+        {
+          "name": "ck_governance_asset_versions_scope",
+          "sql": "asset_kind='semantic_prompt' OR owner_organization_id=0"
+        },
+        {
+          "name": "ck_governance_asset_versions_shape",
+          "sql": "(asset_kind='prompt' AND body_format='prompt_package_json' AND package_sha256 IS NOT NULL) OR (asset_kind='semantic_prompt' AND body_format='semantic_markdown' AND package_sha256 IS NULL) OR (asset_kind IN ('profile','route','schema','execution_policy','gate_policy') AND body_format='definition_json' AND package_sha256 IS NULL)"
+        }
+      ]
+    },
+    {
+      "name": "governance_draft_heads",
+      "create_sql": "\nCREATE TABLE governance_draft_heads (\n\tdraft_row_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, \n\tdraft_kind VARCHAR(16) COLLATE ascii_bin NOT NULL, \n\torganization_id BIGINT UNSIGNED NOT NULL, \n\tdraft_id CHAR(36) COLLATE utf8mb4_bin NOT NULL, \n\trevision BIGINT NOT NULL, \n\tprompt_draft_id_key CHAR(36) COLLATE utf8mb4_0900_ai_ci GENERATED ALWAYS AS (CASE WHEN draft_kind='prompt' THEN draft_id ELSE NULL END) STORED, \n\tsemantic_draft_id_key CHAR(36) COLLATE utf8mb4_bin GENERATED ALWAYS AS (CASE WHEN draft_kind='semantic' THEN draft_id ELSE NULL END) STORED, \n\tCONSTRAINT pk_governance_draft_heads PRIMARY KEY (draft_row_id), \n\tCONSTRAINT uk_governance_draft_heads_draft_row_id_draft_kind_organ_0b517c32 UNIQUE (draft_row_id, draft_kind, organization_id), \n\tCONSTRAINT ck_governance_draft_heads_kind CHECK (draft_kind IN ('prompt','semantic')), \n\tCONSTRAINT ck_governance_draft_heads_prompt_signed_scope CHECK (draft_kind <> 'prompt' OR organization_id <= 9223372036854775807), \n\tCONSTRAINT uk_governance_draft_heads_organization_id_semantic_draft_id_key UNIQUE (organization_id, semantic_draft_id_key), \n\tCONSTRAINT uk_governance_draft_heads_prompt_draft_id_key UNIQUE (prompt_draft_id_key), \n\tCONSTRAINT ck_governance_draft_heads_revision CHECK (revision>=0)\n)ENGINE=InnoDB CHARSET=utf8mb4\n\n",
+      "index_sql": [],
+      "columns": [
+        {
+          "name": "draft_row_id",
+          "type": "BIGINT UNSIGNED",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "draft_kind",
+          "type": "VARCHAR(16) COLLATE ascii_bin",
+          "nullable": false,
+          "collation": "ascii_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "organization_id",
+          "type": "BIGINT UNSIGNED",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "draft_id",
+          "type": "CHAR(36) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "revision",
+          "type": "BIGINT",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "prompt_draft_id_key",
+          "type": "CHAR(36) COLLATE utf8mb4_0900_ai_ci",
+          "nullable": true,
+          "collation": "utf8mb4_0900_ai_ci",
+          "default": null,
+          "computed": "CASE WHEN draft_kind='prompt' THEN draft_id ELSE NULL END",
+          "persisted": true
+        },
+        {
+          "name": "semantic_draft_id_key",
+          "type": "CHAR(36) COLLATE utf8mb4_bin",
+          "nullable": true,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": "CASE WHEN draft_kind='semantic' THEN draft_id ELSE NULL END",
+          "persisted": true
+        }
+      ],
+      "primary_key": [
+        "draft_row_id"
+      ],
+      "indexes": [
+        {
+          "name": "uk_governance_draft_heads_organization_id_semantic_draft_id_key",
+          "columns": [
+            "organization_id",
+            "semantic_draft_id_key"
+          ],
+          "unique": true
+        },
+        {
+          "name": "uk_governance_draft_heads_draft_row_id_draft_kind_organ_0b517c32",
+          "columns": [
+            "draft_row_id",
+            "draft_kind",
+            "organization_id"
+          ],
+          "unique": true
+        },
+        {
+          "name": "uk_governance_draft_heads_prompt_draft_id_key",
+          "columns": [
+            "prompt_draft_id_key"
+          ],
+          "unique": true
+        }
+      ],
+      "foreign_keys": [],
+      "checks": [
+        {
+          "name": "ck_governance_draft_heads_revision",
+          "sql": "revision>=0"
+        },
+        {
+          "name": "ck_governance_draft_heads_kind",
+          "sql": "draft_kind IN ('prompt','semantic')"
+        },
+        {
+          "name": "ck_governance_draft_heads_prompt_signed_scope",
+          "sql": "draft_kind <> 'prompt' OR organization_id <= 9223372036854775807"
+        }
+      ]
+    },
+    {
+      "name": "interpretation_idempotency_requests",
+      "create_sql": "\nCREATE TABLE interpretation_idempotency_requests (\n\tscope_hash VARCHAR(64) COLLATE utf8mb4_bin NOT NULL, \n\t`key` VARCHAR(128) COLLATE utf8mb4_bin NOT NULL, \n\trequest_hash VARCHAR(64) NOT NULL, \n\tresponse JSON, \n\tcreated_at DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6), \n\tCONSTRAINT pk_interpretation_idempotency_requests PRIMARY KEY (scope_hash, `key`)\n)ENGINE=InnoDB CHARSET=utf8mb4\n\n",
+      "index_sql": [],
+      "columns": [
+        {
+          "name": "scope_hash",
+          "type": "VARCHAR(64) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "key",
+          "type": "VARCHAR(128) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "request_hash",
+          "type": "VARCHAR(64)",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "response",
+          "type": "JSON",
+          "nullable": true,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "created_at",
+          "type": "DATETIME(6)",
+          "nullable": true,
+          "collation": null,
+          "default": "CURRENT_TIMESTAMP(6)",
+          "computed": null,
+          "persisted": null
+        }
+      ],
+      "primary_key": [
+        "scope_hash",
+        "key"
+      ],
+      "indexes": [],
+      "foreign_keys": [],
+      "checks": []
+    },
+    {
+      "name": "interpretation_sessions",
+      "create_sql": "\nCREATE TABLE interpretation_sessions (\n\tid VARCHAR(36) COLLATE utf8mb4_bin NOT NULL, \n\trequest_id VARCHAR(36) COLLATE utf8mb4_bin, \n\torg_id BIGINT UNSIGNED NOT NULL, \n\towner_subject_id VARCHAR(128) COLLATE utf8mb4_bin NOT NULL, \n\ttestee_id BIGINT UNSIGNED NOT NULL, \n\tassessment_ids JSON NOT NULL, \n\tgoal TEXT NOT NULL, \n\tstatus VARCHAR(32) NOT NULL, \n\tversion INTEGER NOT NULL, \n\tactive_run_id VARCHAR(36) COLLATE utf8mb4_bin, \n\tcurrent_question_id VARCHAR(36) COLLATE utf8mb4_bin, \n\tevidence_set_id VARCHAR(36) COLLATE utf8mb4_bin, \n\tworkflow_version VARCHAR(64) NOT NULL, \n\tfailure_code VARCHAR(64), \n\tcreated_at DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6), \n\tupdated_at DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6), \n\tcreated_at_utc DATETIME(6), \n\tupdated_at_utc DATETIME(6), \n\tCONSTRAINT pk_interpretation_sessions PRIMARY KEY (id), \n\tCONSTRAINT uk_interpretation_sessions_request_id UNIQUE (request_id)\n)ENGINE=InnoDB CHARSET=utf8mb4\n\n",
+      "index_sql": [
+        "CREATE INDEX idx_interpretation_sessions_org_id_owner_subject_id_upd_4309d3b9 ON interpretation_sessions (org_id, owner_subject_id, updated_at, id)"
+      ],
+      "columns": [
+        {
+          "name": "id",
+          "type": "VARCHAR(36) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "request_id",
+          "type": "VARCHAR(36) COLLATE utf8mb4_bin",
+          "nullable": true,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "org_id",
+          "type": "BIGINT UNSIGNED",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "owner_subject_id",
+          "type": "VARCHAR(128) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "testee_id",
+          "type": "BIGINT UNSIGNED",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "assessment_ids",
+          "type": "JSON",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "goal",
+          "type": "TEXT",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "status",
+          "type": "VARCHAR(32)",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "version",
+          "type": "INTEGER",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "active_run_id",
+          "type": "VARCHAR(36) COLLATE utf8mb4_bin",
+          "nullable": true,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "current_question_id",
+          "type": "VARCHAR(36) COLLATE utf8mb4_bin",
+          "nullable": true,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "evidence_set_id",
+          "type": "VARCHAR(36) COLLATE utf8mb4_bin",
+          "nullable": true,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "workflow_version",
+          "type": "VARCHAR(64)",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "failure_code",
+          "type": "VARCHAR(64)",
+          "nullable": true,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "created_at",
+          "type": "DATETIME(6)",
+          "nullable": true,
+          "collation": null,
+          "default": "CURRENT_TIMESTAMP(6)",
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "updated_at",
+          "type": "DATETIME(6)",
+          "nullable": true,
+          "collation": null,
+          "default": "CURRENT_TIMESTAMP(6)",
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "created_at_utc",
+          "type": "DATETIME(6)",
+          "nullable": true,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "updated_at_utc",
+          "type": "DATETIME(6)",
+          "nullable": true,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "indexes": [
+        {
+          "name": "idx_interpretation_sessions_org_id_owner_subject_id_upd_4309d3b9",
+          "columns": [
+            "org_id",
+            "owner_subject_id",
+            "updated_at",
+            "id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "uk_interpretation_sessions_request_id",
+          "columns": [
+            "request_id"
+          ],
+          "unique": true
+        }
+      ],
+      "foreign_keys": [],
+      "checks": []
+    },
+    {
+      "name": "messaging_evaluation_sequences",
+      "create_sql": "\nCREATE TABLE messaging_evaluation_sequences (\n\trun_id CHAR(36) NOT NULL, \n\tsequence BIGINT NOT NULL, \n\tversion BIGINT NOT NULL, \n\tPRIMARY KEY (run_id)\n)ENGINE=InnoDB CHARSET=utf8mb4\n\n",
+      "index_sql": [],
+      "columns": [
+        {
+          "name": "run_id",
+          "type": "CHAR(36)",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "sequence",
+          "type": "BIGINT",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "version",
+          "type": "BIGINT",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        }
+      ],
+      "primary_key": [
+        "run_id"
+      ],
+      "indexes": [],
+      "foreign_keys": [],
+      "checks": []
+    },
+    {
+      "name": "messaging_inbox",
+      "create_sql": "\nCREATE TABLE messaging_inbox (\n\tproducer VARCHAR(64) COLLATE ascii_bin NOT NULL, \n\tmessage_id VARCHAR(128) COLLATE utf8mb4_bin NOT NULL, \n\tdestination VARCHAR(64) COLLATE ascii_bin NOT NULL, \n\tbody_sha256 CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL, \n\tbody MEDIUMBLOB NOT NULL, \n\twire_sha256 CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL, \n\tkind INTEGER NOT NULL, \n\taggregate_key VARCHAR(192) COLLATE utf8mb4_bin NOT NULL, \n\treservation_token VARCHAR(36) NOT NULL, \n\tdecision VARCHAR(32) NOT NULL, \n\treceipt_id VARCHAR(128) COLLATE utf8mb4_bin, \n\treceived_at DATETIME(6) NOT NULL, \n\tPRIMARY KEY (producer, message_id)\n)ENGINE=InnoDB CHARSET=utf8mb4\n\n",
+      "index_sql": [],
+      "columns": [
+        {
+          "name": "producer",
+          "type": "VARCHAR(64) COLLATE ascii_bin",
+          "nullable": false,
+          "collation": "ascii_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "message_id",
+          "type": "VARCHAR(128) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "destination",
+          "type": "VARCHAR(64) COLLATE ascii_bin",
+          "nullable": false,
+          "collation": "ascii_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "body_sha256",
+          "type": "CHAR(64) CHARACTER SET ascii COLLATE ascii_bin",
+          "nullable": false,
+          "collation": "ascii_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "body",
+          "type": "MEDIUMBLOB",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "wire_sha256",
+          "type": "CHAR(64) CHARACTER SET ascii COLLATE ascii_bin",
+          "nullable": false,
+          "collation": "ascii_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "kind",
+          "type": "INTEGER",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "aggregate_key",
+          "type": "VARCHAR(192) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "reservation_token",
+          "type": "VARCHAR(36)",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "decision",
+          "type": "VARCHAR(32)",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "receipt_id",
+          "type": "VARCHAR(128) COLLATE utf8mb4_bin",
+          "nullable": true,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "received_at",
+          "type": "DATETIME(6)",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        }
+      ],
+      "primary_key": [
+        "producer",
+        "message_id"
+      ],
+      "indexes": [],
+      "foreign_keys": [],
+      "checks": []
+    },
+    {
+      "name": "messaging_observations",
+      "create_sql": "\nCREATE TABLE messaging_observations (\n\tkind VARCHAR(64) COLLATE ascii_bin NOT NULL, \n\trecorded_count BIGINT UNSIGNED NOT NULL, \n\trecording_since DATETIME(6) NOT NULL, \n\tlast_observed_at DATETIME(6), \n\tPRIMARY KEY (kind)\n)ENGINE=InnoDB CHARSET=utf8mb4\n\n",
+      "index_sql": [],
+      "columns": [
+        {
+          "name": "kind",
+          "type": "VARCHAR(64) COLLATE ascii_bin",
+          "nullable": false,
+          "collation": "ascii_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "recorded_count",
+          "type": "BIGINT UNSIGNED",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "recording_since",
+          "type": "DATETIME(6)",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "last_observed_at",
+          "type": "DATETIME(6)",
+          "nullable": true,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        }
+      ],
+      "primary_key": [
+        "kind"
+      ],
+      "indexes": [],
+      "foreign_keys": [],
+      "checks": []
+    },
+    {
+      "name": "messaging_outbox",
+      "create_sql": "\nCREATE TABLE messaging_outbox (\n\tproducer VARCHAR(64) COLLATE ascii_bin NOT NULL, \n\tdestination VARCHAR(64) COLLATE ascii_bin NOT NULL, \n\tmessage_id VARCHAR(128) COLLATE utf8mb4_bin NOT NULL, \n\tbody_sha256 CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL, \n\tbody MEDIUMBLOB NOT NULL, \n\twire MEDIUMBLOB NOT NULL, \n\twire_sha256 CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL, \n\ttopic VARCHAR(64) COLLATE ascii_bin NOT NULL, \n\tkind INTEGER NOT NULL, \n\torganization_id BIGINT UNSIGNED NOT NULL, \n\taggregate_key VARCHAR(192) COLLATE utf8mb4_bin NOT NULL, \n\taggregate_sequence BIGINT UNSIGNED NOT NULL, \n\tordered BOOL NOT NULL, \n\trequires_receipt BOOL NOT NULL, \n\tstage VARCHAR(32) COLLATE ascii_bin NOT NULL, \n\tattempts BIGINT UNSIGNED NOT NULL DEFAULT '0', \n\tavailable_at DATETIME(6) NOT NULL, \n\tcreated_at DATETIME(6) NOT NULL, \n\tpublished_at DATETIME(6), \n\tconfirmed_at DATETIME(6), \n\terror_code VARCHAR(128) COLLATE ascii_bin NOT NULL DEFAULT '', \n\tPRIMARY KEY (producer, destination, message_id)\n)ENGINE=InnoDB CHARSET=utf8mb4\n\n",
+      "index_sql": [
+        "CREATE INDEX idx_messaging_outbox_producer_destination_aggregate_key_ca00d30f ON messaging_outbox (producer, destination, aggregate_key, ordered, aggregate_sequence, stage)",
+        "CREATE INDEX idx_messaging_outbox_stage_available_at_message_id ON messaging_outbox (stage, available_at, message_id)"
+      ],
+      "columns": [
+        {
+          "name": "producer",
+          "type": "VARCHAR(64) COLLATE ascii_bin",
+          "nullable": false,
+          "collation": "ascii_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "destination",
+          "type": "VARCHAR(64) COLLATE ascii_bin",
+          "nullable": false,
+          "collation": "ascii_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "message_id",
+          "type": "VARCHAR(128) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "body_sha256",
+          "type": "CHAR(64) CHARACTER SET ascii COLLATE ascii_bin",
+          "nullable": false,
+          "collation": "ascii_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "body",
+          "type": "MEDIUMBLOB",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "wire",
+          "type": "MEDIUMBLOB",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "wire_sha256",
+          "type": "CHAR(64) CHARACTER SET ascii COLLATE ascii_bin",
+          "nullable": false,
+          "collation": "ascii_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "topic",
+          "type": "VARCHAR(64) COLLATE ascii_bin",
+          "nullable": false,
+          "collation": "ascii_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "kind",
+          "type": "INTEGER",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "organization_id",
+          "type": "BIGINT UNSIGNED",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "aggregate_key",
+          "type": "VARCHAR(192) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "aggregate_sequence",
+          "type": "BIGINT UNSIGNED",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "ordered",
+          "type": "BOOL",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "requires_receipt",
+          "type": "BOOL",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "stage",
+          "type": "VARCHAR(32) COLLATE ascii_bin",
+          "nullable": false,
+          "collation": "ascii_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "attempts",
+          "type": "BIGINT UNSIGNED",
+          "nullable": false,
+          "collation": null,
+          "default": "0",
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "available_at",
+          "type": "DATETIME(6)",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "created_at",
+          "type": "DATETIME(6)",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "published_at",
+          "type": "DATETIME(6)",
+          "nullable": true,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "confirmed_at",
+          "type": "DATETIME(6)",
+          "nullable": true,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "error_code",
+          "type": "VARCHAR(128) COLLATE ascii_bin",
+          "nullable": false,
+          "collation": "ascii_bin",
+          "default": "",
+          "computed": null,
+          "persisted": null
+        }
+      ],
+      "primary_key": [
+        "producer",
+        "destination",
+        "message_id"
+      ],
+      "indexes": [
+        {
+          "name": "idx_messaging_outbox_stage_available_at_message_id",
+          "columns": [
+            "stage",
+            "available_at",
+            "message_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "idx_messaging_outbox_producer_destination_aggregate_key_ca00d30f",
+          "columns": [
+            "producer",
+            "destination",
+            "aggregate_key",
+            "ordered",
+            "aggregate_sequence",
+            "stage"
+          ],
+          "unique": false
+        }
+      ],
+      "foreign_keys": [],
+      "checks": []
+    },
+    {
+      "name": "messaging_quarantine",
+      "create_sql": "\nCREATE TABLE messaging_quarantine (\n\twire_sha256 CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL, \n\twire MEDIUMBLOB NOT NULL, \n\tcode VARCHAR(128) COLLATE ascii_bin NOT NULL, \n\tlogical_producer VARCHAR(64) COLLATE ascii_bin, \n\tlogical_message_id VARCHAR(128) COLLATE utf8mb4_bin, \n\tlogical_body_sha256 CHAR(64) CHARACTER SET ascii COLLATE ascii_bin, \n\tattempts BIGINT UNSIGNED NOT NULL, \n\tfirst_seen_at DATETIME(6) NOT NULL, \n\tlast_seen_at DATETIME(6) NOT NULL, \n\tPRIMARY KEY (wire_sha256), \n\tCONSTRAINT uk_messaging_quarantine_logical_producer_logical_message_id UNIQUE (logical_producer, logical_message_id)\n)ENGINE=InnoDB CHARSET=utf8mb4\n\n",
+      "index_sql": [],
+      "columns": [
+        {
+          "name": "wire_sha256",
+          "type": "CHAR(64) CHARACTER SET ascii COLLATE ascii_bin",
+          "nullable": false,
+          "collation": "ascii_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "wire",
+          "type": "MEDIUMBLOB",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "code",
+          "type": "VARCHAR(128) COLLATE ascii_bin",
+          "nullable": false,
+          "collation": "ascii_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "logical_producer",
+          "type": "VARCHAR(64) COLLATE ascii_bin",
+          "nullable": true,
+          "collation": "ascii_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "logical_message_id",
+          "type": "VARCHAR(128) COLLATE utf8mb4_bin",
+          "nullable": true,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "logical_body_sha256",
+          "type": "CHAR(64) CHARACTER SET ascii COLLATE ascii_bin",
+          "nullable": true,
+          "collation": "ascii_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "attempts",
+          "type": "BIGINT UNSIGNED",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "first_seen_at",
+          "type": "DATETIME(6)",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "last_seen_at",
+          "type": "DATETIME(6)",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        }
+      ],
+      "primary_key": [
+        "wire_sha256"
+      ],
+      "indexes": [
+        {
+          "name": "uk_messaging_quarantine_logical_producer_logical_message_id",
+          "columns": [
+            "logical_producer",
+            "logical_message_id"
+          ],
+          "unique": true
+        }
+      ],
+      "foreign_keys": [],
+      "checks": []
+    },
+    {
+      "name": "quota_evaluation_admission_locks",
+      "create_sql": "\nCREATE TABLE quota_evaluation_admission_locks (\n\torganization_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, \n\tCONSTRAINT pk_quota_evaluation_admission_locks PRIMARY KEY (organization_id)\n)ENGINE=InnoDB CHARSET=utf8mb4\n\n",
+      "index_sql": [],
+      "columns": [
+        {
+          "name": "organization_id",
+          "type": "BIGINT UNSIGNED",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        }
+      ],
+      "primary_key": [
+        "organization_id"
+      ],
+      "indexes": [],
+      "foreign_keys": [],
+      "checks": []
+    },
+    {
+      "name": "quota_evaluation_capacity_reservations",
+      "create_sql": "\nCREATE TABLE quota_evaluation_capacity_reservations (\n\tquota_snapshot JSON, \n\trun_id VARCHAR(36) COLLATE utf8mb4_bin NOT NULL, \n\torganization_id BIGINT UNSIGNED NOT NULL, \n\tbudget_day DATE NOT NULL, \n\tprovider_calls INTEGER NOT NULL, \n\tdaily_limit INTEGER NOT NULL, \n\trequested_by VARCHAR(128) NOT NULL, \n\treserved_at DATETIME(6) NOT NULL, \n\tCONSTRAINT pk_quota_evaluation_capacity_reservations PRIMARY KEY (run_id)\n)ENGINE=InnoDB CHARSET=utf8mb4\n\n",
+      "index_sql": [
+        "CREATE INDEX idx_quota_evaluation_capacity_reservations_organization_761c2fd1 ON quota_evaluation_capacity_reservations (organization_id, budget_day)"
+      ],
+      "columns": [
+        {
+          "name": "quota_snapshot",
+          "type": "JSON",
+          "nullable": true,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "run_id",
+          "type": "VARCHAR(36) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "organization_id",
+          "type": "BIGINT UNSIGNED",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "budget_day",
+          "type": "DATE",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "provider_calls",
+          "type": "INTEGER",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "daily_limit",
+          "type": "INTEGER",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "requested_by",
+          "type": "VARCHAR(128)",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "reserved_at",
+          "type": "DATETIME(6)",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        }
+      ],
+      "primary_key": [
+        "run_id"
+      ],
+      "indexes": [
+        {
+          "name": "idx_quota_evaluation_capacity_reservations_organization_761c2fd1",
+          "columns": [
+            "organization_id",
+            "budget_day"
+          ],
+          "unique": false
+        }
+      ],
+      "foreign_keys": [],
+      "checks": []
+    },
+    {
+      "name": "quota_organization_commands",
+      "create_sql": "\nCREATE TABLE quota_organization_commands (\n\torganization_id BIGINT UNSIGNED NOT NULL, \n\tcommand_id VARCHAR(36) COLLATE utf8mb4_bin NOT NULL, \n\toperator_user_id BIGINT UNSIGNED NOT NULL, \n\trequest_json LONGTEXT NOT NULL, \n\treceipt_json LONGTEXT NOT NULL, \n\treceipt_sha256 VARCHAR(64) NOT NULL, \n\tCONSTRAINT pk_quota_organization_commands PRIMARY KEY (organization_id, command_id)\n)ENGINE=InnoDB CHARSET=utf8mb4\n\n",
+      "index_sql": [],
+      "columns": [
+        {
+          "name": "organization_id",
+          "type": "BIGINT UNSIGNED",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "command_id",
+          "type": "VARCHAR(36) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "operator_user_id",
+          "type": "BIGINT UNSIGNED",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "request_json",
+          "type": "LONGTEXT",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "receipt_json",
+          "type": "LONGTEXT",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "receipt_sha256",
+          "type": "VARCHAR(64)",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        }
+      ],
+      "primary_key": [
+        "organization_id",
+        "command_id"
+      ],
+      "indexes": [],
+      "foreign_keys": [],
+      "checks": []
+    },
+    {
+      "name": "quota_organization_versions",
+      "create_sql": "\nCREATE TABLE quota_organization_versions (\n\torganization_id BIGINT UNSIGNED NOT NULL, \n\trevision BIGINT NOT NULL, \n\tdefinition_json LONGTEXT NOT NULL, \n\tdefinition_sha256 VARCHAR(64) NOT NULL, \n\toperator_user_id BIGINT UNSIGNED NOT NULL, \n\treason TEXT NOT NULL, \n\tcreated_at DATETIME(6) NOT NULL, \n\tCONSTRAINT pk_quota_organization_versions PRIMARY KEY (organization_id, revision)\n)ENGINE=InnoDB CHARSET=utf8mb4\n\n",
+      "index_sql": [],
+      "columns": [
+        {
+          "name": "organization_id",
+          "type": "BIGINT UNSIGNED",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "revision",
+          "type": "BIGINT",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "definition_json",
+          "type": "LONGTEXT",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "definition_sha256",
+          "type": "VARCHAR(64)",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "operator_user_id",
+          "type": "BIGINT UNSIGNED",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "reason",
+          "type": "TEXT",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "created_at",
+          "type": "DATETIME(6)",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        }
+      ],
+      "primary_key": [
+        "organization_id",
+        "revision"
+      ],
+      "indexes": [],
+      "foreign_keys": [],
+      "checks": []
+    },
+    {
+      "name": "quota_participant_admission_locks",
+      "create_sql": "\nCREATE TABLE quota_participant_admission_locks (\n\torganization_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, \n\tCONSTRAINT pk_quota_participant_admission_locks PRIMARY KEY (organization_id)\n)ENGINE=InnoDB CHARSET=utf8mb4\n\n",
+      "index_sql": [],
+      "columns": [
+        {
+          "name": "organization_id",
+          "type": "BIGINT UNSIGNED",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        }
+      ],
+      "primary_key": [
+        "organization_id"
+      ],
+      "indexes": [],
+      "foreign_keys": [],
+      "checks": []
+    },
+    {
+      "name": "quota_participant_capacity_reservations",
+      "create_sql": "\nCREATE TABLE quota_participant_capacity_reservations (\n\tquota_snapshot JSON, \n\trun_id VARCHAR(36) COLLATE utf8mb4_bin NOT NULL, \n\tsession_id VARCHAR(36) COLLATE utf8mb4_bin NOT NULL, \n\torganization_id BIGINT UNSIGNED NOT NULL, \n\tsubject_id VARCHAR(128) COLLATE utf8mb4_bin NOT NULL, \n\tassessment_ids JSON NOT NULL, \n\tbudget_day DATE NOT NULL, \n\treserved_at DATETIME(6) NOT NULL, \n\tactive BOOL NOT NULL, \n\tacquired_at DATETIME(6), \n\treleased_at DATETIME(6), \n\tCONSTRAINT pk_quota_participant_capacity_reservations PRIMARY KEY (run_id)\n)ENGINE=InnoDB CHARSET=utf8mb4\n\n",
+      "index_sql": [
+        "CREATE INDEX idx_quota_participant_capacity_reservations_organizatio_d6561f2c ON quota_participant_capacity_reservations (organization_id, active)",
+        "CREATE INDEX idx_quota_participant_capacity_reservations_organizatio_d9e18f4a ON quota_participant_capacity_reservations (organization_id, budget_day)"
+      ],
+      "columns": [
+        {
+          "name": "quota_snapshot",
+          "type": "JSON",
+          "nullable": true,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "run_id",
+          "type": "VARCHAR(36) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "session_id",
+          "type": "VARCHAR(36) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "organization_id",
+          "type": "BIGINT UNSIGNED",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "subject_id",
+          "type": "VARCHAR(128) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "assessment_ids",
+          "type": "JSON",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "budget_day",
+          "type": "DATE",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "reserved_at",
+          "type": "DATETIME(6)",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "active",
+          "type": "BOOL",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "acquired_at",
+          "type": "DATETIME(6)",
+          "nullable": true,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "released_at",
+          "type": "DATETIME(6)",
+          "nullable": true,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        }
+      ],
+      "primary_key": [
+        "run_id"
+      ],
+      "indexes": [
+        {
+          "name": "idx_quota_participant_capacity_reservations_organizatio_d9e18f4a",
+          "columns": [
+            "organization_id",
+            "budget_day"
+          ],
+          "unique": false
+        },
+        {
+          "name": "idx_quota_participant_capacity_reservations_organizatio_d6561f2c",
+          "columns": [
+            "organization_id",
+            "active"
+          ],
+          "unique": false
+        }
+      ],
+      "foreign_keys": [],
+      "checks": []
+    },
+    {
+      "name": "evaluation_response_receipts",
+      "create_sql": "\nCREATE TABLE evaluation_response_receipts (\n\trun_id CHAR(36) NOT NULL, \n\tinvocation_id VARCHAR(128) COLLATE utf8mb4_bin NOT NULL, \n\texecution_id VARCHAR(128) COLLATE utf8mb4_bin NOT NULL, \n\tclaim_version BIGINT NOT NULL, \n\tdefinition_json LONGTEXT NOT NULL, \n\tsha256 CHAR(64) NOT NULL, \n\tCONSTRAINT pk_evaluation_response_receipts PRIMARY KEY (run_id, invocation_id), \n\tCONSTRAINT uk_evaluation_response_receipts_run_id_execution_id UNIQUE (run_id, execution_id), \n\tCONSTRAINT fk_evaluation_response_receipts_run_id FOREIGN KEY(run_id) REFERENCES evaluation_runs (run_id)\n)ENGINE=InnoDB CHARSET=utf8mb4\n\n",
+      "index_sql": [],
+      "columns": [
+        {
+          "name": "run_id",
+          "type": "CHAR(36)",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "invocation_id",
+          "type": "VARCHAR(128) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "execution_id",
+          "type": "VARCHAR(128) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "claim_version",
+          "type": "BIGINT",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "definition_json",
+          "type": "LONGTEXT",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "sha256",
+          "type": "CHAR(64)",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        }
+      ],
+      "primary_key": [
+        "run_id",
+        "invocation_id"
+      ],
+      "indexes": [
+        {
+          "name": "uk_evaluation_response_receipts_run_id_execution_id",
+          "columns": [
+            "run_id",
+            "execution_id"
+          ],
+          "unique": true
+        }
+      ],
+      "foreign_keys": [
+        {
+          "name": "fk_evaluation_response_receipts_run_id",
+          "columns": [
+            "run_id"
+          ],
+          "table": "evaluation_runs",
+          "referred_columns": [
+            "run_id"
+          ],
+          "ondelete": null
+        }
+      ],
+      "checks": []
+    },
+    {
+      "name": "evaluation_slot_claims",
+      "create_sql": "\nCREATE TABLE evaluation_slot_claims (\n\trun_id CHAR(36) NOT NULL, \n\tcase_id VARCHAR(128) COLLATE utf8mb4_bin NOT NULL, \n\tslot_ordinal INTEGER NOT NULL, \n\tversion BIGINT NOT NULL, \n\tcheckpoint_json JSON NOT NULL, \n\tCONSTRAINT pk_evaluation_slot_claims PRIMARY KEY (run_id, case_id, slot_ordinal), \n\tCONSTRAINT fk_evaluation_slot_claims_run_id FOREIGN KEY(run_id) REFERENCES evaluation_runs (run_id)\n)ENGINE=InnoDB CHARSET=utf8mb4\n\n",
+      "index_sql": [],
+      "columns": [
+        {
+          "name": "run_id",
+          "type": "CHAR(36)",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "case_id",
+          "type": "VARCHAR(128) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "slot_ordinal",
+          "type": "INTEGER",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "version",
+          "type": "BIGINT",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "checkpoint_json",
+          "type": "JSON",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        }
+      ],
+      "primary_key": [
+        "run_id",
+        "case_id",
+        "slot_ordinal"
+      ],
+      "indexes": [],
+      "foreign_keys": [
+        {
+          "name": "fk_evaluation_slot_claims_run_id",
+          "columns": [
+            "run_id"
+          ],
+          "table": "evaluation_runs",
+          "referred_columns": [
+            "run_id"
+          ],
+          "ondelete": null
+        }
+      ],
+      "checks": []
+    },
+    {
+      "name": "governance_draft_versions",
+      "create_sql": "\nCREATE TABLE governance_draft_versions (\n\tdraft_row_id BIGINT UNSIGNED NOT NULL, \n\trevision BIGINT NOT NULL, \n\tdraft_kind VARCHAR(16) COLLATE ascii_bin NOT NULL, \n\torganization_id BIGINT UNSIGNED NOT NULL, \n\tsnapshot_bytes LONGBLOB NOT NULL, \n\tsnapshot_sha256 CHAR(64) NOT NULL, \n\tcommand_id CHAR(36) COLLATE utf8mb4_0900_ai_ci, \n\toperator_user_id BIGINT UNSIGNED, \n\trequest_bytes LONGBLOB, \n\tprompt_command_id_key CHAR(36) COLLATE utf8mb4_0900_ai_ci GENERATED ALWAYS AS (CASE WHEN draft_kind='prompt' THEN command_id ELSE NULL END) STORED, \n\tCONSTRAINT pk_governance_draft_versions PRIMARY KEY (draft_row_id, revision), \n\tCONSTRAINT fk_governance_draft_versions_draft_row_id_draft_kind_or_9ed91db7 FOREIGN KEY(draft_row_id, draft_kind, organization_id) REFERENCES governance_draft_heads (draft_row_id, draft_kind, organization_id), \n\tCONSTRAINT ck_governance_draft_versions_audit CHECK ((draft_kind='prompt' AND command_id IS NOT NULL AND operator_user_id IS NOT NULL AND request_bytes IS NOT NULL) OR (draft_kind='semantic' AND command_id IS NULL AND operator_user_id IS NULL AND request_bytes IS NULL)), \n\tCONSTRAINT uk_governance_draft_versions_prompt_command_id_key UNIQUE (prompt_command_id_key), \n\tCONSTRAINT ck_governance_draft_versions_revision CHECK (revision>0), \n\tCONSTRAINT ck_governance_draft_versions_kind CHECK (draft_kind IN ('prompt','semantic')), \n\tCONSTRAINT ck_governance_draft_versions_prompt_signed_audit CHECK (draft_kind <> 'prompt' OR (organization_id <= 9223372036854775807 AND operator_user_id <= 9223372036854775807))\n)ENGINE=InnoDB CHARSET=utf8mb4\n\n",
+      "index_sql": [
+        "CREATE INDEX idx_governance_draft_versions_draft_row_id_draft_kind_o_0874c6c9 ON governance_draft_versions (draft_row_id, draft_kind, organization_id)"
+      ],
+      "columns": [
+        {
+          "name": "draft_row_id",
+          "type": "BIGINT UNSIGNED",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "revision",
+          "type": "BIGINT",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "draft_kind",
+          "type": "VARCHAR(16) COLLATE ascii_bin",
+          "nullable": false,
+          "collation": "ascii_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "organization_id",
+          "type": "BIGINT UNSIGNED",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "snapshot_bytes",
+          "type": "LONGBLOB",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "snapshot_sha256",
+          "type": "CHAR(64)",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "command_id",
+          "type": "CHAR(36) COLLATE utf8mb4_0900_ai_ci",
+          "nullable": true,
+          "collation": "utf8mb4_0900_ai_ci",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "operator_user_id",
+          "type": "BIGINT UNSIGNED",
+          "nullable": true,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "request_bytes",
+          "type": "LONGBLOB",
+          "nullable": true,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "prompt_command_id_key",
+          "type": "CHAR(36) COLLATE utf8mb4_0900_ai_ci",
+          "nullable": true,
+          "collation": "utf8mb4_0900_ai_ci",
+          "default": null,
+          "computed": "CASE WHEN draft_kind='prompt' THEN command_id ELSE NULL END",
+          "persisted": true
+        }
+      ],
+      "primary_key": [
+        "draft_row_id",
+        "revision"
+      ],
+      "indexes": [
+        {
+          "name": "idx_governance_draft_versions_draft_row_id_draft_kind_o_0874c6c9",
+          "columns": [
+            "draft_row_id",
+            "draft_kind",
+            "organization_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "uk_governance_draft_versions_prompt_command_id_key",
+          "columns": [
+            "prompt_command_id_key"
+          ],
+          "unique": true
+        }
+      ],
+      "foreign_keys": [
+        {
+          "name": "fk_governance_draft_versions_draft_row_id_draft_kind_or_9ed91db7",
+          "columns": [
+            "draft_row_id",
+            "draft_kind",
+            "organization_id"
+          ],
+          "table": "governance_draft_heads",
+          "referred_columns": [
+            "draft_row_id",
+            "draft_kind",
+            "organization_id"
+          ],
+          "ondelete": null
+        }
+      ],
+      "checks": [
+        {
+          "name": "ck_governance_draft_versions_revision",
+          "sql": "revision>0"
+        },
+        {
+          "name": "ck_governance_draft_versions_kind",
+          "sql": "draft_kind IN ('prompt','semantic')"
+        },
+        {
+          "name": "ck_governance_draft_versions_prompt_signed_audit",
+          "sql": "draft_kind <> 'prompt' OR (organization_id <= 9223372036854775807 AND operator_user_id <= 9223372036854775807)"
+        },
+        {
+          "name": "ck_governance_draft_versions_audit",
+          "sql": "(draft_kind='prompt' AND command_id IS NOT NULL AND operator_user_id IS NOT NULL AND request_bytes IS NOT NULL) OR (draft_kind='semantic' AND command_id IS NULL AND operator_user_id IS NULL AND request_bytes IS NULL)"
+        }
+      ]
+    },
+    {
+      "name": "governance_profile_registrations",
+      "create_sql": "\nCREATE TABLE governance_profile_registrations (\n\tcommand_id CHAR(36) NOT NULL, \n\torganization_id BIGINT NOT NULL, \n\toperator_user_id BIGINT NOT NULL, \n\tprofile_id VARCHAR(255) COLLATE utf8mb4_0900_bin NOT NULL, \n\tprofile_version VARCHAR(128) COLLATE utf8mb4_bin NOT NULL, \n\treceipt_json LONGTEXT NOT NULL, \n\treceipt_sha256 CHAR(64) NOT NULL, \n\tCONSTRAINT pk_governance_profile_registrations PRIMARY KEY (command_id), \n\tCONSTRAINT uk_governance_profile_registrations_profile_id_profile_version UNIQUE (profile_id, profile_version), \n\tCONSTRAINT fk_governance_profile_registrations_profile_id_profile_version FOREIGN KEY(profile_id, profile_version) REFERENCES governance_asset_versions (profile_id_key, version)\n)ENGINE=InnoDB CHARSET=utf8mb4\n\n",
+      "index_sql": [],
+      "columns": [
+        {
+          "name": "command_id",
+          "type": "CHAR(36)",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "organization_id",
+          "type": "BIGINT",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "operator_user_id",
+          "type": "BIGINT",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "profile_id",
+          "type": "VARCHAR(255) COLLATE utf8mb4_0900_bin",
+          "nullable": false,
+          "collation": "utf8mb4_0900_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "profile_version",
+          "type": "VARCHAR(128) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "receipt_json",
+          "type": "LONGTEXT",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "receipt_sha256",
+          "type": "CHAR(64)",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        }
+      ],
+      "primary_key": [
+        "command_id"
+      ],
+      "indexes": [
+        {
+          "name": "uk_governance_profile_registrations_profile_id_profile_version",
+          "columns": [
+            "profile_id",
+            "profile_version"
+          ],
+          "unique": true
+        }
+      ],
+      "foreign_keys": [
+        {
+          "name": "fk_governance_profile_registrations_profile_id_profile_version",
+          "columns": [
+            "profile_id",
+            "profile_version"
+          ],
+          "table": "governance_asset_versions",
+          "referred_columns": [
+            "profile_id_key",
+            "version"
+          ],
+          "ondelete": null
+        }
+      ],
+      "checks": []
+    },
+    {
+      "name": "governance_prompt_draft_freezes",
+      "create_sql": "\nCREATE TABLE governance_prompt_draft_freezes (\n\tcommand_id CHAR(36) NOT NULL, \n\tdraft_id CHAR(36) COLLATE utf8mb4_0900_ai_ci NOT NULL, \n\torganization_id BIGINT NOT NULL, \n\toperator_user_id BIGINT NOT NULL, \n\treceipt_json LONGTEXT NOT NULL, \n\treceipt_sha256 CHAR(64) NOT NULL, \n\tCONSTRAINT pk_governance_prompt_draft_freezes PRIMARY KEY (command_id), \n\tCONSTRAINT fk_governance_prompt_draft_freezes_draft_id FOREIGN KEY(draft_id) REFERENCES governance_draft_heads (prompt_draft_id_key), \n\tCONSTRAINT uk_governance_prompt_draft_freezes_draft_id UNIQUE (draft_id)\n)ENGINE=InnoDB CHARSET=utf8mb4\n\n",
+      "index_sql": [],
+      "columns": [
+        {
+          "name": "command_id",
+          "type": "CHAR(36)",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "draft_id",
+          "type": "CHAR(36) COLLATE utf8mb4_0900_ai_ci",
+          "nullable": false,
+          "collation": "utf8mb4_0900_ai_ci",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "organization_id",
+          "type": "BIGINT",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "operator_user_id",
+          "type": "BIGINT",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "receipt_json",
+          "type": "LONGTEXT",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "receipt_sha256",
+          "type": "CHAR(64)",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        }
+      ],
+      "primary_key": [
+        "command_id"
+      ],
+      "indexes": [
+        {
+          "name": "uk_governance_prompt_draft_freezes_draft_id",
+          "columns": [
+            "draft_id"
+          ],
+          "unique": true
+        }
+      ],
+      "foreign_keys": [
+        {
+          "name": "fk_governance_prompt_draft_freezes_draft_id",
+          "columns": [
+            "draft_id"
+          ],
+          "table": "governance_draft_heads",
+          "referred_columns": [
+            "prompt_draft_id_key"
+          ],
+          "ondelete": null
+        }
+      ],
+      "checks": []
+    },
+    {
+      "name": "governance_semantic_draft_commands",
+      "create_sql": "\nCREATE TABLE governance_semantic_draft_commands (\n\torganization_id BIGINT UNSIGNED NOT NULL, \n\tcommand_id CHAR(36) COLLATE utf8mb4_bin NOT NULL, \n\toperator_user_id BIGINT UNSIGNED NOT NULL, \n\tdraft_id CHAR(36) COLLATE utf8mb4_bin NOT NULL, \n\trequest_json LONGTEXT NOT NULL, \n\treceipt_json LONGTEXT NOT NULL, \n\treceipt_sha256 CHAR(64) NOT NULL, \n\tCONSTRAINT pk_governance_semantic_draft_commands PRIMARY KEY (organization_id, command_id), \n\tCONSTRAINT fk_governance_semantic_draft_commands_organization_id_draft_id FOREIGN KEY(organization_id, draft_id) REFERENCES governance_draft_heads (organization_id, semantic_draft_id_key)\n)ENGINE=InnoDB CHARSET=utf8mb4\n\n",
+      "index_sql": [
+        "CREATE INDEX idx_governance_semantic_draft_commands_organization_id_draft_id ON governance_semantic_draft_commands (organization_id, draft_id)"
+      ],
+      "columns": [
+        {
+          "name": "organization_id",
+          "type": "BIGINT UNSIGNED",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "command_id",
+          "type": "CHAR(36) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "operator_user_id",
+          "type": "BIGINT UNSIGNED",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "draft_id",
+          "type": "CHAR(36) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "request_json",
+          "type": "LONGTEXT",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "receipt_json",
+          "type": "LONGTEXT",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "receipt_sha256",
+          "type": "CHAR(64)",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        }
+      ],
+      "primary_key": [
+        "organization_id",
+        "command_id"
+      ],
+      "indexes": [
+        {
+          "name": "idx_governance_semantic_draft_commands_organization_id_draft_id",
+          "columns": [
+            "organization_id",
+            "draft_id"
+          ],
+          "unique": false
+        }
+      ],
+      "foreign_keys": [
+        {
+          "name": "fk_governance_semantic_draft_commands_organization_id_draft_id",
+          "columns": [
+            "organization_id",
+            "draft_id"
+          ],
+          "table": "governance_draft_heads",
+          "referred_columns": [
+            "organization_id",
+            "semantic_draft_id_key"
+          ],
+          "ondelete": null
+        }
+      ],
+      "checks": []
+    },
+    {
+      "name": "governance_solutions",
+      "create_sql": "\nCREATE TABLE governance_solutions (\n\tsolution_id VARCHAR(36) COLLATE utf8mb4_bin NOT NULL, \n\torganization_id BIGINT UNSIGNED NOT NULL, \n\trevision BIGINT NOT NULL, \n\tdraft_id CHAR(36) COLLATE utf8mb4_0900_ai_ci NOT NULL, \n\tstate_json LONGTEXT NOT NULL, \n\tstate_sha256 VARCHAR(64) NOT NULL, \n\tCONSTRAINT pk_governance_solutions PRIMARY KEY (solution_id), \n\tCONSTRAINT fk_governance_solutions_draft_id FOREIGN KEY(draft_id) REFERENCES governance_draft_heads (prompt_draft_id_key), \n\tCONSTRAINT uk_governance_solutions_draft_id UNIQUE (draft_id)\n)ENGINE=InnoDB CHARSET=utf8mb4\n\n",
+      "index_sql": [
+        "CREATE INDEX idx_governance_solutions_organization_id_solution_id ON governance_solutions (organization_id, solution_id)"
+      ],
+      "columns": [
+        {
+          "name": "solution_id",
+          "type": "VARCHAR(36) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "organization_id",
+          "type": "BIGINT UNSIGNED",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "revision",
+          "type": "BIGINT",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "draft_id",
+          "type": "CHAR(36) COLLATE utf8mb4_0900_ai_ci",
+          "nullable": false,
+          "collation": "utf8mb4_0900_ai_ci",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "state_json",
+          "type": "LONGTEXT",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "state_sha256",
+          "type": "VARCHAR(64)",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        }
+      ],
+      "primary_key": [
+        "solution_id"
+      ],
+      "indexes": [
+        {
+          "name": "idx_governance_solutions_organization_id_solution_id",
+          "columns": [
+            "organization_id",
+            "solution_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "uk_governance_solutions_draft_id",
+          "columns": [
+            "draft_id"
+          ],
+          "unique": true
+        }
+      ],
+      "foreign_keys": [
+        {
+          "name": "fk_governance_solutions_draft_id",
+          "columns": [
+            "draft_id"
+          ],
+          "table": "governance_draft_heads",
+          "referred_columns": [
+            "prompt_draft_id_key"
+          ],
+          "ondelete": null
+        }
+      ],
+      "checks": []
+    },
+    {
+      "name": "interpretation_clarifications",
+      "create_sql": "\nCREATE TABLE interpretation_clarifications (\n\tid VARCHAR(36) COLLATE utf8mb4_bin NOT NULL, \n\tsession_id VARCHAR(36) COLLATE utf8mb4_bin NOT NULL, \n\tquestion_seq INTEGER NOT NULL, \n\ttext TEXT NOT NULL, \n\tcan_skip BOOL NOT NULL, \n\tanswer TEXT, \n\tskipped BOOL NOT NULL, \n\tanswered_by VARCHAR(128), \n\tanswered_at DATETIME(6), \n\tCONSTRAINT pk_interpretation_clarifications PRIMARY KEY (id), \n\tCONSTRAINT fk_interpretation_clarifications_session_id FOREIGN KEY(session_id) REFERENCES interpretation_sessions (id), \n\tCONSTRAINT uk_interpretation_clarifications_session_id_question_seq UNIQUE (session_id, question_seq)\n)ENGINE=InnoDB CHARSET=utf8mb4\n\n",
+      "index_sql": [],
+      "columns": [
+        {
+          "name": "id",
+          "type": "VARCHAR(36) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "session_id",
+          "type": "VARCHAR(36) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "question_seq",
+          "type": "INTEGER",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "text",
+          "type": "TEXT",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "can_skip",
+          "type": "BOOL",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "answer",
+          "type": "TEXT",
+          "nullable": true,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "skipped",
+          "type": "BOOL",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "answered_by",
+          "type": "VARCHAR(128)",
+          "nullable": true,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "answered_at",
+          "type": "DATETIME(6)",
+          "nullable": true,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "indexes": [
+        {
+          "name": "uk_interpretation_clarifications_session_id_question_seq",
+          "columns": [
+            "session_id",
+            "question_seq"
+          ],
+          "unique": true
+        }
+      ],
+      "foreign_keys": [
+        {
+          "name": "fk_interpretation_clarifications_session_id",
+          "columns": [
+            "session_id"
+          ],
+          "table": "interpretation_sessions",
+          "referred_columns": [
+            "id"
+          ],
+          "ondelete": null
+        }
+      ],
+      "checks": []
+    },
+    {
+      "name": "interpretation_evidence_sets",
+      "create_sql": "\nCREATE TABLE interpretation_evidence_sets (\n\tid VARCHAR(36) COLLATE utf8mb4_bin NOT NULL, \n\tsession_id VARCHAR(36) COLLATE utf8mb4_bin NOT NULL, \n\tfingerprint VARCHAR(64) NOT NULL, \n\tschema_version VARCHAR(32) NOT NULL, \n\titems JSON NOT NULL, \n\tfrozen_at DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6), \n\tCONSTRAINT pk_interpretation_evidence_sets PRIMARY KEY (id), \n\tCONSTRAINT fk_interpretation_evidence_sets_session_id FOREIGN KEY(session_id) REFERENCES interpretation_sessions (id), \n\tCONSTRAINT uk_interpretation_evidence_sets_session_id UNIQUE (session_id)\n)ENGINE=InnoDB CHARSET=utf8mb4\n\n",
+      "index_sql": [],
+      "columns": [
+        {
+          "name": "id",
+          "type": "VARCHAR(36) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "session_id",
+          "type": "VARCHAR(36) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "fingerprint",
+          "type": "VARCHAR(64)",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "schema_version",
+          "type": "VARCHAR(32)",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "items",
+          "type": "JSON",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "frozen_at",
+          "type": "DATETIME(6)",
+          "nullable": true,
+          "collation": null,
+          "default": "CURRENT_TIMESTAMP(6)",
+          "computed": null,
+          "persisted": null
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "indexes": [
+        {
+          "name": "uk_interpretation_evidence_sets_session_id",
+          "columns": [
+            "session_id"
+          ],
+          "unique": true
+        }
+      ],
+      "foreign_keys": [
+        {
+          "name": "fk_interpretation_evidence_sets_session_id",
+          "columns": [
+            "session_id"
+          ],
+          "table": "interpretation_sessions",
+          "referred_columns": [
+            "id"
+          ],
+          "ondelete": null
+        }
+      ],
+      "checks": []
+    },
+    {
+      "name": "interpretation_result_outbox",
+      "create_sql": "\nCREATE TABLE interpretation_result_outbox (\n\tevent_id VARCHAR(36) COLLATE utf8mb4_bin NOT NULL, \n\tsession_id VARCHAR(36) COLLATE utf8mb4_bin NOT NULL, \n\tversion INTEGER NOT NULL, \n\tpayload JSON NOT NULL, \n\tdelivered BOOL NOT NULL DEFAULT 0, \n\tmq_owned BOOL NOT NULL DEFAULT 0, \n\tattempts INTEGER NOT NULL DEFAULT 0, \n\tcreated_at DATETIME(6), \n\tdelivered_at DATETIME(6), \n\tavailable_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6), \n\tCONSTRAINT pk_interpretation_result_outbox PRIMARY KEY (event_id), \n\tCONSTRAINT uk_interpretation_result_outbox_session_id_version UNIQUE (session_id, version), \n\tCONSTRAINT fk_interpretation_result_outbox_session_id FOREIGN KEY(session_id) REFERENCES interpretation_sessions (id)\n)ENGINE=InnoDB CHARSET=utf8mb4\n\n",
+      "index_sql": [
+        "CREATE INDEX idx_interpretation_result_outbox_delivered_available_at_event_id ON interpretation_result_outbox (delivered, available_at, event_id)"
+      ],
+      "columns": [
+        {
+          "name": "event_id",
+          "type": "VARCHAR(36) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "session_id",
+          "type": "VARCHAR(36) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "version",
+          "type": "INTEGER",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "payload",
+          "type": "JSON",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "delivered",
+          "type": "BOOL",
+          "nullable": false,
+          "collation": null,
+          "default": "0",
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "mq_owned",
+          "type": "BOOL",
+          "nullable": false,
+          "collation": null,
+          "default": "0",
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "attempts",
+          "type": "INTEGER",
+          "nullable": false,
+          "collation": null,
+          "default": "0",
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "created_at",
+          "type": "DATETIME(6)",
+          "nullable": true,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "delivered_at",
+          "type": "DATETIME(6)",
+          "nullable": true,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "available_at",
+          "type": "DATETIME(6)",
+          "nullable": false,
+          "collation": null,
+          "default": "CURRENT_TIMESTAMP(6)",
+          "computed": null,
+          "persisted": null
+        }
+      ],
+      "primary_key": [
+        "event_id"
+      ],
+      "indexes": [
+        {
+          "name": "idx_interpretation_result_outbox_delivered_available_at_event_id",
+          "columns": [
+            "delivered",
+            "available_at",
+            "event_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "uk_interpretation_result_outbox_session_id_version",
+          "columns": [
+            "session_id",
+            "version"
+          ],
+          "unique": true
+        }
+      ],
+      "foreign_keys": [
+        {
+          "name": "fk_interpretation_result_outbox_session_id",
+          "columns": [
+            "session_id"
+          ],
+          "table": "interpretation_sessions",
+          "referred_columns": [
+            "id"
+          ],
+          "ondelete": null
+        }
+      ],
+      "checks": []
+    },
+    {
+      "name": "interpretation_runs",
+      "create_sql": "\nCREATE TABLE interpretation_runs (\n\tid VARCHAR(36) COLLATE utf8mb4_bin NOT NULL, \n\tsession_id VARCHAR(36) COLLATE utf8mb4_bin NOT NULL, \n\tsession_version INTEGER NOT NULL, \n\tstatus VARCHAR(32) NOT NULL, \n\tcheckpoint_ref VARCHAR(128), \n\tCONSTRAINT pk_interpretation_runs PRIMARY KEY (id), \n\tCONSTRAINT fk_interpretation_runs_session_id FOREIGN KEY(session_id) REFERENCES interpretation_sessions (id)\n)ENGINE=InnoDB CHARSET=utf8mb4\n\n",
+      "index_sql": [
+        "CREATE INDEX idx_interpretation_runs_session_id ON interpretation_runs (session_id)"
+      ],
+      "columns": [
+        {
+          "name": "id",
+          "type": "VARCHAR(36) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "session_id",
+          "type": "VARCHAR(36) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "session_version",
+          "type": "INTEGER",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "status",
+          "type": "VARCHAR(32)",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "checkpoint_ref",
+          "type": "VARCHAR(128)",
+          "nullable": true,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "indexes": [
+        {
+          "name": "idx_interpretation_runs_session_id",
+          "columns": [
+            "session_id"
+          ],
+          "unique": false
+        }
+      ],
+      "foreign_keys": [
+        {
+          "name": "fk_interpretation_runs_session_id",
+          "columns": [
+            "session_id"
+          ],
+          "table": "interpretation_sessions",
+          "referred_columns": [
+            "id"
+          ],
+          "ondelete": null
+        }
+      ],
+      "checks": []
+    },
+    {
+      "name": "operations_runtime_milestones",
+      "create_sql": "\nCREATE TABLE operations_runtime_milestones (\n\tsession_id VARCHAR(36) COLLATE utf8mb4_bin NOT NULL, \n\tdedupe_key VARCHAR(128) COLLATE utf8mb4_bin NOT NULL, \n\trun_id VARCHAR(36) COLLATE utf8mb4_bin NOT NULL, \n\tkind VARCHAR(32) NOT NULL, \n\tinvocation_id VARCHAR(36) COLLATE utf8mb4_bin, \n\tattempt INTEGER, \n\toccurred_at DATETIME(6) NOT NULL, \n\texpires_at DATETIME(6) NOT NULL, \n\tCONSTRAINT pk_operations_runtime_milestones PRIMARY KEY (session_id, dedupe_key), \n\tCONSTRAINT fk_operations_runtime_milestones_session_id FOREIGN KEY(session_id) REFERENCES interpretation_sessions (id) ON DELETE CASCADE\n)ENGINE=InnoDB CHARSET=utf8mb4\n\n",
+      "index_sql": [
+        "CREATE INDEX idx_operations_runtime_milestones_expires_at ON operations_runtime_milestones (expires_at)"
+      ],
+      "columns": [
+        {
+          "name": "session_id",
+          "type": "VARCHAR(36) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "dedupe_key",
+          "type": "VARCHAR(128) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "run_id",
+          "type": "VARCHAR(36) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "kind",
+          "type": "VARCHAR(32)",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "invocation_id",
+          "type": "VARCHAR(36) COLLATE utf8mb4_bin",
+          "nullable": true,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "attempt",
+          "type": "INTEGER",
+          "nullable": true,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "occurred_at",
+          "type": "DATETIME(6)",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "expires_at",
+          "type": "DATETIME(6)",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        }
+      ],
+      "primary_key": [
+        "session_id",
+        "dedupe_key"
+      ],
+      "indexes": [
+        {
+          "name": "idx_operations_runtime_milestones_expires_at",
+          "columns": [
+            "expires_at"
+          ],
+          "unique": false
+        }
+      ],
+      "foreign_keys": [
+        {
+          "name": "fk_operations_runtime_milestones_session_id",
+          "columns": [
+            "session_id"
+          ],
+          "table": "interpretation_sessions",
+          "referred_columns": [
+            "id"
+          ],
+          "ondelete": "CASCADE"
+        }
+      ],
+      "checks": []
+    },
+    {
+      "name": "publication_records",
+      "create_sql": "\nCREATE TABLE publication_records (\n\tpublication_id CHAR(36) NOT NULL, \n\tselector_key CHAR(64) NOT NULL, \n\trun_id CHAR(36) NOT NULL, \n\trun_version BIGINT NOT NULL, \n\torganization_id BIGINT NOT NULL, \n\tcontent_json LONGTEXT NOT NULL, \n\tcontent_sha256 CHAR(64) NOT NULL, \n\tCONSTRAINT pk_publication_records PRIMARY KEY (publication_id), \n\tCONSTRAINT fk_publication_records_run_id FOREIGN KEY(run_id) REFERENCES evaluation_runs (run_id)\n)ENGINE=InnoDB CHARSET=utf8mb4\n\n",
+      "index_sql": [
+        "CREATE INDEX idx_publication_records_run_id ON publication_records (run_id)"
+      ],
+      "columns": [
+        {
+          "name": "publication_id",
+          "type": "CHAR(36)",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "selector_key",
+          "type": "CHAR(64)",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "run_id",
+          "type": "CHAR(36)",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "run_version",
+          "type": "BIGINT",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "organization_id",
+          "type": "BIGINT",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "content_json",
+          "type": "LONGTEXT",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "content_sha256",
+          "type": "CHAR(64)",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        }
+      ],
+      "primary_key": [
+        "publication_id"
+      ],
+      "indexes": [
+        {
+          "name": "idx_publication_records_run_id",
+          "columns": [
+            "run_id"
+          ],
+          "unique": false
+        }
+      ],
+      "foreign_keys": [
+        {
+          "name": "fk_publication_records_run_id",
+          "columns": [
+            "run_id"
+          ],
+          "table": "evaluation_runs",
+          "referred_columns": [
+            "run_id"
+          ],
+          "ondelete": null
+        }
+      ],
+      "checks": []
+    },
+    {
+      "name": "quota_organization_pointers",
+      "create_sql": "\nCREATE TABLE quota_organization_pointers (\n\torganization_id BIGINT UNSIGNED NOT NULL, \n\trevision BIGINT NOT NULL, \n\tCONSTRAINT pk_quota_organization_pointers PRIMARY KEY (organization_id), \n\tCONSTRAINT fk_quota_organization_pointers_organization_id_revision FOREIGN KEY(organization_id, revision) REFERENCES quota_organization_versions (organization_id, revision)\n)ENGINE=InnoDB CHARSET=utf8mb4\n\n",
+      "index_sql": [
+        "CREATE INDEX idx_quota_organization_pointers_organization_id_revision ON quota_organization_pointers (organization_id, revision)"
+      ],
+      "columns": [
+        {
+          "name": "organization_id",
+          "type": "BIGINT UNSIGNED",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "revision",
+          "type": "BIGINT",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        }
+      ],
+      "primary_key": [
+        "organization_id"
+      ],
+      "indexes": [
+        {
+          "name": "idx_quota_organization_pointers_organization_id_revision",
+          "columns": [
+            "organization_id",
+            "revision"
+          ],
+          "unique": false
+        }
+      ],
+      "foreign_keys": [
+        {
+          "name": "fk_quota_organization_pointers_organization_id_revision",
+          "columns": [
+            "organization_id",
+            "revision"
+          ],
+          "table": "quota_organization_versions",
+          "referred_columns": [
+            "organization_id",
+            "revision"
+          ],
+          "ondelete": null
+        }
+      ],
+      "checks": []
+    },
+    {
+      "name": "execution_configurations",
+      "create_sql": "\nCREATE TABLE execution_configurations (\n\tsession_id VARCHAR(36) COLLATE utf8mb4_bin NOT NULL, \n\tevidence_set_id VARCHAR(36) COLLATE utf8mb4_bin NOT NULL, \n\tevidence_fingerprint CHAR(64) NOT NULL, \n\tpublication_id CHAR(36) NOT NULL, \n\tpublication_sha256 CHAR(64) NOT NULL, \n\tpointer_version BIGINT NOT NULL, \n\tselector_query TEXT NOT NULL, \n\tCONSTRAINT pk_execution_configurations PRIMARY KEY (session_id), \n\tCONSTRAINT fk_execution_configurations_publication_id FOREIGN KEY(publication_id) REFERENCES publication_records (publication_id), \n\tCONSTRAINT fk_execution_configurations_evidence_set_id FOREIGN KEY(evidence_set_id) REFERENCES interpretation_evidence_sets (id), \n\tCONSTRAINT fk_execution_configurations_session_id FOREIGN KEY(session_id) REFERENCES interpretation_sessions (id)\n)ENGINE=InnoDB CHARSET=utf8mb4\n\n",
+      "index_sql": [
+        "CREATE INDEX idx_execution_configurations_evidence_set_id ON execution_configurations (evidence_set_id)",
+        "CREATE INDEX idx_execution_configurations_publication_id ON execution_configurations (publication_id)"
+      ],
+      "columns": [
+        {
+          "name": "session_id",
+          "type": "VARCHAR(36) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "evidence_set_id",
+          "type": "VARCHAR(36) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "evidence_fingerprint",
+          "type": "CHAR(64)",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "publication_id",
+          "type": "CHAR(36)",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "publication_sha256",
+          "type": "CHAR(64)",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "pointer_version",
+          "type": "BIGINT",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "selector_query",
+          "type": "TEXT",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        }
+      ],
+      "primary_key": [
+        "session_id"
+      ],
+      "indexes": [
+        {
+          "name": "idx_execution_configurations_evidence_set_id",
+          "columns": [
+            "evidence_set_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "idx_execution_configurations_publication_id",
+          "columns": [
+            "publication_id"
+          ],
+          "unique": false
+        }
+      ],
+      "foreign_keys": [
+        {
+          "name": "fk_execution_configurations_session_id",
+          "columns": [
+            "session_id"
+          ],
+          "table": "interpretation_sessions",
+          "referred_columns": [
+            "id"
+          ],
+          "ondelete": null
+        },
+        {
+          "name": "fk_execution_configurations_evidence_set_id",
+          "columns": [
+            "evidence_set_id"
+          ],
+          "table": "interpretation_evidence_sets",
+          "referred_columns": [
+            "id"
+          ],
+          "ondelete": null
+        },
+        {
+          "name": "fk_execution_configurations_publication_id",
+          "columns": [
+            "publication_id"
+          ],
+          "table": "publication_records",
+          "referred_columns": [
+            "publication_id"
+          ],
+          "ondelete": null
+        }
+      ],
+      "checks": []
+    },
+    {
+      "name": "execution_jobs",
+      "create_sql": "\nCREATE TABLE execution_jobs (\n\tid VARCHAR(36) COLLATE utf8mb4_bin NOT NULL, \n\trun_id VARCHAR(36) COLLATE utf8mb4_bin NOT NULL, \n\tsession_id VARCHAR(36) COLLATE utf8mb4_bin NOT NULL, \n\tstatus VARCHAR(16) NOT NULL, \n\tavailable_at DATETIME(6) NOT NULL, \n\tlease_until DATETIME(6), \n\tfence_token BIGINT UNSIGNED NOT NULL, \n\tattempt INTEGER NOT NULL, \n\tanswer TEXT, \n\tskipped BOOL NOT NULL, \n\tquestion_id VARCHAR(36) COLLATE utf8mb4_bin, \n\tCONSTRAINT pk_execution_jobs PRIMARY KEY (id), \n\tCONSTRAINT fk_execution_jobs_session_id FOREIGN KEY(session_id) REFERENCES interpretation_sessions (id), \n\tCONSTRAINT uk_execution_jobs_run_id UNIQUE (run_id), \n\tCONSTRAINT fk_execution_jobs_run_id FOREIGN KEY(run_id) REFERENCES interpretation_runs (id)\n)ENGINE=InnoDB CHARSET=utf8mb4\n\n",
+      "index_sql": [
+        "CREATE INDEX idx_execution_jobs_session_id ON execution_jobs (session_id)",
+        "CREATE INDEX idx_execution_jobs_status_available_at_id ON execution_jobs (status, available_at, id)"
+      ],
+      "columns": [
+        {
+          "name": "id",
+          "type": "VARCHAR(36) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "run_id",
+          "type": "VARCHAR(36) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "session_id",
+          "type": "VARCHAR(36) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "status",
+          "type": "VARCHAR(16)",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "available_at",
+          "type": "DATETIME(6)",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "lease_until",
+          "type": "DATETIME(6)",
+          "nullable": true,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "fence_token",
+          "type": "BIGINT UNSIGNED",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "attempt",
+          "type": "INTEGER",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "answer",
+          "type": "TEXT",
+          "nullable": true,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "skipped",
+          "type": "BOOL",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "question_id",
+          "type": "VARCHAR(36) COLLATE utf8mb4_bin",
+          "nullable": true,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "indexes": [
+        {
+          "name": "idx_execution_jobs_status_available_at_id",
+          "columns": [
+            "status",
+            "available_at",
+            "id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "idx_execution_jobs_session_id",
+          "columns": [
+            "session_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "uk_execution_jobs_run_id",
+          "columns": [
+            "run_id"
+          ],
+          "unique": true
+        }
+      ],
+      "foreign_keys": [
+        {
+          "name": "fk_execution_jobs_run_id",
+          "columns": [
+            "run_id"
+          ],
+          "table": "interpretation_runs",
+          "referred_columns": [
+            "id"
+          ],
+          "ondelete": null
+        },
+        {
+          "name": "fk_execution_jobs_session_id",
+          "columns": [
+            "session_id"
+          ],
+          "table": "interpretation_sessions",
+          "referred_columns": [
+            "id"
+          ],
+          "ondelete": null
+        }
+      ],
+      "checks": []
+    },
+    {
+      "name": "execution_model_calls",
+      "create_sql": "\nCREATE TABLE execution_model_calls (\n\trun_id VARCHAR(36) COLLATE utf8mb4_bin NOT NULL, \n\tinvocation_id VARCHAR(36) COLLATE utf8mb4_bin NOT NULL, \n\tfence_token BIGINT UNSIGNED NOT NULL, \n\tstatus VARCHAR(32) NOT NULL, \n\trequest_json LONGTEXT NOT NULL, \n\tresponse_json LONGTEXT, \n\tfailure_code VARCHAR(64), \n\tcreated_at DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6), \n\tcreated_at_utc DATETIME(6), \n\tCONSTRAINT pk_execution_model_calls PRIMARY KEY (run_id), \n\tCONSTRAINT fk_execution_model_calls_run_id FOREIGN KEY(run_id) REFERENCES interpretation_runs (id), \n\tCONSTRAINT uk_execution_model_calls_invocation_id UNIQUE (invocation_id)\n)ENGINE=InnoDB CHARSET=utf8mb4\n\n",
+      "index_sql": [],
+      "columns": [
+        {
+          "name": "run_id",
+          "type": "VARCHAR(36) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "invocation_id",
+          "type": "VARCHAR(36) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "fence_token",
+          "type": "BIGINT UNSIGNED",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "status",
+          "type": "VARCHAR(32)",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "request_json",
+          "type": "LONGTEXT",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "response_json",
+          "type": "LONGTEXT",
+          "nullable": true,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "failure_code",
+          "type": "VARCHAR(64)",
+          "nullable": true,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "created_at",
+          "type": "DATETIME(6)",
+          "nullable": true,
+          "collation": null,
+          "default": "CURRENT_TIMESTAMP(6)",
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "created_at_utc",
+          "type": "DATETIME(6)",
+          "nullable": true,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        }
+      ],
+      "primary_key": [
+        "run_id"
+      ],
+      "indexes": [
+        {
+          "name": "uk_execution_model_calls_invocation_id",
+          "columns": [
+            "invocation_id"
+          ],
+          "unique": true
+        }
+      ],
+      "foreign_keys": [
+        {
+          "name": "fk_execution_model_calls_run_id",
+          "columns": [
+            "run_id"
+          ],
+          "table": "interpretation_runs",
+          "referred_columns": [
+            "id"
+          ],
+          "ondelete": null
+        }
+      ],
+      "checks": []
+    },
+    {
+      "name": "governance_solution_commands",
+      "create_sql": "\nCREATE TABLE governance_solution_commands (\n\tcommand_id VARCHAR(36) COLLATE utf8mb4_bin NOT NULL, \n\tsolution_id VARCHAR(36) COLLATE utf8mb4_bin NOT NULL, \n\torganization_id BIGINT UNSIGNED NOT NULL, \n\toperator_user_id BIGINT UNSIGNED NOT NULL, \n\trequest_json LONGTEXT NOT NULL, \n\treceipt_json LONGTEXT NOT NULL, \n\treceipt_sha256 VARCHAR(64) NOT NULL, \n\tCONSTRAINT pk_governance_solution_commands PRIMARY KEY (command_id), \n\tCONSTRAINT fk_governance_solution_commands_solution_id FOREIGN KEY(solution_id) REFERENCES governance_solutions (solution_id)\n)ENGINE=InnoDB CHARSET=utf8mb4\n\n",
+      "index_sql": [
+        "CREATE INDEX idx_governance_solution_commands_solution_id ON governance_solution_commands (solution_id)"
+      ],
+      "columns": [
+        {
+          "name": "command_id",
+          "type": "VARCHAR(36) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "solution_id",
+          "type": "VARCHAR(36) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "organization_id",
+          "type": "BIGINT UNSIGNED",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "operator_user_id",
+          "type": "BIGINT UNSIGNED",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "request_json",
+          "type": "LONGTEXT",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "receipt_json",
+          "type": "LONGTEXT",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "receipt_sha256",
+          "type": "VARCHAR(64)",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        }
+      ],
+      "primary_key": [
+        "command_id"
+      ],
+      "indexes": [
+        {
+          "name": "idx_governance_solution_commands_solution_id",
+          "columns": [
+            "solution_id"
+          ],
+          "unique": false
+        }
+      ],
+      "foreign_keys": [
+        {
+          "name": "fk_governance_solution_commands_solution_id",
+          "columns": [
+            "solution_id"
+          ],
+          "table": "governance_solutions",
+          "referred_columns": [
+            "solution_id"
+          ],
+          "ondelete": null
+        }
+      ],
+      "checks": []
+    },
+    {
+      "name": "interpretation_artifacts",
+      "create_sql": "\nCREATE TABLE interpretation_artifacts (\n\tid VARCHAR(36) COLLATE utf8mb4_bin NOT NULL, \n\tsession_id VARCHAR(36) COLLATE utf8mb4_bin NOT NULL, \n\trun_id VARCHAR(36) COLLATE utf8mb4_bin NOT NULL, \n\tpayload JSON NOT NULL, \n\tcreated_at DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6), \n\tCONSTRAINT pk_interpretation_artifacts PRIMARY KEY (id), \n\tCONSTRAINT uk_interpretation_artifacts_run_id UNIQUE (run_id), \n\tCONSTRAINT uk_interpretation_artifacts_session_id UNIQUE (session_id), \n\tCONSTRAINT fk_interpretation_artifacts_run_id FOREIGN KEY(run_id) REFERENCES interpretation_runs (id), \n\tCONSTRAINT fk_interpretation_artifacts_session_id FOREIGN KEY(session_id) REFERENCES interpretation_sessions (id)\n)ENGINE=InnoDB CHARSET=utf8mb4\n\n",
+      "index_sql": [],
+      "columns": [
+        {
+          "name": "id",
+          "type": "VARCHAR(36) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "session_id",
+          "type": "VARCHAR(36) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "run_id",
+          "type": "VARCHAR(36) COLLATE utf8mb4_bin",
+          "nullable": false,
+          "collation": "utf8mb4_bin",
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "payload",
+          "type": "JSON",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "created_at",
+          "type": "DATETIME(6)",
+          "nullable": true,
+          "collation": null,
+          "default": "CURRENT_TIMESTAMP(6)",
+          "computed": null,
+          "persisted": null
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "indexes": [
+        {
+          "name": "uk_interpretation_artifacts_run_id",
+          "columns": [
+            "run_id"
+          ],
+          "unique": true
+        },
+        {
+          "name": "uk_interpretation_artifacts_session_id",
+          "columns": [
+            "session_id"
+          ],
+          "unique": true
+        }
+      ],
+      "foreign_keys": [
+        {
+          "name": "fk_interpretation_artifacts_run_id",
+          "columns": [
+            "run_id"
+          ],
+          "table": "interpretation_runs",
+          "referred_columns": [
+            "id"
+          ],
+          "ondelete": null
+        },
+        {
+          "name": "fk_interpretation_artifacts_session_id",
+          "columns": [
+            "session_id"
+          ],
+          "table": "interpretation_sessions",
+          "referred_columns": [
+            "id"
+          ],
+          "ondelete": null
+        }
+      ],
+      "checks": []
+    },
+    {
+      "name": "publication_pointers",
+      "create_sql": "\nCREATE TABLE publication_pointers (\n\tselector_key CHAR(64) NOT NULL, \n\tselector_json TEXT NOT NULL, \n\tversion BIGINT NOT NULL, \n\tactive_publication_id CHAR(36), \n\tchanged_at VARCHAR(64), \n\tCONSTRAINT pk_publication_pointers PRIMARY KEY (selector_key), \n\tCONSTRAINT fk_publication_pointers_active_publication_id FOREIGN KEY(active_publication_id) REFERENCES publication_records (publication_id)\n)ENGINE=InnoDB CHARSET=utf8mb4\n\n",
+      "index_sql": [
+        "CREATE INDEX idx_publication_pointers_active_publication_id ON publication_pointers (active_publication_id)"
+      ],
+      "columns": [
+        {
+          "name": "selector_key",
+          "type": "CHAR(64)",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "selector_json",
+          "type": "TEXT",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "version",
+          "type": "BIGINT",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "active_publication_id",
+          "type": "CHAR(36)",
+          "nullable": true,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "changed_at",
+          "type": "VARCHAR(64)",
+          "nullable": true,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        }
+      ],
+      "primary_key": [
+        "selector_key"
+      ],
+      "indexes": [
+        {
+          "name": "idx_publication_pointers_active_publication_id",
+          "columns": [
+            "active_publication_id"
+          ],
+          "unique": false
+        }
+      ],
+      "foreign_keys": [
+        {
+          "name": "fk_publication_pointers_active_publication_id",
+          "columns": [
+            "active_publication_id"
+          ],
+          "table": "publication_records",
+          "referred_columns": [
+            "publication_id"
+          ],
+          "ondelete": null
+        }
+      ],
+      "checks": []
+    },
+    {
+      "name": "publication_changes",
+      "create_sql": "\nCREATE TABLE publication_changes (\n\tcommand_id CHAR(36) NOT NULL, \n\tselector_key CHAR(64) NOT NULL, \n\tversion BIGINT NOT NULL, \n\torganization_id BIGINT NOT NULL, \n\toperator_user_id BIGINT NOT NULL, \n\trequest_json TEXT NOT NULL, \n\treceipt_json TEXT NOT NULL, \n\tCONSTRAINT pk_publication_changes PRIMARY KEY (command_id), \n\tCONSTRAINT fk_publication_changes_selector_key FOREIGN KEY(selector_key) REFERENCES publication_pointers (selector_key), \n\tCONSTRAINT uk_publication_changes_selector_key_version UNIQUE (selector_key, version)\n)ENGINE=InnoDB CHARSET=utf8mb4\n\n",
+      "index_sql": [],
+      "columns": [
+        {
+          "name": "command_id",
+          "type": "CHAR(36)",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "selector_key",
+          "type": "CHAR(64)",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "version",
+          "type": "BIGINT",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "organization_id",
+          "type": "BIGINT",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "operator_user_id",
+          "type": "BIGINT",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "request_json",
+          "type": "TEXT",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        },
+        {
+          "name": "receipt_json",
+          "type": "TEXT",
+          "nullable": false,
+          "collation": null,
+          "default": null,
+          "computed": null,
+          "persisted": null
+        }
+      ],
+      "primary_key": [
+        "command_id"
+      ],
+      "indexes": [
+        {
+          "name": "uk_publication_changes_selector_key_version",
+          "columns": [
+            "selector_key",
+            "version"
+          ],
+          "unique": true
+        }
+      ],
+      "foreign_keys": [
+        {
+          "name": "fk_publication_changes_selector_key",
+          "columns": [
+            "selector_key"
+          ],
+          "table": "publication_pointers",
+          "referred_columns": [
+            "selector_key"
+          ],
+          "ondelete": null
+        }
+      ],
+      "checks": []
+    }
+  ]
+}

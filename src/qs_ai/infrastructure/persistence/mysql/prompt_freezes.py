@@ -6,7 +6,7 @@ from datetime import datetime
 from uuid import UUID
 
 from pydantic import TypeAdapter
-from sqlalchemy import insert, select
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,10 +21,11 @@ from qs_ai.domain.governance.manifest import AssetReference
 from qs_ai.domain.governance.prompt import PromptAsset
 from qs_ai.domain.governance.prompt_draft import DraftConflict, nonzero_uuid
 from qs_ai.domain.governance.prompt_origin import SYNTAX_VERSION
+from qs_ai.infrastructure.persistence.mysql.asset_records import prompt_assets
 from qs_ai.infrastructure.persistence.mysql.asset_snapshot import AssetSnapshotReader
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
+from qs_ai.infrastructure.persistence.mysql.governance_records import insert
 from qs_ai.infrastructure.persistence.mysql.prompt_drafts import SNAPSHOT, read_draft
-from qs_ai.infrastructure.persistence.mysql.schema import prompt_assets
 from qs_ai.infrastructure.persistence.mysql.schema import prompt_draft_freezes as freezes
 
 RECEIPT = TypeAdapter(FrozenPromptReceipt)

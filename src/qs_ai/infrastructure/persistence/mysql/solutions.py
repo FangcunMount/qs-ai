@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid5
 
-from sqlalchemy import insert, select, update
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -28,6 +28,7 @@ from qs_ai.config import Settings
 from qs_ai.domain.governance.profile import ProfileAsset
 from qs_ai.domain.governance.prompt import PromptAsset
 from qs_ai.domain.governance.prompt_draft import DraftConflict
+from qs_ai.infrastructure.persistence.mysql.asset_records import profile_assets, prompt_assets
 from qs_ai.infrastructure.persistence.mysql.asset_snapshot import (
     AssetSnapshotReader,
     generation_snapshot,
@@ -35,11 +36,8 @@ from qs_ai.infrastructure.persistence.mysql.asset_snapshot import (
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
 from qs_ai.infrastructure.persistence.mysql.evaluation_contracts import semantic_contract
 from qs_ai.infrastructure.persistence.mysql.evaluation_management import read_view
+from qs_ai.infrastructure.persistence.mysql.governance_records import insert, update
 from qs_ai.infrastructure.persistence.mysql.prompt_drafts import apply_draft, read_draft
-from qs_ai.infrastructure.persistence.mysql.schema import (
-    profile_assets,
-    prompt_assets,
-)
 from qs_ai.infrastructure.persistence.mysql.schema import (
     solution_commands as commands,
 )

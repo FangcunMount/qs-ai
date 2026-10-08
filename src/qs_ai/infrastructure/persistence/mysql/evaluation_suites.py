@@ -8,7 +8,7 @@ from datetime import datetime
 from uuid import UUID
 
 from pydantic import TypeAdapter
-from sqlalchemy import RowMapping, insert, select
+from sqlalchemy import RowMapping, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,15 +22,16 @@ from qs_ai.domain.governance.prompt import PromptAsset
 from qs_ai.domain.governance.prompt_draft import nonzero_uuid
 from qs_ai.domain.governance.route import RouteAsset
 from qs_ai.domain.governance.schema import SchemaAsset
-from qs_ai.infrastructure.persistence.mysql.asset_snapshot import AssetSnapshotReader
-from qs_ai.infrastructure.persistence.mysql.database import Transactions
-from qs_ai.infrastructure.persistence.mysql.schema import evaluation_suites as table
-from qs_ai.infrastructure.persistence.mysql.schema import (
+from qs_ai.infrastructure.persistence.mysql.asset_records import (
     profile_assets,
     prompt_assets,
     route_assets,
     schema_assets,
 )
+from qs_ai.infrastructure.persistence.mysql.asset_snapshot import AssetSnapshotReader
+from qs_ai.infrastructure.persistence.mysql.database import Transactions
+from qs_ai.infrastructure.persistence.mysql.governance_records import insert
+from qs_ai.infrastructure.persistence.mysql.schema import evaluation_suites as table
 from qs_ai.infrastructure.qs_server.evaluation_suite import (
     BASELINE_SUITE_FILES,
     SUITE_FILES,

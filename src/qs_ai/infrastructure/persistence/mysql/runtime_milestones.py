@@ -37,7 +37,7 @@ async def prune(transactions: Transactions) -> int:
     async with transactions.open() as db:
         result = await db.execute(
             text(
-                "DELETE FROM runtime_milestones WHERE expires_at < UTC_TIMESTAMP(6) "
+                "DELETE FROM operations_runtime_milestones WHERE expires_at < UTC_TIMESTAMP(6) "
                 "ORDER BY expires_at LIMIT 1000"
             )
         )

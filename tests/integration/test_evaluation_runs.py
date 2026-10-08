@@ -5,17 +5,22 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import delete, insert, select
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from qs_ai.domain.evaluation.identity import EvidenceReleaseIdentity, FrozenContractRef
 from qs_ai.infrastructure.persistence.mysql.database import Database, Transactions
 from qs_ai.infrastructure.persistence.mysql.evaluation_runs import create_run
+from qs_ai.infrastructure.persistence.mysql.governance_records import (
+    delete,
+    identity_columns,
+    insert,
+)
+from qs_ai.infrastructure.persistence.mysql.run_policy import frozen_policy_query
 from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_capacity_reservations,
     evaluation_checkpoints,
     evaluation_dispatches,
-    evaluation_run_policies,
     evaluation_runs,
 )
 from qs_ai.infrastructure.qs_server.evaluation_policies import (
@@ -91,7 +96,6 @@ async def setup_run():
                 evaluation_capacity_reservations,
                 evaluation_dispatches,
                 evaluation_checkpoints,
-                evaluation_run_policies,
                 evaluation_runs,
             ):
                 await db.execute(delete(table).where(table.c.run_id == str(run_id)))
@@ -101,12 +105,12 @@ async def setup_run():
 
 async def rows(tx, run_id):
     async with tx.open() as db:
-        return [
-            (await db.execute(select(table).where(table.c.run_id == str(run_id))))
-            .mappings()
-            .one_or_none()
-            for table in (evaluation_runs, evaluation_run_policies, evaluation_checkpoints)
-        ]
+        queries = (
+            select(evaluation_runs).where(evaluation_runs.c.run_id == str(run_id)),
+            frozen_policy_query(str(run_id)),
+            select(evaluation_checkpoints).where(evaluation_checkpoints.c.run_id == str(run_id)),
+        )
+        return [(await db.execute(query)).mappings().one_or_none() for query in queries]
 
 
 async def create(db, run_id, release):
@@ -139,16 +143,22 @@ async def test_creation_freezes_documents_slots_audit_and_one_initial_version(se
 
 
 @pytest.mark.parametrize("conflict", ["policy", "checkpoint", "after_writes"])
-async def test_failure_at_each_creation_write_rolls_back_all_new_records(setup_run, conflict):
+async def test_failure_at_each_creation_write_rolls_back_all_new_records(
+    setup_run, conflict, monkeypatch
+):
     tx, run_id, release = setup_run
+    if conflict == "policy":
+        from qs_ai.infrastructure.persistence.mysql import evaluation_runs as run_store
+
+        freeze = run_store.freeze_policy
+
+        async def fail_after_policy(*args):
+            await freeze(*args)
+            raise RuntimeError("injected after policy freeze")
+
+        monkeypatch.setattr(run_store, "freeze_policy", fail_after_policy)
     async with tx.open() as db:
-        if conflict == "policy":
-            await db.execute(
-                insert(evaluation_run_policies).values(
-                    run_id=str(run_id), fingerprint="prior", definition_json="{}"
-                )
-            )
-        elif conflict == "checkpoint":
+        if conflict == "checkpoint":
             await db.execute(insert(evaluation_checkpoints).values(run_id=str(run_id), version=9))
         await db.commit()
     before = await rows(tx, run_id)
@@ -167,16 +177,16 @@ async def test_creation_resolves_real_mysql_assets_and_freezes_complete_release(
     from qs_ai.bootstrap.import_prompts import baseline_assets as prompts
     from qs_ai.bootstrap.import_routes import baseline_assets as routes
     from qs_ai.bootstrap.import_schemas import baseline_assets as schemas
-    from qs_ai.infrastructure.persistence.mysql.evaluation_runs import MySQLRunCreator
-    from qs_ai.infrastructure.persistence.mysql.profile_assets import MySQLProfileAssets
-    from qs_ai.infrastructure.persistence.mysql.prompt_assets import MySQLPromptAssets
-    from qs_ai.infrastructure.persistence.mysql.route_assets import MySQLRouteAssets
-    from qs_ai.infrastructure.persistence.mysql.schema import (
+    from qs_ai.infrastructure.persistence.mysql.asset_records import (
         profile_assets,
         prompt_assets,
         route_assets,
         schema_assets,
     )
+    from qs_ai.infrastructure.persistence.mysql.evaluation_runs import MySQLRunCreator
+    from qs_ai.infrastructure.persistence.mysql.profile_assets import MySQLProfileAssets
+    from qs_ai.infrastructure.persistence.mysql.prompt_assets import MySQLPromptAssets
+    from qs_ai.infrastructure.persistence.mysql.route_assets import MySQLRouteAssets
     from qs_ai.infrastructure.persistence.mysql.schema_assets import MySQLSchemaAssets
     from qs_ai.infrastructure.qs_server.semantic_assets import load_semantic_assets
 
@@ -194,7 +204,7 @@ async def test_creation_resolves_real_mysql_assets_and_freezes_complete_release(
             stores, (profiles, prompts, routes, schemas), tables, strict=True
         ):
             source, assets = baseline()
-            keys = list(table.primary_key.columns)
+            keys = identity_columns(table)
             for asset in assets:
                 inserted = await store.put(asset, source, "integration:run-creation")
                 if inserted:

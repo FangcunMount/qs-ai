@@ -13,6 +13,9 @@ from qs_ai.application.interpretation.schema_assets import SchemaAssets
 from qs_ai.domain.evaluation.completion import GenerationCompletion
 from qs_ai.domain.evaluation.failure import ClassifiedFailure
 from qs_ai.domain.evaluation.semantic_completion import SemanticCompletion
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    generation_completions as evaluation_generation_completions,
+)
 from qs_ai.infrastructure.persistence.mysql.evaluation_checkpoints import decode, save_checkpoint
 from qs_ai.infrastructure.persistence.mysql.evaluation_completions import complete_generation
 from qs_ai.infrastructure.persistence.mysql.evaluation_projection import decode_completion
@@ -20,7 +23,6 @@ from qs_ai.infrastructure.persistence.mysql.evaluation_semantic import complete_
 from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_checkpoints,
     evaluation_dispatches,
-    evaluation_generation_completions,
     evaluation_runs,
 )
 
@@ -136,7 +138,7 @@ async def recover_expired(
             generated = (
                 (
                     await db.execute(
-                        select(evaluation_generation_completions).where(
+                        evaluation_generation_completions.select().where(
                             evaluation_generation_completions.c.run_id == str(run_id),
                             evaluation_generation_completions.c.candidate_id == cp.candidate_id,
                         )

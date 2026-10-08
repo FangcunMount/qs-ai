@@ -21,9 +21,9 @@ QUERIES = (
         COALESCE(GREATEST(MAX(TIMESTAMPDIFF(MICROSECOND,created_at,UTC_TIMESTAMP(6))),0)
           /1000000,0) AS oldest_pending_result_seconds,
         COALESCE(SUM(created_at IS NULL),0) AS pending_results_without_timestamp
-        FROM result_outbox WHERE delivered=0""",
+        FROM interpretation_result_outbox WHERE delivered=0""",
     """SELECT COUNT(*) AS unresolved_model_calls
-        FROM model_calls m JOIN interpretation_sessions s ON s.active_run_id=m.run_id
+        FROM execution_model_calls m JOIN interpretation_sessions s ON s.active_run_id=m.run_id
         WHERE s.status NOT IN ('completed','cancelled') AND
           (m.status='unknown' OR (m.status='dispatched'
            AND m.created_at<UTC_TIMESTAMP(6)-INTERVAL 5 MINUTE))""",
@@ -33,7 +33,7 @@ QUERIES = (
         COALESCE(MAX(CAST(JSON_UNQUOTE(JSON_EXTRACT(response_json,
           '$.latency_milliseconds')) AS DECIMAL(20,3)))/1000,0)
           AS provider_response_max_seconds_5m
-        FROM model_calls WHERE status='response_received' AND response_json IS NOT NULL
+        FROM execution_model_calls WHERE status='response_received' AND response_json IS NOT NULL
           AND created_at>=UTC_TIMESTAMP(6)-INTERVAL 5 MINUTE""",
     """SELECT COUNT(*) AS capacity_rejections_24h FROM interpretation_sessions
         WHERE failure_code='participant_daily_capacity_exceeded'

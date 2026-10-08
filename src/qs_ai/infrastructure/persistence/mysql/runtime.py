@@ -21,7 +21,6 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
     execution_configurations as configurations,
 )
 from qs_ai.infrastructure.persistence.mysql.schema import (
-    external_requests,
     jobs,
     model_calls,
     result_outbox,
@@ -56,7 +55,7 @@ class MySQLRuntimeReader:
         query = (
             select(
                 sessions.c.id.label("session_id"),
-                external_requests.c.request_id,
+                sessions.c.request_id,
                 sessions.c.active_run_id.label("run_id"),
                 sessions.c.status,
                 sessions.c.version,
@@ -75,11 +74,15 @@ class MySQLRuntimeReader:
                 configurations.c.publication_sha256,
             )
             .select_from(
-                sessions.join(external_requests, external_requests.c.session_id == sessions.c.id)
-                .outerjoin(model_calls, model_calls.c.run_id == sessions.c.active_run_id)
-                .outerjoin(configurations, configurations.c.session_id == sessions.c.id)
+                sessions.outerjoin(
+                    model_calls, model_calls.c.run_id == sessions.c.active_run_id
+                ).outerjoin(configurations, configurations.c.session_id == sessions.c.id)
             )
-            .where(sessions.c.org_id == scope.organization_id, sessions.c.id.in_(ids))
+            .where(
+                sessions.c.org_id == scope.organization_id,
+                sessions.c.id.in_(ids),
+                sessions.c.request_id.is_not(None),
+            )
             .order_by(sessions.c.id)
         )
         return [value(row) for row in (await db.execute(query)).mappings()]
@@ -216,20 +219,20 @@ class MySQLRuntimeReader:
             observed_at = await self._snapshot(db)
             queries = {
                 "queued_jobs": (
-                    "FROM execution_jobs j JOIN interpretation_sessions s ON s.id=j.session_id "
+                    f"FROM {jobs.name} j JOIN {sessions.name} s ON s.id=j.session_id "
                     "WHERE s.org_id=:org AND j.status='queued' "
                 ),
                 "expired_leases": (
-                    "FROM execution_jobs j JOIN interpretation_sessions s ON s.id=j.session_id "
+                    f"FROM {jobs.name} j JOIN {sessions.name} s ON s.id=j.session_id "
                     "WHERE s.org_id=:org AND j.status='leased' AND "
                     "j.lease_until<=UTC_TIMESTAMP(6) "
                 ),
                 "pending_deliveries": (
-                    "FROM result_outbox o JOIN interpretation_sessions s ON s.id=o.session_id "
+                    f"FROM {result_outbox.name} o JOIN {sessions.name} s ON s.id=o.session_id "
                     "WHERE s.org_id=:org AND o.delivered=0 "
                 ),
                 "unknown_model_results": (
-                    "FROM model_calls m JOIN interpretation_sessions s ON "
+                    f"FROM {model_calls.name} m JOIN {sessions.name} s ON "
                     "s.active_run_id=m.run_id WHERE s.org_id=:org AND m.status IN "
                     "('unknown','dispatched') AND s.status='blocked' "
                 ),

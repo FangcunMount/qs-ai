@@ -6,15 +6,20 @@ from dataclasses import replace
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import delete, update
 
 from qs_ai.application.governance.asset_catalog import CatalogQuery
 from qs_ai.application.governance.prompt_drafts import DraftScope
 from qs_ai.application.interpretation.ports import NotFound
 from qs_ai.domain.governance.profile import ProfileAsset
 from qs_ai.infrastructure.persistence.mysql.asset_catalog import TABLES, MySQLAssetCatalog
+from qs_ai.infrastructure.persistence.mysql.asset_records import profile_assets
+from qs_ai.infrastructure.persistence.mysql.governance_records import (
+    delete,
+    identity_columns,
+    update,
+)
 from qs_ai.infrastructure.persistence.mysql.profile_assets import MySQLProfileAssets
-from qs_ai.infrastructure.persistence.mysql.schema import evaluation_suites, profile_assets
+from qs_ai.infrastructure.persistence.mysql.schema import evaluation_suites
 from qs_ai.infrastructure.qs_server.evaluation_suite import MBTI_ROOT, V6_PUBLISHED
 from tests.integration.test_evaluation_suites import assets as assets
 from tests.integration.test_evaluation_suites import complete_release as complete_release
@@ -162,7 +167,7 @@ async def test_corrupt_asset_cannot_be_advertised_or_read(catalog, suite_registr
         identity, version = reference.identity, reference.version
     table = TABLES[kind]
     original = await store.get(scope, kind, identity, version)
-    first, second = list(table.primary_key.columns)
+    first, second = identity_columns(table)
     column = "package_json" if kind == "prompt" else "definition_json"
     try:
         async with tx.open() as db:

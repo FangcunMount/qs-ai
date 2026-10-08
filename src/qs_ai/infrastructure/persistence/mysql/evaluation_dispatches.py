@@ -4,9 +4,11 @@ import asyncio
 import hashlib
 import json
 from datetime import datetime
+from typing import cast
 from uuid import UUID
 
-from sqlalchemy import insert, select
+from sqlalchemy import insert, select, update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict, CheckpointState
@@ -18,14 +20,12 @@ from qs_ai.infrastructure.persistence.mysql.evaluation_checkpoints import (
     encode,
     save_checkpoint,
 )
+from qs_ai.infrastructure.persistence.mysql.run_policy import frozen_policy_query
 from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_checkpoints as checkpoints,
 )
 from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_dispatches as dispatches,
-)
-from qs_ai.infrastructure.persistence.mysql.schema import (
-    evaluation_run_policies as policies,
 )
 from qs_ai.infrastructure.persistence.mysql.schema import evaluation_runs
 from qs_ai.infrastructure.qs_server.evaluation_policies import (
@@ -47,13 +47,20 @@ async def freeze_policy(db: AsyncSession, run_id: UUID, policy: ExecutionPolicy)
     )
     if policy != await asyncio.to_thread(execution_policy, document):
         raise ValueError("Invalid frozen evaluation policy projection")
-    await db.execute(
-        insert(policies).values(
-            run_id=str(run_id),
-            fingerprint=policy.fingerprint,
-            definition_json=policy.definition_json,
+    result = await db.execute(
+        update(evaluation_runs)
+        .where(
+            evaluation_runs.c.run_id == str(run_id),
+            evaluation_runs.c.frozen_execution_policy_fingerprint.is_(None),
+            evaluation_runs.c.frozen_execution_policy_json.is_(None),
+        )
+        .values(
+            frozen_execution_policy_fingerprint=policy.fingerprint,
+            frozen_execution_policy_json=policy.definition_json,
         )
     )
+    if cast(CursorResult, result).rowcount != 1:
+        raise CheckpointConflict("Run policy already frozen or unavailable")
 
 
 async def reserve_dispatch(
@@ -117,7 +124,11 @@ async def record_dispatch(
     """Caller holds coordinator, Run and slot locks. Shared budget and immutable ledger."""
     dispatched = checkpoint
     policy = (
-        await db.execute(select(policies.c.definition_json).where(policies.c.run_id == str(run_id)))
+        await db.execute(
+            frozen_policy_query(str(run_id)).with_only_columns(
+                evaluation_runs.c.frozen_execution_policy_json
+            )
+        )
     ).scalar_one()
     policy = json.loads(policy)
     stage = checkpoint.kind

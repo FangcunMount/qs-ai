@@ -1,12 +1,13 @@
 from dataclasses import asdict
 
-from sqlalchemy import insert, select
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from qs_ai.domain.governance.profile import AssetConflict
 from qs_ai.domain.governance.schema import SchemaAsset
+from qs_ai.infrastructure.persistence.mysql.asset_records import schema_assets
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
-from qs_ai.infrastructure.persistence.mysql.schema import schema_assets
+from qs_ai.infrastructure.persistence.mysql.governance_records import insert
 
 
 class MySQLSchemaAssets:

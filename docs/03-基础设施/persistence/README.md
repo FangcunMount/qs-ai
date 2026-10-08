@@ -2,23 +2,23 @@
 
 MySQL 保存 qs-ai 可以恢复和审计的业务事实：原请求、固定输入和配置、调用证据、成果、评测、审核及消息。**数据库池负责连接复用，Session 负责一段事务，业务宿主决定何时接受；外部模型和 Broker 的不确定性不会因为本地事务原子而消失。**
 
-本文按 `766b2aa` 的业务源码核对，以一条 MQ Start 和它之后的成果接受解释记录与提交。表名来自当前声明，迁移来自仓库脚本；它们不证明某个环境已经安装。资源装配见 [Dishka 作用域](../../01-运行时/02-Dishka作用域与资源所有权.md)，场景规则见 [业务模块](../../02-业务模块/README.md)。
+本文按 `0040_module_table_names` 的存储结构和当前业务源码核对，以一条 MQ Start 和它之后的成果接受解释记录与提交。表名来自当前声明，迁移来自仓库脚本；它们不证明某个环境已经安装。资源装配见 [Dishka 作用域](../../01-运行时/02-Dishka作用域与资源所有权.md)，场景规则见 [业务模块](../../02-业务模块/README.md)。
 
 ## 找一条请求，应该沿哪些记录查
 
 ```mermaid
 flowchart LR
-  REQ[external_requests: QS request] --> S[interpretation_sessions]
-  S --> E[evidence_sets: 原事实]
+  REQ[QS request_id] --> S[interpretation_sessions: 内联原请求绑定]
+  S --> E[interpretation_evidence_sets: 原事实]
   S --> B[execution_configurations: 原发布绑定]
-  B --> P[configuration_publications]
+  B --> P[publication_records]
   S --> R[interpretation_runs: 一次执行]
   R --> J[execution_jobs: 领取与attempt]
   S --> L[execution_leases: 当前fence]
-  R --> C[model_calls: 原Invocation/请求/响应]
+  R --> C[execution_model_calls: 原Invocation/请求/响应]
   R --> A[interpretation_artifacts]
-  S --> O[result_outbox: 原业务状态事件]
-  O --> MQ[ai_messaging_outbox: 原消息wire与确认]
+  S --> O[interpretation_result_outbox: 原业务状态事件]
+  O --> MQ[messaging_outbox: 原消息wire与确认]
 ```
 
 这是事实关系图，不是所有边都有数据库外键。Session 的 active_run_id、evidence_set_id 等仍由应用与存储 guard 核验；找到某个 UUID 的行，不足以证明它属于当前 Run 或主体。
@@ -27,13 +27,13 @@ flowchart LR
 
 | 表与键 | 数据库直接保护什么 | 仍需应用检查什么 |
 | --- | --- | --- |
-| `external_requests.request_id` 主键，session_id 唯一 | 原 QS request 只映射一个 Session | 原请求的 Actor/报告/正文摘要和权限 |
-| `evidence_sets.session_id` 唯一 | 每 Session 一份原证据集合 | items 覆盖、Testee、内外来源与原字节摘要 |
+| `interpretation_sessions.request_id` nullable、全局唯一、绑定后不可改变 | 原 QS request 只映射一个 Session | 原请求的 Actor/报告/正文摘要和权限 |
+| `interpretation_evidence_sets.session_id` 唯一 | 每 Session 一份原证据集合 | items 覆盖、Testee、内外来源与原字节摘要 |
 | `execution_jobs.run_id` 唯一 | 每 Run 一个 Job | 当前active Run、Job状态、attempt/租约/fence |
-| `model_calls.run_id` 主键，invocation_id 唯一 | 每执行Run一条原模型调用记录 | request/response身份、固定配置、模型状态与未知结果 |
+| `execution_model_calls.run_id` 主键，invocation_id 唯一 | 每执行Run一条原模型调用记录 | request/response身份、固定配置、模型状态与未知结果 |
 | `interpretation_artifacts.session_id`、run_id 各唯一 | 每Session及Run最多一份持久成果 | Artifact须从持久原响应重建并整候选相等 |
-| `idempotency_requests(scope_hash,key)` 联合主键 | 同scope/key有唯一预留与回执 | request_hash相同才是重放，不同即冲突 |
-| `result_outbox(session_id,version)` 唯一 | 每业务状态版本的原事件不能重复构造 | MQ归属、事件正文/关联与QS业务ACK |
+| `interpretation_idempotency_requests(scope_hash,key)` 联合主键 | 同scope/key有唯一预留与回执 | request_hash相同才是重放，不同即冲突 |
+| `interpretation_result_outbox(session_id,version)` 唯一 | 每业务状态版本的原事件不能重复构造 | MQ归属、事件正文/关联与QS业务ACK |
 
 Retry 可以为同一 Session 新建 Run，但没有获得第二份已完成 Artifact 的入口。传输重投复用原 request/command/event；不能因为有唯一键就随意换一个新 ID 绕过业务重放规则。
 
@@ -43,14 +43,14 @@ Retry 可以为同一 Session 新建 Run，但没有获得第二份已完成 Art
 
 | 记录群 | 当前存储方式 | 读写责任 |
 | --- | --- | --- |
-| Prompt草稿 | `prompt_drafts` 当前head；`prompt_draft_revisions` 保存不可变snapshot/SHA与原命令 | head CAS与历史字节核验；冻结引用具体revision |
-| Solution工作区 | `solution_revisions` 每solution_id一条当前state；`solution_commands` 保存各命令回执 | 名称含revisions，但不是每revision新增一行；历史依赖原回执与草稿快照 |
-| 原生资产 | Profile/Prompt/Route/Schema 的身份+版本联合主键，正文及fingerprint/来源 | 注册新版本，拒绝同身份覆盖；正文hash、Origin和引用一致性另由读取器核验 |
+| Prompt草稿 | `governance_draft_heads(kind=prompt)` 当前head；`governance_draft_versions(kind=prompt)` 保存不可变snapshot/SHA与原命令 | head CAS与历史字节核验；冻结引用具体revision |
+| Solution工作区 | `governance_solutions` 每solution_id一条当前state；`governance_solution_commands` 保存各命令回执 | 每solution一条当前工作区；历史依赖原回执与草稿快照 |
+| 原生资产 | `governance_asset_versions` 统一物理存储；kind、作用域及原身份/版本保留旧唯一性，原正文 bytes/fingerprint/来源不变 | 注册新版本，拒绝同身份覆盖；正文hash、Origin和引用一致性另由读取器核验 |
 | 评测 | `evaluation_runs` 固定definition与progress；`evaluation_checkpoints` CAS；dispatch/completion/slot claim/response receipt | 计划、预算、调用和审核历史分别核证；不是只存最终分数 |
 | 发布 | Publication不可变内容；pointer当前version；changes原命令+previous/current | checkpoint/Run后锁selector；发布、指针和审计同事务 |
 | 业务容量 | participant/evaluation admission locks与reservations；quota versions/pointers | 组织锁跨进程串行化准入，保留原预算日/配额快照；不是进程Provider token |
 
-审核记录/审核轮次等部分证据位于 Run progress JSON 内；SQL表名不能覆盖全部语义。JSON正文也不因存入数据库就天然可信，读取器重算摘要、身份和历史。完整字段及外键以源码和迁移为准。
+审核记录/审核轮次等部分证据位于 Run progress JSON 内；SQL表名不能覆盖全部语义。JSON正文也不因存入数据库就天然可信，读取器重算摘要、身份和历史。完整字段及外键以源码和迁移为准。全量 44 张表及旧名对应关系见 [模块表清单与双向迁移](../../04-接口与运维/09-模块数据表与双向迁移.md)。合并资产和草稿不合并它们的领域规则，存储内部 row_id 不进入请求、冻结快照或对外回执。
 
 ## 一套应用池，许多独立事务
 
@@ -97,7 +97,7 @@ recorder失败时，根提交不能继续；rollback清掉evaluation_events标�
 
 ## 业务Outbox与消息存储共库，声明却有两个metadata
 
-[MessagingStore](../../../src/qs_ai/infrastructure/persistence/mysql/messaging.py) 用独立 `sa.MetaData()` 声明 `ai_messaging_outbox / inbox / quarantine` 等，技术observations另复制到该metadata。导入模块不建表、不打开连接，也不把这些表混入业务Base.metadata。
+[MessagingStore](../../../src/qs_ai/infrastructure/persistence/mysql/messaging.py) 用独立 `sa.MetaData()` 声明 `messaging_outbox / inbox / quarantine` 等，技术observations另复制到该metadata。导入模块不建表、不打开连接，也不把这些表混入业务Base.metadata。
 
 这种声明隔离不是跨库部署。MessagingRuntime借用APP Database，store方法用SDK `bind(db)`验证调用者原活动事务；原业务和消息共同提交。将Outbox迁到中央数据库会重新引入跨库接受窗口，不能仅更换连接字符串就保留当前保证。
 
@@ -119,7 +119,7 @@ recorder失败时，根提交不能继续；rollback清掉evaluation_events标�
 
 0035、0037、0038的downgrade明确拒绝删除证据。回滚代码应选择与新schema兼容的镜像，不把 `alembic downgrade` 当作普通回退动作。备份、升级与兼容镜像的实际检查由 [部署迁移](../../04-接口与运维/05-部署迁移与兼容回滚.md) 维护；本次文档工作没有运行迁移或改变数据。
 
-诊断清理只删到期runtime_milestones，不清除调用、成果、审核或消息。没有业务证据的自动清理机制，不能因为某Job已完成或某发布已停用就手动删依赖资产。
+诊断清理只删到期operations_runtime_milestones，不清除调用、成果、审核或消息。没有业务证据的自动清理机制，不能因为某Job已完成或某发布已停用就手动删依赖资产。
 
 ## 代码和验证范围
 

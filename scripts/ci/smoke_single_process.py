@@ -21,6 +21,22 @@ def run(*args: str) -> str:
         raise
 
 
+def diagnostics(*names: str) -> None:
+    """Only this smoke's UUID-owned containers and synthetic fixtures are inspected."""
+    for name in names:
+        for command in (
+            ["docker", "inspect", "--format", "{{json .State}}", name],
+            ["docker", "logs", "--tail", "100", name],
+        ):
+            try:
+                result = subprocess.run(command, capture_output=True, text=True, timeout=10)
+                print(json.dumps({"smoke_container": name, "diagnostic": command[1]}))
+                print(result.stdout)
+                print(result.stderr)
+            except subprocess.TimeoutExpired:
+                print(json.dumps({"smoke_container": name, "diagnostic": "timed_out"}))
+
+
 def main() -> None:
     image = sys.argv[1]
     prefix = "qs-ai-smoke-" + uuid4().hex[:10]
@@ -241,14 +257,22 @@ for topic,channel in json.load(open('/tls/topology.json')).items():
                         app,
                         "/app/.venv/bin/python",
                         "-c",
-                        "import urllib.request; urllib.request.urlopen('http://localhost:8000/readyz')",
+                        "import urllib.request; "
+                        "urllib.request.urlopen('http://localhost:8000/readyz', timeout=5)",
                     ],
                     capture_output=True,
                 )
                 if check.returncode == 0:
                     break
+                if (
+                    run("docker", "inspect", "--format", "{{.State.Running}}", app).strip()
+                    != "true"
+                ):
+                    raise RuntimeError("Unified process exited before readiness")
                 time.sleep(1)
             else:
+                print(check.stdout.decode(errors="replace"))
+                print(check.stderr.decode(errors="replace"))
                 raise RuntimeError("Unified process did not become ready")
             run(
                 "docker",
@@ -272,7 +296,7 @@ for topic,channel in json.load(open('/tls/topology.json')).items():
                 "-Dqs_ai",
                 "-N",
                 "-B",
-                "-eSELECT (SELECT COUNT(*) FROM model_calls),"
+                "-eSELECT (SELECT COUNT(*) FROM execution_model_calls),"
                 "(SELECT COUNT(*) FROM evaluation_dispatches)",
             )
             assert counters.strip() == "0\t0", "Smoke must not create model execution records"
@@ -298,6 +322,9 @@ for topic,channel in json.load(open('/tls/topology.json')).items():
                     }
                 )
             )
+        except Exception:
+            diagnostics(app, mysql, nsq)
+            raise
         finally:
             for name in (app, mysql, nsq):
                 subprocess.run(["docker", "rm", "-f", "-v", name], capture_output=True)

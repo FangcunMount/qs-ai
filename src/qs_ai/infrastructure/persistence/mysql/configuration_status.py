@@ -9,17 +9,18 @@ from sqlalchemy import select
 from qs_ai.application.governance.prompt_drafts import DraftScope
 from qs_ai.application.governance.quotas import QuotaBaseline
 from qs_ai.config import Settings
-from qs_ai.infrastructure.persistence.mysql.database import Transactions
-from qs_ai.infrastructure.persistence.mysql.quotas import effective
-from qs_ai.infrastructure.persistence.mysql.schema import (
+from qs_ai.infrastructure.persistence.mysql.asset_records import (
     evaluation_policy_assets,
-    evaluation_suites,
     profile_assets,
     prompt_assets,
     route_assets,
     schema_assets,
     semantic_prompt_assets,
 )
+from qs_ai.infrastructure.persistence.mysql.database import Transactions
+from qs_ai.infrastructure.persistence.mysql.governance_records import identity_columns
+from qs_ai.infrastructure.persistence.mysql.quotas import effective
+from qs_ai.infrastructure.persistence.mysql.schema import evaluation_suites
 
 
 def fingerprint(value: Any) -> str:
@@ -97,7 +98,7 @@ class MySQLConfigurationStatus:
                 ("evaluation_policies", evaluation_policy_assets),
                 ("semantic_prompts", semantic_prompt_assets),
             ):
-                keys = list(table.primary_key.columns)
+                keys = identity_columns(table)
                 stmt = select(*keys, table.c.fingerprint).order_by(*keys)
                 if "organization_id" in table.c:
                     stmt = stmt.where(table.c.organization_id.in_((0, scope.organization_id)))

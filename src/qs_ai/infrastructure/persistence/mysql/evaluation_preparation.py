@@ -11,15 +11,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict, CheckpointState
 from qs_ai.domain.evaluation.actions import next_action
 from qs_ai.domain.evaluation.checkpoint import ExecutionCheckpoint
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    generation_completions as evaluation_generation_completions,
+)
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    semantic_completions as evaluation_semantic_completions,
+)
 from qs_ai.infrastructure.persistence.mysql.evaluation_checkpoints import save_checkpoint
 from qs_ai.infrastructure.persistence.mysql.evaluation_frozen_policies import frozen_policies
 from qs_ai.infrastructure.persistence.mysql.evaluation_projection import project_slots
 from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_checkpoints,
     evaluation_dispatches,
-    evaluation_generation_completions,
     evaluation_runs,
-    evaluation_semantic_completions,
 )
 
 
@@ -87,7 +91,7 @@ async def prepare_execution(
     completions = (
         (
             await db.execute(
-                select(evaluation_generation_completions)
+                evaluation_generation_completions.select()
                 .where(evaluation_generation_completions.c.run_id == str(run_id))
                 .with_for_update()
             )
@@ -98,7 +102,7 @@ async def prepare_execution(
     semantic = (
         (
             await db.execute(
-                select(evaluation_semantic_completions)
+                evaluation_semantic_completions.select()
                 .where(evaluation_semantic_completions.c.run_id == str(run_id))
                 .with_for_update()
             )

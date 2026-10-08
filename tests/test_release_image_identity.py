@@ -66,7 +66,14 @@ def test_index_id_is_verified_by_raw_config_and_pinned_for_start(remote, tmp_pat
         "save_loaded_archive",
         lambda path, value: run("loaded image archive", ["save", "-o", str(path), value]),
     )
-    monkeypatch.setattr(remote, "probe", lambda *args: {"current": ["head"]})
+    monkeypatch.setattr(
+        remote,
+        "probe",
+        lambda *args: {
+            "current": ["0038_messaging_observations"],
+            "expected": ["0038_messaging_observations"],
+        },
+    )
     remote.apply(release, {})
     receipt = remote.loaded_image_binding(release)
     assert receipt["source_image_id"] == manifest["image_id"] != actual
@@ -239,11 +246,17 @@ def test_rollback_uses_pinned_actual_id_before_probe_and_restores_state(
         return json.dumps([{**inspected_image(manifest), "Id": target_id}])
 
     monkeypatch.setattr(remote, "run", run)
-    monkeypatch.setattr(remote, "probe", lambda path, head: calls.append("probe"))
+
+    def probe(path, head):
+        calls.append("probe")
+        return {"current": ["0038_messaging_observations"]}
+
+    monkeypatch.setattr(remote, "probe", probe)
+    monkeypatch.setattr(remote, "expected_heads", lambda _path: ["0038_messaging_observations"])
     monkeypatch.setattr(remote, "stop_release", lambda path: calls.append("stop"))
     monkeypatch.setattr(remote, "verify", lambda path: calls.append("verify"))
     remote.restore({"current": current.name, "previous": target.name})
-    assert calls == ["pinned image identity", "probe", "stop", "verify"]
+    assert calls == ["pinned image identity", "probe", "probe", "stop", "verify"]
     assert json.loads((tmp_path / "state.json").read_text())["current"] == target.name
 
 

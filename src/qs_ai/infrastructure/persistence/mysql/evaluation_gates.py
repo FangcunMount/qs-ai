@@ -26,6 +26,15 @@ from qs_ai.domain.evaluation.quality_gates import (
 )
 from qs_ai.domain.evaluation.review import CandidateHumanReview, ReviewCandidate
 from qs_ai.domain.evaluation.review_correction import validate_corrections
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    generation_completions as evaluation_generation_completions,
+)
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    select_records,
+)
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    semantic_completions as evaluation_semantic_completions,
+)
 from qs_ai.infrastructure.persistence.mysql.evaluation_assets import stored_run_suite
 from qs_ai.infrastructure.persistence.mysql.evaluation_checkpoints import decode
 from qs_ai.infrastructure.persistence.mysql.evaluation_frozen_policies import frozen_policies
@@ -41,12 +50,10 @@ from qs_ai.infrastructure.persistence.mysql.evaluation_review_codec import (
 )
 from qs_ai.infrastructure.persistence.mysql.evaluation_review_history import validate_rounds
 from qs_ai.infrastructure.persistence.mysql.evaluation_snapshot import header
+from qs_ai.infrastructure.persistence.mysql.run_policy import frozen_policy_query
 from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_checkpoints,
     evaluation_dispatches,
-    evaluation_generation_completions,
-    evaluation_run_policies,
-    evaluation_semantic_completions,
 )
 from qs_ai.infrastructure.qs_server.evaluation_policies import (
     quality_thresholds,
@@ -145,17 +152,7 @@ async def load_snapshot(
         suite.definition_json,
     ):
         raise ValueError("Frozen release documents differ from registered identity")
-    reserved = (
-        (
-            await db.execute(
-                select(evaluation_run_policies).where(
-                    evaluation_run_policies.c.run_id == str(scope.run_id)
-                )
-            )
-        )
-        .mappings()
-        .one_or_none()
-    )
+    reserved = (await db.execute(frozen_policy_query(str(scope.run_id)))).mappings().one_or_none()
     if reserved is None or (reserved["fingerprint"], reserved["definition_json"]) != (
         policy.fingerprint,
         policy.definition_json,
@@ -193,7 +190,7 @@ async def load_snapshot(
         records.extend(
             (
                 await db.execute(
-                    select(table)
+                    select_records(table)
                     .where(table.c.run_id == str(scope.run_id))
                     .order_by(table.c.execution_id)
                     .limit(limit + 1)

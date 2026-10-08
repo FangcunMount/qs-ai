@@ -15,12 +15,12 @@ from qs_ai.application.evaluation.catalog import (
     EvaluationSummary,
 )
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    generation_completions as generations,
+)
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
 from qs_ai.infrastructure.persistence.mysql.evaluation_creation_receipt import creation_receipt
 from qs_ai.infrastructure.persistence.mysql.schema import evaluation_checkpoints, evaluation_runs
-from qs_ai.infrastructure.persistence.mysql.schema import (
-    evaluation_generation_completions as generations,
-)
 
 
 def creation_projection() -> ColumnElement[Any]:
@@ -55,7 +55,7 @@ class MySQLEvaluationCatalog:
         progress = evaluation_runs.c.progress_json
         status = progress["status"].as_string()
         candidate_count = (
-            select(func.count())
+            generations.select(func.count())
             .where(
                 generations.c.run_id == evaluation_runs.c.run_id,
                 generations.c.candidate_id.is_not(None),

@@ -10,12 +10,12 @@ from qs_ai.domain.evaluation.assets import PolicyKind
 from qs_ai.domain.evaluation.identity import EvidenceReleaseIdentity
 from qs_ai.domain.evaluation.policy import ExecutionPolicy
 from qs_ai.domain.governance.schema import SchemaAsset
+from qs_ai.infrastructure.persistence.mysql.asset_records import schema_assets
 from qs_ai.infrastructure.persistence.mysql.asset_snapshot import AssetSnapshotReader
 from qs_ai.infrastructure.persistence.mysql.evaluation_asset_registry import (
     read_policy,
     read_semantic_prompt,
 )
-from qs_ai.infrastructure.persistence.mysql.schema import schema_assets
 from qs_ai.infrastructure.persistence.mysql.suite_contracts import read as read_suite_contracts
 from qs_ai.infrastructure.qs_server.evaluation_policies import (
     FrozenPolicyDocument,

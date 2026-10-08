@@ -5,11 +5,15 @@ import pytest
 from sqlalchemy import delete, select, update
 
 from qs_ai.application.interpretation.provider import ModelResponse
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    generation_completions as evaluation_generation_completions,
+)
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    semantic_completions as evaluation_semantic_completions,
+)
 from qs_ai.infrastructure.persistence.mysql.schema import (
-    evaluation_generation_completions,
     evaluation_response_receipts,
     evaluation_runs,
-    evaluation_semantic_completions,
     evaluation_slot_claims,
 )
 from qs_ai.infrastructure.workflows.evaluation import execute_step
@@ -133,7 +137,7 @@ async def test_three_candidates_overlap_and_stale_run_versions_do_not_lose_resul
         generations = (
             (
                 await db.execute(
-                    select(evaluation_generation_completions).where(
+                    evaluation_generation_completions.select().where(
                         evaluation_generation_completions.c.run_id == str(run_id)
                     )
                 )
@@ -154,9 +158,9 @@ async def test_three_candidates_overlap_and_stale_run_versions_do_not_lose_resul
         candidates = (
             (
                 await db.execute(
-                    select(evaluation_generation_completions.c.candidate_json).where(
-                        evaluation_generation_completions.c.run_id == str(run_id)
-                    )
+                    evaluation_generation_completions.select(
+                        evaluation_generation_completions.c.candidate_json
+                    ).where(evaluation_generation_completions.c.run_id == str(run_id))
                 )
             )
             .scalars()
@@ -266,7 +270,7 @@ async def test_receipt_recovery_commits_without_another_provider_call(
             len(
                 (
                     await db.execute(
-                        select(evaluation_generation_completions).where(
+                        evaluation_generation_completions.select().where(
                             evaluation_generation_completions.c.run_id == str(run_id)
                         )
                     )
@@ -318,7 +322,7 @@ async def test_overlong_receipt_recovery_retains_failure_without_resending(
         record = (
             (
                 await db.execute(
-                    select(evaluation_generation_completions).where(
+                    evaluation_generation_completions.select().where(
                         evaluation_generation_completions.c.run_id == str(run_id)
                     )
                 )
@@ -416,9 +420,9 @@ async def test_full_frozen_plan_completes_through_worker(parallel_run):
         candidates = (
             (
                 await db.execute(
-                    select(evaluation_generation_completions.c.candidate_json).where(
-                        evaluation_generation_completions.c.run_id == str(run_id)
-                    )
+                    evaluation_generation_completions.select(
+                        evaluation_generation_completions.c.candidate_json
+                    ).where(evaluation_generation_completions.c.run_id == str(run_id))
                 )
             )
             .scalars()
@@ -472,7 +476,7 @@ async def test_unknown_blocks_new_dispatch_but_other_calls_commit(parallel_run):
             row
             for row in (
                 await db.execute(
-                    select(evaluation_generation_completions).where(
+                    evaluation_generation_completions.select().where(
                         evaluation_generation_completions.c.run_id == str(run_id)
                     )
                 )
@@ -485,7 +489,7 @@ async def test_unknown_blocks_new_dispatch_but_other_calls_commit(parallel_run):
             len(
                 (
                     await db.execute(
-                        select(evaluation_generation_completions).where(
+                        evaluation_generation_completions.select().where(
                             evaluation_generation_completions.c.run_id == str(run_id)
                         )
                     )
@@ -590,7 +594,7 @@ async def test_later_success_blocks_on_original_semantic_failure(parallel_run):
         completed = (
             (
                 await db.execute(
-                    select(evaluation_semantic_completions).where(
+                    evaluation_semantic_completions.select().where(
                         evaluation_semantic_completions.c.run_id == str(run_id)
                     )
                 )
@@ -664,7 +668,7 @@ async def test_prepared_claim_releases_without_unknown_and_renewal_fences_recove
         ).first() is None
         assert (
             await db.execute(
-                select(evaluation_generation_completions).where(
+                evaluation_generation_completions.select().where(
                     evaluation_generation_completions.c.run_id == str(run_id)
                 )
             )
@@ -759,9 +763,9 @@ async def test_known_failure_does_not_prevent_other_candidates_finishing(paralle
         candidates = (
             (
                 await db.execute(
-                    select(evaluation_generation_completions.c.candidate_json).where(
-                        evaluation_generation_completions.c.run_id == str(run_id)
-                    )
+                    evaluation_generation_completions.select(
+                        evaluation_generation_completions.c.candidate_json
+                    ).where(evaluation_generation_completions.c.run_id == str(run_id))
                 )
             )
             .scalars()
@@ -886,7 +890,7 @@ async def test_two_contract_failures_recover_in_order_from_durable_receipt(
         originals = list(
             (
                 await db.execute(
-                    select(evaluation_generation_completions).where(
+                    evaluation_generation_completions.select().where(
                         evaluation_generation_completions.c.run_id == str(run_id)
                     )
                 )
@@ -895,7 +899,7 @@ async def test_two_contract_failures_recover_in_order_from_durable_receipt(
         failed = list(
             (
                 await db.execute(
-                    select(evaluation_semantic_completions).where(
+                    evaluation_semantic_completions.select().where(
                         evaluation_semantic_completions.c.run_id == str(run_id)
                     )
                 )
@@ -981,7 +985,7 @@ async def test_two_contract_failures_recover_in_order_from_durable_receipt(
         after = list(
             (
                 await db.execute(
-                    select(evaluation_generation_completions).where(
+                    evaluation_generation_completions.select().where(
                         evaluation_generation_completions.c.run_id == str(run_id)
                     )
                 )
@@ -990,7 +994,7 @@ async def test_two_contract_failures_recover_in_order_from_durable_receipt(
         semantic = list(
             (
                 await db.execute(
-                    select(evaluation_semantic_completions).where(
+                    evaluation_semantic_completions.select().where(
                         evaluation_semantic_completions.c.run_id == str(run_id)
                     )
                 )

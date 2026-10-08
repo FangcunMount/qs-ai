@@ -7,7 +7,7 @@ from sqlalchemy import func, select, text
 from qs_ai.application.interpretation.commands import CancelCommand
 from qs_ai.domain.interpretation.model import RuleViolation
 from qs_ai.infrastructure.persistence.mysql.result_outbox import stage_state
-from qs_ai.infrastructure.persistence.mysql.schema import external_requests, jobs, result_outbox
+from qs_ai.infrastructure.persistence.mysql.schema import jobs, result_outbox, sessions
 from tests.integration.test_interpretation import kit  # noqa: F401
 from tests.probes.result_history import read_events
 from tests.probes.session_inspection import read_session
@@ -35,8 +35,8 @@ async def test_external_start_is_atomic_and_globally_idempotent(kit, monkeypatch
         assert (
             await db.scalar(
                 select(func.count())
-                .select_from(external_requests)
-                .where(external_requests.c.request_id == request_id)
+                .select_from(sessions)
+                .where(sessions.c.request_id == request_id)
             )
             == 0
         )

@@ -7,7 +7,7 @@ from uuid import uuid4
 
 import grpc
 import pytest
-from sqlalchemy import insert, select
+from sqlalchemy import select, update
 
 from qs_ai.application.governance.prompt_drafts import DraftScope
 from qs_ai.application.interpretation.ports import NotFound
@@ -17,7 +17,7 @@ from qs_ai.config import Settings
 from qs_ai.contracts.workflow import workflow_pb2 as pb
 from qs_ai.contracts.workflow import workflow_pb2_grpc as rpc
 from qs_ai.infrastructure.persistence.mysql.runtime import MySQLRuntimeReader
-from qs_ai.infrastructure.persistence.mysql.schema import external_requests, jobs, sessions
+from qs_ai.infrastructure.persistence.mysql.schema import jobs, sessions
 from tests.integration.test_delivery import certificates
 from tests.integration.test_interpretation import kit as kit
 
@@ -29,7 +29,9 @@ async def bind(kit):
     request_id = str(uuid4())
     async with kit.transactions.open() as db:
         await db.execute(
-            insert(external_requests).values(request_id=request_id, session_id=receipt.session_id)
+            update(sessions)
+            .where(sessions.c.id == receipt.session_id)
+            .values(request_id=request_id)
         )
         await db.commit()
     return receipt, request_id
@@ -69,6 +71,17 @@ async def test_foreign_and_missing_sessions_are_indistinguishable(kit):
     for sid in ids:
         with pytest.raises(NotFound):
             await reader.detail(DraftScope(2, 42), sid)
+
+
+async def test_internal_session_without_external_request_remains_unavailable(kit):
+    receipt = await kit.queued()
+    reader = MySQLRuntimeReader(kit.transactions, Settings(_env_file=None))
+    scope = DraftScope(1, 42)
+    result = await reader.summaries(scope, (receipt.session_id,))
+    assert result["items"] == []
+    assert result["unavailable_session_ids"] == [receipt.session_id]
+    with pytest.raises(NotFound):
+        await reader.detail(scope, receipt.session_id)
 
 
 async def test_actual_factory_mtls_and_dependency_graph(kit, tmp_path):

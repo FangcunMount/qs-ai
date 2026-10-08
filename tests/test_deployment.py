@@ -19,8 +19,10 @@ def load(relative):
 
 
 @pytest.fixture
-def remote():
-    return load("deploy/serverA/deploy.py")
+def remote(monkeypatch):
+    module = load("deploy/serverA/deploy.py")
+    monkeypatch.setattr(module, "expected_heads", lambda _path: ["0038_messaging_observations"])
+    return module
 
 
 def test_mysql_components_round_trip():
@@ -154,7 +156,14 @@ def simulate_apply(remote, monkeypatch, manifest, fail_migration=False):
 def test_migration_failure_never_replaces_service(remote, tmp_path, monkeypatch):
     release, manifest = setup_release(remote, tmp_path, monkeypatch)
     calls = simulate_apply(remote, monkeypatch, manifest, fail_migration=True)
-    monkeypatch.setattr(remote, "probe", lambda *args: {"current": ["old"]})
+    monkeypatch.setattr(
+        remote,
+        "probe",
+        lambda *args: {
+            "current": ["0037_workflow_messaging"],
+            "expected": ["0038_messaging_observations"],
+        },
+    )
     monkeypatch.setattr(remote, "verify", lambda *args: pytest.fail("must keep old service"))
     with pytest.raises(remote.DeploymentError, match="migration"):
         remote.apply(release, {"current": "b" * 40 + "-1-1"})
@@ -175,7 +184,18 @@ def test_failed_start_rolls_back_only_unchanged_schema(
     release, manifest = setup_release(remote, tmp_path, monkeypatch)
     simulate_apply(remote, monkeypatch, manifest)
     old = "b" * 40 + "-1-1"
-    probes = iter([{"current": ["old"]}, {"current": ["new" if schema_changed else "old"]}, {}])
+    probes = iter(
+        [
+            {"current": ["0037_workflow_messaging"], "expected": ["0038_messaging_observations"]},
+            {
+                "current": [
+                    "0038_messaging_observations" if schema_changed else "0037_workflow_messaging"
+                ],
+                "expected": ["0038_messaging_observations"],
+            },
+            {},
+        ]
+    )
     monkeypatch.setattr(remote, "probe", lambda *args: next(probes))
     verified = []
 
@@ -194,7 +214,14 @@ def test_failed_start_rolls_back_only_unchanged_schema(
 def test_first_release_failure_cleans_up_service(remote, tmp_path, monkeypatch):
     release, manifest = setup_release(remote, tmp_path, monkeypatch)
     calls = simulate_apply(remote, monkeypatch, manifest)
-    monkeypatch.setattr(remote, "probe", lambda *args: {"current": ["head"]})
+    monkeypatch.setattr(
+        remote,
+        "probe",
+        lambda *args: {
+            "current": ["0038_messaging_observations"],
+            "expected": ["0038_messaging_observations"],
+        },
+    )
 
     def fail(path):
         raise remote.DeploymentError("not ready")
@@ -208,7 +235,14 @@ def test_first_release_failure_cleans_up_service(remote, tmp_path, monkeypatch):
 def test_success_records_version_only_after_verification(remote, tmp_path, monkeypatch):
     release, manifest = setup_release(remote, tmp_path, monkeypatch)
     simulate_apply(remote, monkeypatch, manifest)
-    monkeypatch.setattr(remote, "probe", lambda *args: {"current": ["head"]})
+    monkeypatch.setattr(
+        remote,
+        "probe",
+        lambda *args: {
+            "current": ["0038_messaging_observations"],
+            "expected": ["0038_messaging_observations"],
+        },
+    )
     monkeypatch.setattr(remote, "verify", lambda path: None)
     remote.apply(release, {})
     assert json.loads((tmp_path / "state.json").read_text())["current"] == release.name
@@ -483,7 +517,14 @@ def test_cutover_stops_admission_then_all_consumers_before_start(remote, tmp_pat
         return original(phase, args)
 
     monkeypatch.setattr(remote, "run", run)
-    monkeypatch.setattr(remote, "probe", lambda *args: {"current": ["head"]})
+    monkeypatch.setattr(
+        remote,
+        "probe",
+        lambda *args: {
+            "current": ["0038_messaging_observations"],
+            "expected": ["0038_messaging_observations"],
+        },
+    )
 
     def verify(path):
         assert calls[-3:] == ["stop old admission", "drain release", "verify stopped"]
@@ -496,7 +537,14 @@ def test_failed_new_release_is_stopped_before_old_restart(remote, tmp_path, monk
     release, manifest = setup_release(remote, tmp_path, monkeypatch)
     simulate_apply(remote, monkeypatch, manifest)
     old = "b" * 40 + "-1-1"
-    monkeypatch.setattr(remote, "probe", lambda *args: {"current": ["head"]})
+    monkeypatch.setattr(
+        remote,
+        "probe",
+        lambda *args: {
+            "current": ["0038_messaging_observations"],
+            "expected": ["0038_messaging_observations"],
+        },
+    )
     order = []
     monkeypatch.setattr(remote, "stop_release", lambda path: order.append(("stop", path.name)))
 
@@ -527,7 +575,15 @@ def test_failed_manual_rollback_restores_current_without_changing_state(
     monkeypatch.setattr(remote, "release_image_id", lambda *args, **kwargs: "sha256:" + "a" * 64)
     state = {"current": "a" * 40 + "-1-1", "previous": "b" * 40 + "-1-1"}
     calls = []
-    monkeypatch.setattr(remote, "probe", lambda p, *args: calls.append(("probe", p.name)))
+
+    def probe(path, *_args):
+        calls.append(("probe", path.name))
+        return {
+            "current": ["0038_messaging_observations"],
+            "expected": ["0038_messaging_observations"],
+        }
+
+    monkeypatch.setattr(remote, "probe", probe)
     monkeypatch.setattr(remote, "stop_release", lambda p: calls.append(("stop", p.name)))
 
     def verify(path):
@@ -539,6 +595,7 @@ def test_failed_manual_rollback_restores_current_without_changing_state(
     with pytest.raises(remote.DeploymentError, match="target failed"):
         remote.restore(state)
     assert calls == [
+        ("probe", state["current"]),
         ("probe", state["previous"]),
         ("stop", state["current"]),
         ("verify", state["previous"]),

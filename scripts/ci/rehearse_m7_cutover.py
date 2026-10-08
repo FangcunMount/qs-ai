@@ -1,9 +1,10 @@
-"""M7 single-process old/new/old rehearsal in disposable MySQL and mutual TLS.
+"""Archived M7 gRPC receipt rehearsal; fail closed before creating any resources.
 
-Run with OLD_IMAGE NEW_IMAGE OUTPUT_DIRECTORY. No production credentials, model
-calls or candidate mode. The receiver is synthetic; this does not accept qs-server.
-The same file is mounted into temporary probes and the receipt receiver, and is
-never installed in either application image.
+The retained probe documents the historical synthetic gRPC receiver. Current
+runtime requires MQ, so this entry point cannot certify current delivery behavior.
+Use tests/probes/mq_fault_acceptance.py for MQ and maintenance.schema_refactor for
+the full 0038/0040 forward/reverse storage rehearsal. Images are inspected offline
+before rejecting this entry point; no database, migration or network action runs.
 """
 
 import asyncio
@@ -17,19 +18,57 @@ import time
 from pathlib import Path
 from uuid import uuid4
 
+from sqlalchemy import update
+
+SCHEMA_HEAD = "0040_module_table_names"
+
 
 def run(*args: str) -> str:
     return subprocess.check_output(args, text=True, stderr=subprocess.PIPE)
 
 
+def image_heads(image: str) -> list[str]:
+    heads = json.loads(
+        run(
+            "docker",
+            "run",
+            "--rm",
+            "--network",
+            "none",
+            "--read-only",
+            image,
+            "/app/.venv/bin/python",
+            "-c",
+            "import json; from alembic.config import Config; "
+            "from alembic.script import ScriptDirectory; "
+            "print(json.dumps(sorted(ScriptDirectory.from_config(Config('/app/alembic.ini')).get_heads())))",
+        )
+    )
+    if not isinstance(heads, list) or heads != [SCHEMA_HEAD]:
+        raise RuntimeError("M7 rehearsal requires both images to use the complete 0040 layout")
+    return heads
+
+
+def require_same_layout(old: str, new: str) -> None:
+    if image_heads(old) != image_heads(new):
+        raise RuntimeError("Cross-layout rehearsal requires maintenance.schema_refactor")
+
+
 async def probe(command: str) -> None:
-    from sqlalchemy import func, insert, text
+    from sqlalchemy import func, insert, select, text
     from sqlalchemy.ext.asyncio import create_async_engine
 
     from qs_ai.domain.interpretation.model import Actor, Session, Status
     from qs_ai.infrastructure.persistence.mysql.database import Database, Transactions
     from qs_ai.infrastructure.persistence.mysql.result_outbox import stage_state
-    from qs_ai.infrastructure.persistence.mysql.schema import external_requests, sessions
+    from qs_ai.infrastructure.persistence.mysql.schema import (
+        evaluation_runs,
+        execution_configurations,
+        jobs,
+        model_calls,
+        result_outbox,
+        sessions,
+    )
 
     database = Database(os.environ["QS_AI_DATABASE_URL"])
     receiver = create_async_engine(os.environ["M7_RECEIVER_DATABASE_URL"])
@@ -75,7 +114,9 @@ async def probe(command: str) -> None:
                     )
                 )
                 await db.execute(
-                    insert(external_requests).values(request_id=str(uuid4()), session_id=session.id)
+                    update(sessions)
+                    .where(sessions.c.id == session.id)
+                    .values(request_id=str(uuid4()))
                 )
                 await stage_state(db, session)
                 # A second staging must preserve the first identity/payload/time.
@@ -85,18 +126,20 @@ async def probe(command: str) -> None:
             assert database.engine is not None
             async with database.engine.connect() as db:
                 rows = (
-                    (await db.execute(text("SELECT * FROM result_outbox ORDER BY event_id")))
+                    (await db.execute(select(result_outbox).order_by(result_outbox.c.event_id)))
                     .mappings()
                     .all()
                 )
                 result = {"outbox": [dict(row) for row in rows], "counts": {}}
-                for table in (
-                    "execution_jobs",
-                    "model_calls",
-                    "execution_configurations",
-                    "evaluation_runs",
+                for logical_name, table in (
+                    ("execution_jobs", jobs),
+                    ("model_calls", model_calls),
+                    ("execution_configurations", execution_configurations),
+                    ("evaluation_runs", evaluation_runs),
                 ):
-                    result["counts"][table] = await db.scalar(text(f"SELECT COUNT(*) FROM {table}"))
+                    result["counts"][logical_name] = await db.scalar(
+                        select(func.count()).select_from(table)
+                    )
                 result["schema"] = await db.scalar(text("SELECT version_num FROM alembic_version"))
             async with receiver.connect() as db:
                 rows = (
@@ -171,6 +214,15 @@ async def serve() -> None:
 
 def main() -> None:
     old, new, destination = sys.argv[1:]
+    require_same_layout(old, new)
+    raise RuntimeError(
+        "Archived gRPC M7 rehearsal is disabled for the MQ runtime; use "
+        "tests/probes/mq_fault_acceptance.py and maintenance.schema_refactor"
+    )
+
+
+def archived_grpc_rehearsal(old: str, new: str, destination: str) -> None:
+    """Historical synthetic receiver flow; main never invokes it."""
     output = Path(destination).resolve()
     output.mkdir(parents=True, exist_ok=True)
     prefix = "m7-cutover-" + uuid4().hex[:10]
@@ -246,7 +298,7 @@ def main() -> None:
         def snapshot(label):
             data = json.loads(check("snapshot"))
             assert not any(data["counts"].values()), data
-            assert data["schema"] == "0036_evaluation_slot_claims", data
+            assert data["schema"] == SCHEMA_HEAD, data
             (output / f"{label}.json").write_text(
                 json.dumps(data, ensure_ascii=False, indent=2) + "\n"
             )

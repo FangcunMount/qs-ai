@@ -9,6 +9,8 @@ from scripts.retirement.core import Stop, canonical, digest
 from scripts.retirement.policy import COLLECTIONS, SHARED_TABLES, TECHNICAL_TABLES, old_event
 from scripts.retirement.prompt_policy import candidate, reference_tables, unreferenced
 
+LEGACY_AI_HEAD = "0038_messaging_observations"
+
 
 class ProtectedRows:
     """Hash a deterministically ordered JSON array without retaining its rows."""
@@ -237,6 +239,22 @@ class MySQLStore:
                 (self.database,),
             )
             names = [row["TABLE_NAME"] for row in cursor.fetchall()]
+            if self.name == "ai_mysql":
+                # This operator-only historical tool keeps its reviewed legacy
+                # whitelist. A merged asset table must never be inferred empty
+                # or become a new whole-table deletion target.
+                if "governance_asset_versions" in names:
+                    raise Stop(
+                        "Legacy asset retirement does not support merged storage; "
+                        "use schema_refactor cleanup only for recorded expired archives; "
+                        "typed asset retirement requires separate review"
+                    )
+                if "alembic_version" not in names:
+                    raise Stop("Legacy asset retirement requires recognized 0038 storage")
+                cursor.execute("SELECT version_num FROM alembic_version")
+                heads = [row["version_num"] for row in cursor.fetchall()]
+                if heads != [LEGACY_AI_HEAD]:
+                    raise Stop("Legacy asset retirement requires recognized 0038 storage")
             tables = {}
             if self.name == "ai_mysql":
                 # Native asset reference auditing is confined to the small AI store.
@@ -333,6 +351,8 @@ class MySQLStore:
                     },
                 )
                 result[name]["retained_candidates"] = retained
+                if self.name == "ai_mysql" and name == "alembic_version":
+                    result[name]["metadata"]["legacy_schema_head"] = heads[0]
         return result
 
     def rows(self, table, keys):
@@ -347,10 +367,28 @@ class MySQLStore:
     def restore(self, snapshot, database):
         if not re.fullmatch(r"m5_restore_[a-f0-9]{32}", database):
             raise Stop("restore destination must be an isolated generated database")
+        version = snapshot.get("alembic_version")
+        if self.name == "ai_mysql":
+            if "governance_asset_versions" in snapshot:
+                raise Stop("Legacy asset retirement does not support merged storage")
+            if (
+                not version
+                or version.get("action") != "preserve"
+                or version.get("metadata", {}).get("legacy_schema_head") != LEGACY_AI_HEAD
+            ):
+                raise Stop("AI restoration requires a backup bound to recognized 0038 storage")
         with self.connection.cursor() as cursor:
             cursor.execute("CREATE DATABASE " + quoted(database) + " CHARACTER SET utf8mb4")
             try:
                 cursor.execute("USE " + quoted(database))
+                if self.name == "ai_mysql":
+                    # Version metadata is a restore prerequisite, never a deletion target.
+                    # The bound head came from snapshot's exact source-layout guard.
+                    cursor.execute(version["metadata"]["ddl"])
+                    cursor.execute(
+                        "INSERT INTO alembic_version (version_num) VALUES (%s)",
+                        (version["metadata"]["legacy_schema_head"],),
+                    )
                 for item in snapshot.values():
                     if item["action"] == "preserve":
                         continue

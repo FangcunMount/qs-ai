@@ -7,7 +7,6 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid5
 
-from sqlalchemy import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from qs_ai.application.evaluation.management import ManagementScope
@@ -24,6 +23,12 @@ from qs_ai.domain.governance.profile import ProfileAsset
 from qs_ai.domain.governance.prompt import PromptAsset
 from qs_ai.domain.governance.route import RouteAsset
 from qs_ai.domain.governance.schema import SchemaAsset
+from qs_ai.infrastructure.persistence.mysql.asset_records import (
+    profile_assets,
+    prompt_assets,
+    route_assets,
+    schema_assets,
+)
 from qs_ai.infrastructure.persistence.mysql.asset_snapshot import (
     AssetSnapshotReader,
     generation_snapshot,
@@ -39,17 +44,12 @@ from qs_ai.infrastructure.persistence.mysql.evaluation_suites import (
     apply_registration as register_suite,
 )
 from qs_ai.infrastructure.persistence.mysql.evaluation_suites import load_registered_suite
+from qs_ai.infrastructure.persistence.mysql.governance_records import insert
 from qs_ai.infrastructure.persistence.mysql.profile_registrations import (
     apply_registration as register_profile,
 )
 from qs_ai.infrastructure.persistence.mysql.prompt_freezes import apply_freeze
 from qs_ai.infrastructure.persistence.mysql.publication_records import load_publication
-from qs_ai.infrastructure.persistence.mysql.schema import (
-    profile_assets,
-    prompt_assets,
-    route_assets,
-    schema_assets,
-)
 from qs_ai.infrastructure.persistence.mysql.suite_contracts import read as read_suite_contracts
 from qs_ai.infrastructure.qs_server.evaluation_release import validate_release_assets
 from qs_ai.model_configuration import ModelConfiguration

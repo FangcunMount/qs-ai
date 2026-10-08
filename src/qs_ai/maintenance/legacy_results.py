@@ -10,13 +10,13 @@ import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
-from qs_ai.infrastructure.persistence.mysql.messaging import outbox
-from qs_ai.infrastructure.persistence.mysql.schema import result_outbox
 from qs_ai.infrastructure.workflow_transport.messaging import valid_hash, valid_id
 from qs_ai.infrastructure.workflow_transport.state_events import StateEventRecorder
+from qs_ai.maintenance.schema_layout import handoff_tables, require_known_head
+from qs_ai.maintenance.schema_refactor.layouts import NEW_HEAD
 
 REVISION = "qs-ai-legacy-results/v1"
-SCHEMA_HEAD = "0038_messaging_observations"
+SCHEMA_HEAD = NEW_HEAD
 MAX_BATCH = 20
 
 
@@ -74,12 +74,16 @@ def identities(values: Sequence[str]) -> list[str]:
 async def header(db: AsyncSession) -> dict[str, Any]:
     database = await db.scalar(sa.text("SELECT DATABASE()"))
     heads = list((await db.execute(sa.text("SELECT version_num FROM alembic_version"))).scalars())
-    if not database or heads != [SCHEMA_HEAD]:
+    if not database:
         raise HandoffError("Reviewed original database and compatible schema required")
+    require_known_head(heads)
     return {"database": database, "schema_head": heads[0]}
 
 
-async def first_wire(db: AsyncSession, event_id: str, *, lock: bool) -> str | None:
+async def first_wire(
+    db: AsyncSession, event_id: str, *, lock: bool, schema_head: str = SCHEMA_HEAD
+) -> str | None:
+    _, outbox = handoff_tables(schema_head)
     statement = sa.select(outbox.c.wire, outbox.c.wire_sha256).where(
         outbox.c.producer == "qs-ai",
         outbox.c.destination == "qs-server",
@@ -113,6 +117,7 @@ def validate_manifest(value: Any, reviewed_digest: str) -> dict[str, Any]:
         or not isinstance(value["rows"], list)
     ):
         raise HandoffError("Reviewed manifest digest or header invalid")
+    require_known_head([value["header"]["schema_head"]])
     ids: list[str] = []
     fields = {
         "event_id",
@@ -159,6 +164,7 @@ class ResultHandoff:
             await db.connection(execution_options={"isolation_level": "REPEATABLE READ"})
             await db.execute(sa.text("START TRANSACTION WITH CONSISTENT SNAPSHOT, READ ONLY"))
             baseline = await header(db)
+            result_outbox, _ = handoff_tables(baseline["schema_head"])
             for event_id in ids:
                 row = (
                     (
@@ -178,7 +184,9 @@ class ResultHandoff:
                         "source_sha256": digest(snapshot),
                         "delivered": bool(row["delivered"]),
                         "mq_owned": bool(row["mq_owned"]),
-                        "first_wire_sha256": await first_wire(db, event_id, lock=False),
+                        "first_wire_sha256": await first_wire(
+                            db, event_id, lock=False, schema_head=baseline["schema_head"]
+                        ),
                     }
                 )
         manifest = {"revision": REVISION, "header": baseline, "rows": rows}
@@ -190,6 +198,13 @@ class ResultHandoff:
         manifest = validate_manifest(value, reviewed_digest)
         if all_claimers_stopped_and_admission_closed is not True or self.recorder is None:
             raise HandoffError("Explicit stopped claimers, closed admission and recorder required")
+        schema_head = manifest["header"]["schema_head"]
+        result_outbox, outbox = handoff_tables(schema_head)
+        if (
+            self.recorder.result_table.name != result_outbox.name
+            or self.recorder.store.outbox_table.name != outbox.name
+        ):
+            raise HandoffError("Recorder must bind the reviewed storage layout")
         result: dict[str, Any] = {"digest": reviewed_digest, "complete": False, "rows": []}
         for reviewed in manifest["rows"]:
             event_id = reviewed["source"]["event_id"]
@@ -221,14 +236,14 @@ class ResultHandoff:
                         or (not row["mq_owned"] and bool(row["delivered"]) != reviewed["delivered"])
                     ):
                         raise HandoffError("Original result ownership changed unexpectedly")
-                    wire = await first_wire(db, event_id, lock=True)
+                    wire = await first_wire(db, event_id, lock=True, schema_head=schema_head)
                     if (
                         reviewed["first_wire_sha256"] is not None
                         and wire != reviewed["first_wire_sha256"]
                     ):
                         raise HandoffError("First reviewed wire changed")
                     transferred = await self.recorder.record_legacy_interpretation(db, row)
-                    wire = await first_wire(db, event_id, lock=True)
+                    wire = await first_wire(db, event_id, lock=True, schema_head=schema_head)
                     committing = True
                     await db.commit()
                 result["rows"].append(

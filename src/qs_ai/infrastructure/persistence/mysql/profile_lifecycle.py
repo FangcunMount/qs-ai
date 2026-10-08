@@ -21,6 +21,7 @@ from qs_ai.application.interpretation.ports import NotFound
 from qs_ai.domain.governance.manifest import AssetReference
 from qs_ai.domain.governance.profile import ProfileAsset
 from qs_ai.domain.governance.publication import ReleaseSelector
+from qs_ai.infrastructure.persistence.mysql.asset_records import profile_assets as profiles
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
 from qs_ai.infrastructure.persistence.mysql.publication_records import (
     load_pointer,
@@ -30,7 +31,6 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
     configuration_publication_pointers as pointers,
 )
 from qs_ai.infrastructure.persistence.mysql.schema import configuration_publications as publications
-from qs_ai.infrastructure.persistence.mysql.schema import profile_assets as profiles
 
 
 def publication_matches() -> ColumnElement[bool]:

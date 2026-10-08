@@ -5,12 +5,20 @@ import json
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict, CheckpointState
 from qs_ai.domain.evaluation.checkpoint import ExecutionCheckpoint
 from qs_ai.domain.evaluation.parallel_plan import ParallelPlan, plan_parallel
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    generation_completions as evaluation_generation_completions,
+)
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    select_records,
+)
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    semantic_completions as evaluation_semantic_completions,
+)
 from qs_ai.infrastructure.persistence.mysql.evaluation_checkpoints import save_checkpoint
 from qs_ai.infrastructure.persistence.mysql.evaluation_frozen_policies import frozen_policies
 from qs_ai.infrastructure.persistence.mysql.evaluation_projection import project_slots
@@ -23,8 +31,6 @@ from qs_ai.infrastructure.persistence.mysql.evaluation_slot_claims import (
 )
 from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_dispatches,
-    evaluation_generation_completions,
-    evaluation_semantic_completions,
 )
 
 
@@ -47,7 +53,7 @@ async def candidate_plan(
             list(
                 (
                     await db.execute(
-                        select(table).where(table.c.run_id == str(run_id)).with_for_update()
+                        select_records(table).where(table.c.run_id == str(run_id)).with_for_update()
                     )
                 )
                 .mappings()

@@ -20,6 +20,7 @@ from qs_ai.maintenance.legacy_results import (
     identities,
     validate_manifest,
 )
+from qs_ai.maintenance.schema_layout import handoff_tables
 
 
 def read_manifest(path: str) -> dict[str, Any]:
@@ -70,9 +71,17 @@ async def run(args: argparse.Namespace) -> int:
         if args.action == "dry-run":
             outcome = await ResultHandoff(transactions).dry_run(ids)
         else:
+            if manifest is None:
+                raise HandoffError("Reviewed manifest required")
             signing = read_key(args.signing_key_file, private=True)
             recipient = read_key(args.qs_recipient_key_file, private=False)
-            recorder = StateEventRecorder(MessagingStore(), signing, recipient)
+            result_table, outbox_table = handoff_tables(manifest["header"]["schema_head"])
+            recorder = StateEventRecorder(
+                MessagingStore(outbox_table=outbox_table),
+                signing,
+                recipient,
+                result_table=result_table,
+            )
             outcome = await ResultHandoff(transactions, recorder).apply(
                 manifest,
                 args.reviewed_digest,

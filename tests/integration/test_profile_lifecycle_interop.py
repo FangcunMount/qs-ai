@@ -15,8 +15,8 @@ from qs_ai.application.governance.publication import MovePublication
 from qs_ai.bootstrap.container import create_container
 from qs_ai.config import Settings
 from qs_ai.contracts.workflow import workflow_pb2_grpc as rpc
+from qs_ai.infrastructure.persistence.mysql.asset_records import profile_assets
 from qs_ai.infrastructure.persistence.mysql.publications import MySQLPublications
-from qs_ai.infrastructure.persistence.mysql.schema import profile_assets
 from qs_ai.transport.grpc.profile_registration import ProfileManagement
 from tests.integration.test_delivery import certificates
 from tests.integration.test_evaluation_management_interop import go_management as go_management

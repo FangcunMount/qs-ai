@@ -24,6 +24,7 @@ from qs_ai.infrastructure.persistence.mysql.database import Transactions
 from qs_ai.infrastructure.persistence.mysql.evaluation_asset_registry import read_policy
 from qs_ai.infrastructure.persistence.mysql.evaluation_frozen_policies import frozen_policies
 from qs_ai.infrastructure.persistence.mysql.quotas import evaluation_policy
+from qs_ai.infrastructure.persistence.mysql.run_policy import frozen_policy_query
 from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_admission_locks as locks,
 )
@@ -31,7 +32,6 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_capacity_reservations as reservations,
 )
 from qs_ai.infrastructure.persistence.mysql.schema import (
-    evaluation_run_policies,
     evaluation_runs,
 )
 from qs_ai.infrastructure.qs_server.evaluation_policies import (
@@ -111,17 +111,7 @@ async def admit(
         )
     ).scalar_one()
     frozen, _ = await asyncio.to_thread(frozen_policies, json.loads(creation))
-    stored = (
-        (
-            await db.execute(
-                select(evaluation_run_policies).where(
-                    evaluation_run_policies.c.run_id == str(scope.run_id)
-                )
-            )
-        )
-        .mappings()
-        .one()
-    )
+    stored = (await db.execute(frozen_policy_query(str(scope.run_id)))).mappings().one()
     if (stored["definition_json"], stored["fingerprint"]) != (
         frozen.definition_json,
         frozen.fingerprint,

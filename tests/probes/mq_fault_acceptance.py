@@ -232,7 +232,7 @@ class Probe:
         return await self.sql(
             self.ai,
             "SELECT o.message_id,o.stage,o.wire_sha256,o.body_sha256,i.decision "
-            "FROM ai_messaging_inbox i JOIN ai_messaging_outbox o "
+            "FROM messaging_inbox i JOIN messaging_outbox o "
             "ON o.message_id=i.receipt_id WHERE i.message_id=:id",
             id=identity,
         )
@@ -310,7 +310,7 @@ class Probe:
                 for k in ("message_id", "wire_sha256", "body_sha256")
             )
         effect = await self.sql(
-            self.ai, "SELECT COUNT(*) n FROM ai_messaging_inbox WHERE message_id=:id", id=identity
+            self.ai, "SELECT COUNT(*) n FROM messaging_inbox WHERE message_id=:id", id=identity
         )
         assert effect[0]["n"] == 1
         # Confirm loss actually happened on the Broker's volatile paused channel.

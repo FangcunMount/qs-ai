@@ -5,20 +5,20 @@ import json
 from dataclasses import replace
 
 import pytest
-from sqlalchemy import delete, select, update
+from sqlalchemy import select
 
 from qs_ai.bootstrap.import_schemas import baseline_assets
 from qs_ai.domain.evaluation.identity import FrozenContractRef
-from qs_ai.infrastructure.persistence.mysql.asset_snapshot import generation_snapshot
-from qs_ai.infrastructure.persistence.mysql.evaluation_runs import create_run
-from qs_ai.infrastructure.persistence.mysql.schema import (
-    evaluation_dispatches,
-    evaluation_runs,
+from qs_ai.infrastructure.persistence.mysql.asset_records import (
     profile_assets,
     prompt_assets,
     route_assets,
     schema_assets,
 )
+from qs_ai.infrastructure.persistence.mysql.asset_snapshot import generation_snapshot
+from qs_ai.infrastructure.persistence.mysql.evaluation_runs import create_run
+from qs_ai.infrastructure.persistence.mysql.governance_records import delete, update
+from qs_ai.infrastructure.persistence.mysql.schema import evaluation_dispatches, evaluation_runs
 from tests.integration.test_evaluation_creation_interop import persisted_assets as persisted_assets
 from tests.integration.test_evaluation_runs import rows
 from tests.integration.test_evaluation_runs import setup_run as setup_run

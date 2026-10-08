@@ -20,7 +20,6 @@ from qs_ai.infrastructure.persistence.mysql.evaluation_dispatches import (
 from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_checkpoints,
     evaluation_dispatches,
-    evaluation_run_policies,
     evaluation_runs,
 )
 from qs_ai.infrastructure.qs_server.evaluation_policies import load_execution_policy
@@ -80,7 +79,6 @@ async def prepared():
         async with tx.open() as db:
             for table in (
                 evaluation_dispatches,
-                evaluation_run_policies,
                 evaluation_checkpoints,
                 evaluation_runs,
             ):

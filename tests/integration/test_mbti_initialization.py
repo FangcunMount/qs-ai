@@ -5,24 +5,27 @@ from dataclasses import asdict
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import func, select
 
 from qs_ai.bootstrap.import_evaluation_assets import baseline_assets as evaluation_baseline
 from qs_ai.bootstrap.import_mbti_assets import insert_exact, install
 from qs_ai.bootstrap.import_routes import baseline_assets as route_baseline
 from qs_ai.bootstrap.import_schemas import baseline_assets as schema_baseline
-from qs_ai.infrastructure.persistence.mysql.database import Database, Transactions
-from qs_ai.infrastructure.persistence.mysql.evaluation_suites import load_registered_suite
-from qs_ai.infrastructure.persistence.mysql.schema import (
-    configuration_publication_pointers,
+from qs_ai.infrastructure.persistence.mysql.asset_records import (
     evaluation_policy_assets,
-    evaluation_runs,
-    evaluation_suites,
     profile_assets,
     prompt_assets,
     route_assets,
     schema_assets,
     semantic_prompt_assets,
+)
+from qs_ai.infrastructure.persistence.mysql.database import Database, Transactions
+from qs_ai.infrastructure.persistence.mysql.evaluation_suites import load_registered_suite
+from qs_ai.infrastructure.persistence.mysql.governance_records import delete, update
+from qs_ai.infrastructure.persistence.mysql.schema import (
+    configuration_publication_pointers,
+    evaluation_runs,
+    evaluation_suites,
     sessions,
 )
 from qs_ai.infrastructure.qs_server.mbti_assets import load_mbti_root, load_mbti_themes_root

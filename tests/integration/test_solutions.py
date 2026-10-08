@@ -7,13 +7,14 @@ from datetime import UTC, datetime
 from uuid import uuid4, uuid5
 
 import pytest
-from sqlalchemy import delete, select
+from sqlalchemy import select
 
 from qs_ai.application.governance.prompt_drafts import DraftScope
 from qs_ai.application.governance.solutions import CreateSolution, PrepareSolution, SaveSolution
 from qs_ai.application.interpretation.ports import NotFound
 from qs_ai.config import Settings
 from qs_ai.domain.governance.prompt_draft import DraftConflict
+from qs_ai.infrastructure.persistence.mysql import asset_records, draft_records
 from qs_ai.infrastructure.persistence.mysql import schema as tables
 from qs_ai.infrastructure.persistence.mysql.asset_snapshot import generation_snapshot
 from qs_ai.infrastructure.persistence.mysql.evaluation_assets import (
@@ -21,6 +22,7 @@ from qs_ai.infrastructure.persistence.mysql.evaluation_assets import (
     run_model_route,
 )
 from qs_ai.infrastructure.persistence.mysql.evaluation_runs import create_run
+from qs_ai.infrastructure.persistence.mysql.governance_records import delete
 from qs_ai.infrastructure.persistence.mysql.solutions import MySQLSolutions
 from qs_ai.infrastructure.qs_server.deepseek_request import build_messages_request
 from qs_ai.infrastructure.qs_server.evaluation_suite import V6_PUBLISHED
@@ -57,7 +59,6 @@ async def workspace(setup_run, persisted_assets, complete_release):
         async with tx.open() as db:
             for table in (
                 tables.evaluation_checkpoints,
-                tables.evaluation_run_policies,
                 tables.evaluation_runs,
             ):
                 await db.execute(delete(table).where(table.c.run_id == new_run))
@@ -78,19 +79,23 @@ async def workspace(setup_run, persisted_assets, complete_release):
             )
             for table in (
                 tables.prompt_draft_freezes,
-                tables.prompt_draft_revisions,
-                tables.prompt_drafts,
+                draft_records.prompt_draft_revisions,
+                draft_records.prompt_drafts,
             ):
                 await db.execute(delete(table).where(table.c.draft_id == draft_id))
             await db.execute(
-                delete(tables.profile_assets).where(tables.profile_assets.c.version == version)
+                delete(asset_records.profile_assets).where(
+                    asset_records.profile_assets.c.version == version
+                )
             )
             await db.execute(
-                delete(tables.prompt_assets).where(tables.prompt_assets.c.version == version)
+                delete(asset_records.prompt_assets).where(
+                    asset_records.prompt_assets.c.version == version
+                )
             )
             await db.execute(
-                delete(tables.route_assets).where(
-                    tables.route_assets.c.revision.in_(
+                delete(asset_records.route_assets).where(
+                    asset_records.route_assets.c.revision.in_(
                         [version + "-generation", version + "-semantic"]
                     )
                 )
@@ -205,8 +210,8 @@ async def test_preparation_failure_rolls_back_all_steps_and_can_retry(workspace,
         ).first()
         assert not (
             await db.execute(
-                select(tables.profile_assets).where(
-                    tables.profile_assets.c.version == first["target_version"]
+                select(asset_records.profile_assets).where(
+                    asset_records.profile_assets.c.version == first["target_version"]
                 )
             )
         ).first()

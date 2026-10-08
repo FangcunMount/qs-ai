@@ -62,7 +62,7 @@ flowchart LR
 
 ### 参与者业务重试是显式的新 Run
 
-[`RetryParticipant`](../../../src/qs_ai/application/execution/retry.py) 与 [`participant_retries.retry`](../../../src/qs_ai/infrastructure/persistence/mysql/participant_retries.py) 要求原 Session/Run blocked、Job 已 done/dead 或不存在、已有接受配置、当前版本和原 Run 匹配，并重新核对原参与者当前访问权。命令包含稳定 command_id、原因、confirm、`expected_provider_invocations=1`；原调用 dispatched/unknown 时还必须显式接受未知结果风险。
+[`RetryParticipant`](../../../src/qs_ai/application/execution/retry.py) 与 [`execution_participant_retries.retry`](../../../src/qs_ai/infrastructure/persistence/mysql/participant_retries.py) 要求原 Session/Run blocked、Job 已 done/dead 或不存在、已有接受配置、当前版本和原 Run 匹配，并重新核对原参与者当前访问权。命令包含稳定 command_id、原因、confirm、`expected_provider_invocations=1`；原调用 dispatched/unknown 时还必须显式接受未知结果风险。
 
 通过后创建新 Run/Job、保留旧调用与失败，继承原 frozen request 和接受配置，并保存重试审计与幂等 Receipt。配额拒绝会回滚，不会先换 active Run 再补预算。原准入拒绝没有接受配置，不能通过 Retry 偷绑后来发布。重复命令返回原 Receipt，但仍重新核对当前访问权。
 

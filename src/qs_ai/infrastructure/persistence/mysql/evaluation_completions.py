@@ -6,7 +6,7 @@ import re
 from dataclasses import asdict
 from uuid import UUID
 
-from sqlalchemy import insert, select, update
+from sqlalchemy import select, update
 from sqlalchemy.engine import RowMapping
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,6 +18,9 @@ from qs_ai.domain.evaluation.checkpoint import ExecutionCheckpoint
 from qs_ai.domain.evaluation.completion import GenerationCompletion
 from qs_ai.domain.evaluation.identity import EvidenceReleaseIdentity, FrozenContractRef
 from qs_ai.domain.evaluation.preflight import AssertionReceipt
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    generation_completions as table,
+)
 from qs_ai.infrastructure.persistence.mysql.evaluation_candidate_completion import (
     complete_claim,
     completion_owner,
@@ -29,9 +32,6 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_checkpoints,
     evaluation_dispatches,
     evaluation_runs,
-)
-from qs_ai.infrastructure.persistence.mysql.schema import (
-    evaluation_generation_completions as table,
 )
 
 
@@ -146,7 +146,7 @@ async def complete_generation(
     previous = (
         (
             await db.execute(
-                select(table)
+                table.select()
                 .where(
                     table.c.run_id == str(run_id),
                     table.c.case_id == completion.case_id,
@@ -175,7 +175,7 @@ async def complete_generation(
     for name in ("started_at", "finished_at"):
         evidence[name] = evidence[name].isoformat()
     await db.execute(
-        insert(table).values(
+        table.insert().values(
             run_id=str(run_id),
             execution_id=completion.execution_id,
             invocation_id=completion.invocation_id,

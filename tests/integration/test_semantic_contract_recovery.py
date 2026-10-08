@@ -6,21 +6,25 @@ from dataclasses import replace
 from datetime import timedelta
 
 import pytest
-from sqlalchemy import select
 
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict
 from qs_ai.application.evaluation.management import ManagementScope
 from qs_ai.domain.evaluation.contract_recovery import RECOVERY_INSTRUCTION, ContractRecovery
 from qs_ai.domain.evaluation.review import CandidateHumanReview
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    generation_completions as evaluation_generation_completions,
+)
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    select_records,
+)
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    semantic_completions as evaluation_semantic_completions,
+)
 from qs_ai.infrastructure.persistence.mysql.evaluation_contract_recovery import (
     authorize_contract_recovery,
 )
 from qs_ai.infrastructure.persistence.mysql.evaluation_management import MySQLEvaluationManagement
 from qs_ai.infrastructure.persistence.mysql.evaluation_projection import decode_semantic_completion
-from qs_ai.infrastructure.persistence.mysql.schema import (
-    evaluation_generation_completions,
-    evaluation_semantic_completions,
-)
 from qs_ai.infrastructure.workflows.evaluation import execute_step
 from tests.integration.test_evaluation_runs import rows
 from tests.integration.test_evaluation_runs import setup_run as setup_run
@@ -43,7 +47,11 @@ async def originals(ready):
     tx, run_id, *_ = ready
     async with tx.open() as db:
         return [
-            list((await db.execute(select(table).where(table.c.run_id == str(run_id)))).mappings())
+            list(
+                (
+                    await db.execute(select_records(table).where(table.c.run_id == str(run_id)))
+                ).mappings()
+            )
             for table in (evaluation_generation_completions, evaluation_semantic_completions)
         ]
 

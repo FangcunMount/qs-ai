@@ -11,16 +11,14 @@ from qs_ai.application.integration.events import StateEvent
 from qs_ai.domain.interpretation.model import Session, Status
 from qs_ai.infrastructure.persistence.mysql.schema import (
     artifacts,
-    external_requests,
     questions,
     result_outbox,
+    sessions,
 )
 
 
 async def stage_state(db: AsyncSession, session: Session) -> None:
-    request_id = await db.scalar(
-        select(external_requests.c.request_id).where(external_requests.c.session_id == session.id)
-    )
+    request_id = await db.scalar(select(sessions.c.request_id).where(sessions.c.id == session.id))
     if request_id is None:
         return
     question = None

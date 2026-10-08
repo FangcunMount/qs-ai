@@ -6,14 +6,14 @@ import os
 
 import grpc
 import pytest
-from sqlalchemy import delete
 
 from qs_ai.bootstrap.container import create_container
 from qs_ai.config import Settings
 from qs_ai.contracts.workflow import workflow_pb2_grpc as rpc
 from qs_ai.domain.governance.profile import ProfileAsset
+from qs_ai.infrastructure.persistence.mysql.asset_records import profile_assets
+from qs_ai.infrastructure.persistence.mysql.governance_records import delete
 from qs_ai.infrastructure.persistence.mysql.profile_assets import MySQLProfileAssets
-from qs_ai.infrastructure.persistence.mysql.schema import profile_assets
 from qs_ai.transport.grpc.asset_catalog import AssetCatalogService
 from tests.integration.test_asset_catalog import assets as assets
 from tests.integration.test_asset_catalog import complete_release as complete_release

@@ -7,20 +7,19 @@ from datetime import timedelta
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import delete, select, update
+from sqlalchemy import select
 
 from qs_ai.application.governance.profile_lifecycle import ProfileLifecycleQuery
 from qs_ai.application.governance.prompt_drafts import DraftScope
 from qs_ai.application.governance.publication import MovePublication
 from qs_ai.application.interpretation.ports import NotFound
 from qs_ai.domain.governance.profile import ProfileAsset
+from qs_ai.infrastructure.persistence.mysql.asset_records import profile_assets
+from qs_ai.infrastructure.persistence.mysql.governance_records import delete, update
 from qs_ai.infrastructure.persistence.mysql.profile_assets import MySQLProfileAssets
 from qs_ai.infrastructure.persistence.mysql.profile_lifecycle import MySQLProfileLifecycle
 from qs_ai.infrastructure.persistence.mysql.publications import MySQLPublications
-from qs_ai.infrastructure.persistence.mysql.schema import (
-    configuration_publication_pointers,
-    profile_assets,
-)
+from qs_ai.infrastructure.persistence.mysql.schema import configuration_publication_pointers
 from tests.integration.test_publications import dispatched as dispatched
 from tests.integration.test_publications import freeze_creation as freeze_creation
 from tests.integration.test_publications import judge as judge

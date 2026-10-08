@@ -5,7 +5,7 @@ import hashlib
 from dataclasses import fields
 from typing import Any
 
-from sqlalchemy import Column, RowMapping, Table, and_, or_, select
+from sqlalchemy import Column, RowMapping, and_, or_, select
 
 from qs_ai.application.governance.asset_catalog import (
     KINDS,
@@ -26,18 +26,20 @@ from qs_ai.domain.governance.profile import ProfileAsset
 from qs_ai.domain.governance.prompt import PromptAsset
 from qs_ai.domain.governance.route import RouteAsset
 from qs_ai.domain.governance.schema import SchemaAsset
-from qs_ai.infrastructure.persistence.mysql.database import Transactions
-from qs_ai.infrastructure.persistence.mysql.evaluation_suites import load_registered_suite
-from qs_ai.infrastructure.persistence.mysql.schema import (
+from qs_ai.infrastructure.persistence.mysql.asset_records import (
+    asset_select,
     evaluation_policy_assets,
-    evaluation_suites,
     profile_assets,
     prompt_assets,
     route_assets,
     schema_assets,
 )
+from qs_ai.infrastructure.persistence.mysql.database import Transactions
+from qs_ai.infrastructure.persistence.mysql.evaluation_suites import load_registered_suite
+from qs_ai.infrastructure.persistence.mysql.governance_records import identity_columns
+from qs_ai.infrastructure.persistence.mysql.schema import asset_versions, evaluation_suites
 
-TABLES: dict[AssetKind, Table] = {
+TABLES: dict[AssetKind, Any] = {
     "profile": profile_assets,
     "prompt": prompt_assets,
     "route": route_assets,
@@ -70,8 +72,21 @@ def columns(kind: AssetKind) -> tuple[Column[Any], Column[Any]]:
     table = TABLES[kind]
     if kind in POLICY_KINDS:
         return table.c.asset_id, table.c.version
-    first, second = list(table.primary_key.columns)
+    first, second = identity_columns(table)
     return first, second
+
+
+def catalog_query(kind: AssetKind) -> tuple[Any, Any, Any]:
+    table = TABLES[kind]
+    if kind == "suite":
+        identity, version = columns(kind)
+        return select(table), identity, version
+    statement = asset_select(table)
+    if kind in POLICY_KINDS:
+        statement = statement.where(asset_versions.c.asset_kind == kind)
+    # The catalog's legacy NO PAD ordering has its own physical index, while
+    # exact typed readers retain each old native/PAD identity constraint.
+    return statement, asset_versions.c.asset_id, asset_versions.c.catalog_version_key
 
 
 def decode(kind: AssetKind, row: RowMapping) -> CatalogDetail:
@@ -90,7 +105,7 @@ def decode(kind: AssetKind, row: RowMapping) -> CatalogDetail:
         )
     cls = TYPES[kind]
     asset = cls(**{field.name: row[field.name] for field in fields(cls)})
-    keys = list(TABLES[kind].primary_key.columns)
+    keys = identity_columns(TABLES[kind])
     raw = asset.package_json if isinstance(asset, PromptAsset) else asset.definition_json
     return detail(kind, row[keys[0].name], row[keys[1].name], asset.fingerprint, raw)
 
@@ -115,17 +130,16 @@ class MySQLAssetCatalog:
         # Original assets are shared; suite derivatives belong to their author organization.
         DraftScope(scope.organization_id, scope.operator_user_id)
         table = TABLES[query.kind]
-        identity, version = columns(query.kind)
-        # utf8mb4_bin pads trailing spaces. Use the same NO PAD binary comparison for
-        # SQL keyset ordering as Python when merging the two bundled suite entries.
+        statement, identity, version = catalog_query(query.kind)
+        # Asset catalog columns already carry NO PAD binary comparison and its
+        # ordered index. Suite columns need the original explicit conversion.
         identity_key, version_key = (
-            column.collate("utf8mb4_0900_bin") for column in (identity, version)
+            tuple(column.collate("utf8mb4_0900_bin") for column in (identity, version))
+            if query.kind == "suite"
+            else (identity, version)
         )
-        statement = select(table)
         if query.kind == "suite":
             statement = statement.where(table.c.organization_id.in_((0, scope.organization_id)))
-        if query.kind in POLICY_KINDS:
-            statement = statement.where(table.c.kind == POLICY_KINDS[query.kind].value)
         if query.identity:
             statement = statement.where(identity_key == query.identity)
         after = query.after()
@@ -155,19 +169,17 @@ class MySQLAssetCatalog:
         validate_identity(identity)
         validate_version(version)
         table = TABLES[kind]
-        first, second = columns(kind)
-        statement = select(table)
+        statement, first, second = catalog_query(kind)
         if kind == "suite":
             statement = statement.where(table.c.organization_id.in_((0, scope.organization_id)))
-        if kind in POLICY_KINDS:
-            statement = statement.where(table.c.kind == POLICY_KINDS[kind].value)
+            first, second = (column.collate("utf8mb4_0900_bin") for column in (first, second))
         async with self.transactions.open() as db:
             row = (
                 (
                     await db.execute(
                         statement.where(
-                            first.collate("utf8mb4_0900_bin") == identity,
-                            second.collate("utf8mb4_0900_bin") == version,
+                            first == identity,
+                            second == version,
                         )
                     )
                 )

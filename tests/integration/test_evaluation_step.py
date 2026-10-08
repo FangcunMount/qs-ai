@@ -3,17 +3,21 @@ from dataclasses import replace
 from datetime import UTC, datetime
 
 import pytest
-from sqlalchemy import delete
 
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict
 from qs_ai.application.interpretation.provider import ModelResponse, ProviderFailure
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    delete_records,
+)
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    generation_completions as evaluation_generation_completions,
+)
+from qs_ai.infrastructure.persistence.mysql.completion_records import (
+    semantic_completions as evaluation_semantic_completions,
+)
 from qs_ai.infrastructure.persistence.mysql.evaluation_progress import (
     execute_preflight,
     transition_requested,
-)
-from qs_ai.infrastructure.persistence.mysql.schema import (
-    evaluation_generation_completions,
-    evaluation_semantic_completions,
 )
 from qs_ai.infrastructure.qs_server.semantic_assets import load_semantic_assets
 from qs_ai.infrastructure.workflows.evaluation import execute_step
@@ -52,7 +56,7 @@ async def ready(setup_run, persisted_assets):
     finally:
         async with tx.open() as db:
             for table in (evaluation_semantic_completions, evaluation_generation_completions):
-                await db.execute(delete(table).where(table.c.run_id == str(run_id)))
+                await db.execute(delete_records(table).where(table.c.run_id == str(run_id)))
             await db.commit()
 
 
@@ -194,7 +198,6 @@ async def test_malformed_output_is_saved_then_retried_in_original_slot(ready, ov
 
 
 async def test_semantic_decision_mismatch_is_saved_without_regenerating_candidate(ready):
-    from sqlalchemy import select
 
     from tests.integration.test_evaluation_completions import stored
 
@@ -217,9 +220,9 @@ async def test_semantic_decision_mismatch_is_saved_without_regenerating_candidat
     async with tx.open() as db:
         evidence = (
             await db.execute(
-                select(evaluation_semantic_completions.c.evidence_json).where(
-                    evaluation_semantic_completions.c.run_id == str(run_id)
-                )
+                evaluation_semantic_completions.select(
+                    evaluation_semantic_completions.c.evidence_json
+                ).where(evaluation_semantic_completions.c.run_id == str(run_id))
             )
         ).scalar_one()
     assert evidence["failure"]["code"] == "semantic_decision_contract_invalid"

@@ -9,7 +9,7 @@ from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import delete, select, update
+from sqlalchemy import select
 
 from qs_ai.application.governance.publication import (
     MovePublication,
@@ -21,8 +21,10 @@ from qs_ai.application.interpretation.ports import NotFound
 from qs_ai.bootstrap.import_schemas import baseline_assets as schemas
 from qs_ai.domain.evaluation.identity import FrozenContractRef
 from qs_ai.domain.governance.publication import PublicationConflict, PublicationPointer
+from qs_ai.infrastructure.persistence.mysql.asset_records import prompt_assets
 from qs_ai.infrastructure.persistence.mysql.asset_snapshot import generation_snapshot
 from qs_ai.infrastructure.persistence.mysql.evaluation_runs import create_run
+from qs_ai.infrastructure.persistence.mysql.governance_records import delete, update
 from qs_ai.infrastructure.persistence.mysql.publications import MySQLPublications, apply_publication
 from qs_ai.infrastructure.persistence.mysql.schema import (
     configuration_publication_changes as changes,
@@ -33,10 +35,7 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
 from qs_ai.infrastructure.persistence.mysql.schema import (
     configuration_publications as publications,
 )
-from qs_ai.infrastructure.persistence.mysql.schema import (
-    evaluation_runs,
-    prompt_assets,
-)
+from qs_ai.infrastructure.persistence.mysql.schema import evaluation_runs
 from tests.integration.test_evaluation_completions import dispatched as dispatched
 from tests.integration.test_evaluation_creation_interop import persisted_assets as persisted_assets
 from tests.integration.test_evaluation_finalization import commit, reviewed
