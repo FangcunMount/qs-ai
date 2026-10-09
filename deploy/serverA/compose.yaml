@@ -13,8 +13,8 @@ services:
         aliases:
         - qs-ai-grpc
         - qs-ai-api
-    mem_limit: 1g
-    cpus: '2.0'
+    mem_limit: 768m
+    cpus: '0.75'
     read_only: true
     tmpfs:
     - /tmp:rw,noexec,nosuid,size=64m

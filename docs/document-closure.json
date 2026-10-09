@@ -1,7 +1,7 @@
 {
   "schema_version": "qs-ai-document-closure/v1",
   "source_commit": "82ffa1b43308f23fbb1ebe669c3071e0486e105a",
-  "reviewed_on": "2026-10-08",
+  "reviewed_on": "2026-10-09",
   "authority": "runtime composition > code > machine contracts/config/migrations > scoped tests > maintained prose > dated evidence/plans/archive",
   "source_catalog": {
     ".github/workflows/ai-messaging.yml": "2dddb3ffeb66a49967fb2019709829065365464b1833a51f72f34331ef38aabe",
@@ -13,9 +13,9 @@
     "configs/README.md": "f12adab60a839ac797d15bafa6dc5ab96f135c63ee1aecb4e1115477619c6cd9",
     "configs/default.yaml": "cfb4e393182eba1793a4a5c3e29ded3cfa7283e6f472c2d22d521e010a400068",
     "configs/local.yaml": "6a722980c92fbb05c39e6e96277dafd5a53a42311ba250db7bab20c58fde4c5a",
-    "configs/production.yaml": "b5c341265262f5509e06e67f5f67bc71ba20eb97e44147e45f7b4f72ceff6b21",
+    "configs/production.yaml": "c442e1a3602d8f31e93b193bc14432dcf131040cfd49705db99cac0aed2372da",
     "deploy/serverA/README.md": "fdade5096e35cc44205a0efa304774d138dbff176615fb8f80de85886e97634c",
-    "deploy/serverA/compose.yaml": "19c689c48aba8aa3fdfbe8198f054a025f8851f419551af0b64e49c143293da3",
+    "deploy/serverA/compose.yaml": "6d15a111fa4bc121a7d533dc6076a681472a24c6e4f4bdf10409a7649d67a240",
     "deploy/serverA/deploy.py": "8830c4470eb55edd6fd94b97a3a6cf3873d9fb49f43f58334e8aa2c1ede77c53",
     "docs/evidence/2026-09-13-m3-current-published-reconciliation.json": "950b0d4b7c6f6812756cef41374366a39630277d831ca6c42de56a447802d055",
     "docs/evidence/2026-09-13-m3-fixed-baseline-import.json": "cb28ea6199095f211348cf1ed44675a8e41cb22c56cec2f282217dc79747a23f",

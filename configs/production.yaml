@@ -12,6 +12,10 @@ participant_capacity:
   daily_org: 1024
   daily_user: 10
 evaluation:
+  # serverA 2C/4G: keep foreground generation while serializing batch evaluation.
+  concurrency: 1
+  parallel_calls: 1
+  per_run_parallel_calls: 1
   # UTC daily admission budget; existing reservations are never reset.
   daily_provider_calls: 2048
   shutdown_seconds: 190
