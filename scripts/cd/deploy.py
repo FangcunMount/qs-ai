@@ -602,14 +602,16 @@ def main() -> None:
                     + f"chmod 600 {target}/*",
                 ],
             )
+            # The active schema executor reads target heads before runtime handoff.
+            # Pin and preflight the uploaded image before entering that executor.
+            print(
+                run(
+                    "remote preparation",
+                    [*ssh, f"python3 {remote_script} prepare {release_id}"],
+                ),
+                end="",
+            )
             if action == "prepare":
-                print(
-                    run(
-                        "remote preparation",
-                        [*ssh, f"python3 {remote_script} prepare {release_id}"],
-                    ),
-                    end="",
-                )
                 record_preparation(ssh, release_id, package)
                 return
             try:
