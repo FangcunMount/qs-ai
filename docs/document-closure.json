@@ -1,7 +1,7 @@
 {
   "schema_version": "qs-ai-document-closure/v1",
   "source_commit": "82ffa1b43308f23fbb1ebe669c3071e0486e105a",
-  "reviewed_on": "2026-10-09",
+  "reviewed_on": "2026-10-12",
   "authority": "runtime composition > code > machine contracts/config/migrations > scoped tests > maintained prose > dated evidence/plans/archive",
   "source_catalog": {
     ".github/workflows/ai-messaging.yml": "2dddb3ffeb66a49967fb2019709829065365464b1833a51f72f34331ef38aabe",
@@ -221,7 +221,7 @@
     "src/qs_ai/infrastructure/persistence/mysql/suite_contracts.py": "4d15667a7a7ca669166f16d9f5895ea4b81849b666aba40ae7b4addea136ddfb",
     "src/qs_ai/infrastructure/qs_server/access.py": "94494870f999ae6fcef9609875a42c3e6dc6e1cbe1929793adfd963754924a37",
     "src/qs_ai/infrastructure/qs_server/deepseek_request.py": "4ef98d9e69409358243c66a87760cdabaad2d6b8842c91d658d00a841e307087",
-    "src/qs_ai/infrastructure/qs_server/evaluation_suite.py": "014b8bc6c4ad88630b5d6897682f23c656e6a0b8a40836fa3d8a44063c2df039",
+    "src/qs_ai/infrastructure/qs_server/evaluation_suite.py": "21d31bf5720b8c9ec604ddee41e465fcf4703050c5267a018f5cd009cd4b8f39",
     "src/qs_ai/infrastructure/qs_server/input_schema.py": "ba186eb6217d9a727f866a0bd5691dd871f1deef904a1b982cf08e760ac6e997",
     "src/qs_ai/infrastructure/qs_server/mbti_assets.py": "409f0e4e729ff9c4972a54471219a1102f255ea405331285c3c32b9274846228",
     "src/qs_ai/infrastructure/qs_server/normalization.py": "7fa45c85032d724460d204e04ff44578330bee331a6810ac5262096bac0e1c7b",
@@ -462,7 +462,13 @@
     "src/qs_ai/maintenance/prompt_retirement/__main__.py": "b9c9c419e22ac2160663faca394150e37db77578f99820b4b92267917a8c0625",
     "scripts/cd/schema_followup.py": "d7594fdea6564ef28fb822b8755e7ec48ba76b05ac8002a765bdd6d3c31269f0",
     "docs/evidence/2026-10-08-schema-followup-local.json": "e38f1af80e7f8297c408007348f804be4941967ccbbbdd35894d32979d0dded5",
-    "docs/evidence/2026-10-08-schema-followup-production.json": "ddcd8d4193ad2ecfbb4d9d38374c7bdbfc5d64c8319cdf3bc36d02108d6d85cc"
+    "docs/evidence/2026-10-08-schema-followup-production.json": "ddcd8d4193ad2ecfbb4d9d38374c7bdbfc5d64c8319cdf3bc36d02108d6d85cc",
+    "src/qs_ai/bootstrap/import_scale_reference_suite.py": "d0ec750995cb5f4e1f02ab23ccd6ff75c8442f74f2732e765c4244c5f0927764",
+    "tests/test_scale_reference_cap6.py": "ac16c1425c865c2fd091a0d1339301c1139d9b4bf53b9fe1e165f1aba1127e10",
+    "integrations/qs_server/evaluation/scale-reference-cap6/profile-v7.json": "cb0b0964a5d9b559991f2f39c14249b152eca42e15191e2d8ab42be4984b3fba",
+    "integrations/qs_server/evaluation/scale-reference-cap6/prompt-v7-draft.json": "fc45f3283d1d318a38db8f69fe98f405c9465eef5704a87d1c0b988a99cfe9f8",
+    "integrations/qs_server/evaluation/scale-reference-cap6/suite-root-v1.json": "a8e95bea9050ccab631881d5b8b4b8db51bd80c2be4eaac90bcd9ba17e146bb5",
+    "integrations/qs_server/evaluation/scale-reference-cap6/candidate-manifest.json": "1b46854fb8db615e238ab0efac7ee96011b63896c8f35a7ebecc1a4910b07d34"
   },
   "documents": [
     {
@@ -2531,6 +2537,27 @@
         "pytest -q tests/test_docs.py"
       ],
       "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+    },
+    {
+      "path": "integrations/qs_server/evaluation/scale-reference-cap6/README.md",
+      "owner": "governance",
+      "status": "aligned",
+      "implementation_status": "partial",
+      "runtime_status": "unknown",
+      "sources": [
+        "src/qs_ai/infrastructure/qs_server/evaluation_suite.py",
+        "src/qs_ai/bootstrap/import_scale_reference_suite.py",
+        "tests/test_scale_reference_cap6.py",
+        "integrations/qs_server/evaluation/scale-reference-cap6/profile-v7.json",
+        "integrations/qs_server/evaluation/scale-reference-cap6/prompt-v7-draft.json",
+        "integrations/qs_server/evaluation/scale-reference-cap6/suite-root-v1.json",
+        "integrations/qs_server/evaluation/scale-reference-cap6/candidate-manifest.json"
+      ],
+      "verify": [
+        "pytest -q tests/test_scale_reference_cap6.py",
+        "python scripts/check_docs.py"
+      ],
+      "review_scope": "Candidate configuration and regression protection only; real provider evaluation, final review, activation and recovery pending"
     }
   ],
   "working_tree_review": "Reviewed released follow-up implementation at 82ffa1b; source_catalog hashes bind current sources. Dated production Actions metadata separately binds release, read-only structure and isolated rehearsal. Canonical runtime_status remains unknown outside that dated evidence; real business acceptance is not covered."
