@@ -280,6 +280,84 @@ def test_invalid_database_config_fails_before_ssh(monkeypatch):
         module.main()
 
 
+@pytest.mark.parametrize("action", ["deploy", "prepare", "rollback"])
+@pytest.mark.parametrize("preparation_fails", [False, True])
+def test_transport_prepares_before_handoff_and_never_deploys_after_failed_preflight(
+    monkeypatch, tmp_path, action, preparation_fails
+):
+    module = load("scripts/cd/deploy.py")
+    revision = "a" * 40
+    monkeypatch.setattr(
+        module.os,
+        "environ",
+        {
+            "DEPLOY_OPERATION": action,
+            "DEPLOY_SHA": revision,
+            "GITHUB_RUN_ID": "123",
+            "GITHUB_RUN_ATTEMPT": "1",
+            "SVRA_HOST": "servera.example",
+            "SVRA_USERNAME": "deploy",
+            "SVRA_SSH_KEY": "test-key",
+            "SVRA_HOST_PUBLIC_KEY": "ssh-ed25519 YWJj",
+            "ALIYUN_ACR_REGISTRY": "registry.test",
+            "ALIYUN_ACR_NAMESPACE": "test",
+            "IMAGE_DIGEST": "sha256:" + "a" * 64,
+            "RUNNER_TEMP": str(tmp_path),
+        },
+    )
+    monkeypatch.setattr(
+        module, "runtime_config", lambda _: {"services": {"qs-ai": {"environment": {}}}}
+    )
+    monkeypatch.setattr(module, "write_registry_auth", lambda *args: None)
+    monkeypatch.setattr(module, "pull_image", lambda *args: None)
+    monkeypatch.setattr(
+        module,
+        "export_image",
+        lambda alias, path, env: write_image_archive(path, revision, tags=[alias]),
+    )
+    config_id = (
+        "sha256:"
+        + hashlib.sha256(json.dumps(image_config(revision), sort_keys=True).encode()).hexdigest()
+    )
+    calls = []
+
+    def run(phase, args, **kwargs):
+        calls.append((phase, args))
+        if phase == "server identity":
+            return "serverA\n"
+        if phase == "image inspect":
+            return json.dumps([inspected_image({"revision": revision, "image_id": config_id})])
+        if phase == "remote preparation" and preparation_fails:
+            raise RuntimeError("image preflight failed")
+        return ""
+
+    monkeypatch.setattr(module, "run", run)
+    monkeypatch.setattr(module, "record_deployment", lambda *args: calls.append(("record", [])))
+    monkeypatch.setattr(
+        module, "record_preparation", lambda *args: calls.append(("prepared receipt", []))
+    )
+    if preparation_fails and action != "rollback":
+        with pytest.raises(RuntimeError, match="preflight"):
+            module.main()
+    else:
+        module.main()
+    phases = [phase for phase, _ in calls]
+    assert phases[-1] == "remove temporary script"
+    if action == "rollback":
+        assert "remote preparation" not in phases
+        assert "rollback" in phases
+    else:
+        assert phases.count("remote preparation") == 1
+        prepare_args = calls[phases.index("remote preparation")][1]
+        assert prepare_args[-1].endswith(f"prepare {revision}-123-1")
+        if preparation_fails or action == "prepare":
+            assert "remote deployment" not in phases
+            assert "record" not in phases
+        else:
+            assert phases.index("remote preparation") < phases.index("remote deployment")
+            assert phases.index("remote deployment") < phases.index("record")
+
+
 def test_registry_auth_is_private_and_does_not_use_host_keychain(tmp_path):
     import base64
 
