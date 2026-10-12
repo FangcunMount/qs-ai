@@ -1,0 +1,22 @@
+{
+  "status": "candidate-not-published",
+  "profile_fingerprint": "sha256:a1b0941671a0547832eccaa93a1a8b7798e24927feb1a5869f9874a98f5ab30d",
+  "profile_content_sha256": "a1b0941671a0547832eccaa93a1a8b7798e24927feb1a5869f9874a98f5ab30d",
+  "suite": {
+    "id": "cross-dimension-participant-scale-cap6-root",
+    "version": "v1",
+    "fingerprint": "sha256:a8e95bea9050ccab631881d5b8b4b8db51bd80c2be4eaac90bcd9ba17e146bb5"
+  },
+  "source_profile": {
+    "identity": "participant-scale-score-range-default",
+    "version": "v6",
+    "fingerprint": "sha256:cc747df0a6ae4b02b65b7447ce08845fa8c4e91b9d674f51ac25fbcbffd2a2a2",
+    "content_sha256": "cc747df0a6ae4b02b65b7447ce08845fa8c4e91b9d674f51ac25fbcbffd2a2a2"
+  },
+  "provider_calls_per_run": 35,
+  "total_evidence_refs_limit": 6,
+  "new_dimension_refs_bounds": [
+    2,
+    6
+  ]
+}

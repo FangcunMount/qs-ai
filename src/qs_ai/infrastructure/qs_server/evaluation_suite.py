@@ -24,6 +24,11 @@ V6_PUBLISHED = FrozenContractRef(
     "qs-ai-evaluation-cases/v1",
     "sha256:42afcc73db6fa272ab54aa17bcb9b30dc8797a382ee9329d9453aa9c9953e382",
 )
+CAP6_ROOT = FrozenContractRef(
+    "cross-dimension-participant-scale-cap6-root",
+    "v1",
+    "sha256:a8e95bea9050ccab631881d5b8b4b8db51bd80c2be4eaac90bcd9ba17e146bb5",
+)
 PUBLISHED_INPUT_VERSION = "qs-published-snapshot-v1"
 MBTI_ROOT = FrozenContractRef(
     "participant-mbti-single",
@@ -47,6 +52,7 @@ BASELINE_SUITE_FILES = {
     V6: "ai-explanation-prompt-evaluation-cases-v6.json",
 }
 SUITE_FILES = {
+    CAP6_ROOT: "scale-reference-cap6/suite-root-v1.json",
     V6_PUBLISHED: "qs-ai-published-input-cases-v1.json",
     MBTI_ROOT: "mbti/suite-v1.json",
     MBTI_THEMES_ROOT: "mbti-themes/suite-v1.json",

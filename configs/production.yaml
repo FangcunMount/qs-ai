@@ -10,7 +10,7 @@ grpc:
 participant_capacity:
   # UTC daily admission limits; existing reservations remain counted.
   daily_org: 1024
-  daily_user: 10
+  daily_user: 20
 evaluation:
   # serverA 2C/4G: keep foreground generation while serializing batch evaluation.
   concurrency: 1
