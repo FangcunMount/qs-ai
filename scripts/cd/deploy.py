@@ -170,9 +170,16 @@ def bind_messaging(runtime: dict, raw: str) -> None:
             "qs_recipient_key_file",
             "max_in_flight",
         }
+        provider = binding.get("provider", "nsq") if isinstance(binding, dict) else None
+        expected = (
+            fields
+            if provider == "nsq"
+            else ((fields - {"nsqd"}) | {"provider", "rocketmq", "publish_enabled"})
+        )
         if (
             not isinstance(binding, dict)
-            or set(binding) != fields
+            or provider not in {"nsq", "rocketmq"}
+            or set(binding) != expected
             or binding["enabled"] is not True
         ):
             raise ValueError
@@ -181,26 +188,27 @@ def bind_messaging(runtime: dict, raw: str) -> None:
             raise ValueError
         if type(binding["max_in_flight"]) is not int or binding["max_in_flight"] != 1:
             raise ValueError
-        sources = binding["nsqd"]
-        if not isinstance(sources, dict) or not 1 <= len(sources) <= 8:
-            raise ValueError
-        for tcp, http in sources.items():
-            if not isinstance(tcp, str) or not isinstance(http, str):
+        if provider == "nsq":
+            sources = binding["nsqd"]
+            if not isinstance(sources, dict) or not 1 <= len(sources) <= 8:
                 raise ValueError
-            if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9.-]*:[0-9]{1,5}", tcp):
-                raise ValueError
-            host, port = tcp.rsplit(":", 1)
-            endpoint = urlsplit(http)
-            if not 1 <= int(port) <= 65535 or endpoint.scheme not in {"http", "https"}:
-                raise ValueError
-            if (
-                endpoint.hostname != host.lower()
-                or not endpoint.port
-                or endpoint.path not in {"", "/"}
-            ):
-                raise ValueError
-            if endpoint.username or endpoint.password or endpoint.query or endpoint.fragment:
-                raise ValueError
+            for tcp, http in sources.items():
+                if not isinstance(tcp, str) or not isinstance(http, str):
+                    raise ValueError
+                if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9.-]*:[0-9]{1,5}", tcp):
+                    raise ValueError
+                host, port = tcp.rsplit(":", 1)
+                endpoint = urlsplit(http)
+                if not 1 <= int(port) <= 65535 or endpoint.scheme not in {"http", "https"}:
+                    raise ValueError
+                if (
+                    endpoint.hostname != host.lower()
+                    or not endpoint.port
+                    or endpoint.path not in {"", "/"}
+                ):
+                    raise ValueError
+                if endpoint.username or endpoint.password or endpoint.query or endpoint.fragment:
+                    raise ValueError
         paths = set()
 
         def key_path(path, role, expected=None):
@@ -224,6 +232,27 @@ def bind_messaging(runtime: dict, raw: str) -> None:
                 raise ValueError
             for kid, path in mapping.items():
                 key_path(path, role, kid)
+        rocketmq_paths = []
+        if provider == "rocketmq":
+            config = binding["rocketmq"]
+            if (
+                not isinstance(config, dict)
+                or set(config) != {"endpoint", "credentials_file", "ca_file", "routes_file"}
+                or type(binding["publish_enabled"]) is not bool
+            ):
+                raise ValueError
+            if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9.-]*:[0-9]{1,5}", config["endpoint"]):
+                raise ValueError
+            if not 1 <= int(config["endpoint"].rsplit(":", 1)[1]) <= 65535:
+                raise ValueError
+            for field, filename in (
+                ("credentials_file", "credentials.json"),
+                ("ca_file", "ca.crt"),
+                ("routes_file", "routes.json"),
+            ):
+                if config[field] != "/run/qs-ai-rocketmq/" + filename:
+                    raise ValueError
+                rocketmq_paths.append(config[field])
         service = runtime["services"]["qs-ai"]
         service["environment"]["QS_AI_MESSAGING"] = json.dumps(binding, sort_keys=True)
         service["volumes"] = [
@@ -239,6 +268,23 @@ def bind_messaging(runtime: dict, raw: str) -> None:
             }
             for path in sorted(paths)
         ]
+        if rocketmq_paths:
+            service["environment"]["GRPC_DEFAULT_SSL_ROOTS_FILE_PATH"] = binding["rocketmq"][
+                "ca_file"
+            ]
+            service["volumes"].extend(
+                {
+                    "type": "bind",
+                    "source": "/data/infra/qs-ai-messaging/versions/"
+                    + revision
+                    + "/rocketmq/"
+                    + path.rsplit("/", 1)[1],
+                    "target": path,
+                    "read_only": True,
+                    "bind": {"create_host_path": False},
+                }
+                for path in rocketmq_paths
+            )
     except (ValueError, TypeError, KeyError, AttributeError):
         raise ValueError("Invalid reviewed MQ deployment binding; contents withheld") from None
 

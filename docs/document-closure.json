@@ -1,7 +1,7 @@
 {
   "schema_version": "qs-ai-document-closure/v1",
   "source_commit": "82ffa1b43308f23fbb1ebe669c3071e0486e105a",
-  "reviewed_on": "2026-10-12",
+  "reviewed_on": "2026-10-18",
   "authority": "runtime composition > code > machine contracts/config/migrations > scoped tests > maintained prose > dated evidence/plans/archive",
   "source_catalog": {
     ".github/workflows/ai-messaging.yml": "2dddb3ffeb66a49967fb2019709829065365464b1833a51f72f34331ef38aabe",
@@ -64,9 +64,9 @@
     "migrations/versions/0038_messaging_observations.py": "052520bdf81107128872608ca20d5ab2a37773677160aa6d96ce94e22dd63882",
     "migrations/versions/0039_data_consolidation.py": "b9d27aab1ae323afc150df07a2bed3c21c4d4978f1262c4e178e37e16bcd5f93",
     "migrations/versions/0040_module_table_names.py": "4c4ab3cdc7b871b5d3e0577ead40be96ee5ebfb568ef84acc712cd58b2ab32e9",
-    "pyproject.toml": "68a1413d91177046ba7ac707e374170923596e68269248e064cc86633c01e731",
+    "pyproject.toml": "90d3e8922f0b4a8525aea6456d9897ca5da51970325a86af2ee9c32cee772a96",
     "scripts/cd/IMAGE_RETENTION.md": "2e525760370df1c5b4238fea5ee707deb492b0f7c2851517d3cdc3dee8feb5d3",
-    "scripts/cd/deploy.py": "9bc7547247f414435905b52a1370fbdaa8c8d233d98909fe63f24e5acad345c8",
+    "scripts/cd/deploy.py": "8678cbedc4b4aa4e410027c713d31426d03d7e5765443878203f320a282116cb",
     "scripts/cd/deploy_scope.py": "fec48f82798101688b26459169b3808b08cf8610b5fd5e3fcdacb86cddf1bbc5",
     "scripts/cd/image-retention.py": "83ad105c86e930d73666dad4d33178b16a5456fc3c25e5af7a782608298ed2f1",
     "scripts/check_docs.py": "5df5021a4fba59d6e0710eb9e6e07b15a03bd191d6a0856637f84da49a63b24d",
@@ -118,7 +118,7 @@
     "src/qs_ai/bootstrap/import_evaluation_suites.py": "585f86b5fe3cf3b06af44310a0dbcaec6cb459c8240f6c051de1c04968ec748a",
     "src/qs_ai/bootstrap/import_mbti_assets.py": "7ede442a5243aaf65f07c66cbb00837c9f1a91eac3efd0ad57e04ecfbd75b945",
     "src/qs_ai/bootstrap/lifecycle.py": "27326c4629c3a3b5a57e75270df1c97a6e53f5db700fff62b07c8bc8f1736131",
-    "src/qs_ai/bootstrap/messaging.py": "6c60b4e2e40476893ffb295ffbc8f51c59f26c0de9cd0c8c936e1d920349c9e8",
+    "src/qs_ai/bootstrap/messaging.py": "7564b5a18151d177ba7d4353dec344255444af76e10a6bfcfb7e01d91c3576fd",
     "src/qs_ai/bootstrap/observe_cutover.py": "69d46c370fad5ef7beb79cd849b88071fbf7283f30ead72f743f05488d00e694",
     "src/qs_ai/bootstrap/providers/core.py": "9b7de165e256ccd51e7eadb6a0597492a4de536461fde40ef7700ec575fad9b8",
     "src/qs_ai/bootstrap/providers/evaluation.py": "cad681366c73be2e0ee7d4d20974949b42bc3126f176dfc780f7a5486bfc7f72",
@@ -127,7 +127,7 @@
     "src/qs_ai/bootstrap/recover_semantic_contract.py": "93df69c43e614c4b706f73c16fb561211c6093bc72f3eba834bcef1f504c6971",
     "src/qs_ai/bootstrap/server.py": "669f6ff8fd603776f6e5ed92fe2501cc32a782ad51a07fb79d2da8758b63e290",
     "src/qs_ai/bootstrap/worker.py": "29966dfbe8b01e6ea0b9bc4d60ec653d2b51e3310ee81906ae0c9f8a087f208b",
-    "src/qs_ai/config.py": "fe5448a5ec046f23fc3d5191025c90061ba56d86a93e8c1cb69d94c97a994fb5",
+    "src/qs_ai/config.py": "64a3b58823e920833e85934aa90f073aa47c123522f245fe37f20abfb39cfe90",
     "src/qs_ai/domain/evaluation/acceptance.py": "5f4a570cbc81996e555baf5844e1a30294dd91408ffe4af924c5afe5e24ffda0",
     "src/qs_ai/domain/evaluation/actions.py": "d70c5b90f3c2fc0868a1637e91a24d0767a46140503ed965f72460ecb56b3a64",
     "src/qs_ai/domain/evaluation/adjudication.py": "2c3fa1335d75fe13e76e7c38833a55b9a692610892dc899205bbf3ee28729ec7",
@@ -231,9 +231,9 @@
     "src/qs_ai/infrastructure/qs_server/responses.py": "1986e00da62f9bef7871a7a6961eca1cc3ca4cad0c29aa0390d5324a3eece480",
     "src/qs_ai/infrastructure/workflow_transport/command_admission.py": "13a34cd955cdbea2e3473488cc6ab815403ac72f2177ce0ef519a433b0537ecb",
     "src/qs_ai/infrastructure/workflow_transport/messaging.py": "e5e0a567bd1df79dd68a166ef9d0f6aee992e9d0b6e7510a2d669185aacb3d02",
-    "src/qs_ai/infrastructure/workflow_transport/mq_failure.py": "b8c29df90e457d5785ed378dcdf556849ff188e85d5307f1a7c11803e3002304",
-    "src/qs_ai/infrastructure/workflow_transport/mq_receiver.py": "02c74724f10c05e34b0e8974087dd95fafa84992611a53a16599af10b1f29b19",
-    "src/qs_ai/infrastructure/workflow_transport/mq_relay.py": "99786862e6f4939fe61adba2a5f411a0a617d0aa62bcd4381ad024f2eebb294f",
+    "src/qs_ai/infrastructure/workflow_transport/mq_failure.py": "85a0b4d25ad3e42455a1b6070a97eb340312adcdb4e7e51dd5b04939cb3ba360",
+    "src/qs_ai/infrastructure/workflow_transport/mq_receiver.py": "0379b49b22490544c31f793ac6ebda616cc3a8a68ef58a598649c27b94e7f43f",
+    "src/qs_ai/infrastructure/workflow_transport/mq_relay.py": "33272bbdb4448a66507e881b13b55569c1dfdd7b00fea440242cae1a2c7f6577",
     "src/qs_ai/infrastructure/workflow_transport/payloads.py": "b53f2af97ac75210c2ad92e4f16fdb8b407f626f0b123f42e3c345e17f203fbf",
     "src/qs_ai/infrastructure/workflow_transport/state_events.py": "819d544ebb056b2e39b966d78ebace26d2c370afb97641f4526ca3414568fc4e",
     "src/qs_ai/infrastructure/workflows/evaluation.py": "c486a1ed56e2399af6065b2113a7c91d25441f79f197555c14edbcea2e7c954a",
@@ -438,7 +438,7 @@
     "tests/test_solutions.py": "e60f73b854d4816bfe06d6cfeff1c783572c3348f7f0e265d4dc3d0a602b37f3",
     "tests/test_structured_logging.py": "01ad0070c167faf7bb0cccd6d507a9debb5880b59a30cd49381dcd943073d17e",
     "tests/test_worker_frozen_evidence.py": "a279da8e3371901f60a08e200f6ce91438304332c980d2bf591fb2ec0aa108e9",
-    "uv.lock": "051182371d03ae7d5f3e91ee87c85e94651b726c3cc4015dcc198625a07dce00",
+    "uv.lock": "faf5914555bde127ff2844162cb24e271992ba8fb0c648574b869829cc20dc1f",
     ".github/workflows/schema-maintenance.yml": "24699269bd60cac98c41b210c04783cbf36056feb10848e462e1750f020b5e44",
     "scripts/cd/schema_maintenance.py": "9a9540ad4f7a840e204cd98aa76a378e626e700ee210fe544a09d329d4be7726",
     "deploy/serverA/schema_maintenance.py": "0d064a9814aae8cf7c20dabb3efc2dca19ab87e8477bb21472cd494e84b744b5",
@@ -497,7 +497,9 @@
     "tests/test_semantic_input.py": "0da1e087cf7d02f4e40ad1ebb2b2b5767d8e858b9c3a25f52f0868b8883a3ac0",
     "tests/test_semantic_output.py": "e6c23f93b1ed60503f2ef52d7fdb91707b573f0b1b8bce56975635e85de5912f",
     "tests/test_evaluation_review_correction.py": "77b33ee426167a97a33c857a62be2d5b8ff32fbdc5c97c7349469b97b0082a88",
-    "tests/test_evaluation_finalization.py": "880e3a5b22e0b4b2b371b436c16a3d38a193ba5fc5eedf4dc322ae7996ccd823"
+    "tests/test_evaluation_finalization.py": "880e3a5b22e0b4b2b371b436c16a3d38a193ba5fc5eedf4dc322ae7996ccd823",
+    "tests/test_rocketmq_binding.py": "a9344faa786f3886b2462a2ab46370d13f363d5af28cafe927133e46e32c8203",
+    "src/qs_ai/maintenance/messaging_preflight.py": "9e24b06fc9ffc6af52fbbf2a017dfa60c6407ed0b987e23df673916969455bc5"
   },
   "documents": [
     {
@@ -1564,7 +1566,9 @@
         "tests/test_messaging_runtime.py",
         "tests/test_mq_contract.py",
         "tests/test_mq_deployment.py",
-        "tests/test_mq_failure.py"
+        "tests/test_mq_failure.py",
+        "tests/test_rocketmq_binding.py",
+        "src/qs_ai/maintenance/messaging_preflight.py"
       ],
       "verify": [
         "python scripts/check_docs.py",
@@ -2751,5 +2755,5 @@
       "review_scope": "2026-10-12: governance flow reviewed at 7c71d1e95500aa20c3d82f57a7304578c8a794dd. Traced workspace/atomic freeze/requested Run versus protected MQ Start; fixed candidate slots and budgets; structural candidate acceptance versus retained deterministic failures; LLM semantic obligations and original response evidence; G1-G5, versioned acceptance, two-role accountability and Finalize/reopening/correction limits; publication evidence recomputation, global selector, pointer CAS, rollback/disable, receipts and original participant bindings. Source and local rules only; deployed enablement, real model quality, actual human approval and shared pointer activation unknown."
     }
   ],
-  "working_tree_review": "Reviewed released follow-up implementation at 82ffa1b; source_catalog hashes bind current sources. Dated production Actions metadata separately binds release, read-only structure and isolated rehearsal. Canonical runtime_status remains unknown outside that dated evidence; real business acceptance is not covered."
+  "working_tree_review": "RocketMQ ordinary provider bindings and fixed wheel reviewed; original execution, recovery and receipt policies preserved; production acceptance remains independent."
 }

@@ -6,9 +6,9 @@ from uuid import uuid4
 
 import grpc
 from reliable_messaging.durable import MessageConflict
-from reliable_messaging.nsq import Received
 from reliable_messaging.protected import ProtectionError, TrustedSigner
 from reliable_messaging.sqlalchemy import bind
+from reliable_messaging.transport import Received
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from qs_ai.contracts.workflow import messaging_pb2 as pb

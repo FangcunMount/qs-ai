@@ -5,6 +5,7 @@ import json
 from collections.abc import Mapping
 from urllib.parse import urlencode, urlsplit
 
+from reliable_messaging.transport import physical_topic
 from reliable_messaging.wire import FAILED_CHANNEL, FAILED_TYPE, Envelope, encode, failed_topic
 from tornado.httpclient import AsyncHTTPClient, HTTPRequest
 
@@ -23,8 +24,12 @@ def failed_original(wire: bytes, topic: str) -> bytes:
         value = json.loads(wire)
         if (
             not isinstance(value, dict)
-            or value.get("type") != FAILED_TYPE
-            or value.get("provider") != "nsq"
+            or (value.get("type"), value.get("provider"))
+            not in {(FAILED_TYPE, "nsq"), ("reliable-messaging.failed.v1", "rocketmq")}
+            or (
+                value.get("provider") == "rocketmq"
+                and value.get("physical_topic") != physical_topic(topic)
+            )
             or value.get("topic") != topic
             or value.get("channel") != CHANNELS[topic]
             or not isinstance(value.get("uuid"), str)

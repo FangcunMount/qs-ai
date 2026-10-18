@@ -120,7 +120,17 @@ class DeliveryOptions(LoopOptions):
     max_retry_seconds: int = Field(ge=1, le=86400)
 
 
+class RocketMQOptions(Options):
+    endpoint: str = Field(min_length=1)
+    credentials_file: str = Field(min_length=1)
+    ca_file: str = Field(min_length=1)
+    routes_file: str = Field(min_length=1)
+
+
 class MessagingOptions(Options):
+    provider: Literal["nsq", "rocketmq"] = "nsq"
+    rocketmq: RocketMQOptions | None = None
+    publish_enabled: bool = True
     enabled: bool = False
     # Direct, explicitly mapped NSQD sources. No guessed HTTP port or discovery loop.
     nsqd: dict[str, str] = Field(default_factory=dict, max_length=8)
@@ -134,7 +144,7 @@ class MessagingOptions(Options):
     def complete(self) -> "MessagingOptions":
         if self.enabled and not all(
             (
-                self.nsqd,
+                self.nsqd if self.provider == "nsq" else self.rocketmq,
                 self.signing_key_file,
                 self.decrypt_key_files,
                 self.qs_signer_files,
