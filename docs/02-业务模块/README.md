@@ -13,6 +13,8 @@
 
 | 当前任务 | 推荐路线 |
 | --- | --- |
+| 理解配置测试、审核与发布的治理流程 | [AI 治理流程](governance/03-AI治理配置测试审核与发布流程.md) → 按问题深入治理、评测和发布正文 |
+| 理解准备、LLM 生成、检查验收的内部设计 | [接单到生成与检查流程](interpretation/06-接单到生成与检查流程.md) → [解读设计](interpretation/01-解读冻结输入与成果设计.md) |
 | 接入报告页的 AI 功能 | [报告 AI 预检](interpretation/04-报告AI能力预检契约.md) → [QS 接入](../04-接口与运维/02-QS接入与消息契约.md) → [解读设计](interpretation/01-解读冻结输入与成果设计.md) |
 | 维护量表输入、输出或原响应恢复 | [解读设计](interpretation/01-解读冻结输入与成果设计.md) → [量表兼容](interpretation/05-量表兼容与回执重建.md) |
 | 维护 MBTI 事实、三主题文案或参考包 | [MBTI 事实与版本](interpretation/02-MBTI报告事实与版本契约.md) → [三主题与参考材料](interpretation/03-MBTI三主题与参考材料契约.md)；变更配置再进入治理链 |
