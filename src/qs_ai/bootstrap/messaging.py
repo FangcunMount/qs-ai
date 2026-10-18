@@ -1,6 +1,8 @@
 """Explicit embedded MQ assembly on the unified application's loop and database."""
 
 import asyncio
+import json
+import os
 from contextlib import AsyncExitStack
 from pathlib import Path
 from typing import Any
@@ -9,6 +11,14 @@ from dishka import AsyncContainer
 from jwcrypto import jwk  # type: ignore[import-untyped]
 from reliable_messaging.nsq import NSQPublisher, NSQSubscriber
 from reliable_messaging.protected import TrustedSigner
+from reliable_messaging.rocketmq import (
+    Config as RocketMQConfig,
+)
+from reliable_messaging.rocketmq import (
+    RocketMQPublisher,
+    RocketMQSubscriber,
+)
+from reliable_messaging.transport import Publisher, RouteBinding, Subscriber
 from sqlalchemy import text
 from tornado.httpclient import AsyncHTTPClient
 
@@ -26,7 +36,7 @@ from qs_ai.infrastructure.persistence.mysql.messaging import MessagingStore
 from qs_ai.infrastructure.persistence.mysql.messaging_observations import require_recording_schema
 from qs_ai.infrastructure.qs_server.report_probe import mtls_channel
 from qs_ai.infrastructure.workflow_transport.command_admission import WorkflowCommandAdmission
-from qs_ai.infrastructure.workflow_transport.messaging import ACKS, CHANNELS, COMMANDS
+from qs_ai.infrastructure.workflow_transport.messaging import ACKS, CHANNELS, COMMANDS, EVENTS
 from qs_ai.infrastructure.workflow_transport.mq_failure import FailureTopology
 from qs_ai.infrastructure.workflow_transport.mq_receiver import CommandReceiver
 from qs_ai.infrastructure.workflow_transport.mq_relay import MQRelay
@@ -63,8 +73,9 @@ class MessagingRuntime:
 
     def __init__(self) -> None:
         self.resources = AsyncExitStack()
-        self.publishers: dict[str, NSQPublisher] = {}
-        self.subscribers: list[NSQSubscriber] = []
+        self.publish_enabled = True
+        self.publishers: dict[str, Publisher] = {}
+        self.subscribers: list[Subscriber] = []
         self.publishers_started: set[str] = set()
         self.publisher_ready = asyncio.Event()
         self.database: Database | None = None
@@ -77,6 +88,7 @@ class MessagingRuntime:
         runtime = cls()
         try:
             options = settings.messaging
+            runtime.publish_enabled = options.publish_enabled
             if not options.enabled or not settings.grpc.access_address:
                 raise ValueError("MQ requires the configured QS mTLS payload endpoint")
             assert options.signing_key_file and options.qs_recipient_key_file
@@ -129,28 +141,55 @@ class MessagingRuntime:
                 signing_key=signing,
                 qs_recipient_key=recipient,
             )
-            runtime.http = AsyncHTTPClient(force_instance=True)
-            topology = FailureTopology(options.nsqd, runtime.http, (COMMANDS, ACKS))
-            runtime.publishers = {address: NSQPublisher(address) for address in options.nsqd}
-            for topic, handler, failed in (
-                (COMMANDS, receiver.receive_command, receiver.failed_command),
-                (ACKS, receiver.receive_ack, receiver.failed_ack),
-            ):
-                runtime.subscribers.append(
-                    NSQSubscriber(
-                        topic,
-                        CHANNELS[topic],
-                        publishers=runtime.publishers,
-                        handler=handler,
-                        failed_handler=failed,
-                        invalid_handler=receiver.invalid_wire,
-                        failure_ready=topology,
-                        max_attempts=8,
-                        max_in_flight=options.max_in_flight,
+            if options.provider == "rocketmq":
+                assert options.rocketmq is not None
+                if os.environ.get("GRPC_DEFAULT_SSL_ROOTS_FILE_PATH") != options.rocketmq.ca_file:
+                    raise ValueError(
+                        "RocketMQ requires its explicit CA environment before process startup"
                     )
-                )
+                config = await asyncio.to_thread(read_rocketmq_config, options)
+                runtime.publishers = {config.endpoint: RocketMQPublisher(config)}
+                for topic, handler, failed in (
+                    (COMMANDS, receiver.receive_command, receiver.failed_command),
+                    (ACKS, receiver.receive_ack, receiver.failed_ack),
+                ):
+                    runtime.subscribers.append(
+                        RocketMQSubscriber(
+                            config,
+                            topic,
+                            CHANNELS[topic],
+                            handler=handler,
+                            failed_handler=failed,
+                            invalid_handler=receiver.invalid_wire,
+                            max_attempts=8,
+                        )
+                    )
+            else:
+                runtime.http = AsyncHTTPClient(force_instance=True)
+                topology = FailureTopology(options.nsqd, runtime.http, (COMMANDS, ACKS))
+                nsq_publishers = {address: NSQPublisher(address) for address in options.nsqd}
+                runtime.publishers = dict(nsq_publishers)
+                for topic, handler, failed in (
+                    (COMMANDS, receiver.receive_command, receiver.failed_command),
+                    (ACKS, receiver.receive_ack, receiver.failed_ack),
+                ):
+                    runtime.subscribers.append(
+                        NSQSubscriber(
+                            topic,
+                            CHANNELS[topic],
+                            publishers=nsq_publishers,
+                            handler=handler,
+                            failed_handler=failed,
+                            invalid_handler=receiver.invalid_wire,
+                            failure_ready=topology,
+                            max_attempts=8,
+                            max_in_flight=options.max_in_flight,
+                        )
+                    )
             runtime.tx = tx
-            runtime.relay = MQRelay(tx, store, runtime.publishers, address=next(iter(options.nsqd)))
+            runtime.relay = MQRelay(
+                tx, store, runtime.publishers, address=next(iter(runtime.publishers))
+            )
             runtime.payloads = MessagePayloads(MySQLPayloadAccess(tx, store))
             return runtime
         except BaseException:
@@ -161,14 +200,14 @@ class MessagingRuntime:
         result: list[Component] = []
         for index, (address, publisher) in enumerate(self.publishers.items()):
 
-            async def run(address: str = address, publisher: NSQPublisher = publisher) -> None:
+            async def run(address: str = address, publisher: Publisher = publisher) -> None:
                 await publisher.start()
                 self.publishers_started.add(address)
                 if len(self.publishers_started) == len(self.publishers):
                     self.publisher_ready.set()
                 await publisher.wait()
 
-            async def halt(publisher: NSQPublisher = publisher) -> None:
+            async def halt(publisher: Publisher = publisher) -> None:
                 # Business drains may still require receipts and failure handoff PUBs.
                 await asyncio.gather(
                     *(
@@ -196,14 +235,14 @@ class MessagingRuntime:
             started = asyncio.Event()
 
             async def consume(
-                subscriber: NSQSubscriber = subscriber, started: asyncio.Event = started
+                subscriber: Subscriber = subscriber, started: asyncio.Event = started
             ) -> None:
                 await self.publisher_ready.wait()
                 await subscriber.start()
                 started.set()
                 await subscriber.wait()
 
-            async def halt_subscriber(subscriber: NSQSubscriber = subscriber) -> None:
+            async def halt_subscriber(subscriber: Subscriber = subscriber) -> None:
                 await subscriber.stop(grace_seconds=drain_seconds)
 
             result.append(
@@ -218,7 +257,7 @@ class MessagingRuntime:
         return result
 
     async def step(self) -> int:
-        if not self.publisher_ready.is_set():
+        if not self.publish_enabled or not self.publisher_ready.is_set():
             return 0  # Starting/stopping publisher cannot reject or hold durable results.
         # Historical ownership moves only through an explicitly reviewed handoff.
         # New state events are already staged on their original business transaction.
@@ -235,3 +274,27 @@ class MessagingRuntime:
         await self.resources.aclose()
         if self.database is not None:
             self.database.state_events = None
+
+
+def read_rocketmq_config(options: Any) -> RocketMQConfig:
+    """Read host-owned private files; SDK constructors never discover them."""
+    config = options.rocketmq
+    account = json.loads(Path(config.credentials_file).read_text())
+    manifest = json.loads(Path(config.routes_file).read_text())
+    if manifest.get("version") != 1:
+        raise ValueError("RocketMQ route manifest version1 required")
+    allowed = {"topic", "subscription", "physical_topic", "consumer_group"}
+    routes = tuple(
+        RouteBinding(**{k: v for k, v in r.items() if k in allowed})
+        for r in manifest["routes"]
+        if r["topic"] in {COMMANDS, ACKS, EVENTS}
+    )
+    if {r.topic for r in routes} != {COMMANDS, ACKS, EVENTS}:
+        raise ValueError("RocketMQ manifest missing required workflow topics")
+    return RocketMQConfig(
+        config.endpoint,
+        account["username"],
+        account["password"],
+        routes,
+        max_in_flight=options.max_in_flight,
+    )

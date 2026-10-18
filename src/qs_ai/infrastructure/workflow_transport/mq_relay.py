@@ -5,7 +5,7 @@ from collections.abc import Mapping
 
 from reliable_messaging.delivery import Confirmation, Outcome
 from reliable_messaging.durable import Identity
-from reliable_messaging.nsq import NSQPublisher
+from reliable_messaging.transport import Publisher
 
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
 from qs_ai.infrastructure.persistence.mysql.messaging import MessagingStore
@@ -16,12 +16,12 @@ class MQRelay:
         self,
         transactions: Transactions,
         store: MessagingStore,
-        publishers: Mapping[str, NSQPublisher],
+        publishers: Mapping[str, Publisher],
         *,
         address: str,
     ) -> None:
         if address not in publishers:
-            raise ValueError("configured original NSQD publisher required")
+            raise ValueError("configured original broker publisher required")
         self.transactions, self.store = transactions, store
         self.publisher = publishers[address]  # borrowed, host owns start/stop
         self._gate = asyncio.Lock()

@@ -1,12 +1,20 @@
 # 消息接单、Outbox 与业务确认
 
-qs-ai 通过消息受理命令，把可见状态和成果作为持久事件交给 QS。一次本地提交证明“业务效果与待发消息同时存在”；NSQ PUB 成功证明 Broker 接收；QS 对原事件返回 `STORED` 才证明其接收事务完成。这三个完成点分别有记录，不能合并成一个“发送成功”。
+qs-ai 通过消息受理命令，把可见状态和成果作为持久事件交给 QS。一次本地提交证明“业务效果与待发消息同时存在”；Broker 的发布确认成功证明 Broker 接收；QS 对原事件返回 `STORED` 才证明其接收事务完成。这三个完成点分别有记录，不能合并成一个“发送成功”。
 
-本文以一次 Start 产生 Session、最终形成 Artifact 并交付 QS 为主线。核对基线：qs-ai `d9c3155`，QS `2ccc2de44`，2026-10-06。qs-ai 固定依赖 `fangcun-reliable-messaging[nsq]==0.2.0a2`；SDK 机制核对该发布标签的源码，测试、部署与真实业务接收仍是独立证据。
+本文以一次 Start 产生 Session、最终形成 Artifact 并交付 QS 为主线。核对基线：qs-ai `d9c3155`，QS `2ccc2de44`，2026-10-06。qs-ai 固定依赖 `fangcun-reliable-messaging[nsq,rocketmq]==0.3.0a1`；SDK 机制核对该发布标签的源码，测试、部署与真实业务接收仍是独立证据。
+
+## RocketMQ 普通消息
+
+`messaging.provider=rocketmq` 显式选择普通消息；默认仍为 `nsq`。RocketMQ endpoint、私有凭据、CA 与 version1 逻辑/物理路由清单由宿主冻结并只读挂载到 `/run/qs-ai-rocketmq/`。Python 的 `GRPC_DEFAULT_SSL_ROOTS_FILE_PATH` 必须在进程启动前绑定同一 CA。Docker 部署脚本与离线 preflight 校验路径、权限、内容摘要与路由，SDK 不发现生产配置或创建资源。
+
+运行时复用当前应用循环和数据库，SDK 在显式 start 时创建客户端及有界 blocking-driver executor。客户端实际取得路由和服务端 settings 后才报告启动完成。普通消息不会改变原命令 Inbox、Outbox、本地事务、业务回执、冻结配置和 unknown 模型调用的恢复规则。`publish_enabled=false` 在 Relay 扫描前暂停，避免维护期间消耗发布预算。
+
+RocketMQ 终态交接携带 provider、原始 Wire 和实际物理来源，宿主仍先验证受保护的原命令或 ACK，再提交原持久失败记录，成功后才允许消费 ACK。NSQ 的 failure topic 中转只用于 NSQ 分支。当前没有事务消息，发布型 Outbox 继续存在。源码与测试通过不代表生产已经切换，生产版本、有效绑定和 `system` 账号业务验收需独立记录。
 
 ## 当前服务怎样装配这条链路
 
-统一入口 `bootstrap.server.serve()` 要求 `messaging.enabled=true`；缺少时直接启动失败。配置模型的默认值仍为 false，意味着调用方必须显式绑定 NSQ、JOSE 密钥和 QS mTLS 载荷端点，不会自动启用开发传输。旧 `bootstrap.integration` 入口已经退役，当前没有并行运行的 gRPC 结果扫描器。
+统一入口 `bootstrap.server.serve()` 要求 `messaging.enabled=true`；缺少时直接启动失败。配置模型的默认值仍为 false，意味着调用方必须显式绑定所选 Broker、JOSE 密钥和 QS mTLS 载荷端点，不会自动启用开发传输。旧 `bootstrap.integration` 入口已经退役，当前没有并行运行的 gRPC 结果扫描器。
 
 `MessagingRuntime.create()` 取得应用的 `Database`，创建一个使用该池的 `Transactions`，先在只读一致快照中检查必需的技术观测表及类别，再安装 `database.state_events`。随后装配命令 receiver、两个订阅器、Publisher、载荷端点及一个 MQRelay。资源由宿主生命周期启动和关闭：
 

@@ -5,13 +5,33 @@ import os
 import stat
 from pathlib import Path
 
-from qs_ai.bootstrap.messaging import read_key
+from qs_ai.bootstrap.messaging import read_key, read_rocketmq_config
 from qs_ai.config import MessagingOptions
 
 
 def check_keys(options: MessagingOptions) -> None:
     if not options.enabled:
         return
+    if options.provider == "rocketmq":
+        assert options.rocketmq is not None
+        config = options.rocketmq
+        for filename in (config.credentials_file, config.ca_file, config.routes_file):
+            path = Path(filename)
+            info = path.stat()
+            if (
+                not stat.S_ISREG(info.st_mode)
+                or not 0 < info.st_size <= 1048576
+                or info.st_mode & 0o022
+            ):
+                raise ValueError("RocketMQ file preflight failed")
+            if filename == config.credentials_file and info.st_mode & 0o007:
+                raise ValueError("RocketMQ credentials must not be world-readable")
+        if os.environ.get("GRPC_DEFAULT_SSL_ROOTS_FILE_PATH") != config.ca_file:
+            raise ValueError("RocketMQ CA must be configured before startup")
+        import ssl
+
+        ssl.create_default_context(cafile=config.ca_file)
+        read_rocketmq_config(options)
     assert options.signing_key_file and options.qs_recipient_key_file
     entries = [
         (options.signing_key_file, True, "sig", None),

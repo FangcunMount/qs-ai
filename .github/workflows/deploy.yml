@@ -4,7 +4,7 @@ on:
     inputs:
       operation:
         type: choice
-        options: [deploy, rollback]
+        options: [deploy, rollback, build]
         default: deploy
       revision:
         description: 'Full main commit SHA; empty selects this workflow commit'
@@ -88,10 +88,31 @@ jobs:
           labels: org.opencontainers.image.revision=${{ needs.gate.outputs.revision }}
           cache-from: type=gha,scope=qs-ai
           cache-to: type=gha,mode=max,scope=qs-ai
+      - name: Record candidate image without claiming deployment
+        env:
+          REVISION: ${{ needs.gate.outputs.revision }}
+          IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          Path('image-receipt.json').write_text(json.dumps({
+              'source_sha': os.environ['REVISION'],
+              'image_digest': os.environ['IMAGE_DIGEST'],
+              'status': 'build_completed',
+              'deployment_verified': False,
+          }, indent=2) + '\n')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: qs-ai-image-${{ needs.gate.outputs.revision }}
+          path: image-receipt.json
+          if-no-files-found: error
+          retention-days: 90
   deploy:
     needs: [gate, build]
     if: >-
-      always() && needs.gate.result == 'success' && needs.gate.outputs.deploy == 'true' &&
+      always() && inputs.operation != 'build' && needs.gate.result == 'success' && needs.gate.outputs.deploy == 'true' &&
       (needs.build.result == 'success' ||
        (inputs.operation == 'rollback' && needs.build.result == 'skipped'))
     runs-on:
