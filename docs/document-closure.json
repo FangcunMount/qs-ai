@@ -6,7 +6,7 @@
   "source_catalog": {
     ".github/workflows/ai-messaging.yml": "2dddb3ffeb66a49967fb2019709829065365464b1833a51f72f34331ef38aabe",
     ".github/workflows/ci.yml": "1f4f3a3248b94797649812596f9f09fbb51f983aeaa14347fa75a5ca1e931a97",
-    ".github/workflows/deploy.yml": "f654a95aa4371e0aae36e9bf41db5fa586f7b8dc497768cb2b219e77781fe087",
+    ".github/workflows/deploy.yml": "255757cfb3cfc05050cf2f3e899368d6ce40c02fc8bd41b89fc94e6f989ecb23",
     ".github/workflows/m7-messaging.yml": "6dbe883cc556a287bac8807e90c0879afcf1212ff0db05a963e53dcf535168e8",
     "Dockerfile": "a228b397109b1627bee2c2cb66b3d33d3a2c7d4238a726c5b7e1a61503accf8a",
     "compose.yaml": "07e882533006901f3cda4f3cf2449ee34b20af0cde75cceb1ea9b84699755206",
