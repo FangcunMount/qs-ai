@@ -262,12 +262,87 @@ def require_schema(
     column_collations: contracts.ColumnCollations | None = None,
     allow_external_incoming: bool = False,
 ) -> None:
+    _require_layout(
+        conn,
+        head,
+        schema,
+        column_collations=column_collations,
+        allow_external_incoming=allow_external_incoming,
+    )
+
+
+def require_runtime_schema(conn: Connection) -> None:
+    """Validate fixed 0041 runtime without changing frozen conversion layouts."""
+    from qs_ai.infrastructure.persistence.mysql.transaction_schema import metadata
+
+    schema = str(conn.scalar(sa.text("SELECT DATABASE()")))
+    _require_layout(
+        conn,
+        NEW_HEAD,
+        schema,
+        expected_head="0041_transaction_messaging",
+        extensions=metadata,
+    )
+    inspector = sa.inspect(conn)
+    for table in metadata.tables.values():
+        columns = {
+            column["name"]: column for column in inspector.get_columns(table.name, schema=schema)
+        }
+        if set(columns) != set(table.c.keys()):
+            raise ValueError("Transaction column set drift")
+        for expected in table.c:
+            actual = columns[expected.name]
+            clause = expected.server_default
+            if clause is not None and not isinstance(clause, sa.DefaultClause):
+                raise ValueError("Unsupported transaction default contract")
+            default = None if clause is None else str(clause.arg)
+            if isinstance(expected.type, sa.Boolean) and default is not None:
+                default = "0"
+            if (
+                _type(str(actual["type"].compile(dialect=conn.dialect)))
+                != _type(str(expected.type.compile(dialect=conn.dialect)))
+                or actual["nullable"] != expected.nullable
+                or _default(actual.get("default")) != _default(default)
+                or actual.get("computed")
+            ):
+                raise ValueError("Transaction column definition drift")
+        if inspector.get_pk_constraint(table.name, schema=schema)["constrained_columns"] != [
+            c.name for c in table.primary_key
+        ]:
+            raise ValueError("Transaction primary key drift")
+        actual_indexes = {
+            i["name"]: (i["column_names"], bool(i["unique"]))
+            for i in inspector.get_indexes(table.name, schema=schema)
+        }
+        expected_indexes = {
+            i.name: ([c.name for c in i.columns], bool(i.unique)) for i in table.indexes
+        }
+        if actual_indexes != expected_indexes:
+            raise ValueError("Transaction index drift")
+        if inspector.get_foreign_keys(table.name, schema=schema) or inspector.get_check_constraints(
+            table.name, schema=schema
+        ):
+            raise ValueError("Unexpected transaction constraint")
+
+
+def _require_layout(
+    conn: Connection,
+    head: str = NEW_HEAD,
+    schema: str | None = None,
+    *,
+    column_collations: contracts.ColumnCollations | None = None,
+    allow_external_incoming: bool = False,
+    expected_head: str | None = None,
+    extensions: sa.MetaData | None = None,
+) -> None:
     schema = schema or str(conn.scalar(sa.text("SELECT DATABASE()")))
     actual = contracts.tables(conn, schema)
     expected = {physical(name, head) for name in v0038.metadata.tables} | {"alembic_version"}
+    if extensions is not None:
+        expected |= set(extensions.tables)
     if actual != expected:
         raise ValueError("Database table set differs from its versioned layout")
-    if contracts.head(conn, schema) != head:
+    if contracts.head(conn, schema) != (expected_head or head):
         raise ValueError("Database head differs from its versioned layout")
     objects = conn.execute(
         sa.text(

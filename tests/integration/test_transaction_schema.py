@@ -23,6 +23,8 @@ from reliable_messaging.transaction import (
 from reliable_messaging.transaction_mysql import MySQLTransactionStore
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+from qs_ai.maintenance.schema_refactor.validation import require_runtime_schema, require_schema
+
 pytestmark = pytest.mark.integration
 
 
@@ -79,6 +81,16 @@ async def installed():
             conn.commit()
             # Migration and metadata must agree; this also covers native binary types/indexes.
             command.check(config)
+            require_runtime_schema(conn)
+            with pytest.raises(ValueError, match="table set"):
+                require_schema(conn)  # Frozen 0040 conversion validator remains strict.
+            conn.execute(sa.text("ALTER TABLE rm_tx_execution DROP INDEX rm_tx_expiry"))
+            with pytest.raises(ValueError, match="Transaction index drift"):
+                require_runtime_schema(conn)
+            conn.execute(
+                sa.text("CREATE INDEX rm_tx_expiry ON rm_tx_execution(owner,state,lease_until)")
+            )
+            require_runtime_schema(conn)
             row = conn.execute(
                 sa.text("""SELECT HEX(body),HEX(wire),stage,attempts,error_code
                 FROM messaging_outbox WHERE message_id='old'""")

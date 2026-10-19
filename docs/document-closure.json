@@ -7,7 +7,7 @@
     ".github/workflows/ai-messaging.yml": "2dddb3ffeb66a49967fb2019709829065365464b1833a51f72f34331ef38aabe",
     ".github/workflows/ci.yml": "cfe7e020f75f07d5623f379c754c2e7ffd92fb89349c46d44e2956e8f067ecdc",
     ".github/workflows/deploy.yml": "255757cfb3cfc05050cf2f3e899368d6ce40c02fc8bd41b89fc94e6f989ecb23",
-    ".github/workflows/m7-messaging.yml": "8d9a9b2b1d9aedc8b883525c48537d8973edfdb477b147a20797d5658f14d072",
+    ".github/workflows/m7-messaging.yml": "3900e3325c912a8ec9981385ea6c0c1d3ccf941dfcdd76ec718ba5c598f5fcff",
     "Dockerfile": "a228b397109b1627bee2c2cb66b3d33d3a2c7d4238a726c5b7e1a61503accf8a",
     "compose.yaml": "07e882533006901f3cda4f3cf2449ee34b20af0cde75cceb1ea9b84699755206",
     "configs/README.md": "8e1a2c7cc0447c6d224b4d33eef9691c6360d98706a0305af2045b66c9e97f69",
@@ -112,7 +112,7 @@
     "src/qs_ai/bootstrap/build_manifest.py": "fdf8ce435074ffe7466dec5844d0790908e3b7e6750042fb5ed4d5d0d0fcb851",
     "src/qs_ai/bootstrap/container.py": "346104099f4d6afac298ab141ce49b405ca8858d2d784fd587b4cab728ae6bd1",
     "src/qs_ai/bootstrap/daemon.py": "8c5fd707861f24c16a2d12c68c4440360e569e8ae827ba9ea01db6e591e721c6",
-    "src/qs_ai/bootstrap/database_check.py": "dc813593d235ff993ed6a0f4ef24bd596159df5923364eee2171351c0a9dc822",
+    "src/qs_ai/bootstrap/database_check.py": "1f8d85aef938b9ed2f78bf44e09cfe47518ae77df7b37a137bb5373d9f640a3c",
     "src/qs_ai/bootstrap/grpc_probe.py": "a6a9a080a291d273939c92d22515f92866164798a0258c39702b1b302cba2b2b",
     "src/qs_ai/bootstrap/grpc_server.py": "8d772b0278c29e205961bc1f727ec19f597e2da1ac7dab1c9f1d0c8eaeafed70",
     "src/qs_ai/bootstrap/import_evaluation_suites.py": "585f86b5fe3cf3b06af44310a0dbcaec6cb459c8240f6c051de1c04968ec748a",
@@ -125,7 +125,7 @@
     "src/qs_ai/bootstrap/providers/generation.py": "c771d83039c2151aa15ad18b440a03c3a0ab0e113774ac2a2b8ffe94e0c671a3",
     "src/qs_ai/bootstrap/providers/interpretation.py": "b3d8f5a9a12bfeca1457fe016c024b7e72f46d370865059b401c95cfa28c0714",
     "src/qs_ai/bootstrap/recover_semantic_contract.py": "93df69c43e614c4b706f73c16fb561211c6093bc72f3eba834bcef1f504c6971",
-    "src/qs_ai/bootstrap/server.py": "669f6ff8fd603776f6e5ed92fe2501cc32a782ad51a07fb79d2da8758b63e290",
+    "src/qs_ai/bootstrap/server.py": "4ebd21271b031813fb6e966bd75bf6effca15ec2526a3cee1d5d86dd76ede7ab",
     "src/qs_ai/bootstrap/worker.py": "29966dfbe8b01e6ea0b9bc4d60ec653d2b51e3310ee81906ae0c9f8a087f208b",
     "src/qs_ai/config.py": "4a87b5ec07df17a3c81b8e9283a6b592517e2257b4aab76f005836bd6ed8824e",
     "src/qs_ai/domain/evaluation/acceptance.py": "5f4a570cbc81996e555baf5844e1a30294dd91408ffe4af924c5afe5e24ffda0",
@@ -250,7 +250,7 @@
     "src/qs_ai/maintenance/schema_refactor/migrations.py": "32144b7c2092208be198b645136b1485c532cc563838d04cbc9b223285b0ee31",
     "src/qs_ai/maintenance/schema_refactor/v0038.py": "94606b97bc616376447219b014a1ece237fe59e85f7996cb7bbba0fe98f02e0f",
     "src/qs_ai/maintenance/schema_refactor/v0040.json": "1920802a64a4410fbd863873231d69694bc92b1ed36102191fc922975e837e92",
-    "src/qs_ai/maintenance/schema_refactor/validation.py": "c286590d0b7d4145a68e126cc5633dada5b1ee395e874faa33c5619d65a6f4ab",
+    "src/qs_ai/maintenance/schema_refactor/validation.py": "81127bed6490f5919569ff8d54e27813e6cd765a1397f622c670c613440f9013",
     "src/qs_ai/model_configuration.py": "cc5d5a7f488080fcfe54280dc15973db70dcbd6e49a6ab4b2ad94d87bf0973ef",
     "src/qs_ai/transport/grpc/commands.py": "fd01d18dd78b43e2f4d3e7dc47545fc610ea20944939cce69df76454b5a4e9bd",
     "src/qs_ai/transport/grpc/diagnostics.py": "377e789d7b4a48811fa0fc7bfa56a7d4d59953ab47148c454a9ce0273c8a6306",
@@ -501,7 +501,7 @@
     "tests/test_rocketmq_binding.py": "a9344faa786f3886b2462a2ab46370d13f363d5af28cafe927133e46e32c8203",
     "src/qs_ai/maintenance/messaging_preflight.py": "9e24b06fc9ffc6af52fbbf2a017dfa60c6407ed0b987e23df673916969455bc5",
     "src/qs_ai/bootstrap/transaction_messaging.py": "83c1995725a707a3aaef504b909711354145be5b8cc60490c40421baf9649400",
-    "tests/integration/test_transaction_schema.py": "1f1e78c65bf16356026e7ad53d2607b0aeb53f58cf3450cfae2a377c2974d0d2",
+    "tests/integration/test_transaction_schema.py": "0d5bcc3dcee11f730cfc823bd5d993c08854c40ba27ad32084e25e08505f2842",
     "src/qs_ai/infrastructure/persistence/mysql/transaction_schema.py": "67716f918e5ec4007b0d2ff0ce29c27ef4f59196757b6a528a16f49dc2fadb03",
     "migrations/versions/0041_transaction_messaging.py": "a3f0560d1032b4b32aca799ad7d9b818f18c72862165fb548704d1ef7b38425e"
   },
@@ -747,7 +747,7 @@
         "python scripts/check_docs.py",
         "pytest -q tests/test_architecture.py"
       ],
-      "review_scope": "在 766b2aa 业务源码基线上核对单进程装配与真实调用链、层间决策、机器契约和生成文件位置、架构 AST 约束、CI 双 MySQL 四分片与完整覆盖门禁、代码/测试/CI/部署/业务验收证据层次；独立复核改正 evaluation.execute_step 入口和 MQ 成果/ACK 分段测试范围。 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained. 2026-10-19 M3 fixed prerelease and owner-bound inert transaction foundation reviewed; current business remains on original Relay and root transactions. Transaction-enabled legacy assembly fails closed; production remains independently unverified. 2026-10-19 explicit M3 protocol schema and manual current-head validation entry reviewed; original freeze/restore layouts retained and no production DDL."
+      "review_scope": "在 766b2aa 业务源码基线上核对单进程装配与真实调用链、层间决策、机器契约和生成文件位置、架构 AST 约束、CI 双 MySQL 四分片与完整覆盖门禁、代码/测试/CI/部署/业务验收证据层次；独立复核改正 evaluation.execute_step 入口和 MQ 成果/ACK 分段测试范围。 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained. 2026-10-19 M3 fixed prerelease and owner-bound inert transaction foundation reviewed; current business remains on original Relay and root transactions. Transaction-enabled legacy assembly fails closed; production remains independently unverified. 2026-10-19 explicit M3 protocol schema and manual current-head validation entry reviewed; original freeze/restore layouts retained and no production DDL. 2026-10-19 runtime0041 read-only validator explicitly composes frozen0040 base checks and exact four-table protocol checks. Legacy conversion validator/layouts remain strict; no DDL, resource ownership or model behavior changed. Added actual missing-index refusal proof; native CI pending."
     },
     {
       "path": "docs/00-总览/README.md",
@@ -765,7 +765,7 @@
         "12 documentation-checker regression tests passed",
         "All maintained articles indexed and local Markdown navigation reachability reviewed; no archive/runtime/config/protocol changes"
       ],
-      "review_scope": "Navigation and maintenance rules reconciled against all 34 source-reviewed design articles, unchanged business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Concrete question-based reading routes, single fact ownership, exact local checker limits and runtime_status fixed unknown; independent root-index review. External consumer gaps retain their per-article fixed source baselines."
+      "review_scope": "Navigation and maintenance rules reconciled against all 34 source-reviewed design articles, unchanged business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Concrete question-based reading routes, single fact ownership, exact local checker limits and runtime_status fixed unknown; independent root-index review. External consumer gaps retain their per-article fixed source baselines. 2026-10-19 runtime0041 read-only validator explicitly composes frozen0040 base checks and exact four-table protocol checks. Legacy conversion validator/layouts remain strict; no DDL, resource ownership or model behavior changed. Added actual missing-index refusal proof; native CI pending."
     },
     {
       "path": "docs/01-运行时/01-单进程架构与启动装配.md",
@@ -804,7 +804,7 @@
         "pytest -q tests/test_container.py tests/test_generation_container.py tests/test_evaluation_container.py tests/test_health.py",
         "pytest -q tests/test_single_server.py tests/test_messaging_runtime.py (requires project dependencies and local listener permissions)"
       ],
-      "review_scope": "在 bd5e18e/766b2aa 未改变业务源码基线上复核统一入口、MQ/TLS/迁移和八类观测前置检查、provider预检、消息密钥先于schema、APP共享池、Publisher gate、实际started/HTTP就绪含义、local/production默认差异及前置失败清理；明确监听器测试替换preflight，启动后ready前可能已经执行业务，不声明现场配置与生产能力。 Reviewed production quota override 2048 with unchanged reservations, concurrency and drain semantics; runtime evidence remains independently bound. 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained. 2026-10-19 M3 fixed prerelease and owner-bound inert transaction foundation reviewed; current business remains on original Relay and root transactions. Transaction-enabled legacy assembly fails closed; production remains independently unverified."
+      "review_scope": "在 bd5e18e/766b2aa 未改变业务源码基线上复核统一入口、MQ/TLS/迁移和八类观测前置检查、provider预检、消息密钥先于schema、APP共享池、Publisher gate、实际started/HTTP就绪含义、local/production默认差异及前置失败清理；明确监听器测试替换preflight，启动后ready前可能已经执行业务，不声明现场配置与生产能力。 Reviewed production quota override 2048 with unchanged reservations, concurrency and drain semantics; runtime evidence remains independently bound. 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained. 2026-10-19 M3 fixed prerelease and owner-bound inert transaction foundation reviewed; current business remains on original Relay and root transactions. Transaction-enabled legacy assembly fails closed; production remains independently unverified. 2026-10-19 runtime0041 read-only validator explicitly composes frozen0040 base checks and exact four-table protocol checks. Legacy conversion validator/layouts remain strict; no DDL, resource ownership or model behavior changed. Added actual missing-index refusal proof; native CI pending."
     },
     {
       "path": "docs/01-运行时/02-Dishka作用域与资源所有权.md",
@@ -845,7 +845,7 @@
         "pytest -q tests/test_container.py tests/test_generation_container.py tests/test_evaluation_container.py (blocked locally: reliable_messaging missing)",
         "pytest -q tests/integration/test_shared_runtime_pool.py tests/integration/test_mq_admission.py (requires disposable MySQL/NSQ and project dependencies)"
       ],
-      "review_scope": "在 766b2aa 业务源码基线上逐一核对 APP/REQUEST 创建与关闭所有者、两种独立 QS channel、两个共享Transactions但不同实例的执行store、惰性未配置分支、每open新EventSession、显式commit与原事务state事件、MQ receiver根事务/savepoint/BorrowedTransactions UOW回调；独立复核图及HTTP作用域，不把作用域正常退出、替身测试或集成skip外推为数据库原子性。 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained. 2026-10-19 M3 fixed prerelease and owner-bound inert transaction foundation reviewed; current business remains on original Relay and root transactions. Transaction-enabled legacy assembly fails closed; production remains independently unverified."
+      "review_scope": "在 766b2aa 业务源码基线上逐一核对 APP/REQUEST 创建与关闭所有者、两种独立 QS channel、两个共享Transactions但不同实例的执行store、惰性未配置分支、每open新EventSession、显式commit与原事务state事件、MQ receiver根事务/savepoint/BorrowedTransactions UOW回调；独立复核图及HTTP作用域，不把作用域正常退出、替身测试或集成skip外推为数据库原子性。 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained. 2026-10-19 M3 fixed prerelease and owner-bound inert transaction foundation reviewed; current business remains on original Relay and root transactions. Transaction-enabled legacy assembly fails closed; production remains independently unverified. 2026-10-19 runtime0041 read-only validator explicitly composes frozen0040 base checks and exact four-table protocol checks. Legacy conversion validator/layouts remain strict; no DDL, resource ownership or model behavior changed. Added actual missing-index refusal proof; native CI pending."
     },
     {
       "path": "docs/01-运行时/03-后台执行与调度.md",
@@ -889,7 +889,7 @@
         "pytest -q tests/test_daemon.py tests/test_model_capacity.py tests/test_worker_frozen_evidence.py",
         "pytest -q tests/integration/test_generation.py tests/integration/test_evaluation_worker.py tests/integration/test_evaluation_scan.py tests/integration/test_evaluation_candidate_execution.py (requires disposable MySQL and project dependencies)"
       ],
-      "review_scope": "在 766b2aa 业务源码基线上核对四类loop返回值、consumer独立退避与关闭、Job最多20候选/锁序/fence/3次attempt、原模型调用状态恢复、Evaluation先恢复再取消/选择的模式差异与游标、候选续租和本地ModelCapacity、Relay固定20及返回0、诊断1000连续清批与失败1小时等待；具体Job失租、receipt/unknown、45消息和2300诊断例子不推断现场配置。 Reviewed production quota override 2048 with unchanged reservations, concurrency and drain semantics; runtime evidence remains independently bound. 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained. 2026-10-19 M3 fixed prerelease and owner-bound inert transaction foundation reviewed; current business remains on original Relay and root transactions. Transaction-enabled legacy assembly fails closed; production remains independently unverified."
+      "review_scope": "在 766b2aa 业务源码基线上核对四类loop返回值、consumer独立退避与关闭、Job最多20候选/锁序/fence/3次attempt、原模型调用状态恢复、Evaluation先恢复再取消/选择的模式差异与游标、候选续租和本地ModelCapacity、Relay固定20及返回0、诊断1000连续清批与失败1小时等待；具体Job失租、receipt/unknown、45消息和2300诊断例子不推断现场配置。 Reviewed production quota override 2048 with unchanged reservations, concurrency and drain semantics; runtime evidence remains independently bound. 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained. 2026-10-19 M3 fixed prerelease and owner-bound inert transaction foundation reviewed; current business remains on original Relay and root transactions. Transaction-enabled legacy assembly fails closed; production remains independently unverified. 2026-10-19 runtime0041 read-only validator explicitly composes frozen0040 base checks and exact four-table protocol checks. Legacy conversion validator/layouts remain strict; no DDL, resource ownership or model behavior changed. Added actual missing-index refusal proof; native CI pending."
     },
     {
       "path": "docs/01-运行时/04-生命周期与优雅关闭.md",
@@ -923,7 +923,7 @@
         "pytest -q tests/test_daemon.py tests/test_runtime_lifecycle.py",
         "pytest -q tests/test_server_signals.py tests/test_single_server.py tests/test_messaging_runtime.py (requires project dependencies and local listener permissions)"
       ],
-      "review_scope": "在 766b2aa 业务源码基线上核对唯一信号所有者、mandatory提前结束故障域、ready撤销/并行drain/Publisher和HTTP依赖顺序、timeout之外取消清理与grpc兜底、191/192/197/201秒配置预算非整体时限、原正式模型调用/failed/response及Outbox恢复前提；独立复核探针测试覆盖和ModelResponse非原HTTPwire，不承诺退出前交付或生产停机结果。 Reviewed production quota override 2048 with unchanged reservations, concurrency and drain semantics; runtime evidence remains independently bound. 2026-10-19 M3 fixed prerelease and owner-bound inert transaction foundation reviewed; current business remains on original Relay and root transactions. Transaction-enabled legacy assembly fails closed; production remains independently unverified."
+      "review_scope": "在 766b2aa 业务源码基线上核对唯一信号所有者、mandatory提前结束故障域、ready撤销/并行drain/Publisher和HTTP依赖顺序、timeout之外取消清理与grpc兜底、191/192/197/201秒配置预算非整体时限、原正式模型调用/failed/response及Outbox恢复前提；独立复核探针测试覆盖和ModelResponse非原HTTPwire，不承诺退出前交付或生产停机结果。 Reviewed production quota override 2048 with unchanged reservations, concurrency and drain semantics; runtime evidence remains independently bound. 2026-10-19 M3 fixed prerelease and owner-bound inert transaction foundation reviewed; current business remains on original Relay and root transactions. Transaction-enabled legacy assembly fails closed; production remains independently unverified. 2026-10-19 runtime0041 read-only validator explicitly composes frozen0040 base checks and exact four-table protocol checks. Legacy conversion validator/layouts remain strict; no DDL, resource ownership or model behavior changed. Added actual missing-index refusal proof; native CI pending."
     },
     {
       "path": "docs/01-运行时/README.md",
@@ -940,7 +940,7 @@
         "12 documentation-checker regression tests passed",
         "All maintained articles indexed and local Markdown navigation reachability reviewed; no archive/runtime/config/protocol changes"
       ],
-      "review_scope": "Navigation and maintenance rules reconciled against all 34 source-reviewed design articles, unchanged business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Concrete question-based reading routes, single fact ownership, exact local checker limits and runtime_status fixed unknown; independent root-index review. External consumer gaps retain their per-article fixed source baselines."
+      "review_scope": "Navigation and maintenance rules reconciled against all 34 source-reviewed design articles, unchanged business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Concrete question-based reading routes, single fact ownership, exact local checker limits and runtime_status fixed unknown; independent root-index review. External consumer gaps retain their per-article fixed source baselines. 2026-10-19 runtime0041 read-only validator explicitly composes frozen0040 base checks and exact four-table protocol checks. Legacy conversion validator/layouts remain strict; no DDL, resource ownership or model behavior changed. Added actual missing-index refusal proof; native CI pending."
     },
     {
       "path": "docs/02-业务模块/README.md",
@@ -958,7 +958,7 @@
         "12 documentation-checker regression tests passed",
         "All maintained articles indexed and local Markdown navigation reachability reviewed; no archive/runtime/config/protocol changes"
       ],
-      "review_scope": "Navigation and maintenance rules reconciled against all 34 source-reviewed design articles, unchanged business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Concrete question-based reading routes, single fact ownership, exact local checker limits and runtime_status fixed unknown; independent root-index review. External consumer gaps retain their per-article fixed source baselines."
+      "review_scope": "Navigation and maintenance rules reconciled against all 34 source-reviewed design articles, unchanged business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Concrete question-based reading routes, single fact ownership, exact local checker limits and runtime_status fixed unknown; independent root-index review. External consumer gaps retain their per-article fixed source baselines. 2026-10-19 runtime0041 read-only validator explicitly composes frozen0040 base checks and exact four-table protocol checks. Legacy conversion validator/layouts remain strict; no DDL, resource ownership or model behavior changed. Added actual missing-index refusal proof; native CI pending."
     },
     {
       "path": "docs/02-业务模块/evaluation/01-评测候选门槛与审核设计.md",
@@ -1038,7 +1038,7 @@
         "12 documentation-checker regression tests passed",
         "All maintained articles indexed and local Markdown navigation reachability reviewed; no archive/runtime/config/protocol changes"
       ],
-      "review_scope": "Navigation and maintenance rules reconciled against all 34 source-reviewed design articles, unchanged business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Concrete question-based reading routes, single fact ownership, exact local checker limits and runtime_status fixed unknown; independent root-index review. External consumer gaps retain their per-article fixed source baselines."
+      "review_scope": "Navigation and maintenance rules reconciled against all 34 source-reviewed design articles, unchanged business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Concrete question-based reading routes, single fact ownership, exact local checker limits and runtime_status fixed unknown; independent root-index review. External consumer gaps retain their per-article fixed source baselines. 2026-10-19 runtime0041 read-only validator explicitly composes frozen0040 base checks and exact four-table protocol checks. Legacy conversion validator/layouts remain strict; no DDL, resource ownership or model behavior changed. Added actual missing-index refusal proof; native CI pending."
     },
     {
       "path": "docs/02-业务模块/governance/01-方案资产与原子准备设计.md",
@@ -1134,7 +1134,7 @@
         "12 documentation-checker regression tests passed",
         "All maintained articles indexed and local Markdown navigation reachability reviewed; no archive/runtime/config/protocol changes"
       ],
-      "review_scope": "Navigation and maintenance rules reconciled against all 34 source-reviewed design articles, unchanged business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Concrete question-based reading routes, single fact ownership, exact local checker limits and runtime_status fixed unknown; independent root-index review. External consumer gaps retain their per-article fixed source baselines."
+      "review_scope": "Navigation and maintenance rules reconciled against all 34 source-reviewed design articles, unchanged business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Concrete question-based reading routes, single fact ownership, exact local checker limits and runtime_status fixed unknown; independent root-index review. External consumer gaps retain their per-article fixed source baselines. 2026-10-19 runtime0041 read-only validator explicitly composes frozen0040 base checks and exact four-table protocol checks. Legacy conversion validator/layouts remain strict; no DDL, resource ownership or model behavior changed. Added actual missing-index refusal proof; native CI pending."
     },
     {
       "path": "docs/02-业务模块/interpretation/01-解读冻结输入与成果设计.md",
@@ -1352,7 +1352,7 @@
         "12 documentation-checker regression tests passed",
         "All maintained articles indexed and local Markdown navigation reachability reviewed; no archive/runtime/config/protocol changes"
       ],
-      "review_scope": "Navigation and maintenance rules reconciled against all 34 source-reviewed design articles, unchanged business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Concrete question-based reading routes, single fact ownership, exact local checker limits and runtime_status fixed unknown; independent root-index review. External consumer gaps retain their per-article fixed source baselines."
+      "review_scope": "Navigation and maintenance rules reconciled against all 34 source-reviewed design articles, unchanged business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Concrete question-based reading routes, single fact ownership, exact local checker limits and runtime_status fixed unknown; independent root-index review. External consumer gaps retain their per-article fixed source baselines. 2026-10-19 runtime0041 read-only validator explicitly composes frozen0040 base checks and exact four-table protocol checks. Legacy conversion validator/layouts remain strict; no DDL, resource ownership or model behavior changed. Added actual missing-index refusal proof; native CI pending."
     },
     {
       "path": "docs/02-业务模块/publication/01-发布证据与生效指针设计.md",
@@ -1411,7 +1411,7 @@
         "12 documentation-checker regression tests passed",
         "All maintained articles indexed and local Markdown navigation reachability reviewed; no archive/runtime/config/protocol changes"
       ],
-      "review_scope": "Navigation and maintenance rules reconciled against all 34 source-reviewed design articles, unchanged business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Concrete question-based reading routes, single fact ownership, exact local checker limits and runtime_status fixed unknown; independent root-index review. External consumer gaps retain their per-article fixed source baselines."
+      "review_scope": "Navigation and maintenance rules reconciled against all 34 source-reviewed design articles, unchanged business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Concrete question-based reading routes, single fact ownership, exact local checker limits and runtime_status fixed unknown; independent root-index review. External consumer gaps retain their per-article fixed source baselines. 2026-10-19 runtime0041 read-only validator explicitly composes frozen0040 base checks and exact four-table protocol checks. Legacy conversion validator/layouts remain strict; no DDL, resource ownership or model behavior changed. Added actual missing-index refusal proof; native CI pending."
     },
     {
       "path": "docs/03-基础设施/README.md",
@@ -1429,7 +1429,7 @@
         "12 documentation-checker regression tests passed",
         "All maintained articles indexed and local Markdown navigation reachability reviewed; no archive/runtime/config/protocol changes"
       ],
-      "review_scope": "Navigation and maintenance rules reconciled against all 34 source-reviewed design articles, unchanged business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Concrete question-based reading routes, single fact ownership, exact local checker limits and runtime_status fixed unknown; independent root-index review. External consumer gaps retain their per-article fixed source baselines."
+      "review_scope": "Navigation and maintenance rules reconciled against all 34 source-reviewed design articles, unchanged business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Concrete question-based reading routes, single fact ownership, exact local checker limits and runtime_status fixed unknown; independent root-index review. External consumer gaps retain their per-article fixed source baselines. 2026-10-19 runtime0041 read-only validator explicitly composes frozen0040 base checks and exact four-table protocol checks. Legacy conversion validator/layouts remain strict; no DDL, resource ownership or model behavior changed. Added actual missing-index refusal proof; native CI pending."
     },
     {
       "path": "docs/03-基础设施/concurrency/README.md",
@@ -1480,7 +1480,7 @@
         "git diff --check",
         "72 capacity/quotas/checkpoint/parallel-plan/receipt/config/frozen-evidence unit tests passed; isolated MySQL and real provider throughput not run"
       ],
-      "review_scope": "2026-10-06 source-grounded rewrite on unchanged 766b2aa business code; participant daily/active reservations, evaluation worst-case budgets, lock/version/fence distinctions, original dispatch ownership, concurrent candidate claims/receipt guards, local tokens and cross-instance limits; independent source review. Reviewed production quota override 2048 with unchanged reservations, concurrency and drain semantics; runtime evidence remains independently bound. 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained. 2026-10-19 M3 fixed prerelease and owner-bound inert transaction foundation reviewed; current business remains on original Relay and root transactions. Transaction-enabled legacy assembly fails closed; production remains independently unverified."
+      "review_scope": "2026-10-06 source-grounded rewrite on unchanged 766b2aa business code; participant daily/active reservations, evaluation worst-case budgets, lock/version/fence distinctions, original dispatch ownership, concurrent candidate claims/receipt guards, local tokens and cross-instance limits; independent source review. Reviewed production quota override 2048 with unchanged reservations, concurrency and drain semantics; runtime evidence remains independently bound. 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained. 2026-10-19 M3 fixed prerelease and owner-bound inert transaction foundation reviewed; current business remains on original Relay and root transactions. Transaction-enabled legacy assembly fails closed; production remains independently unverified. 2026-10-19 runtime0041 read-only validator explicitly composes frozen0040 base checks and exact four-table protocol checks. Legacy conversion validator/layouts remain strict; no DDL, resource ownership or model behavior changed. Added actual missing-index refusal proof; native CI pending."
     },
     {
       "path": "docs/03-基础设施/execution-recovery/README.md",
@@ -1581,7 +1581,7 @@
         "4 legacy retirement unit tests passed; full MQ/NSQ/JOSE/MySQL tests not run due missing existing extras; no installs or live transport actions",
         "pytest -q tests/test_transaction_messaging.py"
       ],
-      "review_scope": "2026-10-06 source-grounded rewrite on unchanged 766b2aa business code, QS 2ccc2de and reliable-messaging Python 0.2.0a2 8633ba5; inbox/root/savepoint, first body/wire, source vs transport outbox, Relay budgets, stored ACK condition scope, protected payloads and one-record handoff; independent source review; legacy gRPC loop retired. 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained. 2026-10-19 M3 fixed prerelease and owner-bound inert transaction foundation reviewed; current business remains on original Relay and root transactions. Transaction-enabled legacy assembly fails closed; production remains independently unverified. 2026-10-19 explicit M3 protocol schema and manual current-head validation entry reviewed; original freeze/restore layouts retained and no production DDL."
+      "review_scope": "2026-10-06 source-grounded rewrite on unchanged 766b2aa business code, QS 2ccc2de and reliable-messaging Python 0.2.0a2 8633ba5; inbox/root/savepoint, first body/wire, source vs transport outbox, Relay budgets, stored ACK condition scope, protected payloads and one-record handoff; independent source review; legacy gRPC loop retired. 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained. 2026-10-19 M3 fixed prerelease and owner-bound inert transaction foundation reviewed; current business remains on original Relay and root transactions. Transaction-enabled legacy assembly fails closed; production remains independently unverified. 2026-10-19 explicit M3 protocol schema and manual current-head validation entry reviewed; original freeze/restore layouts retained and no production DDL. 2026-10-19 runtime0041 read-only validator explicitly composes frozen0040 base checks and exact four-table protocol checks. Legacy conversion validator/layouts remain strict; no DDL, resource ownership or model behavior changed. Added actual missing-index refusal proof; native CI pending."
     },
     {
       "path": "docs/03-基础设施/model-gateway/README.md",
@@ -1691,7 +1691,7 @@
         "git diff --check",
         "Source and existing MySQL/MQ test assertion review; DB/MQ integration and production migration not run"
       ],
-      "review_scope": "2026-10-06 source-grounded rewrite on unchanged 766b2aa business code; actual durable tables/uniqueness, path-specific isolation and locking, MQ root/savepoint and borrowed SDK pool, separate metadata migrations 0035/0037/0038 and read-only bootstrap checks; independent source review correction applied. 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained. 2026-10-19 explicit M3 protocol schema and manual current-head validation entry reviewed; original freeze/restore layouts retained and no production DDL."
+      "review_scope": "2026-10-06 source-grounded rewrite on unchanged 766b2aa business code; actual durable tables/uniqueness, path-specific isolation and locking, MQ root/savepoint and borrowed SDK pool, separate metadata migrations 0035/0037/0038 and read-only bootstrap checks; independent source review correction applied. 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained. 2026-10-19 explicit M3 protocol schema and manual current-head validation entry reviewed; original freeze/restore layouts retained and no production DDL. 2026-10-19 runtime0041 read-only validator explicitly composes frozen0040 base checks and exact four-table protocol checks. Legacy conversion validator/layouts remain strict; no DDL, resource ownership or model behavior changed. Added actual missing-index refusal proof; native CI pending."
     },
     {
       "path": "docs/04-接口与运维/01-接口地图与契约所有权.md",
@@ -1826,7 +1826,7 @@
         "git diff --check",
         "37 container/configuration/CI unit tests passed using existing environment and sibling SDK source; no dependency install, Docker, migration, MQ/provider or production action"
       ],
-      "review_scope": "Source-grounded rewrite against unchanged qs-ai business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Actual settings precedence/validation/defaults, offline checks, dependency prerequisites, isolated double-head database bootstrap and CI stages; independent source review. Reviewed production quota override 2048 with unchanged reservations, concurrency and drain semantics; runtime evidence remains independently bound. 2026-10-19 M3 fixed prerelease and owner-bound inert transaction foundation reviewed; current business remains on original Relay and root transactions. Transaction-enabled legacy assembly fails closed; production remains independently unverified. 2026-10-19 explicit M3 protocol schema and manual current-head validation entry reviewed; original freeze/restore layouts retained and no production DDL."
+      "review_scope": "Source-grounded rewrite against unchanged qs-ai business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Actual settings precedence/validation/defaults, offline checks, dependency prerequisites, isolated double-head database bootstrap and CI stages; independent source review. Reviewed production quota override 2048 with unchanged reservations, concurrency and drain semantics; runtime evidence remains independently bound. 2026-10-19 M3 fixed prerelease and owner-bound inert transaction foundation reviewed; current business remains on original Relay and root transactions. Transaction-enabled legacy assembly fails closed; production remains independently unverified. 2026-10-19 explicit M3 protocol schema and manual current-head validation entry reviewed; original freeze/restore layouts retained and no production DDL. 2026-10-19 runtime0041 read-only validator explicitly composes frozen0040 base checks and exact four-table protocol checks. Legacy conversion validator/layouts remain strict; no DDL, resource ownership or model behavior changed. Added actual missing-index refusal proof; native CI pending."
     },
     {
       "path": "docs/04-接口与运维/05-部署迁移与兼容回滚.md",
@@ -1868,7 +1868,7 @@
         "pytest -q tests/test_deployment.py tests/test_release_image_identity.py tests/test_schema_deployment_boundary.py",
         "No production migration, deployment or rollback executed"
       ],
-      "review_scope": "Authorized module-storage refactor reviewed against current working-tree source hashes: ordinary deploy/rollback rejects 0038/0040 conversion and 0039 before migration/service stop; same-layout exact-head/image identity behavior retained. Dedicated paused-writer full-data conversion and reverse rollback replace old-snapshot restoration. No production acceptance claimed."
+      "review_scope": "Authorized module-storage refactor reviewed against current working-tree source hashes: ordinary deploy/rollback rejects 0038/0040 conversion and 0039 before migration/service stop; same-layout exact-head/image identity behavior retained. Dedicated paused-writer full-data conversion and reverse rollback replace old-snapshot restoration. No production acceptance claimed. 2026-10-19 runtime0041 read-only validator explicitly composes frozen0040 base checks and exact four-table protocol checks. Legacy conversion validator/layouts remain strict; no DDL, resource ownership or model behavior changed. Added actual missing-index refusal proof; native CI pending."
     },
     {
       "path": "docs/04-接口与运维/06-排障与受控恢复.md",
@@ -1906,7 +1906,7 @@
         "15 runtime/metrics unit tests passed using existing sibling SDK source; MQ legacy-handoff test collection requires unavailable jwcrypto; real mTLS cutover tests blocked by sandbox port bind; DB/MQ/listener/production diagnosis not run",
         "Correction-specific unit/gRPC, MySQL 8.0/8.4 transactions and existing review/finalization/reopening regressions; scripts/check_docs.py. Environment and business acceptance separately recorded."
       ],
-      "review_scope": "Source-grounded rewrite against unchanged qs-ai business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Diagnostic identities and active_call_count/cancel_draining DTO, default isolated-read behavior, query/error limits, business versus transport states and bounded recovery actions; source and independent contract review. 2026-10-06 scoped CorrectReview patch review: original signatures remain immutable; effective-review projection, CAS/idempotent audit, archived receipt replay and finalization reads reconciled. Existing MQ execution, participant precheck and other proto fields unchanged. No production correction or publication acceptance claimed. Reviewed finalization safe diagnostic boundary; unchanged public errors and transaction ownership; no approval or runtime success inferred. 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained."
+      "review_scope": "Source-grounded rewrite against unchanged qs-ai business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Diagnostic identities and active_call_count/cancel_draining DTO, default isolated-read behavior, query/error limits, business versus transport states and bounded recovery actions; source and independent contract review. 2026-10-06 scoped CorrectReview patch review: original signatures remain immutable; effective-review projection, CAS/idempotent audit, archived receipt replay and finalization reads reconciled. Existing MQ execution, participant precheck and other proto fields unchanged. No production correction or publication acceptance claimed. Reviewed finalization safe diagnostic boundary; unchanged public errors and transaction ownership; no approval or runtime success inferred. 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained. 2026-10-19 runtime0041 read-only validator explicitly composes frozen0040 base checks and exact four-table protocol checks. Legacy conversion validator/layouts remain strict; no DDL, resource ownership or model behavior changed. Added actual missing-index refusal proof; native CI pending."
     },
     {
       "path": "docs/04-接口与运维/07-语义契约故障恢复.md",
@@ -2051,7 +2051,7 @@
         "uv run pytest tests/test_schema_followup.py tests/test_schema_followup_transport.py tests/test_schema_refactor_auto_increment.py tests/test_prompt_retirement.py tests/test_prompt_retirement_policy.py",
         "MySQL 8.0.36/8.4 full CI; production Actions metadata-only acceptance and isolated native restore/inverse rehearsal"
       ],
-      "review_scope": "Behavior-preserving 0040 follow-up: independent AUTO_INCREMENT contract; format3 AI Prompt retirement with fixed whitelist, native backup and protected-row rescan; v2 immutable baseline/runtime bindings, durable pending-operation clocks, current-facts rollback and per-archive retention. Historical migrations, frozen definitions and original backup format remain byte-identical. The 2026-10-08 dated production report separately binds full CI, isolated snapshot restore/inverse, actual 82ffa1b image and read-only 44-table/four-auto structure. Production Prompt candidates are zero; no production deletion, inverse exchange or archive cleanup. Nine production business categories remain not_covered. Fixed maintenance executor revision and exact retention timestamp are documented; canonical runtime_status does not imply current or complete business acceptance. 2026-10-19 explicit M3 protocol schema and manual current-head validation entry reviewed; original freeze/restore layouts retained and no production DDL."
+      "review_scope": "Behavior-preserving 0040 follow-up: independent AUTO_INCREMENT contract; format3 AI Prompt retirement with fixed whitelist, native backup and protected-row rescan; v2 immutable baseline/runtime bindings, durable pending-operation clocks, current-facts rollback and per-archive retention. Historical migrations, frozen definitions and original backup format remain byte-identical. The 2026-10-08 dated production report separately binds full CI, isolated snapshot restore/inverse, actual 82ffa1b image and read-only 44-table/four-auto structure. Production Prompt candidates are zero; no production deletion, inverse exchange or archive cleanup. Nine production business categories remain not_covered. Fixed maintenance executor revision and exact retention timestamp are documented; canonical runtime_status does not imply current or complete business acceptance. 2026-10-19 explicit M3 protocol schema and manual current-head validation entry reviewed; original freeze/restore layouts retained and no production DDL. 2026-10-19 runtime0041 read-only validator explicitly composes frozen0040 base checks and exact four-table protocol checks. Legacy conversion validator/layouts remain strict; no DDL, resource ownership or model behavior changed. Added actual missing-index refusal proof; native CI pending."
     },
     {
       "path": "docs/04-接口与运维/README.md",
@@ -2070,7 +2070,7 @@
         "12 documentation-checker regression tests passed",
         "All maintained articles indexed and local Markdown navigation reachability reviewed; no archive/runtime/config/protocol changes"
       ],
-      "review_scope": "Navigation and maintenance rules reconciled against all 34 source-reviewed design articles, unchanged business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Concrete question-based reading routes, single fact ownership, exact local checker limits and runtime_status fixed unknown; independent root-index review. External consumer gaps retain their per-article fixed source baselines. Reviewed production quota override 2048 with unchanged reservations, concurrency and drain semantics; runtime evidence remains independently bound."
+      "review_scope": "Navigation and maintenance rules reconciled against all 34 source-reviewed design articles, unchanged business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Concrete question-based reading routes, single fact ownership, exact local checker limits and runtime_status fixed unknown; independent root-index review. External consumer gaps retain their per-article fixed source baselines. Reviewed production quota override 2048 with unchanged reservations, concurrency and drain semantics; runtime evidence remains independently bound. 2026-10-19 runtime0041 read-only validator explicitly composes frozen0040 base checks and exact four-table protocol checks. Legacy conversion validator/layouts remain strict; no DDL, resource ownership or model behavior changed. Added actual missing-index refusal proof; native CI pending."
     },
     {
       "path": "docs/05-决策记录/01-单进程与共享生命周期.md",
@@ -2091,7 +2091,7 @@
         "git diff --check",
         "Existing lifecycle/container/pool test assertions reviewed; prior targeted lifecycle/configuration tests passed; no live capacity/drain or deployment acceptance"
       ],
-      "review_scope": "Source-grounded rewrite against unchanged qs-ai business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Current shared loop/pool/capacity and supervisor ownership, drain dependency and persisted Outbox distinction, shared fault-domain costs and concrete split/hot-restart conditions; independent source review; reasons inferred from present constraints, no invented historical motive. 2026-10-19 M3 fixed prerelease and owner-bound inert transaction foundation reviewed; current business remains on original Relay and root transactions. Transaction-enabled legacy assembly fails closed; production remains independently unverified."
+      "review_scope": "Source-grounded rewrite against unchanged qs-ai business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Current shared loop/pool/capacity and supervisor ownership, drain dependency and persisted Outbox distinction, shared fault-domain costs and concrete split/hot-restart conditions; independent source review; reasons inferred from present constraints, no invented historical motive. 2026-10-19 M3 fixed prerelease and owner-bound inert transaction foundation reviewed; current business remains on original Relay and root transactions. Transaction-enabled legacy assembly fails closed; production remains independently unverified. 2026-10-19 runtime0041 read-only validator explicitly composes frozen0040 base checks and exact four-table protocol checks. Legacy conversion validator/layouts remain strict; no DDL, resource ownership or model behavior changed. Added actual missing-index refusal proof; native CI pending."
     },
     {
       "path": "docs/05-决策记录/02-业务持久状态与LangGraph编排.md",
@@ -2158,7 +2158,7 @@
         "12 documentation-checker regression tests passed",
         "All maintained articles indexed and local Markdown navigation reachability reviewed; no archive/runtime/config/protocol changes"
       ],
-      "review_scope": "Navigation and maintenance rules reconciled against all 34 source-reviewed design articles, unchanged business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Concrete question-based reading routes, single fact ownership, exact local checker limits and runtime_status fixed unknown; independent root-index review. External consumer gaps retain their per-article fixed source baselines."
+      "review_scope": "Navigation and maintenance rules reconciled against all 34 source-reviewed design articles, unchanged business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Concrete question-based reading routes, single fact ownership, exact local checker limits and runtime_status fixed unknown; independent root-index review. External consumer gaps retain their per-article fixed source baselines. 2026-10-19 runtime0041 read-only validator explicitly composes frozen0040 base checks and exact four-table protocol checks. Legacy conversion validator/layouts remain strict; no DDL, resource ownership or model behavior changed. Added actual missing-index refusal proof; native CI pending."
     },
     {
       "path": "docs/CONTRIBUTING-DOCS.md",
@@ -2180,7 +2180,7 @@
         "12 documentation-checker regression tests passed",
         "All maintained articles indexed and local Markdown navigation reachability reviewed; no archive/runtime/config/protocol changes"
       ],
-      "review_scope": "Navigation and maintenance rules reconciled against all 34 source-reviewed design articles, unchanged business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Concrete question-based reading routes, single fact ownership, exact local checker limits and runtime_status fixed unknown; independent root-index review. External consumer gaps retain their per-article fixed source baselines."
+      "review_scope": "Navigation and maintenance rules reconciled against all 34 source-reviewed design articles, unchanged business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Concrete question-based reading routes, single fact ownership, exact local checker limits and runtime_status fixed unknown; independent root-index review. External consumer gaps retain their per-article fixed source baselines. 2026-10-19 runtime0041 read-only validator explicitly composes frozen0040 base checks and exact four-table protocol checks. Legacy conversion validator/layouts remain strict; no DDL, resource ownership or model behavior changed. Added actual missing-index refusal proof; native CI pending."
     },
     {
       "path": "docs/README.md",
@@ -2209,7 +2209,7 @@
         "All maintained articles indexed and local Markdown navigation reachability reviewed; no archive/runtime/config/protocol changes",
         "Correction-specific unit/gRPC, MySQL 8.0/8.4 transactions and existing review/finalization/reopening regressions; scripts/check_docs.py. Environment and business acceptance separately recorded."
       ],
-      "review_scope": "Navigation and maintenance rules reconciled against all 34 source-reviewed design articles, unchanged business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Concrete question-based reading routes, single fact ownership, exact local checker limits and runtime_status fixed unknown; independent root-index review. External consumer gaps retain their per-article fixed source baselines. Reviewed production quota override 2048 with unchanged reservations, concurrency and drain semantics; runtime evidence remains independently bound. 2026-10-06 scoped CorrectReview patch review: original signatures remain immutable; effective-review projection, CAS/idempotent audit, archived receipt replay and finalization reads reconciled. Existing MQ execution, participant precheck and other proto fields unchanged. No production correction or publication acceptance claimed. 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained. 2026-10-19 M3 fixed prerelease and owner-bound inert transaction foundation reviewed; current business remains on original Relay and root transactions. Transaction-enabled legacy assembly fails closed; production remains independently unverified."
+      "review_scope": "Navigation and maintenance rules reconciled against all 34 source-reviewed design articles, unchanged business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Concrete question-based reading routes, single fact ownership, exact local checker limits and runtime_status fixed unknown; independent root-index review. External consumer gaps retain their per-article fixed source baselines. Reviewed production quota override 2048 with unchanged reservations, concurrency and drain semantics; runtime evidence remains independently bound. 2026-10-06 scoped CorrectReview patch review: original signatures remain immutable; effective-review projection, CAS/idempotent audit, archived receipt replay and finalization reads reconciled. Existing MQ execution, participant precheck and other proto fields unchanged. No production correction or publication acceptance claimed. 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained. 2026-10-19 M3 fixed prerelease and owner-bound inert transaction foundation reviewed; current business remains on original Relay and root transactions. Transaction-enabled legacy assembly fails closed; production remains independently unverified. 2026-10-19 runtime0041 read-only validator explicitly composes frozen0040 base checks and exact four-table protocol checks. Legacy conversion validator/layouts remain strict; no DDL, resource ownership or model behavior changed. Added actual missing-index refusal proof; native CI pending."
     },
     {
       "path": "docs/_plans/01-能力演进与验收缺口.md",
@@ -2225,7 +2225,7 @@
         "python scripts/check_docs.py",
         "pytest -q tests/test_docs.py"
       ],
-      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding 2026-10-19 runtime0041 read-only validator explicitly composes frozen0040 base checks and exact four-table protocol checks. Legacy conversion validator/layouts remain strict; no DDL, resource ownership or model behavior changed. Added actual missing-index refusal proof; native CI pending."
     },
     {
       "path": "docs/_plans/README.md",
@@ -2241,7 +2241,7 @@
         "python scripts/check_docs.py",
         "pytest -q tests/test_docs.py"
       ],
-      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding 2026-10-19 runtime0041 read-only validator explicitly composes frozen0040 base checks and exact four-table protocol checks. Legacy conversion validator/layouts remain strict; no DDL, resource ownership or model behavior changed. Added actual missing-index refusal proof; native CI pending."
     },
     {
       "path": "docs/evidence/2026-10-05-mbti-checkpoint.md",
@@ -2257,7 +2257,7 @@
         "python scripts/check_docs.py",
         "pytest -q tests/test_docs.py"
       ],
-      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding 2026-10-19 runtime0041 read-only validator explicitly composes frozen0040 base checks and exact four-table protocol checks. Legacy conversion validator/layouts remain strict; no DDL, resource ownership or model behavior changed. Added actual missing-index refusal proof; native CI pending."
     },
     {
       "path": "docs/evidence/README.md",
@@ -2384,7 +2384,7 @@
         "python scripts/check_docs.py",
         "pytest -q tests/test_docs.py"
       ],
-      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding 2026-10-19 runtime0041 read-only validator explicitly composes frozen0040 base checks and exact four-table protocol checks. Legacy conversion validator/layouts remain strict; no DDL, resource ownership or model behavior changed. Added actual missing-index refusal proof; native CI pending."
     },
     {
       "path": "integrations/qs_server/evaluation/mbti-themes/prompt-v1.md",
@@ -2460,7 +2460,7 @@
         "python scripts/check_docs.py",
         "pytest -q tests/test_docs.py"
       ],
-      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding 2026-10-19 runtime0041 read-only validator explicitly composes frozen0040 base checks and exact four-table protocol checks. Legacy conversion validator/layouts remain strict; no DDL, resource ownership or model behavior changed. Added actual missing-index refusal proof; native CI pending."
     },
     {
       "path": "integrations/qs_server/provider-runtime.md",
@@ -2553,7 +2553,7 @@
         "python scripts/check_docs.py",
         "pytest -q tests/test_docs.py"
       ],
-      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding 2026-10-19 runtime0041 read-only validator explicitly composes frozen0040 base checks and exact four-table protocol checks. Legacy conversion validator/layouts remain strict; no DDL, resource ownership or model behavior changed. Added actual missing-index refusal proof; native CI pending."
     },
     {
       "path": "tests/fixtures/personality_baseline/README.md",
@@ -2569,7 +2569,7 @@
         "python scripts/check_docs.py",
         "pytest -q tests/test_docs.py"
       ],
-      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding 2026-10-19 runtime0041 read-only validator explicitly composes frozen0040 base checks and exact four-table protocol checks. Legacy conversion validator/layouts remain strict; no DDL, resource ownership or model behavior changed. Added actual missing-index refusal proof; native CI pending."
     },
     {
       "path": "tests/fixtures/personality_contract/README.md",
@@ -2585,7 +2585,7 @@
         "python scripts/check_docs.py",
         "pytest -q tests/test_docs.py"
       ],
-      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding 2026-10-19 runtime0041 read-only validator explicitly composes frozen0040 base checks and exact four-table protocol checks. Legacy conversion validator/layouts remain strict; no DDL, resource ownership or model behavior changed. Added actual missing-index refusal proof; native CI pending."
     },
     {
       "path": "integrations/qs_server/evaluation/scale-reference-cap6/README.md",

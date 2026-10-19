@@ -135,3 +135,5 @@ recorder失败时，根提交不能继续；rollback清掉evaluation_events标�
 | 消息表不自动安装、观测安装与历史未知 | [messaging.py](../../../src/qs_ai/infrastructure/persistence/mysql/messaging.py)、[messaging_observations.py](../../../src/qs_ai/infrastructure/persistence/mysql/messaging_observations.py)、0037/0038脚本；运行时要求原池的schema预检 |
 
 这些存储集成测试需要可销毁MySQL及相应消息依赖，收集成功或skip不算通过。源码、迁移脚本和本地纯规则测试不能代替某环境heads、真实事务恢复和原成果STORED的证据。
+
+0041 运行时使用 `require_runtime_schema`：完整0040业务布局加四张固定协议表，校验二进制列、默认值、主键和索引；缺表/索引或多余未知表均拒绝。原 `require_schema` 仍用于冻结0038/0039/0040转换，不接受0041作为旧布局；启动校验无DDL。
