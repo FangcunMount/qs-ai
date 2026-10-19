@@ -201,6 +201,8 @@ class Settings(BaseSettings):
 
     environment: Literal["local", "production"] = "local"
     database_url: SecretStr | None = None
+    database_tls_mode: Literal["DISABLED", "VERIFY_IDENTITY"] = "DISABLED"
+    database_tls_ca_file: str | None = None
     model_api_key: SecretStr | None = None
     deepseek_api_key: SecretStr | None = None
     zhipu_api_key: SecretStr | None = None

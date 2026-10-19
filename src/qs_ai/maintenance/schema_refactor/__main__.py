@@ -12,8 +12,9 @@ from pathlib import Path
 from typing import Any, TypeVar
 
 import sqlalchemy as sa
-from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncConnection
 
+from qs_ai.infrastructure.persistence.mysql.tls import create_mysql_engine as create_async_engine
 from qs_ai.maintenance.schema_refactor import control
 from qs_ai.maintenance.schema_refactor.layouts import COPY_DEADLINE_SECONDS
 

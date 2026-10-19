@@ -4,6 +4,7 @@ import importlib.util
 import json
 import os
 import re
+import shlex
 import subprocess
 import tempfile
 from pathlib import Path
@@ -17,6 +18,20 @@ def required(environment: dict[str, str], name: str) -> str:
     if not value or "\x00" in value:
         raise ValueError(f"Missing or invalid {name}")
     return value
+
+
+def public_mysql_prefix(environment: dict[str, str]) -> str:
+    if environment.get("GITHUB_ACTIONS") != "true" and not environment.get("MYSQL_TLS_MODE"):
+        return ""
+    values = {
+        key: required(environment, key)
+        for key in ("MYSQL_HOST", "MYSQL_PORT", "MYSQL_TLS_MODE", "MYSQL_TLS_CA_REF")
+    }
+    if values["MYSQL_TLS_MODE"] != "VERIFY_IDENTITY" or not re.fullmatch(
+        "[0-9a-f]{40}", values["MYSQL_TLS_CA_REF"]
+    ):
+        raise ValueError("Organization public MySQL TLS policy is required")
+    return "env " + " ".join(shlex.quote(k + "=" + v) for k, v in values.items()) + " "
 
 
 def request(environment: dict[str, str]) -> dict[str, str]:
@@ -348,7 +363,7 @@ def main() -> None:
             )
             if selected["release"]:
                 command += f" --release {selected['release']}"
-            output = run("schema maintenance", [*ssh, command])
+            output = run("schema maintenance", [*ssh, public_mysql_prefix(environment) + command])
             receipt = safe_receipt(output, selected)
             receipt["workflow_revision"] = selected["revision"]
             path = Path("schema-maintenance-receipt.json")

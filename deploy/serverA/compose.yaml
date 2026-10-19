@@ -41,6 +41,12 @@ services:
     stop_grace_period: 210s
     volumes:
     - type: bind
+      source: /data/infra/ssl/mysql/ca-chain.pem
+      target: /etc/qlume/mysql/ca-chain.pem
+      read_only: true
+      bind:
+        create_host_path: false
+    - type: bind
       source: /data/infra/ssl/grpc/ca/ca-chain.crt
       target: /run/qs-ai-tls/ca-chain.crt
       read_only: true

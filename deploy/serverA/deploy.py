@@ -783,6 +783,17 @@ def stage_prepare(release: Path) -> dict:
     manifest = json.loads((release / "manifest.json").read_text())
     loaded_image_binding(release)
     enabled = messaging_release(release, manifest)
+    mysql_env = json.loads((release / "runtime.json").read_text())["services"]["qs-ai"][
+        "environment"
+    ]
+    if mysql_env.get("QS_AI_DATABASE_TLS_MODE") == "VERIFY_IDENTITY":
+        ca_ref = mysql_env.get("MYSQL_TLS_CA_REF", "")
+        if not re.fullmatch("[0-9a-f]{40}", ca_ref):
+            raise DeploymentError("MySQL CA is not pinned to an infra commit")
+        run(
+            "mysql CA policy",
+            ["python3", "/opt/infra/scripts/mysql/ca.py", "verify", "--ref", ca_ref],
+        )
     actual = _load_release_image(release, manifest)
     _offline_release_preflight(release, enabled)
     heads = expected_heads(release)
