@@ -146,6 +146,18 @@ async def test_close_preserves_incomplete_result_and_wait():
     driver.wait.assert_awaited_once()
 
 
+@pytest.mark.parametrize("budget", [-1, float("nan"), float("inf")])
+async def test_invalid_shutdown_budget_does_not_seal_admission(budget):
+    driver = Mock()
+    driver.stats.return_value = {"ready": True}
+    value = TransactionRuntime(driver, admitted=True)
+    with pytest.raises(ValueError, match="shutdown budget"):
+        await value.close(grace_seconds=budget)
+    driver.stop_admission.assert_not_called()
+    driver.close.assert_not_called()
+    assert value.stats()["ready"]
+
+
 def test_sender_rejects_peer_owner_routes_and_wrong_ca(tmp_path, monkeypatch):
     value = options(tmp_path)
     validated = MessagingOptions.model_validate(value)

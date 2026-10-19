@@ -1,5 +1,6 @@
 """Explicit transaction assembly; the host owns Start, admission and DB lifetime."""
 
+import math
 import os
 from typing import cast
 
@@ -69,6 +70,8 @@ class TransactionRuntime:
         self._sender.stop_admission()
 
     async def close(self, *, grace_seconds: float = 30) -> None:
+        if not math.isfinite(grace_seconds) or grace_seconds < 0:
+            raise ValueError("Finite nonnegative transaction shutdown budget required")
         self.stop_admission()
         await self._sender.close(grace_seconds=grace_seconds)
 
