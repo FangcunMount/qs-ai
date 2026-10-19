@@ -2,7 +2,7 @@
 
 qs-ai 通过消息受理命令，把可见状态和成果作为持久事件交给 QS。一次本地提交证明“业务效果与待发消息同时存在”；Broker 的发布确认成功证明 Broker 接收；QS 对原事件返回 `STORED` 才证明其接收事务完成。这三个完成点分别有记录，不能合并成一个“发送成功”。
 
-本文以一次 Start 产生 Session、最终形成 Artifact 并交付 QS 为主线。核对基线：qs-ai `d9c3155`，QS `2ccc2de44`，2026-10-06。qs-ai 固定依赖 `fangcun-reliable-messaging[nsq,rocketmq]==0.3.0a1`；SDK 机制核对该发布标签的源码，测试、部署与真实业务接收仍是独立证据。
+本文以一次 Start 产生 Session、最终形成 Artifact 并交付 QS 为主线。核对基线：qs-ai `d9c3155`，QS `2ccc2de44`，2026-10-06。上述日期记录原业务链路；2026-10-19 的 M3 接入基础固定依赖 `fangcun-reliable-messaging[nsq,rocketmq]==0.4.0a1`（SDK 源码 `bfaae2b82ee0d1229b8c965fce472cdf5dec486f`）。业务尚未切换事务入口，测试、部署与真实业务接收仍是独立证据。
 
 ## RocketMQ 普通消息
 
@@ -10,7 +10,15 @@ qs-ai 通过消息受理命令，把可见状态和成果作为持久事件交�
 
 运行时复用当前应用循环和数据库，SDK 在显式 start 时创建客户端及有界 blocking-driver executor。客户端实际取得路由和服务端 settings 后才报告启动完成。普通消息不会改变原命令 Inbox、Outbox、本地事务、业务回执、冻结配置和 unknown 模型调用的恢复规则。`publish_enabled=false` 在 Relay 扫描前暂停，避免维护期间消耗发布预算。
 
-RocketMQ 终态交接携带 provider、原始 Wire 和实际物理来源，宿主仍先验证受保护的原命令或 ACK，再提交原持久失败记录，成功后才允许消费 ACK。NSQ 的 failure topic 中转只用于 NSQ 分支。当前没有事务消息，发布型 Outbox 继续存在。源码与测试通过不代表生产已经切换，生产版本、有效绑定和 `system` 账号业务验收需独立记录。
+RocketMQ 终态交接携带 provider、原始 Wire 和实际物理来源，宿主仍先验证受保护的原命令或 ACK，再提交原持久失败记录，成功后才允许消费 ACK。NSQ 的 failure topic 中转只用于 NSQ 分支。当前业务尚未接入事务发送器，发布型 Outbox 继续存在。源码与测试通过不代表生产已经切换，生产版本、有效绑定和 `system` 账号业务验收需独立记录。
+
+## M3 事务装配基础（业务接入进行中）
+
+[`transaction_messaging.py`](../../../src/qs_ai/bootstrap/transaction_messaging.py) 提供独立的 `make_transaction_sender` 和 `TransactionRuntime`，借用宿主 primary `async_sessionmaker`，构造不创建 session、线程、客户端或表。必须显式配置 `messaging.transactions["ai.mysql"]` 的 `store_id`、`writer_epoch`、`route_revision=m3-1`，并校验同一可信 CA。v2 manifest 中只选择本 owner 的 TRANSACTION 事件路由；v1 不得夹带 v2 字段。
+
+默认发送并发 4、Checker worker 1 / 等待队列 16，DB 回查 2 秒、RPC 5 秒、lease 60 秒、每 5 秒最多维护 100 条；覆盖预算必须给出全部九个字段。`publish_enabled=false` 只封新发送并保留 Checker；最终关闭通过 StopAdmission / Close / Wait 排空 SDK，然后由宿主关闭 DB 和 loop。`ShutdownIncomplete` 原样保留，不能当作成功关闭。
+
+此入口目前未接入 command admission、状态 finalization 或统一 server。旧 `MessagingRuntime.create()` 遇到非空 transactions 明确拒绝，避免继续由 MQRelay 发送事务 owner 的消息。原根事务、首 wire、业务 receipt 和模型 unknown 恢复仍按下文执行；后续批次逐项替换，不因 SDK 具备事务能力就宣称业务已迁移。全局进度以 [infra M3 总表](https://github.com/FangcunMount/infra/blob/codex/rocketmq-m3/docs/server/rocketmq-m3-execution.md) 为准。
 
 ## 当前服务怎样装配这条链路
 

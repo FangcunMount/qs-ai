@@ -1,7 +1,7 @@
 {
   "schema_version": "qs-ai-document-closure/v1",
-  "source_commit": "82ffa1b43308f23fbb1ebe669c3071e0486e105a",
-  "reviewed_on": "2026-10-18",
+  "source_commit": "81db02635e509a253f1803102f8c213d5bf00798",
+  "reviewed_on": "2026-10-19",
   "authority": "runtime composition > code > machine contracts/config/migrations > scoped tests > maintained prose > dated evidence/plans/archive",
   "source_catalog": {
     ".github/workflows/ai-messaging.yml": "2dddb3ffeb66a49967fb2019709829065365464b1833a51f72f34331ef38aabe",
@@ -10,7 +10,7 @@
     ".github/workflows/m7-messaging.yml": "6dbe883cc556a287bac8807e90c0879afcf1212ff0db05a963e53dcf535168e8",
     "Dockerfile": "a228b397109b1627bee2c2cb66b3d33d3a2c7d4238a726c5b7e1a61503accf8a",
     "compose.yaml": "07e882533006901f3cda4f3cf2449ee34b20af0cde75cceb1ea9b84699755206",
-    "configs/README.md": "3d2cf55ebddb6c2bf4f3b35115ec8d179cb7775d097931142b77fff61675d444",
+    "configs/README.md": "8e1a2c7cc0447c6d224b4d33eef9691c6360d98706a0305af2045b66c9e97f69",
     "configs/default.yaml": "cfb4e393182eba1793a4a5c3e29ded3cfa7283e6f472c2d22d521e010a400068",
     "configs/local.yaml": "6a722980c92fbb05c39e6e96277dafd5a53a42311ba250db7bab20c58fde4c5a",
     "configs/production.yaml": "49ed4faeaff91ac285891f16965aed5b2d2661e796bc51af860852fe4f579bc9",
@@ -64,7 +64,7 @@
     "migrations/versions/0038_messaging_observations.py": "052520bdf81107128872608ca20d5ab2a37773677160aa6d96ce94e22dd63882",
     "migrations/versions/0039_data_consolidation.py": "b9d27aab1ae323afc150df07a2bed3c21c4d4978f1262c4e178e37e16bcd5f93",
     "migrations/versions/0040_module_table_names.py": "4c4ab3cdc7b871b5d3e0577ead40be96ee5ebfb568ef84acc712cd58b2ab32e9",
-    "pyproject.toml": "90d3e8922f0b4a8525aea6456d9897ca5da51970325a86af2ee9c32cee772a96",
+    "pyproject.toml": "e5ecb0f29449b6ff9c6fd84907d7ea65a0df920782e273a50be999a92d8c4c39",
     "scripts/cd/IMAGE_RETENTION.md": "2e525760370df1c5b4238fea5ee707deb492b0f7c2851517d3cdc3dee8feb5d3",
     "scripts/cd/deploy.py": "8678cbedc4b4aa4e410027c713d31426d03d7e5765443878203f320a282116cb",
     "scripts/cd/deploy_scope.py": "fec48f82798101688b26459169b3808b08cf8610b5fd5e3fcdacb86cddf1bbc5",
@@ -118,7 +118,7 @@
     "src/qs_ai/bootstrap/import_evaluation_suites.py": "585f86b5fe3cf3b06af44310a0dbcaec6cb459c8240f6c051de1c04968ec748a",
     "src/qs_ai/bootstrap/import_mbti_assets.py": "7ede442a5243aaf65f07c66cbb00837c9f1a91eac3efd0ad57e04ecfbd75b945",
     "src/qs_ai/bootstrap/lifecycle.py": "27326c4629c3a3b5a57e75270df1c97a6e53f5db700fff62b07c8bc8f1736131",
-    "src/qs_ai/bootstrap/messaging.py": "7564b5a18151d177ba7d4353dec344255444af76e10a6bfcfb7e01d91c3576fd",
+    "src/qs_ai/bootstrap/messaging.py": "9e64d25d49d4d68a881b11f179a4681c7f6bb4f36639f3fd27955e71137df567",
     "src/qs_ai/bootstrap/observe_cutover.py": "69d46c370fad5ef7beb79cd849b88071fbf7283f30ead72f743f05488d00e694",
     "src/qs_ai/bootstrap/providers/core.py": "9b7de165e256ccd51e7eadb6a0597492a4de536461fde40ef7700ec575fad9b8",
     "src/qs_ai/bootstrap/providers/evaluation.py": "cad681366c73be2e0ee7d4d20974949b42bc3126f176dfc780f7a5486bfc7f72",
@@ -127,7 +127,7 @@
     "src/qs_ai/bootstrap/recover_semantic_contract.py": "93df69c43e614c4b706f73c16fb561211c6093bc72f3eba834bcef1f504c6971",
     "src/qs_ai/bootstrap/server.py": "669f6ff8fd603776f6e5ed92fe2501cc32a782ad51a07fb79d2da8758b63e290",
     "src/qs_ai/bootstrap/worker.py": "29966dfbe8b01e6ea0b9bc4d60ec653d2b51e3310ee81906ae0c9f8a087f208b",
-    "src/qs_ai/config.py": "64a3b58823e920833e85934aa90f073aa47c123522f245fe37f20abfb39cfe90",
+    "src/qs_ai/config.py": "4a87b5ec07df17a3c81b8e9283a6b592517e2257b4aab76f005836bd6ed8824e",
     "src/qs_ai/domain/evaluation/acceptance.py": "5f4a570cbc81996e555baf5844e1a30294dd91408ffe4af924c5afe5e24ffda0",
     "src/qs_ai/domain/evaluation/actions.py": "d70c5b90f3c2fc0868a1637e91a24d0767a46140503ed965f72460ecb56b3a64",
     "src/qs_ai/domain/evaluation/adjudication.py": "2c3fa1335d75fe13e76e7c38833a55b9a692610892dc899205bbf3ee28729ec7",
@@ -438,7 +438,7 @@
     "tests/test_solutions.py": "e60f73b854d4816bfe06d6cfeff1c783572c3348f7f0e265d4dc3d0a602b37f3",
     "tests/test_structured_logging.py": "01ad0070c167faf7bb0cccd6d507a9debb5880b59a30cd49381dcd943073d17e",
     "tests/test_worker_frozen_evidence.py": "a279da8e3371901f60a08e200f6ce91438304332c980d2bf591fb2ec0aa108e9",
-    "uv.lock": "faf5914555bde127ff2844162cb24e271992ba8fb0c648574b869829cc20dc1f",
+    "uv.lock": "ace6830e8cea18d64b358324523cf0bd058cf6a02764e7ddfa934c2845f4b34c",
     ".github/workflows/schema-maintenance.yml": "24699269bd60cac98c41b210c04783cbf36056feb10848e462e1750f020b5e44",
     "scripts/cd/schema_maintenance.py": "9a9540ad4f7a840e204cd98aa76a378e626e700ee210fe544a09d329d4be7726",
     "deploy/serverA/schema_maintenance.py": "0d064a9814aae8cf7c20dabb3efc2dca19ab87e8477bb21472cd494e84b744b5",
@@ -499,7 +499,8 @@
     "tests/test_evaluation_review_correction.py": "77b33ee426167a97a33c857a62be2d5b8ff32fbdc5c97c7349469b97b0082a88",
     "tests/test_evaluation_finalization.py": "880e3a5b22e0b4b2b371b436c16a3d38a193ba5fc5eedf4dc322ae7996ccd823",
     "tests/test_rocketmq_binding.py": "a9344faa786f3886b2462a2ab46370d13f363d5af28cafe927133e46e32c8203",
-    "src/qs_ai/maintenance/messaging_preflight.py": "9e24b06fc9ffc6af52fbbf2a017dfa60c6407ed0b987e23df673916969455bc5"
+    "src/qs_ai/maintenance/messaging_preflight.py": "9e24b06fc9ffc6af52fbbf2a017dfa60c6407ed0b987e23df673916969455bc5",
+    "src/qs_ai/bootstrap/transaction_messaging.py": "83c1995725a707a3aaef504b909711354145be5b8cc60490c40421baf9649400"
   },
   "documents": [
     {
@@ -516,7 +517,7 @@
         "python scripts/check_docs.py",
         "pytest -q tests/test_docs.py"
       ],
-      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding 2026-10-19 M3 fixed prerelease and owner-bound inert transaction foundation reviewed; current business remains on original Relay and root transactions. Transaction-enabled legacy assembly fails closed; production remains independently unverified."
     },
     {
       "path": "configs/README.md",
@@ -532,7 +533,7 @@
         "python scripts/check_docs.py",
         "pytest -q tests/test_docs.py"
       ],
-      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding"
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding 2026-10-19 M3 fixed prerelease and owner-bound inert transaction foundation reviewed; current business remains on original Relay and root transactions. Transaction-enabled legacy assembly fails closed; production remains independently unverified."
     },
     {
       "path": "deploy/serverA/README.md",
@@ -743,7 +744,7 @@
         "python scripts/check_docs.py",
         "pytest -q tests/test_architecture.py"
       ],
-      "review_scope": "在 766b2aa 业务源码基线上核对单进程装配与真实调用链、层间决策、机器契约和生成文件位置、架构 AST 约束、CI 双 MySQL 四分片与完整覆盖门禁、代码/测试/CI/部署/业务验收证据层次；独立复核改正 evaluation.execute_step 入口和 MQ 成果/ACK 分段测试范围。 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained."
+      "review_scope": "在 766b2aa 业务源码基线上核对单进程装配与真实调用链、层间决策、机器契约和生成文件位置、架构 AST 约束、CI 双 MySQL 四分片与完整覆盖门禁、代码/测试/CI/部署/业务验收证据层次；独立复核改正 evaluation.execute_step 入口和 MQ 成果/ACK 分段测试范围。 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained. 2026-10-19 M3 fixed prerelease and owner-bound inert transaction foundation reviewed; current business remains on original Relay and root transactions. Transaction-enabled legacy assembly fails closed; production remains independently unverified."
     },
     {
       "path": "docs/00-总览/README.md",
@@ -800,7 +801,7 @@
         "pytest -q tests/test_container.py tests/test_generation_container.py tests/test_evaluation_container.py tests/test_health.py",
         "pytest -q tests/test_single_server.py tests/test_messaging_runtime.py (requires project dependencies and local listener permissions)"
       ],
-      "review_scope": "在 bd5e18e/766b2aa 未改变业务源码基线上复核统一入口、MQ/TLS/迁移和八类观测前置检查、provider预检、消息密钥先于schema、APP共享池、Publisher gate、实际started/HTTP就绪含义、local/production默认差异及前置失败清理；明确监听器测试替换preflight，启动后ready前可能已经执行业务，不声明现场配置与生产能力。 Reviewed production quota override 2048 with unchanged reservations, concurrency and drain semantics; runtime evidence remains independently bound. 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained."
+      "review_scope": "在 bd5e18e/766b2aa 未改变业务源码基线上复核统一入口、MQ/TLS/迁移和八类观测前置检查、provider预检、消息密钥先于schema、APP共享池、Publisher gate、实际started/HTTP就绪含义、local/production默认差异及前置失败清理；明确监听器测试替换preflight，启动后ready前可能已经执行业务，不声明现场配置与生产能力。 Reviewed production quota override 2048 with unchanged reservations, concurrency and drain semantics; runtime evidence remains independently bound. 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained. 2026-10-19 M3 fixed prerelease and owner-bound inert transaction foundation reviewed; current business remains on original Relay and root transactions. Transaction-enabled legacy assembly fails closed; production remains independently unverified."
     },
     {
       "path": "docs/01-运行时/02-Dishka作用域与资源所有权.md",
@@ -841,7 +842,7 @@
         "pytest -q tests/test_container.py tests/test_generation_container.py tests/test_evaluation_container.py (blocked locally: reliable_messaging missing)",
         "pytest -q tests/integration/test_shared_runtime_pool.py tests/integration/test_mq_admission.py (requires disposable MySQL/NSQ and project dependencies)"
       ],
-      "review_scope": "在 766b2aa 业务源码基线上逐一核对 APP/REQUEST 创建与关闭所有者、两种独立 QS channel、两个共享Transactions但不同实例的执行store、惰性未配置分支、每open新EventSession、显式commit与原事务state事件、MQ receiver根事务/savepoint/BorrowedTransactions UOW回调；独立复核图及HTTP作用域，不把作用域正常退出、替身测试或集成skip外推为数据库原子性。 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained."
+      "review_scope": "在 766b2aa 业务源码基线上逐一核对 APP/REQUEST 创建与关闭所有者、两种独立 QS channel、两个共享Transactions但不同实例的执行store、惰性未配置分支、每open新EventSession、显式commit与原事务state事件、MQ receiver根事务/savepoint/BorrowedTransactions UOW回调；独立复核图及HTTP作用域，不把作用域正常退出、替身测试或集成skip外推为数据库原子性。 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained. 2026-10-19 M3 fixed prerelease and owner-bound inert transaction foundation reviewed; current business remains on original Relay and root transactions. Transaction-enabled legacy assembly fails closed; production remains independently unverified."
     },
     {
       "path": "docs/01-运行时/03-后台执行与调度.md",
@@ -885,7 +886,7 @@
         "pytest -q tests/test_daemon.py tests/test_model_capacity.py tests/test_worker_frozen_evidence.py",
         "pytest -q tests/integration/test_generation.py tests/integration/test_evaluation_worker.py tests/integration/test_evaluation_scan.py tests/integration/test_evaluation_candidate_execution.py (requires disposable MySQL and project dependencies)"
       ],
-      "review_scope": "在 766b2aa 业务源码基线上核对四类loop返回值、consumer独立退避与关闭、Job最多20候选/锁序/fence/3次attempt、原模型调用状态恢复、Evaluation先恢复再取消/选择的模式差异与游标、候选续租和本地ModelCapacity、Relay固定20及返回0、诊断1000连续清批与失败1小时等待；具体Job失租、receipt/unknown、45消息和2300诊断例子不推断现场配置。 Reviewed production quota override 2048 with unchanged reservations, concurrency and drain semantics; runtime evidence remains independently bound. 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained."
+      "review_scope": "在 766b2aa 业务源码基线上核对四类loop返回值、consumer独立退避与关闭、Job最多20候选/锁序/fence/3次attempt、原模型调用状态恢复、Evaluation先恢复再取消/选择的模式差异与游标、候选续租和本地ModelCapacity、Relay固定20及返回0、诊断1000连续清批与失败1小时等待；具体Job失租、receipt/unknown、45消息和2300诊断例子不推断现场配置。 Reviewed production quota override 2048 with unchanged reservations, concurrency and drain semantics; runtime evidence remains independently bound. 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained. 2026-10-19 M3 fixed prerelease and owner-bound inert transaction foundation reviewed; current business remains on original Relay and root transactions. Transaction-enabled legacy assembly fails closed; production remains independently unverified."
     },
     {
       "path": "docs/01-运行时/04-生命周期与优雅关闭.md",
@@ -919,7 +920,7 @@
         "pytest -q tests/test_daemon.py tests/test_runtime_lifecycle.py",
         "pytest -q tests/test_server_signals.py tests/test_single_server.py tests/test_messaging_runtime.py (requires project dependencies and local listener permissions)"
       ],
-      "review_scope": "在 766b2aa 业务源码基线上核对唯一信号所有者、mandatory提前结束故障域、ready撤销/并行drain/Publisher和HTTP依赖顺序、timeout之外取消清理与grpc兜底、191/192/197/201秒配置预算非整体时限、原正式模型调用/failed/response及Outbox恢复前提；独立复核探针测试覆盖和ModelResponse非原HTTPwire，不承诺退出前交付或生产停机结果。 Reviewed production quota override 2048 with unchanged reservations, concurrency and drain semantics; runtime evidence remains independently bound."
+      "review_scope": "在 766b2aa 业务源码基线上核对唯一信号所有者、mandatory提前结束故障域、ready撤销/并行drain/Publisher和HTTP依赖顺序、timeout之外取消清理与grpc兜底、191/192/197/201秒配置预算非整体时限、原正式模型调用/failed/response及Outbox恢复前提；独立复核探针测试覆盖和ModelResponse非原HTTPwire，不承诺退出前交付或生产停机结果。 Reviewed production quota override 2048 with unchanged reservations, concurrency and drain semantics; runtime evidence remains independently bound. 2026-10-19 M3 fixed prerelease and owner-bound inert transaction foundation reviewed; current business remains on original Relay and root transactions. Transaction-enabled legacy assembly fails closed; production remains independently unverified."
     },
     {
       "path": "docs/01-运行时/README.md",
@@ -1476,7 +1477,7 @@
         "git diff --check",
         "72 capacity/quotas/checkpoint/parallel-plan/receipt/config/frozen-evidence unit tests passed; isolated MySQL and real provider throughput not run"
       ],
-      "review_scope": "2026-10-06 source-grounded rewrite on unchanged 766b2aa business code; participant daily/active reservations, evaluation worst-case budgets, lock/version/fence distinctions, original dispatch ownership, concurrent candidate claims/receipt guards, local tokens and cross-instance limits; independent source review. Reviewed production quota override 2048 with unchanged reservations, concurrency and drain semantics; runtime evidence remains independently bound. 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained."
+      "review_scope": "2026-10-06 source-grounded rewrite on unchanged 766b2aa business code; participant daily/active reservations, evaluation worst-case budgets, lock/version/fence distinctions, original dispatch ownership, concurrent candidate claims/receipt guards, local tokens and cross-instance limits; independent source review. Reviewed production quota override 2048 with unchanged reservations, concurrency and drain semantics; runtime evidence remains independently bound. 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained. 2026-10-19 M3 fixed prerelease and owner-bound inert transaction foundation reviewed; current business remains on original Relay and root transactions. Transaction-enabled legacy assembly fails closed; production remains independently unverified."
     },
     {
       "path": "docs/03-基础设施/execution-recovery/README.md",
@@ -1568,14 +1569,16 @@
         "tests/test_mq_deployment.py",
         "tests/test_mq_failure.py",
         "tests/test_rocketmq_binding.py",
-        "src/qs_ai/maintenance/messaging_preflight.py"
+        "src/qs_ai/maintenance/messaging_preflight.py",
+        "src/qs_ai/bootstrap/transaction_messaging.py"
       ],
       "verify": [
         "python scripts/check_docs.py",
         "git diff --check",
-        "4 legacy retirement unit tests passed; full MQ/NSQ/JOSE/MySQL tests not run due missing existing extras; no installs or live transport actions"
+        "4 legacy retirement unit tests passed; full MQ/NSQ/JOSE/MySQL tests not run due missing existing extras; no installs or live transport actions",
+        "pytest -q tests/test_transaction_messaging.py"
       ],
-      "review_scope": "2026-10-06 source-grounded rewrite on unchanged 766b2aa business code, QS 2ccc2de and reliable-messaging Python 0.2.0a2 8633ba5; inbox/root/savepoint, first body/wire, source vs transport outbox, Relay budgets, stored ACK condition scope, protected payloads and one-record handoff; independent source review; legacy gRPC loop retired. 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained."
+      "review_scope": "2026-10-06 source-grounded rewrite on unchanged 766b2aa business code, QS 2ccc2de and reliable-messaging Python 0.2.0a2 8633ba5; inbox/root/savepoint, first body/wire, source vs transport outbox, Relay budgets, stored ACK condition scope, protected payloads and one-record handoff; independent source review; legacy gRPC loop retired. 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained. 2026-10-19 M3 fixed prerelease and owner-bound inert transaction foundation reviewed; current business remains on original Relay and root transactions. Transaction-enabled legacy assembly fails closed; production remains independently unverified."
     },
     {
       "path": "docs/03-基础设施/model-gateway/README.md",
@@ -1719,7 +1722,7 @@
         "QS/workflow/messaging generation --check all passed; fixed-source manifest and generated output byte consistency verified; no runtime/network acceptance",
         "Correction-specific unit/gRPC, MySQL 8.0/8.4 transactions and existing review/finalization/reopening regressions; scripts/check_docs.py. Environment and business acceptance separately recorded."
       ],
-      "review_scope": "Source-grounded rewrite against unchanged qs-ai business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Actual protocol owners/registration, retired execution RPCs, fixed QS vendoring versus generated artifacts, current HTTP DTOs and per-family idempotency; independent source review. 2026-10-06 scoped CorrectReview patch review: original signatures remain immutable; effective-review projection, CAS/idempotent audit, archived receipt replay and finalization reads reconciled. Existing MQ execution, participant precheck and other proto fields unchanged. No production correction or publication acceptance claimed."
+      "review_scope": "Source-grounded rewrite against unchanged qs-ai business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Actual protocol owners/registration, retired execution RPCs, fixed QS vendoring versus generated artifacts, current HTTP DTOs and per-family idempotency; independent source review. 2026-10-06 scoped CorrectReview patch review: original signatures remain immutable; effective-review projection, CAS/idempotent audit, archived receipt replay and finalization reads reconciled. Existing MQ execution, participant precheck and other proto fields unchanged. No production correction or publication acceptance claimed. 2026-10-19 M3 fixed prerelease and owner-bound inert transaction foundation reviewed; current business remains on original Relay and root transactions. Transaction-enabled legacy assembly fails closed; production remains independently unverified."
     },
     {
       "path": "docs/04-接口与运维/02-QS接入与消息契约.md",
@@ -1749,7 +1752,7 @@
         "AI/QS/IAM source and existing test assertions reviewed; cross-service MySQL/MQ/mTLS and participant acceptance not run",
         "Correction-specific unit/gRPC, MySQL 8.0/8.4 transactions and existing review/finalization/reopening regressions; scripts/check_docs.py. Environment and business acceptance separately recorded."
       ],
-      "review_scope": "Source-grounded rewrite against unchanged qs-ai business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. QS 2ccc2de44bbd45e26d29e7e130da518cc32426f0 and IAM c8fc1fe61a32056368148e232e96d32763c15ba5 source review: current access/delegation, exact HTTP and MQ operation/projection contracts, original request replay and durable Stored; independent source review. 2026-10-06 scoped CorrectReview patch review: original signatures remain immutable; effective-review projection, CAS/idempotent audit, archived receipt replay and finalization reads reconciled. Existing MQ execution, participant precheck and other proto fields unchanged. No production correction or publication acceptance claimed. 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained."
+      "review_scope": "Source-grounded rewrite against unchanged qs-ai business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. QS 2ccc2de44bbd45e26d29e7e130da518cc32426f0 and IAM c8fc1fe61a32056368148e232e96d32763c15ba5 source review: current access/delegation, exact HTTP and MQ operation/projection contracts, original request replay and durable Stored; independent source review. 2026-10-06 scoped CorrectReview patch review: original signatures remain immutable; effective-review projection, CAS/idempotent audit, archived receipt replay and finalization reads reconciled. Existing MQ execution, participant precheck and other proto fields unchanged. No production correction or publication acceptance claimed. 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained. 2026-10-19 M3 fixed prerelease and owner-bound inert transaction foundation reviewed; current business remains on original Relay and root transactions. Transaction-enabled legacy assembly fails closed; production remains independently unverified."
     },
     {
       "path": "docs/04-接口与运维/03-治理接口与可信委托.md",
@@ -1817,7 +1820,7 @@
         "git diff --check",
         "37 container/configuration/CI unit tests passed using existing environment and sibling SDK source; no dependency install, Docker, migration, MQ/provider or production action"
       ],
-      "review_scope": "Source-grounded rewrite against unchanged qs-ai business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Actual settings precedence/validation/defaults, offline checks, dependency prerequisites, isolated double-head database bootstrap and CI stages; independent source review. Reviewed production quota override 2048 with unchanged reservations, concurrency and drain semantics; runtime evidence remains independently bound."
+      "review_scope": "Source-grounded rewrite against unchanged qs-ai business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Actual settings precedence/validation/defaults, offline checks, dependency prerequisites, isolated double-head database bootstrap and CI stages; independent source review. Reviewed production quota override 2048 with unchanged reservations, concurrency and drain semantics; runtime evidence remains independently bound. 2026-10-19 M3 fixed prerelease and owner-bound inert transaction foundation reviewed; current business remains on original Relay and root transactions. Transaction-enabled legacy assembly fails closed; production remains independently unverified."
     },
     {
       "path": "docs/04-接口与运维/05-部署迁移与兼容回滚.md",
@@ -2079,7 +2082,7 @@
         "git diff --check",
         "Existing lifecycle/container/pool test assertions reviewed; prior targeted lifecycle/configuration tests passed; no live capacity/drain or deployment acceptance"
       ],
-      "review_scope": "Source-grounded rewrite against unchanged qs-ai business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Current shared loop/pool/capacity and supervisor ownership, drain dependency and persisted Outbox distinction, shared fault-domain costs and concrete split/hot-restart conditions; independent source review; reasons inferred from present constraints, no invented historical motive."
+      "review_scope": "Source-grounded rewrite against unchanged qs-ai business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Current shared loop/pool/capacity and supervisor ownership, drain dependency and persisted Outbox distinction, shared fault-domain costs and concrete split/hot-restart conditions; independent source review; reasons inferred from present constraints, no invented historical motive. 2026-10-19 M3 fixed prerelease and owner-bound inert transaction foundation reviewed; current business remains on original Relay and root transactions. Transaction-enabled legacy assembly fails closed; production remains independently unverified."
     },
     {
       "path": "docs/05-决策记录/02-业务持久状态与LangGraph编排.md",
@@ -2197,7 +2200,7 @@
         "All maintained articles indexed and local Markdown navigation reachability reviewed; no archive/runtime/config/protocol changes",
         "Correction-specific unit/gRPC, MySQL 8.0/8.4 transactions and existing review/finalization/reopening regressions; scripts/check_docs.py. Environment and business acceptance separately recorded."
       ],
-      "review_scope": "Navigation and maintenance rules reconciled against all 34 source-reviewed design articles, unchanged business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Concrete question-based reading routes, single fact ownership, exact local checker limits and runtime_status fixed unknown; independent root-index review. External consumer gaps retain their per-article fixed source baselines. Reviewed production quota override 2048 with unchanged reservations, concurrency and drain semantics; runtime evidence remains independently bound. 2026-10-06 scoped CorrectReview patch review: original signatures remain immutable; effective-review projection, CAS/idempotent audit, archived receipt replay and finalization reads reconciled. Existing MQ execution, participant precheck and other proto fields unchanged. No production correction or publication acceptance claimed. 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained."
+      "review_scope": "Navigation and maintenance rules reconciled against all 34 source-reviewed design articles, unchanged business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Concrete question-based reading routes, single fact ownership, exact local checker limits and runtime_status fixed unknown; independent root-index review. External consumer gaps retain their per-article fixed source baselines. Reviewed production quota override 2048 with unchanged reservations, concurrency and drain semantics; runtime evidence remains independently bound. 2026-10-06 scoped CorrectReview patch review: original signatures remain immutable; effective-review projection, CAS/idempotent audit, archived receipt replay and finalization reads reconciled. Existing MQ execution, participant precheck and other proto fields unchanged. No production correction or publication acceptance claimed. 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained. 2026-10-19 M3 fixed prerelease and owner-bound inert transaction foundation reviewed; current business remains on original Relay and root transactions. Transaction-enabled legacy assembly fails closed; production remains independently unverified."
     },
     {
       "path": "docs/_plans/01-能力演进与验收缺口.md",
@@ -2755,5 +2758,5 @@
       "review_scope": "2026-10-12: governance flow reviewed at 7c71d1e95500aa20c3d82f57a7304578c8a794dd. Traced workspace/atomic freeze/requested Run versus protected MQ Start; fixed candidate slots and budgets; structural candidate acceptance versus retained deterministic failures; LLM semantic obligations and original response evidence; G1-G5, versioned acceptance, two-role accountability and Finalize/reopening/correction limits; publication evidence recomputation, global selector, pointer CAS, rollback/disable, receipts and original participant bindings. Source and local rules only; deployed enablement, real model quality, actual human approval and shared pointer activation unknown."
     }
   ],
-  "working_tree_review": "RocketMQ ordinary provider bindings and fixed wheel reviewed; original execution, recovery and receipt policies preserved; production acceptance remains independent."
+  "working_tree_review": "M3 T03 fixed 0.4.0a1 wheel, v2 route/config and inert host-owned transaction lifecycle reviewed; legacy runtime rejects enabled transaction owners. Business/root commit/receipt/model recovery unchanged; production unknown."
 }
