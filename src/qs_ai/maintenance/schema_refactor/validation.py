@@ -346,8 +346,19 @@ def _require_layout(
         expected |= set(extensions.tables)
     if actual != expected:
         raise ValueError("Database table set differs from its versioned layout")
-    if contracts.head(conn, schema) != (expected_head or head):
-        raise ValueError("Database head differs from its versioned layout")
+    if expected_head is None:
+        if contracts.head(conn, schema) != head:
+            raise ValueError("Database head differs from its versioned layout")
+    else:
+        current = (
+            conn.execute(
+                sa.text(f"SELECT version_num FROM {contracts.qualified(schema, 'alembic_version')}")
+            )
+            .scalars()
+            .all()
+        )
+        if current != [expected_head]:
+            raise ValueError("Database head differs from its versioned layout")
     objects = conn.execute(
         sa.text(
             "SELECT TABLE_NAME,ENGINE,TABLE_TYPE FROM information_schema.TABLES "
