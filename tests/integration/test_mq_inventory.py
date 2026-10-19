@@ -18,7 +18,6 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
     runs,
 )
 from qs_ai.maintenance.messaging_audit import inventory
-from qs_ai.maintenance.schema_refactor.layouts import NEW_HEAD
 from tests.integration.test_interpretation import kit as kit
 from tests.integration.test_mq_admission import mq_env as mq_env
 from tests.integration.test_mq_admission import saved
@@ -67,7 +66,7 @@ async def test_messaging_inventory_missing_table_is_unavailable_not_empty(legacy
         section = report["sections"]["ai_messaging_inbox"]
         assert not report["complete"] and not section["table_exists"]
         assert section["rows"] is None and section["total"] is None
-        assert report["schema_heads"] == [NEW_HEAD]
+        assert report["schema_heads"] == ["0041_transaction_messaging"]
     finally:
         async with tx.open() as db:
             await db.execute(text(f"RENAME TABLE mq_inventory_hidden TO {inbox.name}"))

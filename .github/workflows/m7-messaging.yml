@@ -47,6 +47,8 @@ jobs:
       TZ: Asia/Shanghai
       QS_AI_DATABASE_URL: mysql+asyncmy://m7:m7_disposable_only@127.0.0.1:3306/qs_ai
       QS_AI_TEST_MYSQL_DSN: mysql://m7:m7_disposable_only@127.0.0.1:3306/qs_ai
+      QS_AI_SCHEMA_TEST_SERVER: mysql+pymysql://root:m7_root_disposable_only@127.0.0.1:3306/mysql
+      QS_MQ_FAULT_DDL_MYSQL_URL: mysql+asyncmy://root:m7_root_disposable_only@127.0.0.1:3306/qs_ai
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
