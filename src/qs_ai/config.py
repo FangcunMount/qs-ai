@@ -6,6 +6,7 @@ from typing import Any, Literal
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
+from reliable_messaging.transaction import Limits as TransactionLimits
 from sqlalchemy.engine import make_url
 
 from qs_ai.model_configuration import ModelConfiguration
@@ -127,6 +128,32 @@ class RocketMQOptions(Options):
     routes_file: str = Field(min_length=1)
 
 
+class TransactionOptions(Options):
+    store_id: str = Field(min_length=1)
+    writer_epoch: str = Field(min_length=1)
+    route_revision: Literal["m3-1"]
+    limits: TransactionLimits = Field(
+        default_factory=lambda: TransactionLimits(sends=4, check_workers=1, check_queue=16)
+    )
+
+    @field_validator("limits", mode="before")
+    @classmethod
+    def complete_budget(cls, value: Any) -> Any:
+        if isinstance(value, dict) and set(value) != {
+            "sends",
+            "branches",
+            "check_workers",
+            "check_queue",
+            "reconcile_batch",
+            "check_timeout",
+            "rpc_timeout",
+            "lease",
+            "reconcile_interval",
+        }:
+            raise ValueError("Transaction budget overrides must specify every limit")
+        return value
+
+
 class MessagingOptions(Options):
     provider: Literal["nsq", "rocketmq"] = "nsq"
     rocketmq: RocketMQOptions | None = None
@@ -139,9 +166,16 @@ class MessagingOptions(Options):
     qs_signer_files: dict[str, str] = Field(default_factory=dict)
     qs_recipient_key_file: str | None = None
     max_in_flight: int = Field(default=1, ge=1, le=32)
+    transactions: dict[str, TransactionOptions] = Field(default_factory=dict, max_length=1)
 
     @model_validator(mode="after")
     def complete(self) -> "MessagingOptions":
+        if self.transactions and (
+            self.provider != "rocketmq"
+            or self.rocketmq is None
+            or set(self.transactions) != {"ai.mysql"}
+        ):
+            raise ValueError("Transactions require the explicit ai.mysql RocketMQ binding")
         if self.enabled and not all(
             (
                 self.nsqd if self.provider == "nsq" else self.rocketmq,
