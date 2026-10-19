@@ -182,3 +182,14 @@ apply 是逐条提交，不是整批一个事务。第一条已提交而第二�
 | 所有权、启动和迁移 | [运行时装配](../../../src/qs_ai/bootstrap/messaging.py)、[统一入口](../../../src/qs_ai/bootstrap/server.py)、[SDK 原事务校验](https://github.com/FangcunMount/reliable-messaging/blob/8633ba585b5a1c8f95fb16b19469fbd0097611c7/python/src/reliable_messaging/sqlalchemy.py)、[维护移交](../../../src/qs_ai/maintenance/legacy_results.py) | [旧入口退役](../../../tests/test_legacy_delivery_retirement.py)、[部署约束](../../../tests/test_mq_deployment.py)、[单记录移交集成](../../../tests/integration/test_mq_legacy_handoff.py)、[维护工具集成](../../../tests/integration/test_mq_handoff_tool.py)：原池保留、预算/首 wire 不改、源漂移拒绝、部分提交和进程中断 |
 
 [ai-messaging CI](../../../.github/workflows/ai-messaging.yml) 与 [M7 perimeter CI](../../../.github/workflows/m7-messaging.yml) 分别覆盖存储、传输及原成果边界，必需验收报告拒绝 skip/空报告。文件里有测试入口不表示当前环境已运行；合成模型、假传输和一次性数据库也不证明线上 Broker 持久性或某个真实报告已经被 QS 接受。实际交付要保留原 event ID/hash、两侧接收记录、STORED 及运行版本，技术连通和人工业务验收继续分开。
+
+
+## M3 事务档案基础尚未接入生产业务
+
+0041显式迁移新增 `messaging_archive`，单独保存原组织、首次 header/body/wire 和 SDK 精确引用。构造不安装 schema。`TransactionArchive.bind` 首先借原 AsyncSession 根事务取得 guard，`put` 从 reservation 赢家的冻结计划读取，`commit_witness` 只暂存证据；宿主提交业务、档案和 witness，任何失败均须整根回滚。不会在 callback 内重新 Seal、分配身份或发消息。
+
+本地 `qs-ai-archive/v1` codec 使用固定大端无符号整数、原 protobuf header/body 字节与显式长度。包含未知字段的原 header 不经重建，Broker 仍收到首次 wire。跨语言向量覆盖 uint64 上界和字节边界；其中假密文只证明 codec，不表示认证成功。冻结计划仍受 SDK 大小/分支上限约束。
+
+`ArchivePayloadReader` 是显式可选 reader，先验证新档案的 owner/store、精确 SDK 指纹、wire hash、组织及 execution/branch 双 committed 证据；Prepared、缺证据、损坏或不匹配直接拒绝。只有新身份不存在才走旧 MessagingStore.payload，原 mTLS workload、组织、hash/length 授权仍有效。没有新扫描器、attempt、due、业务回执结算或证据清理；业务受理及 StateEventRecorder 仍沿原链路，后续任务才接入事务 Sender。
+
+0041保留0040的旧业务/Outbox物理布局，旧消息移交和只读 inventory 可以读取这些保留表；不由此授权旧全库转换/备份工具操作0041。历史转换 CLI 测试显式指向0040，新镜像启动校验测试使用0041。真实数据库档案原子性由隔离 M3 schema 门禁验证，不能把本地 codec 测试当成生产验收。

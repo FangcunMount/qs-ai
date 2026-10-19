@@ -1,13 +1,13 @@
 {
   "schema_version": "qs-ai-document-closure/v1",
-  "source_commit": "9d2ebe9c7acdad5eecacb35985e27ac82791a5cd",
+  "source_commit": "9b84e8902417211d7d84099cdf7b5bdf8baf9578",
   "reviewed_on": "2026-10-19",
   "authority": "runtime composition > code > machine contracts/config/migrations > scoped tests > maintained prose > dated evidence/plans/archive",
   "source_catalog": {
     ".github/workflows/ai-messaging.yml": "2dddb3ffeb66a49967fb2019709829065365464b1833a51f72f34331ef38aabe",
     ".github/workflows/ci.yml": "cfe7e020f75f07d5623f379c754c2e7ffd92fb89349c46d44e2956e8f067ecdc",
     ".github/workflows/deploy.yml": "3b2890bfa20ad734bcd97f3c24d3ea3a2a9e3724c723bb5bf8df908d5e4280bc",
-    ".github/workflows/m7-messaging.yml": "3900e3325c912a8ec9981385ea6c0c1d3ccf941dfcdd76ec718ba5c598f5fcff",
+    ".github/workflows/m7-messaging.yml": "a6119b6c99066dc0429b8001b509cbe19f016a748f2dad127e25bf4bc6bc27ce",
     "Dockerfile": "a228b397109b1627bee2c2cb66b3d33d3a2c7d4238a726c5b7e1a61503accf8a",
     "compose.yaml": "07e882533006901f3cda4f3cf2449ee34b20af0cde75cceb1ea9b84699755206",
     "configs/README.md": "8e1a2c7cc0447c6d224b4d33eef9691c6360d98706a0305af2045b66c9e97f69",
@@ -238,10 +238,10 @@
     "src/qs_ai/infrastructure/workflow_transport/state_events.py": "819d544ebb056b2e39b966d78ebace26d2c370afb97641f4526ca3414568fc4e",
     "src/qs_ai/infrastructure/workflows/evaluation.py": "c486a1ed56e2399af6065b2113a7c91d25441f79f197555c14edbcea2e7c954a",
     "src/qs_ai/infrastructure/workflows/report.py": "deb23c4e24c4e6feb12a6df0676c5aeebd634240f376c7686f1992096952cc89",
-    "src/qs_ai/maintenance/legacy_results.py": "dbba324cfbcde6b5cb6dbe931d538d5e9ef5103c286bd790f4b6981c91991fa6",
-    "src/qs_ai/maintenance/messaging_audit.py": "d64ded57f092cb06e3635d4c11f048a6c4d676734376390c2204e29765048e42",
+    "src/qs_ai/maintenance/legacy_results.py": "0cd92392392b6e0339c9c4474a199df06403e390dca0df6355af3566690532e2",
+    "src/qs_ai/maintenance/messaging_audit.py": "750e339db4c7df96d42655a257fbfa0665d934dfa0f9b4285a5329126f02d395",
     "src/qs_ai/maintenance/messaging_handoff.py": "4cd5f6f9a3ee32a34c1e48ea6216a57df15116a0016262c75612c4208fed74b0",
-    "src/qs_ai/maintenance/schema_layout.py": "941a0914cfaf509d229ac7a74b009d9f49cf4675445fd30ef6a29a40dff93458",
+    "src/qs_ai/maintenance/schema_layout.py": "ec491fa99c0ea3d362b56fbbba8f0768afe2cac4a685d6f314bf40f320fd86d8",
     "src/qs_ai/maintenance/schema_refactor/__main__.py": "997f3585d404459ba079b6658cfec52d57c10daae3fe385a8ff45fae6a4fa949",
     "src/qs_ai/maintenance/schema_refactor/contracts.py": "863b53fc407ae27d04cc0fddf1576ed5fe05c13656f1e7c6a5e3d9ab371acef7",
     "src/qs_ai/maintenance/schema_refactor/control.py": "98516a7da0b40948a2688cfac57f6078cab8b129efe0e23e002e28348818cbb4",
@@ -328,7 +328,7 @@
     "tests/integration/test_runtime.py": "feb4971f857bc590f8aff5af90ede2ec195fd3a237fb81741a8510c1bb8887f9",
     "tests/integration/test_schema_refactor_cli.py": "62a484cbf91d837aea70aff2370392079fd2bc4fe7e92f838a47dfe810c49d61",
     "tests/integration/test_schema_refactor_collations.py": "6ea9c97d096bf1018e71a7a9accc24d0bc1fc52fba57ba90f26a5b26f6b180d9",
-    "tests/integration/test_schema_refactor_conversion.py": "c374abc0d4184cddf02b705f6c7f03cb858b93b529d691cdb47ca0334167612f",
+    "tests/integration/test_schema_refactor_conversion.py": "52ee6c9aa836abbb0180ca3c2a5d9290437566db0e35c2ff3368ec90bc816a90",
     "tests/integration/test_schema_refactor_disconnect.py": "d1443cf80cca1649d91e4c495e0d94868ba86cff044666b10a79083b6aa06a00",
     "tests/integration/test_schema_refactor_legacy_runtime.py": "b2fc544f7bafca2b7fe1b9c23c9da0dafe89be379d656f8415ccbb8e0be9106c",
     "tests/integration/test_schema_refactor_timeout.py": "f5a43ffcb9924115ecbc1987a9766af9b061f67b270aa6a0c1f09dace5b4d585",
@@ -450,7 +450,7 @@
     "tests/test_schema_refactor_backup.py": "8ab108689b4734a12ad1cae77db4c3f43d0b53f768a86112708d2d0f72273320",
     "tests/integration/test_schema_refactor_backup.py": "3705dc2204d99dc322f6bbf4407dea12ac1f676e67d0a3c6c738b9745858b4e5",
     "tests/integration/test_schema_followup_runtime.py": "5025bfe7a0fdbbdd6e5dfc8ec08d3a20f6459a773f784b5d79a2ff4e8ccb272a",
-    "tests/integration/test_schema_refactor_auto_increment.py": "b0f68977f9912df3a95e17970999e88a60bc61140b474c3f7c302934a58bc55c",
+    "tests/integration/test_schema_refactor_auto_increment.py": "d0eea1073cec3956a7922a66e7cdbb000ca6db784b6651807c8f0b71d8f53821",
     "tests/test_schema_followup.py": "40a8d7ef45676311fcf3f39449cdc973ad012523d3543debf4461932b90bf887",
     "tests/integration/test_prompt_retirement.py": "5d2cb85f1accd4a162425f76d12d1137efc58a5de659f7da895ff6825b724127",
     "src/qs_ai/maintenance/prompt_retirement/service.py": "b827874efc1d9582ce480d65502737d0a788433ab07c818975d5f24d369aa96a",
@@ -501,10 +501,15 @@
     "tests/test_rocketmq_binding.py": "a9344faa786f3886b2462a2ab46370d13f363d5af28cafe927133e46e32c8203",
     "src/qs_ai/maintenance/messaging_preflight.py": "9e24b06fc9ffc6af52fbbf2a017dfa60c6407ed0b987e23df673916969455bc5",
     "src/qs_ai/bootstrap/transaction_messaging.py": "83c1995725a707a3aaef504b909711354145be5b8cc60490c40421baf9649400",
-    "tests/integration/test_transaction_schema.py": "bdf04c7cb2bc455de7517d9fdd4b42c2a132f5d80a57c63633109339cb655b2f",
-    "src/qs_ai/infrastructure/persistence/mysql/transaction_schema.py": "67716f918e5ec4007b0d2ff0ce29c27ef4f59196757b6a528a16f49dc2fadb03",
-    "migrations/versions/0041_transaction_messaging.py": "a3f0560d1032b4b32aca799ad7d9b818f18c72862165fb548704d1ef7b38425e",
-    "src/qs_ai/infrastructure/persistence/mysql/tls.py": "822dedd5a952a9abb9b2398b54b4fde0e261a1d7a87a84c09768b4208364a24c"
+    "tests/integration/test_transaction_schema.py": "0c652744a103da540cc49ddf7e9d2b20b5b38a3e96694d8c389749e3037204de",
+    "src/qs_ai/infrastructure/persistence/mysql/transaction_schema.py": "4fdc5836a6a16af184f87caf875c60231af3c173666d1cfe8e1f06c039da4efa",
+    "migrations/versions/0041_transaction_messaging.py": "dd27c8eb56581bf9ef78b52a6d4ced763dc8aa6676587b1836ff5dce3f4312f1",
+    "src/qs_ai/infrastructure/persistence/mysql/tls.py": "822dedd5a952a9abb9b2398b54b4fde0e261a1d7a87a84c09768b4208364a24c",
+    "src/qs_ai/infrastructure/persistence/mysql/transaction_archive.py": "4fb70ec397180816a10755927cbe12e71895553d01b71ff45e79d376cc6095dd",
+    "src/qs_ai/infrastructure/workflow_transport/transaction_archive.py": "385739cd4df2a6fa6657cf0081ca6deb913a551e01f56c8c42bde41348aea6ea",
+    "tests/fixtures/messaging_archive/v1.json": "6323925a937e6429c14ff49c33ea6a59b4f8edabb0a1ce3aaccb997d46effaeb",
+    "tests/test_m3_legacy_layout.py": "1c7ddea3b6e248b1cea202cd9aca834b67c95177a07b418fffdab4d955016ba5",
+    "tests/test_transaction_archive.py": "539b3c3f715ccb7daf35b5b3ec52f1606e2cbb9535caac674db3f0b3f51355ee"
   },
   "documents": [
     {
@@ -1574,7 +1579,14 @@
         "tests/test_mq_failure.py",
         "tests/test_rocketmq_binding.py",
         "src/qs_ai/maintenance/messaging_preflight.py",
-        "src/qs_ai/bootstrap/transaction_messaging.py"
+        "src/qs_ai/bootstrap/transaction_messaging.py",
+        "src/qs_ai/infrastructure/persistence/mysql/transaction_archive.py",
+        "src/qs_ai/infrastructure/workflow_transport/transaction_archive.py",
+        "tests/test_transaction_archive.py",
+        "tests/test_m3_legacy_layout.py",
+        "tests/integration/test_transaction_schema.py",
+        "src/qs_ai/maintenance/schema_layout.py",
+        "src/qs_ai/maintenance/messaging_audit.py"
       ],
       "verify": [
         "python scripts/check_docs.py",
@@ -1582,7 +1594,7 @@
         "4 legacy retirement unit tests passed; full MQ/NSQ/JOSE/MySQL tests not run due missing existing extras; no installs or live transport actions",
         "pytest -q tests/test_transaction_messaging.py"
       ],
-      "review_scope": "2026-10-06 source-grounded rewrite on unchanged 766b2aa business code, QS 2ccc2de and reliable-messaging Python 0.2.0a2 8633ba5; inbox/root/savepoint, first body/wire, source vs transport outbox, Relay budgets, stored ACK condition scope, protected payloads and one-record handoff; independent source review; legacy gRPC loop retired. 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained. 2026-10-19 M3 fixed prerelease and owner-bound inert transaction foundation reviewed; current business remains on original Relay and root transactions. Transaction-enabled legacy assembly fails closed; production remains independently unverified. 2026-10-19 explicit M3 protocol schema and manual current-head validation entry reviewed; original freeze/restore layouts retained and no production DDL. 2026-10-19 runtime0041 read-only validator explicitly composes frozen0040 base checks and exact four-table protocol checks. Legacy conversion validator/layouts remain strict; no DDL, resource ownership or model behavior changed. Added actual missing-index refusal proof; native CI pending."
+      "review_scope": "2026-10-06 source-grounded rewrite on unchanged 766b2aa business code, QS 2ccc2de and reliable-messaging Python 0.2.0a2 8633ba5; inbox/root/savepoint, first body/wire, source vs transport outbox, Relay budgets, stored ACK condition scope, protected payloads and one-record handoff; independent source review; legacy gRPC loop retired. 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained. 2026-10-19 M3 fixed prerelease and owner-bound inert transaction foundation reviewed; current business remains on original Relay and root transactions. Transaction-enabled legacy assembly fails closed; production remains independently unverified. 2026-10-19 explicit M3 protocol schema and manual current-head validation entry reviewed; original freeze/restore layouts retained and no production DDL. 2026-10-19 runtime0041 read-only validator explicitly composes frozen0040 base checks and exact four-table protocol checks. Legacy conversion validator/layouts remain strict; no DDL, resource ownership or model behavior changed. Added actual missing-index refusal proof; native CI pending. 2026-10-19 original-root immutable archive and explicit legacy reader reviewed; runtime validator adds host archive beside four unchanged SDK tables. Scoped retained-table handoff/inventory supports0041; old full conversion/backup whitelist unchanged. Local45 source cases and type/lint pass; new native archive proof pending."
     },
     {
       "path": "docs/03-基础设施/model-gateway/README.md",
@@ -1685,14 +1697,20 @@
         "tests/integration/test_solutions.py",
         "migrations/versions/0041_transaction_messaging.py",
         "src/qs_ai/infrastructure/persistence/mysql/transaction_schema.py",
-        "tests/integration/test_transaction_schema.py"
+        "tests/integration/test_transaction_schema.py",
+        "src/qs_ai/infrastructure/persistence/mysql/transaction_archive.py",
+        "src/qs_ai/infrastructure/workflow_transport/transaction_archive.py",
+        "tests/test_transaction_archive.py",
+        "tests/test_m3_legacy_layout.py",
+        "src/qs_ai/maintenance/schema_layout.py",
+        "src/qs_ai/maintenance/messaging_audit.py"
       ],
       "verify": [
         "python scripts/check_docs.py",
         "git diff --check",
         "Source and existing MySQL/MQ test assertion review; DB/MQ integration and production migration not run"
       ],
-      "review_scope": "2026-10-06 source-grounded rewrite on unchanged 766b2aa business code; actual durable tables/uniqueness, path-specific isolation and locking, MQ root/savepoint and borrowed SDK pool, separate metadata migrations 0035/0037/0038 and read-only bootstrap checks; independent source review correction applied. 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained. 2026-10-19 explicit M3 protocol schema and manual current-head validation entry reviewed; original freeze/restore layouts retained and no production DDL. 2026-10-19 runtime0041 read-only validator explicitly composes frozen0040 base checks and exact four-table protocol checks. Legacy conversion validator/layouts remain strict; no DDL, resource ownership or model behavior changed. Added actual missing-index refusal proof; native CI pending."
+      "review_scope": "2026-10-06 source-grounded rewrite on unchanged 766b2aa business code; actual durable tables/uniqueness, path-specific isolation and locking, MQ root/savepoint and borrowed SDK pool, separate metadata migrations 0035/0037/0038 and read-only bootstrap checks; independent source review correction applied. 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained. 2026-10-19 explicit M3 protocol schema and manual current-head validation entry reviewed; original freeze/restore layouts retained and no production DDL. 2026-10-19 runtime0041 read-only validator explicitly composes frozen0040 base checks and exact four-table protocol checks. Legacy conversion validator/layouts remain strict; no DDL, resource ownership or model behavior changed. Added actual missing-index refusal proof; native CI pending. 2026-10-19 original-root immutable archive and explicit legacy reader reviewed; runtime validator adds host archive beside four unchanged SDK tables. Scoped retained-table handoff/inventory supports0041; old full conversion/backup whitelist unchanged. Local45 source cases and type/lint pass; new native archive proof pending."
     },
     {
       "path": "docs/04-接口与运维/01-接口地图与契约所有权.md",
