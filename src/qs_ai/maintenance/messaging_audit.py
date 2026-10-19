@@ -12,8 +12,9 @@ import sqlalchemy as sa
 from qs_ai.infrastructure.persistence.mysql.database import Database, Transactions
 from qs_ai.infrastructure.workflow_transport.messaging import INLINE_BODY
 from qs_ai.maintenance.legacy_results import timestamp
-from qs_ai.maintenance.schema_layout import physical_table, require_known_head
-from qs_ai.maintenance.schema_refactor.layouts import NEW_HEAD
+from qs_ai.maintenance.schema_layout import require_handoff_head as require_known_head
+from qs_ai.maintenance.schema_layout import retained_physical_table as physical_table
+from qs_ai.maintenance.schema_refactor.layouts import OLD_HEAD
 
 
 async def inventory(transactions: Transactions, *, max_rows: int = 1000) -> dict[str, Any]:
@@ -59,7 +60,7 @@ async def inventory(transactions: Transactions, *, max_rows: int = 1000) -> dict
             # All names/expressions are fixed below, never supplied by CLI input.
             table = physical_table(schema_head, name)
             predicate = ""
-            if schema_head == NEW_HEAD and name in (
+            if schema_head != OLD_HEAD and name in (
                 "evaluation_generation_completions",
                 "evaluation_semantic_completions",
             ):

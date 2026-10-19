@@ -1,5 +1,7 @@
 # 持久化、事务与迁移
 
+> 2026-10-19 M3 源码补充：Alembic head 新增 `0041_transaction_messaging`，显式安装四张独立 rm_tx_* 协议表和 rm_tx_expiry；不自动安装 binding，不转换旧 Outbox。本文0038↔0040双向转换工具仍只承诺原冻结布局，不能拿它覆盖0041产生的新证据。M3新版本保护/恢复工具尚待T25验证，生产未执行DDL。
+
 MySQL 保存 qs-ai 可以恢复和审计的业务事实：原请求、固定输入和配置、调用证据、成果、评测、审核及消息。**数据库池负责连接复用，Session 负责一段事务，业务宿主决定何时接受；外部模型和 Broker 的不确定性不会因为本地事务原子而消失。**
 
 本文按 `0040_module_table_names` 的存储结构和当前业务源码核对，以一条 MQ Start 和它之后的成果接受解释记录与提交。表名来自当前声明，迁移来自仓库脚本；它们不证明某个环境已经安装。资源装配见 [Dishka 作用域](../../01-运行时/02-Dishka作用域与资源所有权.md)，场景规则见 [业务模块](../../02-业务模块/README.md)。
@@ -133,3 +135,5 @@ recorder失败时，根提交不能继续；rollback清掉evaluation_events标�
 | 消息表不自动安装、观测安装与历史未知 | [messaging.py](../../../src/qs_ai/infrastructure/persistence/mysql/messaging.py)、[messaging_observations.py](../../../src/qs_ai/infrastructure/persistence/mysql/messaging_observations.py)、0037/0038脚本；运行时要求原池的schema预检 |
 
 这些存储集成测试需要可销毁MySQL及相应消息依赖，收集成功或skip不算通过。源码、迁移脚本和本地纯规则测试不能代替某环境heads、真实事务恢复和原成果STORED的证据。
+
+0041 运行时使用 `require_runtime_schema`：完整0040业务布局加四张固定协议表，校验二进制列、默认值、主键和索引；缺表/索引或多余未知表均拒绝。原 `require_schema` 仍用于冻结0038/0039/0040转换，不接受0041作为旧布局；启动校验无DDL。

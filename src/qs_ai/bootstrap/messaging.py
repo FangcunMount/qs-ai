@@ -18,7 +18,7 @@ from reliable_messaging.rocketmq import (
     RocketMQPublisher,
     RocketMQSubscriber,
 )
-from reliable_messaging.transport import Publisher, RouteBinding, Subscriber
+from reliable_messaging.transport import Publisher, RouteBinding, Subscriber, validate_routes
 from sqlalchemy import text
 from tornado.httpclient import AsyncHTTPClient
 
@@ -88,6 +88,11 @@ class MessagingRuntime:
         runtime = cls()
         try:
             options = settings.messaging
+            if options.transactions:
+                raise ValueError(
+                    "Transaction owners require transaction-bound workflow assembly; "
+                    "legacy MQRelay cannot publish them"
+                )
             runtime.publish_enabled = options.publish_enabled
             if not options.enabled or not settings.grpc.access_address:
                 raise ValueError("MQ requires the configured QS mTLS payload endpoint")
@@ -281,14 +286,29 @@ def read_rocketmq_config(options: Any) -> RocketMQConfig:
     config = options.rocketmq
     account = json.loads(Path(config.credentials_file).read_text())
     manifest = json.loads(Path(config.routes_file).read_text())
-    if manifest.get("version") != 1:
-        raise ValueError("RocketMQ route manifest version1 required")
-    allowed = {"topic", "subscription", "physical_topic", "consumer_group"}
-    routes = tuple(
-        RouteBinding(**{k: v for k, v in r.items() if k in allowed})
-        for r in manifest["routes"]
-        if r["topic"] in {COMMANDS, ACKS, EVENTS}
+    version = manifest.get("version")
+    if version not in (1, 2):
+        raise ValueError("RocketMQ route manifest version1 or version2 required")
+    allowed = {
+        "topic",
+        "subscription",
+        "physical_topic",
+        "consumer_group",
+        "message_type",
+        "owner",
+        "route_revision",
+    }
+    all_routes = tuple(
+        RouteBinding(**{k: v for k, v in r.items() if k in allowed}) for r in manifest["routes"]
     )
+    if any(
+        (version == 1 and (r.message_type or r.owner or r.route_revision))
+        or (version == 2 and not r.message_type)
+        for r in all_routes
+    ):
+        raise ValueError("RocketMQ route fields conflict with manifest version")
+    validate_routes(all_routes)
+    routes = tuple(r for r in all_routes if r.topic in {COMMANDS, ACKS, EVENTS})
     if {r.topic for r in routes} != {COMMANDS, ACKS, EVENTS}:
         raise ValueError("RocketMQ manifest missing required workflow topics")
     return RocketMQConfig(

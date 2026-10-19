@@ -12,7 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
 from qs_ai.infrastructure.workflow_transport.messaging import valid_hash, valid_id
 from qs_ai.infrastructure.workflow_transport.state_events import StateEventRecorder
-from qs_ai.maintenance.schema_layout import handoff_tables, require_known_head
+from qs_ai.maintenance.schema_layout import handoff_tables
+from qs_ai.maintenance.schema_layout import require_handoff_head as require_known_head
 from qs_ai.maintenance.schema_refactor.layouts import NEW_HEAD
 
 REVISION = "qs-ai-legacy-results/v1"

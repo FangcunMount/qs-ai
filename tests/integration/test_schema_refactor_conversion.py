@@ -346,7 +346,7 @@ def test_owned_migration_cli_commits_final_head_and_preserves_populated_source(c
         drivername="mysql+asyncmy", database=state["source"]
     )
     migrated = subprocess.run(
-        [sys.executable, "-m", "alembic", "upgrade", "head"],
+        [sys.executable, "-m", "alembic", "upgrade", NEW_HEAD],
         env={**os.environ, "QS_AI_DATABASE_URL": url.render_as_string(hide_password=False)},
         capture_output=True,
         text=True,

@@ -1,5 +1,6 @@
 name: M7 messaging perimeter
 on:
+  workflow_dispatch:
   push:
     branches: [main, codex/m7-messaging-adapter]
     paths:
@@ -46,6 +47,8 @@ jobs:
       TZ: Asia/Shanghai
       QS_AI_DATABASE_URL: mysql+asyncmy://m7:m7_disposable_only@127.0.0.1:3306/qs_ai
       QS_AI_TEST_MYSQL_DSN: mysql://m7:m7_disposable_only@127.0.0.1:3306/qs_ai
+      QS_AI_SCHEMA_TEST_SERVER: mysql+pymysql://root:m7_root_disposable_only@127.0.0.1:3306/mysql
+      QS_MQ_FAULT_DDL_MYSQL_URL: mysql+asyncmy://root:m7_root_disposable_only@127.0.0.1:3306/qs_ai
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
@@ -60,6 +63,10 @@ jobs:
       - run: uv run alembic upgrade head
         env:
           QS_AI_DATABASE_URL: mysql+asyncmy://root:m7_root_disposable_only@127.0.0.1:3306/qs_ai
+      - name: Explicit M3 protocol install and original-root proof
+        env:
+          QS_AI_SCHEMA_TEST_SERVER: mysql+pymysql://root:m7_root_disposable_only@127.0.0.1:3306/mysql
+        run: uv run pytest -q --junitxml=m7-m3-schema.xml tests/integration/test_transaction_schema.py
       - name: Single-process, capacity and frozen receipt regression (synthetic)
         run: >-
           uv run pytest -q --junitxml=m7-unit.xml
@@ -72,6 +79,9 @@ jobs:
           tests/integration/test_m7_delivery.py tests/integration/test_result_outbox.py
           tests/integration/test_mq_admission.py::test_legacy_result_settles_only_with_atomic_original_business_ack
           tests/integration/test_mq_legacy_handoff.py
+          tests/integration/test_mq_handoff_tool.py tests/integration/test_mq_inventory.py
+          tests/integration/test_schema_refactor_auto_increment.py::test_startup_and_readonly_release_check_share_the_identity_gate
+          tests/integration/test_schema_refactor_conversion.py::test_owned_migration_cli_commits_final_head_and_preserves_populated_source
           tests/integration/test_execution_configurations.py tests/integration/test_evaluation_recovery.py
           tests/integration/test_evaluation_capacity_recovery.py
           tests/integration/test_interpretation.py::test_model_dispatch_is_durable_and_only_one_caller_can_send
@@ -84,7 +94,7 @@ jobs:
         run: |
           uv run python - <<'PY'
           import xml.etree.ElementTree as ET
-          for file in ('m7-unit.xml', 'm7-storage.xml'):
+          for file in ('m7-unit.xml', 'm7-storage.xml', 'm7-m3-schema.xml'):
               root = ET.parse(file).getroot()
               suites = list(root.iter('testsuite'))
               cases = list(root.iter('testcase'))
@@ -103,5 +113,6 @@ jobs:
           path: |
             m7-unit.xml
             m7-storage.xml
+            m7-m3-schema.xml
             dist/*
           if-no-files-found: error

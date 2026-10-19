@@ -30,7 +30,7 @@ from qs_ai.infrastructure.observability.structured import StructuredHandler
 from qs_ai.infrastructure.persistence.mysql.database import Database, Transactions
 from qs_ai.infrastructure.persistence.mysql.evaluation_worker import EvaluationWorker
 from qs_ai.infrastructure.persistence.mysql.runtime_milestones import prune
-from qs_ai.maintenance.schema_refactor.validation import require_schema
+from qs_ai.maintenance.schema_refactor.validation import require_runtime_schema
 
 
 async def tls_bytes(settings: Settings) -> tuple[bytes, bytes, bytes]:
@@ -67,7 +67,7 @@ async def preflight(container: AsyncContainer, settings: Settings) -> None:
                 lambda conn: MigrationContext.configure(conn).get_current_heads()
             )
             if sorted(heads) == sorted(scripts.get_heads()):
-                await connection.run_sync(require_schema)
+                await connection.run_sync(require_runtime_schema)
     if sorted(heads) != sorted(scripts.get_heads()):
         raise ValueError("Database migration version does not match the image")
     async with container() as operation:

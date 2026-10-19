@@ -18,8 +18,16 @@ def physical_table(head: str, logical_name: str) -> str:
     return RENAMES.get(logical_name, MERGES.get(logical_name, logical_name))
 
 
+def require_handoff_head(heads: list[str] | None) -> str:
+    # 0041 adds protocol tables; retained result/Outbox tables keep 0040 names.
+    # This does not extend the old full-layout conversion/backup whitelist.
+    if heads == ["0041_transaction_messaging"]:
+        return heads[0]
+    return require_known_head(heads)
+
+
 def handoff_tables(head: str) -> tuple[sa.Table, sa.Table]:
-    require_known_head([head])
+    require_handoff_head([head])
     if head == OLD_HEAD:
         from qs_ai.maintenance.schema_refactor.v0038 import metadata
 
@@ -28,3 +36,9 @@ def handoff_tables(head: str) -> tuple[sa.Table, sa.Table]:
     from qs_ai.infrastructure.persistence.mysql.schema import result_outbox
 
     return result_outbox, outbox
+
+
+def retained_physical_table(head: str, logical_name: str) -> str:
+    """Names for retained business/Outbox audit only, not whole-layout conversion."""
+    require_handoff_head([head])
+    return physical_table(NEW_HEAD if head == "0041_transaction_messaging" else head, logical_name)
