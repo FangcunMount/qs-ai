@@ -19,6 +19,7 @@ from reliable_messaging.transaction import (
     FrozenPlan,
     Request,
     StoreChecker,
+    encode_reference,
 )
 from reliable_messaging.transaction_mysql import MySQLTransactionStore
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -173,3 +174,116 @@ def test_transaction_downgrade_retains_all_evidence():
     spec.loader.exec_module(migration)
     with pytest.raises(RuntimeError, match="Preserve transaction evidence"):
         migration.downgrade()
+
+
+async def test_transaction_archive_shares_original_root_and_never_exposes_prepared(installed):
+    from jwcrypto import jwk
+
+    from qs_ai.contracts.workflow import messaging_pb2 as pb
+    from qs_ai.contracts.workflow import workflow_pb2 as workflow
+    from qs_ai.infrastructure.persistence.mysql.transaction_archive import TransactionArchive
+    from qs_ai.infrastructure.persistence.mysql.transaction_schema import archive
+    from qs_ai.infrastructure.workflow_transport.messaging import MessagingContractError, prepare
+    from qs_ai.infrastructure.workflow_transport.transaction_archive import freeze_branch
+
+    sessions = installed
+    binding = Binding("ai.mysql", "owned-primary", "m3-1")
+    store = MySQLTransactionStore(sessions, binding)
+    archive_store = TransactionArchive(sessions, binding)
+    async with sessions() as db, db.begin():
+        await db.execute(
+            sa.text("INSERT INTO rm_tx_binding VALUES('ai.mysql','owned-primary','m3-1',1)")
+        )
+    sign = jwk.JWK.generate(kty="EC", crv="P-256", kid="ai.sign")
+    recipient = jwk.JWK.generate(kty="EC", crv="P-256", kid="qs.encrypt")
+    for committed in (False, True):
+        identity = str(uuid4())
+        org = str(2**64 - 1)
+        original = prepare(
+            pb.INTERPRETATION_STATE,
+            identity,
+            identity,
+            pb.MessagingBody(
+                interpretation_state=workflow.StateEvent(
+                    event_id=identity,
+                    request_id=identity,
+                    actor=workflow.Actor(org_id=org, subject_id="42"),
+                    status="completed",
+                    version=1,
+                )
+            ),
+            organization_id=org,
+            signing_key=sign,
+            recipient_key=recipient,
+            original_occurred_at="2026-10-19T12:00:00.123456789+08:00",
+        )
+        branch = freeze_branch(
+            original, org, 2**64 - 1, True, True, "state", "m3.archive.test", "m3-1"
+        )
+        p = FrozenPlan(
+            "ai.mysql",
+            f"org:{org}",
+            identity,
+            identity,
+            hashlib.sha256(identity.encode()).digest(),
+            (branch,),
+        )
+        request = Request(p.owner, p.scope, p.idempotency_key, p.input_hash)
+        reservation = await store.reserve(request, p)
+        assert reservation.acquired
+        async with sessions() as db:
+            await db.begin()
+            guard = await archive_store.bind(db, reservation.execution)
+            await guard.put("state")
+            await guard.put("state")
+            assert await archive_store.read_committed(identity) is None
+            await guard.commit_witness()
+            with pytest.raises(BindingError):
+                await guard.put("state")
+            if committed:
+                await db.commit()
+            else:
+                await db.rollback()
+        value = await archive_store.read_committed(identity)
+        if not committed:
+            assert value is None
+            continue
+        assert value is not None
+        assert value.body == original.body and value.wire == original.wire
+        assert value.organization_id == 2**64 - 1
+        reference = pb.MessagePayloadReference(
+            producer="qs-ai",
+            destination="qs-server",
+            message_id=identity,
+            organization_id=org,
+            body_sha256=original.envelope.body_sha256,
+            body_length=len(original.body),
+        )
+        assert await archive_store.payload(reference, "qs-server") == original.body
+        with pytest.raises(MessagingContractError):
+            await archive_store.payload(reference, "wrong")
+        duplicate = await store.reserve(request, p)
+        assert not duplicate.acquired
+        async with sessions() as db, db.begin():
+            with pytest.raises(BindingError):
+                await archive_store.bind(db, duplicate.execution)
+        async with sessions() as db, db.begin():
+            await db.execute(
+                archive.update()
+                .where(archive.c.message_id == identity.encode())
+                .values(first_wire=b"\0")
+            )
+        with pytest.raises(ValueError):
+            await archive_store.read_committed(identity)
+        async with sessions() as db, db.begin():
+            await db.execute(
+                archive.update()
+                .where(archive.c.message_id == identity.encode())
+                .values(first_wire=original.wire)
+            )
+            await db.execute(
+                sa.text("UPDATE rm_tx_witness SET state='prepared' WHERE reference=:ref"),
+                {"ref": encode_reference(reservation.execution.references[0])},
+            )
+        with pytest.raises(MessagingContractError, match="committed witness"):
+            await archive_store.read_committed(identity)

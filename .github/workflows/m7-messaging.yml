@@ -77,6 +77,9 @@ jobs:
           tests/integration/test_m7_delivery.py tests/integration/test_result_outbox.py
           tests/integration/test_mq_admission.py::test_legacy_result_settles_only_with_atomic_original_business_ack
           tests/integration/test_mq_legacy_handoff.py
+          tests/integration/test_mq_handoff_tool.py tests/integration/test_mq_inventory.py
+          tests/integration/test_schema_refactor_auto_increment.py::test_startup_and_readonly_release_check_share_the_identity_gate
+          tests/integration/test_schema_refactor_conversion.py::test_owned_migration_cli_commits_final_head_and_preserves_populated_source
           tests/integration/test_execution_configurations.py tests/integration/test_evaluation_recovery.py
           tests/integration/test_evaluation_capacity_recovery.py
           tests/integration/test_interpretation.py::test_model_dispatch_is_durable_and_only_one_caller_can_send

@@ -67,4 +67,17 @@ CREATE TABLE rm_tx_binding (
  final_recorded_at DATETIME(6) NULL,
  PRIMARY KEY(execution_key,branch_key)
 ) ENGINE=InnoDB""",
+    """CREATE TABLE messaging_archive (
+ producer VARBINARY(128) NOT NULL,
+ destination VARBINARY(128) NOT NULL,
+ message_id VARBINARY(128) NOT NULL,
+ organization_id BIGINT UNSIGNED NOT NULL,
+ frozen_payload LONGBLOB NOT NULL,
+ first_wire MEDIUMBLOB NOT NULL,
+ execution_key BINARY(32) NOT NULL,
+ branch_key BINARY(32) NOT NULL,
+ reference BLOB NOT NULL,
+ PRIMARY KEY(producer,destination,message_id),
+ UNIQUE KEY messaging_archive_branch(execution_key,branch_key)
+) ENGINE=InnoDB""",
 )

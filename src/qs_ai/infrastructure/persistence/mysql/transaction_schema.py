@@ -68,3 +68,20 @@ witness = sa.Table(
     sa.Column("final_recorded_at", UTC),
     mysql_engine="InnoDB",
 )
+
+# Host business archive; protocol tables above remain byte-for-byte SDK schema.
+archive = sa.Table(
+    "messaging_archive",
+    metadata,
+    sa.Column("producer", IDENTITY, primary_key=True),
+    sa.Column("destination", IDENTITY, primary_key=True),
+    sa.Column("message_id", IDENTITY, primary_key=True),
+    sa.Column("organization_id", mysql.BIGINT(unsigned=True), nullable=False),
+    sa.Column("frozen_payload", mysql.LONGBLOB, nullable=False),
+    sa.Column("first_wire", mysql.MEDIUMBLOB, nullable=False),
+    sa.Column("execution_key", BINARY, nullable=False),
+    sa.Column("branch_key", BINARY, nullable=False),
+    sa.Column("reference", mysql.BLOB, nullable=False),
+    sa.Index("messaging_archive_branch", "execution_key", "branch_key", unique=True),
+    mysql_engine="InnoDB",
+)
