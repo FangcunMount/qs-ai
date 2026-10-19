@@ -58,12 +58,14 @@ async def installed():
     server = sa.create_engine(url)
     name = "ai_m3_tx_test_" + uuid4().hex
     engine = None
+    owned = None
     created = False
     try:
         with server.connect() as conn:
             conn.execute(sa.text(f"CREATE DATABASE `{name}` CHARACTER SET utf8mb4"))
             created = True
-            conn.execute(sa.text(f"USE `{name}`"))
+        owned = sa.create_engine(server.url.set(database=name))
+        with owned.connect() as conn:
             config = Config("alembic.ini")
             config.attributes["connection"] = conn
             command.upgrade(config, "0040_module_table_names")
@@ -105,6 +107,8 @@ async def installed():
     finally:
         if engine is not None:
             await engine.dispose()
+        if owned is not None:
+            owned.dispose()
         if created:
             with server.connect() as conn:
                 conn.execute(sa.text(f"DROP DATABASE `{name}`"))

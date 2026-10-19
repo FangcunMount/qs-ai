@@ -305,7 +305,11 @@ def require_runtime_schema(conn: Connection) -> None:
                 or _default(actual.get("default")) != _default(default)
                 or actual.get("computed")
             ):
-                raise ValueError("Transaction column definition drift")
+                raise ValueError(
+                    f"Transaction column definition drift: {table.name}.{expected.name}: "
+                    f"actual_type={actual['type']} expected_type={expected.type} "
+                    f"actual_default={actual.get('default')!r} expected_default={default!r}"
+                )
         if inspector.get_pk_constraint(table.name, schema=schema)["constrained_columns"] != [
             c.name for c in table.primary_key
         ]:
