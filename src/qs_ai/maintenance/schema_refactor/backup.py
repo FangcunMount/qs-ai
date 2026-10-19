@@ -19,8 +19,8 @@ from typing import Any, BinaryIO
 
 import sqlalchemy as sa
 from sqlalchemy.engine import Connection
-from sqlalchemy.ext.asyncio import create_async_engine
 
+from qs_ai.infrastructure.persistence.mysql.tls import create_mysql_engine as create_async_engine
 from qs_ai.maintenance.schema_refactor import backup_format as fmt
 from qs_ai.maintenance.schema_refactor import contracts, conversion, v0038
 from qs_ai.maintenance.schema_refactor.layouts import (

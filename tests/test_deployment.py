@@ -31,6 +31,8 @@ def test_mysql_components_round_trip():
     env = {
         "QS_AI_QS_ADDRESS": "qs-apiserver:9090",
         "MYSQL_HOST": "mysql.internal",
+        "MYSQL_TLS_MODE": "VERIFY_IDENTITY",
+        "MYSQL_TLS_CA_REF": "a" * 40,
         "MYSQL_DATABASE": "qs_ai",
         "MYSQL_USERNAME": "ai@user",
         "MYSQL_PASSWORD": password,
@@ -433,6 +435,8 @@ def test_verify_rejects_wrong_grpc_image(remote, tmp_path, monkeypatch):
 def execution_environment():
     return {
         "MYSQL_HOST": "mysql.internal",
+        "MYSQL_TLS_MODE": "VERIFY_IDENTITY",
+        "MYSQL_TLS_CA_REF": "a" * 40,
         "MYSQL_DATABASE": "qs_ai",
         "MYSQL_USERNAME": "ai",
         "MYSQL_PASSWORD": "synthetic-db-only",
@@ -538,7 +542,7 @@ def test_execution_compose_resolves_isolation_tls_and_health(tmp_path, mode):
     for field, flag in (("GENERATION", "execution"), ("EVALUATION", "evaluation")):
         assert values[f"QS_AI_{field}__ENABLED"] == str(mode in {flag, "all"}).lower()
     assert service["read_only"]
-    assert len(service["volumes"]) == 3
+    assert len(service["volumes"]) == 4
     assert all(v["read_only"] for v in service["volumes"])
     assert {"qs-ai-grpc", "qs-ai-api"} <= set(service["networks"]["backend"]["aliases"])
     assert service["stop_grace_period"] in {"210s", "3m30s"}
@@ -706,6 +710,8 @@ def test_v2_write_switch_is_explicit_and_defaults_closed():
     env = dict(
         QS_AI_QS_ADDRESS="qs-apiserver:9090",
         MYSQL_HOST="mysql.internal",
+        MYSQL_TLS_MODE="VERIFY_IDENTITY",
+        MYSQL_TLS_CA_REF="a" * 40,
         MYSQL_DATABASE="qs_ai",
         MYSQL_USERNAME="test",
         MYSQL_PASSWORD="test-only",

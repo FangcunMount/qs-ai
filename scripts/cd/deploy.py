@@ -73,7 +73,18 @@ def database_url(environment: dict) -> str:
 def runtime_config(environment: dict) -> dict:
     # Compose processes interpolation in JSON too.
     url = database_url(environment).replace("$", "$$")
-    values = {"QS_AI_DATABASE_URL": url}
+    mode = required(environment, "MYSQL_TLS_MODE")
+    if mode != "VERIFY_IDENTITY":
+        raise ValueError("Production requires MySQL VERIFY_IDENTITY")
+    ca_ref = required(environment, "MYSQL_TLS_CA_REF")
+    if not re.fullmatch("[0-9a-f]{40}", ca_ref):
+        raise ValueError("Production MySQL CA must use an immutable infra SHA")
+    values = {
+        "MYSQL_TLS_CA_REF": ca_ref,
+        "QS_AI_DATABASE_URL": url,
+        "QS_AI_DATABASE_TLS_MODE": mode,
+        "QS_AI_DATABASE_TLS_CA_FILE": "/etc/qlume/mysql/ca-chain.pem",
+    }
     runtime = {"services": {"qs-ai": {"environment": values}}}
     flags = {}
     for name in ("EXECUTION", "GOVERNANCE", "EVALUATION", "MODEL_V2_WRITES", "CANDIDATE_MODE"):
