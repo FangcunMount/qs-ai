@@ -1,5 +1,6 @@
 name: M7 messaging perimeter
 on:
+  workflow_dispatch:
   push:
     branches: [main, codex/m7-messaging-adapter]
     paths:

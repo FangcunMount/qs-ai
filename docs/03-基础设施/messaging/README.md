@@ -18,6 +18,8 @@ RocketMQ 终态交接携带 provider、原始 Wire 和实际物理来源，宿�
 
 默认发送并发 4、Checker worker 1 / 等待队列 16，DB 回查 2 秒、RPC 5 秒、lease 60 秒、每 5 秒最多维护 100 条；覆盖预算必须给出全部九个字段。`publish_enabled=false` 只封新发送并保留 Checker；最终关闭通过 StopAdmission / Close / Wait 排空 SDK，然后由宿主关闭 DB 和 loop。`ShutdownIncomplete` 原样保留，不能当作成功关闭。
 
+宿主迁移 `0041_transaction_messaging` 显式安装独立 schema v1；owner binding 必须由冻结清单另行安装，不由构造/Start 推断。Down 保留证据并拒绝回退；隔离原事务安装测试见 `tests/integration/test_transaction_schema.py`。
+
 此入口目前未接入 command admission、状态 finalization 或统一 server。旧 `MessagingRuntime.create()` 遇到非空 transactions 明确拒绝，避免继续由 MQRelay 发送事务 owner 的消息。原根事务、首 wire、业务 receipt 和模型 unknown 恢复仍按下文执行；后续批次逐项替换，不因 SDK 具备事务能力就宣称业务已迁移。全局进度以 [infra M3 总表](https://github.com/FangcunMount/infra/blob/codex/rocketmq-m3/docs/server/rocketmq-m3-execution.md) 为准。
 
 ## 当前服务怎样装配这条链路

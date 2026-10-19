@@ -9,6 +9,9 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from qs_ai.config import Settings
 from qs_ai.infrastructure.persistence.mysql.messaging import metadata as messaging_metadata
 from qs_ai.infrastructure.persistence.mysql.schema import metadata
+from qs_ai.infrastructure.persistence.mysql.transaction_schema import (
+    metadata as transaction_metadata,
+)
 from qs_ai.infrastructure.workflow_transport.state_events import evaluation_sequences
 
 settings = Settings()
@@ -17,7 +20,7 @@ if settings.database_url is None and provided_connection is None:
     raise RuntimeError("QS_AI_DATABASE_URL is required for migrations")
 database_url = settings.database_url.get_secret_value() if settings.database_url else None
 owned_metadata = sa.MetaData()
-for source in (metadata, messaging_metadata):
+for source in (metadata, messaging_metadata, transaction_metadata):
     for table in source.tables.values():
         table.to_metadata(owned_metadata)
 assert evaluation_sequences.name in owned_metadata.tables

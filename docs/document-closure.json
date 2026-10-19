@@ -5,9 +5,9 @@
   "authority": "runtime composition > code > machine contracts/config/migrations > scoped tests > maintained prose > dated evidence/plans/archive",
   "source_catalog": {
     ".github/workflows/ai-messaging.yml": "2dddb3ffeb66a49967fb2019709829065365464b1833a51f72f34331ef38aabe",
-    ".github/workflows/ci.yml": "1f4f3a3248b94797649812596f9f09fbb51f983aeaa14347fa75a5ca1e931a97",
+    ".github/workflows/ci.yml": "cfe7e020f75f07d5623f379c754c2e7ffd92fb89349c46d44e2956e8f067ecdc",
     ".github/workflows/deploy.yml": "255757cfb3cfc05050cf2f3e899368d6ce40c02fc8bd41b89fc94e6f989ecb23",
-    ".github/workflows/m7-messaging.yml": "6dbe883cc556a287bac8807e90c0879afcf1212ff0db05a963e53dcf535168e8",
+    ".github/workflows/m7-messaging.yml": "8d9a9b2b1d9aedc8b883525c48537d8973edfdb477b147a20797d5658f14d072",
     "Dockerfile": "a228b397109b1627bee2c2cb66b3d33d3a2c7d4238a726c5b7e1a61503accf8a",
     "compose.yaml": "07e882533006901f3cda4f3cf2449ee34b20af0cde75cceb1ea9b84699755206",
     "configs/README.md": "8e1a2c7cc0447c6d224b4d33eef9691c6360d98706a0305af2045b66c9e97f69",
@@ -57,7 +57,7 @@
     "integrations/workflow/README.md": "6941a30d8601f7ca5c7e1e628e0155e592ace16eb939aa337dc96de1cd1e5322",
     "integrations/workflow/proto/messaging.proto": "1cd0d5ac42f8c2e1b4523d9f59a9b6cec85abf4d1eef00db485078ad917d10f6",
     "integrations/workflow/proto/workflow.proto": "fd6df9aea0ccb36f220806471985e6f920c9e0a111b1ab42f0ffd52f0f64ea98",
-    "migrations/env.py": "59209b7c1bbf2169717edcc73b3b8ba653705ed206a467cecd0fec005f01c7fc",
+    "migrations/env.py": "6943cf4a2aa350ac5794799f14d062ba4ff3c5aaaa728e5d2fa85c248109755e",
     "migrations/versions/0035_runtime_utc_timestamps.py": "366fcef80027aa979d9d74222b9ff88f5a83612165ba0d0ea147e499506ab825",
     "migrations/versions/0036_evaluation_slot_claims.py": "92f8eb1ff24aea68342242dad3a6a28aae04164de8b9f27fcfa6d069ad0c6757",
     "migrations/versions/0037_workflow_messaging.py": "8663cda4a6263bb1f99b5766d571487f067923d95414560efa84915bf3d66c2a",
@@ -500,7 +500,10 @@
     "tests/test_evaluation_finalization.py": "880e3a5b22e0b4b2b371b436c16a3d38a193ba5fc5eedf4dc322ae7996ccd823",
     "tests/test_rocketmq_binding.py": "a9344faa786f3886b2462a2ab46370d13f363d5af28cafe927133e46e32c8203",
     "src/qs_ai/maintenance/messaging_preflight.py": "9e24b06fc9ffc6af52fbbf2a017dfa60c6407ed0b987e23df673916969455bc5",
-    "src/qs_ai/bootstrap/transaction_messaging.py": "83c1995725a707a3aaef504b909711354145be5b8cc60490c40421baf9649400"
+    "src/qs_ai/bootstrap/transaction_messaging.py": "83c1995725a707a3aaef504b909711354145be5b8cc60490c40421baf9649400",
+    "tests/integration/test_transaction_schema.py": "1f1e78c65bf16356026e7ad53d2607b0aeb53f58cf3450cfae2a377c2974d0d2",
+    "src/qs_ai/infrastructure/persistence/mysql/transaction_schema.py": "67716f918e5ec4007b0d2ff0ce29c27ef4f59196757b6a528a16f49dc2fadb03",
+    "migrations/versions/0041_transaction_messaging.py": "a3f0560d1032b4b32aca799ad7d9b818f18c72862165fb548704d1ef7b38425e"
   },
   "documents": [
     {
@@ -744,7 +747,7 @@
         "python scripts/check_docs.py",
         "pytest -q tests/test_architecture.py"
       ],
-      "review_scope": "在 766b2aa 业务源码基线上核对单进程装配与真实调用链、层间决策、机器契约和生成文件位置、架构 AST 约束、CI 双 MySQL 四分片与完整覆盖门禁、代码/测试/CI/部署/业务验收证据层次；独立复核改正 evaluation.execute_step 入口和 MQ 成果/ACK 分段测试范围。 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained. 2026-10-19 M3 fixed prerelease and owner-bound inert transaction foundation reviewed; current business remains on original Relay and root transactions. Transaction-enabled legacy assembly fails closed; production remains independently unverified."
+      "review_scope": "在 766b2aa 业务源码基线上核对单进程装配与真实调用链、层间决策、机器契约和生成文件位置、架构 AST 约束、CI 双 MySQL 四分片与完整覆盖门禁、代码/测试/CI/部署/业务验收证据层次；独立复核改正 evaluation.execute_step 入口和 MQ 成果/ACK 分段测试范围。 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained. 2026-10-19 M3 fixed prerelease and owner-bound inert transaction foundation reviewed; current business remains on original Relay and root transactions. Transaction-enabled legacy assembly fails closed; production remains independently unverified. 2026-10-19 explicit M3 protocol schema and manual current-head validation entry reviewed; original freeze/restore layouts retained and no production DDL."
     },
     {
       "path": "docs/00-总览/README.md",
@@ -1216,7 +1219,7 @@
         "pytest -q tests/test_mbti_contract.py tests/test_mbti_runtime.py tests/test_mbti_themes_input.py tests/test_evaluation_input_version.py",
         "pytest -q tests/test_mbti_snapshot_interop.py (requires exported Go contract vectors; ordinary local run can skip)"
       ],
-      "review_scope": "按 qs-ai 766b2aa 与本地 QS 2ccc2de 固定代码核对 ISFJ 四轴已保存原值/强度非置信度、report-content:outcome来源、严格白名单与0/缺失区别、canonical/provider两投影与两摘要、locale/focus真实约束、快照/Session/Suite/Profile/input/output/Artifact版本表、全局精确selector、原输入/响应恢复以及本地纯测试与固定Go互操作证据区别；固定QS源链接已用本地Git对象验证，不声称未执行互操作和生产报告可用。; additive MBTI_FC_93 exact model/input-v4 reviewed, production acceptance pending 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained."
+      "review_scope": "按 qs-ai 766b2aa 与本地 QS 2ccc2de 固定代码核对 ISFJ 四轴已保存原值/强度非置信度、report-content:outcome来源、严格白名单与0/缺失区别、canonical/provider两投影与两摘要、locale/focus真实约束、快照/Session/Suite/Profile/input/output/Artifact版本表、全局精确selector、原输入/响应恢复以及本地纯测试与固定Go互操作证据区别；固定QS源链接已用本地Git对象验证，不声称未执行互操作和生产报告可用。; additive MBTI_FC_93 exact model/input-v4 reviewed, production acceptance pending 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained. 2026-10-19 explicit M3 protocol schema and manual current-head validation entry reviewed; original freeze/restore layouts retained and no production DDL."
     },
     {
       "path": "docs/02-业务模块/interpretation/03-MBTI三主题与参考材料契约.md",
@@ -1578,7 +1581,7 @@
         "4 legacy retirement unit tests passed; full MQ/NSQ/JOSE/MySQL tests not run due missing existing extras; no installs or live transport actions",
         "pytest -q tests/test_transaction_messaging.py"
       ],
-      "review_scope": "2026-10-06 source-grounded rewrite on unchanged 766b2aa business code, QS 2ccc2de and reliable-messaging Python 0.2.0a2 8633ba5; inbox/root/savepoint, first body/wire, source vs transport outbox, Relay budgets, stored ACK condition scope, protected payloads and one-record handoff; independent source review; legacy gRPC loop retired. 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained. 2026-10-19 M3 fixed prerelease and owner-bound inert transaction foundation reviewed; current business remains on original Relay and root transactions. Transaction-enabled legacy assembly fails closed; production remains independently unverified."
+      "review_scope": "2026-10-06 source-grounded rewrite on unchanged 766b2aa business code, QS 2ccc2de and reliable-messaging Python 0.2.0a2 8633ba5; inbox/root/savepoint, first body/wire, source vs transport outbox, Relay budgets, stored ACK condition scope, protected payloads and one-record handoff; independent source review; legacy gRPC loop retired. 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained. 2026-10-19 M3 fixed prerelease and owner-bound inert transaction foundation reviewed; current business remains on original Relay and root transactions. Transaction-enabled legacy assembly fails closed; production remains independently unverified. 2026-10-19 explicit M3 protocol schema and manual current-head validation entry reviewed; original freeze/restore layouts retained and no production DDL."
     },
     {
       "path": "docs/03-基础设施/model-gateway/README.md",
@@ -1678,14 +1681,17 @@
         "tests/integration/test_mq_admission.py",
         "tests/integration/test_publications.py",
         "tests/integration/test_shared_runtime_pool.py",
-        "tests/integration/test_solutions.py"
+        "tests/integration/test_solutions.py",
+        "migrations/versions/0041_transaction_messaging.py",
+        "src/qs_ai/infrastructure/persistence/mysql/transaction_schema.py",
+        "tests/integration/test_transaction_schema.py"
       ],
       "verify": [
         "python scripts/check_docs.py",
         "git diff --check",
         "Source and existing MySQL/MQ test assertion review; DB/MQ integration and production migration not run"
       ],
-      "review_scope": "2026-10-06 source-grounded rewrite on unchanged 766b2aa business code; actual durable tables/uniqueness, path-specific isolation and locking, MQ root/savepoint and borrowed SDK pool, separate metadata migrations 0035/0037/0038 and read-only bootstrap checks; independent source review correction applied. 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained."
+      "review_scope": "2026-10-06 source-grounded rewrite on unchanged 766b2aa business code; actual durable tables/uniqueness, path-specific isolation and locking, MQ root/savepoint and borrowed SDK pool, separate metadata migrations 0035/0037/0038 and read-only bootstrap checks; independent source review correction applied. 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained. 2026-10-19 explicit M3 protocol schema and manual current-head validation entry reviewed; original freeze/restore layouts retained and no production DDL."
     },
     {
       "path": "docs/04-接口与运维/01-接口地图与契约所有权.md",
@@ -1820,7 +1826,7 @@
         "git diff --check",
         "37 container/configuration/CI unit tests passed using existing environment and sibling SDK source; no dependency install, Docker, migration, MQ/provider or production action"
       ],
-      "review_scope": "Source-grounded rewrite against unchanged qs-ai business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Actual settings precedence/validation/defaults, offline checks, dependency prerequisites, isolated double-head database bootstrap and CI stages; independent source review. Reviewed production quota override 2048 with unchanged reservations, concurrency and drain semantics; runtime evidence remains independently bound. 2026-10-19 M3 fixed prerelease and owner-bound inert transaction foundation reviewed; current business remains on original Relay and root transactions. Transaction-enabled legacy assembly fails closed; production remains independently unverified."
+      "review_scope": "Source-grounded rewrite against unchanged qs-ai business source 766b2aa2ed20e30b886f6cdcbcfdb5dfccf6821b, reviewed 2026-10-06. Actual settings precedence/validation/defaults, offline checks, dependency prerequisites, isolated double-head database bootstrap and CI stages; independent source review. Reviewed production quota override 2048 with unchanged reservations, concurrency and drain semantics; runtime evidence remains independently bound. 2026-10-19 M3 fixed prerelease and owner-bound inert transaction foundation reviewed; current business remains on original Relay and root transactions. Transaction-enabled legacy assembly fails closed; production remains independently unverified. 2026-10-19 explicit M3 protocol schema and manual current-head validation entry reviewed; original freeze/restore layouts retained and no production DDL."
     },
     {
       "path": "docs/04-接口与运维/05-部署迁移与兼容回滚.md",
@@ -1852,7 +1858,10 @@
         "tests/test_image_export.py",
         "tests/test_mq_deployment.py",
         "tests/test_release_image_identity.py",
-        "tests/test_schema_deployment_boundary.py"
+        "tests/test_schema_deployment_boundary.py",
+        "migrations/versions/0041_transaction_messaging.py",
+        "src/qs_ai/infrastructure/persistence/mysql/transaction_schema.py",
+        "tests/integration/test_transaction_schema.py"
       ],
       "verify": [
         "python scripts/check_docs.py",
@@ -2042,7 +2051,7 @@
         "uv run pytest tests/test_schema_followup.py tests/test_schema_followup_transport.py tests/test_schema_refactor_auto_increment.py tests/test_prompt_retirement.py tests/test_prompt_retirement_policy.py",
         "MySQL 8.0.36/8.4 full CI; production Actions metadata-only acceptance and isolated native restore/inverse rehearsal"
       ],
-      "review_scope": "Behavior-preserving 0040 follow-up: independent AUTO_INCREMENT contract; format3 AI Prompt retirement with fixed whitelist, native backup and protected-row rescan; v2 immutable baseline/runtime bindings, durable pending-operation clocks, current-facts rollback and per-archive retention. Historical migrations, frozen definitions and original backup format remain byte-identical. The 2026-10-08 dated production report separately binds full CI, isolated snapshot restore/inverse, actual 82ffa1b image and read-only 44-table/four-auto structure. Production Prompt candidates are zero; no production deletion, inverse exchange or archive cleanup. Nine production business categories remain not_covered. Fixed maintenance executor revision and exact retention timestamp are documented; canonical runtime_status does not imply current or complete business acceptance."
+      "review_scope": "Behavior-preserving 0040 follow-up: independent AUTO_INCREMENT contract; format3 AI Prompt retirement with fixed whitelist, native backup and protected-row rescan; v2 immutable baseline/runtime bindings, durable pending-operation clocks, current-facts rollback and per-archive retention. Historical migrations, frozen definitions and original backup format remain byte-identical. The 2026-10-08 dated production report separately binds full CI, isolated snapshot restore/inverse, actual 82ffa1b image and read-only 44-table/four-auto structure. Production Prompt candidates are zero; no production deletion, inverse exchange or archive cleanup. Nine production business categories remain not_covered. Fixed maintenance executor revision and exact retention timestamp are documented; canonical runtime_status does not imply current or complete business acceptance. 2026-10-19 explicit M3 protocol schema and manual current-head validation entry reviewed; original freeze/restore layouts retained and no production DDL."
     },
     {
       "path": "docs/04-接口与运维/README.md",
@@ -2528,7 +2537,7 @@
         "pytest -q tests/test_docs.py",
         "Correction-specific unit/gRPC, MySQL 8.0/8.4 transactions and existing review/finalization/reopening regressions; scripts/check_docs.py. Environment and business acceptance separately recorded."
       ],
-      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding 2026-10-06 scoped CorrectReview patch review: original signatures remain immutable; effective-review projection, CAS/idempotent audit, archived receipt replay and finalization reads reconciled. Existing MQ execution, participant precheck and other proto fields unchanged. No production correction or publication acceptance claimed."
+      "review_scope": "Current source/contracts reviewed; runtime and business evidence require independent binding 2026-10-06 scoped CorrectReview patch review: original signatures remain immutable; effective-review projection, CAS/idempotent audit, archived receipt replay and finalization reads reconciled. Existing MQ execution, participant precheck and other proto fields unchanged. No production correction or publication acceptance claimed. 2026-10-19 explicit M3 protocol schema and manual current-head validation entry reviewed; original freeze/restore layouts retained and no production DDL."
     },
     {
       "path": "scripts/cd/IMAGE_RETENTION.md",
