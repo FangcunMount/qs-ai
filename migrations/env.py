@@ -4,11 +4,11 @@ import sqlalchemy as sa
 from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
-from sqlalchemy.ext.asyncio import create_async_engine
 
 from qs_ai.config import Settings
 from qs_ai.infrastructure.persistence.mysql.messaging import metadata as messaging_metadata
 from qs_ai.infrastructure.persistence.mysql.schema import metadata
+from qs_ai.infrastructure.persistence.mysql.tls import create_mysql_engine as create_async_engine
 from qs_ai.infrastructure.persistence.mysql.transaction_schema import (
     metadata as transaction_metadata,
 )

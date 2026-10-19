@@ -255,7 +255,7 @@ VALIDATION_READER = r"""
 import asyncio, json, os
 from pathlib import Path
 import sqlalchemy as sa
-from sqlalchemy.ext.asyncio import create_async_engine
+from qs_ai.infrastructure.persistence.mysql.tls import create_mysql_engine as create_async_engine
 from qs_ai.maintenance.schema_refactor import contracts, control
 from qs_ai.maintenance.schema_refactor.validation import require_schema
 
@@ -312,7 +312,7 @@ asyncio.run(main())
 FIXTURE_WRITE = r"""
 import asyncio, hashlib, json, os, sys
 import sqlalchemy as sa
-from sqlalchemy.ext.asyncio import create_async_engine
+from qs_ai.infrastructure.persistence.mysql.tls import create_mysql_engine as create_async_engine
 from qs_ai.domain.governance.prompt import PromptAsset
 from qs_ai.infrastructure.persistence.mysql.database import Database, Transactions
 from qs_ai.infrastructure.persistence.mysql.prompt_assets import MySQLPromptAssets
