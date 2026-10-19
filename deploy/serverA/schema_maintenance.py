@@ -118,7 +118,34 @@ def database_binding(release):
         schema = url.path.removeprefix("/")
         if schema != "ai":
             raise ValueError
-        return {"host": url.hostname, "port": url.port or 3306, "schema": schema}
+        binding = {"host": url.hostname, "port": url.port or 3306, "schema": schema}
+        mode = env.get("QS_AI_DATABASE_TLS_MODE", "DISABLED")
+        if mode == "VERIFY_IDENTITY":
+            if env.get("QS_AI_DATABASE_TLS_CA_FILE") != "/etc/qlume/mysql/ca-chain.pem":
+                raise ValueError
+            binding["tls_mode"] = mode
+        elif mode != "DISABLED":
+            raise ValueError
+        if os.environ.get("MYSQL_TLS_MODE") == "VERIFY_IDENTITY":
+            if (
+                binding.get("tls_mode") != "VERIFY_IDENTITY"
+                or binding["host"] != os.environ["MYSQL_HOST"]
+                or binding["port"] != int(os.environ["MYSQL_PORT"])
+                or env.get("MYSQL_TLS_CA_REF") != os.environ["MYSQL_TLS_CA_REF"]
+            ):
+                raise ValueError
+            subprocess.run(
+                [
+                    "python3",
+                    "/opt/infra/scripts/mysql/ca.py",
+                    "verify",
+                    "--ref",
+                    os.environ["MYSQL_TLS_CA_REF"],
+                ],
+                check=True,
+                stdout=subprocess.DEVNULL,
+            )
+        return binding
     except (KeyError, ValueError, TypeError, OSError):
         raise MaintenanceError("Frozen runtime must bind the ai MySQL source") from None
 
@@ -225,7 +252,7 @@ asyncio.run(main())
 LAYOUT_READER = r"""
 import asyncio, json, os
 import sqlalchemy as sa
-from sqlalchemy.ext.asyncio import create_async_engine
+from qs_ai.infrastructure.persistence.mysql.tls import create_mysql_engine as create_async_engine
 async def main():
     engine = create_async_engine(os.environ['QS_AI_DATABASE_URL'],
         connect_args={'connect_timeout':3})
@@ -246,7 +273,7 @@ asyncio.run(main())
 VALIDATION_READER = r"""
 import asyncio, json, os
 from pathlib import Path
-from sqlalchemy.ext.asyncio import create_async_engine
+from qs_ai.infrastructure.persistence.mysql.tls import create_mysql_engine as create_async_engine
 from qs_ai.maintenance.schema_refactor import contracts, control
 from qs_ai.maintenance.schema_refactor.validation import require_schema
 async def main():
@@ -294,6 +321,10 @@ class DockerTools:
                     + maintenance_url(self.binding, self.credentials, schema)
                     + "\n"
                 )
+                if self.binding.get("tls_mode") == "VERIFY_IDENTITY":
+                    stream.write(
+                        "QS_AI_DATABASE_TLS_MODE=VERIFY_IDENTITY\nQS_AI_DATABASE_TLS_CA_FILE=/etc/qlume/mysql/ca-chain.pem\n"
+                    )
                 stream.write("PYTHONDONTWRITEBYTECODE=1\n")
                 if fenced:
                     stream.write("MAINTENANCE_FENCED=1\n")
@@ -323,6 +354,11 @@ class DockerTools:
                 "--mount",
                 f"type=bind,src={self.directory},dst=/maintenance",
             ]
+            if self.binding.get("tls_mode") == "VERIFY_IDENTITY":
+                args += [
+                    "--mount",
+                    "type=bind,src=/data/infra/ssl/mysql/ca-chain.pem,dst=/etc/qlume/mysql/ca-chain.pem,readonly",
+                ]
             if source:
                 args += ["--mount", f"type=bind,src={self.code / 'src'},dst=/app/src,readonly"]
             args += [image, "/app/.venv/bin/python", *command]

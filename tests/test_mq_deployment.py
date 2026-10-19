@@ -261,7 +261,7 @@ def test_enabled_compose_keeps_one_service_original_tls_and_stop_budget(tmp_path
     services = json.loads(p.stdout)["services"]
     assert set(services) == {"qs-ai"}
     service = services["qs-ai"]
-    assert len(service["volumes"]) == 7 and all(v["read_only"] for v in service["volumes"])
+    assert len(service["volumes"]) == 8 and all(v["read_only"] for v in service["volumes"])
     assert service["stop_grace_period"] == "3m30s"
     assert all(not v["bind"].get("create_host_path", False) for v in service["volumes"])
     assert {"qs-ai-grpc", "qs-ai-api"} <= set(service["networks"]["backend"]["aliases"])

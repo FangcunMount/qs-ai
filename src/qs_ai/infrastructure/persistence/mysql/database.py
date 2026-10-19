@@ -8,12 +8,12 @@ from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
     async_sessionmaker,
-    create_async_engine,
 )
 from sqlalchemy.orm import DeclarativeBase
 
 from qs_ai.application.interpretation.ports import DependencyUnavailable
 from qs_ai.application.operations.health import Readiness
+from qs_ai.infrastructure.persistence.mysql.tls import create_mysql_engine as create_async_engine
 
 
 class Base(DeclarativeBase):
@@ -55,12 +55,16 @@ class Database:
         max_overflow: int = 5,
         pool_timeout: float = 3,
         connect_timeout: int = 3,
+        tls_mode: str | None = None,
+        tls_ca_file: str | None = None,
     ) -> None:
         self.engine: AsyncEngine | None = None
         self.state_events: TransactionEvents | None = None
         if url is not None:
             self.engine = create_async_engine(
                 url,
+                tls_mode=tls_mode,
+                tls_ca_file=tls_ca_file,
                 pool_pre_ping=True,
                 pool_size=pool_size,
                 max_overflow=max_overflow,

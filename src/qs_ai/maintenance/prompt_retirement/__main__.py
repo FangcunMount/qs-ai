@@ -10,8 +10,9 @@ from pathlib import Path
 from typing import Any
 
 import sqlalchemy as sa
-from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncConnection
 
+from qs_ai.infrastructure.persistence.mysql.tls import create_mysql_engine as create_async_engine
 from qs_ai.maintenance.prompt_retirement import service
 from qs_ai.maintenance.schema_refactor import control
 from qs_ai.maintenance.schema_refactor.__main__ import (

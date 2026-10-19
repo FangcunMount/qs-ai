@@ -8,9 +8,9 @@ from alembic.config import Config
 from alembic.runtime.migration import MigrationContext
 from alembic.script import ScriptDirectory
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import create_async_engine
 
 from qs_ai.config import Settings
+from qs_ai.infrastructure.persistence.mysql.tls import create_mysql_engine as create_async_engine
 from qs_ai.maintenance.schema_refactor.validation import require_schema
 
 

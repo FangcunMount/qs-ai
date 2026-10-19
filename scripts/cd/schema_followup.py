@@ -368,7 +368,10 @@ def main():
                 )
             if selected["release"]:
                 command += f" --release {selected['release']}"
-            receipt = safe_receipt(run("schema follow-up", [*ssh, command]), selected)
+            receipt = safe_receipt(
+                run("schema follow-up", [*ssh, common.public_mysql_prefix(environment) + command]),
+                selected,
+            )
             receipt["workflow_revision"] = selected["revision"]
             path = Path("schema-followup-receipt.json")
             path.write_text(json.dumps(receipt, sort_keys=True, indent=2) + "\n")

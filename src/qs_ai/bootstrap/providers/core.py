@@ -49,7 +49,12 @@ class RuntimeProvider(Provider):
     @provide(scope=Scope.APP)
     async def database(self, settings: Settings) -> AsyncIterator[Database]:
         url = settings.database_url.get_secret_value() if settings.database_url else None
-        database = Database(url, **settings.database.model_dump())
+        database = Database(
+            url,
+            tls_mode=settings.database_tls_mode,
+            tls_ca_file=settings.database_tls_ca_file,
+            **settings.database.model_dump(),
+        )
         try:
             yield database
         finally:

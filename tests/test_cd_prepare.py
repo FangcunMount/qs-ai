@@ -166,6 +166,8 @@ def client_environment(monkeypatch, tmp_path):
         "ALIYUN_ACR_USERNAME": "test",
         "ALIYUN_ACR_PASSWORD": "synthetic-registry",
         "IMAGE_DIGEST": "sha256:" + "d" * 64,
+        "MYSQL_TLS_MODE": "VERIFY_IDENTITY",
+        "MYSQL_TLS_CA_REF": "a" * 40,
         "MYSQL_HOST": "mysql.test",
         "MYSQL_DATABASE": "ai",
         "MYSQL_USERNAME": "app",
