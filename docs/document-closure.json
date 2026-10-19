@@ -1,6 +1,6 @@
 {
   "schema_version": "qs-ai-document-closure/v1",
-  "source_commit": "5d3767c66c999e72ce2609199c5ec7f0d7af6217",
+  "source_commit": "6c18ee0a469c91c21f771ce3aabf74b84809d298",
   "reviewed_on": "2026-10-19",
   "authority": "runtime composition > code > machine contracts/config/migrations > scoped tests > maintained prose > dated evidence/plans/archive",
   "source_catalog": {
