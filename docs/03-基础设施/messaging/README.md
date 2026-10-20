@@ -32,7 +32,9 @@ RocketMQ 终态交接携带 provider、原始 Wire 和实际物理来源，宿�
 
 `StartPlanFacts` 保存冻结时间、原 input hash、session/run/evidence/job/Inbox/state 身份及精确配置依据。它采用显式版本和规范 JSON，拒绝重复/未知字段、错误身份/证据及不一致 receipt/state；并发失败方必须读取赢家的事实，不能继续使用自己新生成的候选。`plan_configuration` 复用原配置解析和输入校验，只读生成绑定依据；原根 `bind_configuration(expected=...)` 锁定并核对 pointer、publication、evidence 后才写入。冲突不转换为业务拒绝。
 
-解释业务与 SQL job 的身份、Inbox reservation 可以借用预分配值；历史入口默认分配行为不变。实际 command receiver 装配、五类命令的只读业务规划、冻结状态转录和真实 Broker 验收尚未完成，旧 runtime 对 transactions 配置的拒绝继续保留。`tests/integration/test_transaction_admission_root.py` 提供两种宿主档案格式的隔离 MySQL HELD 根原子性、服务端拒绝和客户端丢弃已提交回复用例；`test_execution_configurations.py` 增加真实只读规划、匹配绑定及 pointer 冲突用例。首轮 CI 的新夹具缺少冻结时间，在计划校验阶段失败，修正后门禁待重跑；不计为网络故障或完整业务链路验收。
+解释业务与 SQL job 的身份、Inbox reservation 可以借用预分配值；历史入口默认分配行为不变。START 已提供只读 `ReadOnlyStartUnitOfWork` 和完整 `StartAdmissionPlanner`：复用原服务规则，预查幂等、配置和容量，读事务关闭后才冻结 receipt/state 首次 wire。执行时 `make_start_root` 从 reservation 赢家读取 `StartPlanFacts`，借用原服务与 SQL 根，重校验配置和 UTC 预算日，明确验证状态后再写 witness/提交；`EventSession.commit` 不再编排这次发送。状态历史仍保留必要拒绝证据并标记 MQ 责任，事务入口不创建 messaging_outbox 发布责任。已完成 Inbox 不能因 token 相同而再次取得业务执行资格。
+
+实际 command receiver 装配、其余四类命令规划和真实 Broker 验收仍待完成，旧 runtime 对 transactions 配置的拒绝继续保留。`tests/integration/test_transaction_admission_root.py` 提供两种宿主档案格式的隔离 MySQL HELD 根原子性、服务端拒绝和客户端丢弃已提交回复用例；`test_execution_configurations.py` 增加真实只读规划、匹配绑定及 pointer 冲突用例。候选80805fb的两档MySQL完整CI各3242项零失败/跳过，已下载核对八份分片覆盖；这是原根/配置与历史回归的证据。后续真实只读START、并发赢家、原业务+witness及显式Replan旧证据验证用例已加入，待新候选CI。它们仍不计为Broker、网络故障或完整业务链路验收。
 
 ## 当前服务怎样装配这条链路
 
