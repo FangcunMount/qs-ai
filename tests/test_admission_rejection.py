@@ -84,6 +84,27 @@ async def test_missing_snapshot_is_durable_refusal_without_job():
     assert uow.jobs == 0 and uow.commits == 1
 
 
+@pytest.mark.parametrize("refused", [False, True])
+async def test_admission_can_borrow_preallocated_identities_without_reallocating_on_replay(refused):
+    identities = {role: str(uuid4()) for role in ("session", "run", "evidence")}
+    roles = []
+
+    def original_identity(role):
+        roles.append(role)
+        return identities[role]
+
+    uow = Uow(AdmissionRejected("configuration_unavailable") if refused else None)
+    service = InterpretationService(uow, SimpleNamespace(), new_identity=original_identity)
+    args = (Actor("1", "2"), "7", ("42",), "goal", str(uuid4()), bound_case()[1].items)
+    receipt = await service.start_external(*args)
+    assert receipt.session_id == identities["session"] and receipt.run_id == identities["run"]
+    assert uow.session.evidence_set_id == identities["evidence"]
+    assert roles == ["session", "run", "evidence"]
+    assert receipt.status == ("blocked" if refused else "queued")
+    assert await service.start_external(*args) == receipt
+    assert roles == ["session", "run", "evidence"], "original result never allocates new identity"
+
+
 @pytest.mark.parametrize(
     "error", [DependencyUnavailable(), RuntimeError("unknown transaction outcome")]
 )
