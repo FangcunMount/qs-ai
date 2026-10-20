@@ -24,13 +24,15 @@ RocketMQ 终态交接携带 provider、原始 Wire 和实际物理来源，宿�
 
 ## T16 command 冻结与原根执行器（接入进行中）
 
-`transaction_command.py` 在认证和正文解析之后持有原始 command bytes，以 owner、组织、原 command ID 和稳定 input hash 标识请求。完整计划保存首次 receipt/state 的 ID、正文、wire 和 v2 路由；仍采用 archive/v1，不修改 SDK codec。读取持久化赢家时，逐分支校验原 command、组织、路由以及业务 receipt/state 的版本和关联。
+`transaction_command.py` 在认证和正文解析之后持有原始 command bytes，以 owner、组织、原 command ID 和稳定 input hash 标识请求。完整计划保存首次 receipt/state 的 ID、正文、wire 和 v2 路由。无本地上下文时 archive/v1 的 bytes 和摘要不变；带上下文时显式采用宿主 archive/v2，最多 16 KiB，上下文计入本地计划与消息指纹，原业务 wire 不变。SDK codec/schema 保持原版本。读取持久化赢家时，逐分支校验原 command、组织、路由以及业务 receipt/state 的版本和关联；同一计划所有分支的上下文必须相同。
 
 [`AdmissionRoot`](../../../src/qs_ai/infrastructure/workflow_transport/transaction_admission.py) 是传给 SDK 的单次本地执行器：在宿主原根先取得 SDK guard，借用冻结的 Inbox reservation 身份，执行宿主业务 action，比较真实业务结果与冻结 receipt，再将 Inbox、全部首次档案和 witness 一同提交。HELD 不调用业务 action；旧 Inbox 不能被冒充为新 witness。事务入口的 Inbox 决策不新增旧 messaging_outbox 行。
 
 该执行器不规划业务、不签名、不发送半消息，也不重试业务。根被替换、提交回复丢失或证据不足返回 Unknown；只有原根回滚完成且持久化中止成功，才返回 Aborted。回复丢失后的权威读取采用新 session 边界并有预算。SDK 继续分别报告本地结果与 Broker 最终确认。
 
-解释业务与 SQL job 的身份、Inbox reservation 可以借用预分配值；历史入口默认分配行为不变。实际 command receiver 装配、五类命令的只读业务规划、冻结状态转录和真实 Broker 验收尚未完成，旧 runtime 对 transactions 配置的拒绝继续保留。`tests/integration/test_transaction_admission_root.py` 增加隔离 MySQL 的 HELD 根原子性、服务端拒绝和客户端丢弃已提交回复用例；新增用例尚待 CI 执行，不能视为网络故障或完整业务链路验收。
+`StartPlanFacts` 保存冻结时间、原 input hash、session/run/evidence/job/Inbox/state 身份及精确配置依据。它采用显式版本和规范 JSON，拒绝重复/未知字段、错误身份/证据及不一致 receipt/state；并发失败方必须读取赢家的事实，不能继续使用自己新生成的候选。`plan_configuration` 复用原配置解析和输入校验，只读生成绑定依据；原根 `bind_configuration(expected=...)` 锁定并核对 pointer、publication、evidence 后才写入。冲突不转换为业务拒绝。
+
+解释业务与 SQL job 的身份、Inbox reservation 可以借用预分配值；历史入口默认分配行为不变。实际 command receiver 装配、五类命令的只读业务规划、冻结状态转录和真实 Broker 验收尚未完成，旧 runtime 对 transactions 配置的拒绝继续保留。`tests/integration/test_transaction_admission_root.py` 提供两种宿主档案格式的隔离 MySQL HELD 根原子性、服务端拒绝和客户端丢弃已提交回复用例；`test_execution_configurations.py` 增加真实只读规划、匹配绑定及 pointer 冲突用例。首轮 CI 的新夹具缺少冻结时间，在计划校验阶段失败，修正后门禁待重跑；不计为网络故障或完整业务链路验收。
 
 ## 当前服务怎样装配这条链路
 
