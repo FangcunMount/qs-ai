@@ -30,7 +30,7 @@ from tests.integration.test_transaction_schema import installed as installed
 pytestmark = pytest.mark.integration
 
 
-def frozen_held():
+def frozen_held(context=b""):
     identity = str(uuid4())
     qs_sign = jwk.JWK.generate(kty="EC", crv="P-256", kid="qs.sign")
     ai_sign = jwk.JWK.generate(kty="EC", crv="P-256", kid="ai.sign")
@@ -50,6 +50,7 @@ def frozen_held():
             )
         ),
         organization_id="7",
+        original_occurred_at="2026-10-21T00:00:00Z",
         signing_key=qs_sign,
         recipient_key=ai_key,
     )
@@ -62,18 +63,24 @@ def frozen_held():
             command.envelope, AdmissionDecision("7", 1, pb.HELD, "technical_budget_exhausted", 14)
         ),
         organization_id="7",
+        original_occurred_at="2026-10-21T00:00:00Z",
         signing_key=ai_sign,
         recipient_key=qs_key,
         correlation=identity,
     )
-    return incoming, receipt, freeze_admission_plan(incoming, str(uuid4()), ((receipt, 1),))
+    return (
+        incoming,
+        receipt,
+        freeze_admission_plan(incoming, str(uuid4()), ((receipt, 1),), context=context),
+    )
 
 
 @pytest.mark.parametrize(
     "fault", ["none", "archive_rejected", "witness_rejected", "client_reply_discarded"]
 )
+@pytest.mark.parametrize("context", [b"", b"isolated-v2-local-proof"])
 async def test_held_root_uses_actual_inbox_archive_and_witness_atomically(
-    installed, monkeypatch, fault
+    installed, monkeypatch, fault, context
 ):
     sessions = installed
     binding = Binding("ai.mysql", "owned-primary", "m3-1")
@@ -108,7 +115,9 @@ async def test_held_root_uses_actual_inbox_archive_and_witness_atomically(
             raise ConnectionError("client discarded completed commit reply")
 
         monkeypatch.setattr(EventSession, "commit", discard_reply)
-    incoming, receipt, plan = frozen_held()  # all IDs, time, signatures and cipher before root
+    incoming, receipt, plan = frozen_held(
+        context
+    )  # all IDs, time, signatures and cipher before root
     reservation = await store.reserve(incoming.request, plan)
     assert reservation.acquired
     database = Database(None)
@@ -157,5 +166,6 @@ async def test_held_root_uses_actual_inbox_archive_and_witness_atomically(
     stored = await archives.read_committed(receipt.envelope.message_id)
     if committed:
         assert stored is not None and stored.wire == receipt.wire and stored.body == receipt.body
+        assert stored.context == context
     else:
         assert stored is None
