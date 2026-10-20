@@ -10,6 +10,7 @@ from qs_ai.application.execution.retry import ParticipantRetryStore, RetryPartic
 from qs_ai.application.execution.runtime import RuntimeReader
 from qs_ai.application.execution.worker import ExecuteNext
 from qs_ai.application.governance.quotas import QuotaBaseline
+from qs_ai.application.governance.solution_models import EditableModelPolicy
 from qs_ai.application.interpretation.eligibility import EligibilityReader
 from qs_ai.application.interpretation.ports import (
     EvidenceSource,
@@ -66,7 +67,17 @@ class InterpretationProvider(Provider):
         async with mtls_channel(options.access_address, ca, key, cert) as channel:
             yield QSAccessSource(channel, options.request_timeout_seconds)
 
-    uows = provide(MySQLUnitOfWorkFactory, provides=UnitOfWorkFactory, scope=Scope.REQUEST)
+    @provide(scope=Scope.REQUEST)
+    def uows(
+        self,
+        transactions: Transactions,
+        capacity: ParticipantCapacityPolicy,
+        quota_baseline: QuotaBaseline | None,
+        models: EditableModelPolicy,
+    ) -> UnitOfWorkFactory:
+        # Frozen per-command identities belong to explicit transaction assembly,
+        # never the shared dependency graph or its ordinary request-scoped UoW.
+        return MySQLUnitOfWorkFactory(transactions, capacity, quota_baseline, models)
 
     @provide(scope=Scope.REQUEST)
     def store(
