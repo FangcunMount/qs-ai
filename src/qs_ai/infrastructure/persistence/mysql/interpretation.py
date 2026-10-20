@@ -30,6 +30,7 @@ from qs_ai.domain.interpretation.model import (
 )
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
 from qs_ai.infrastructure.persistence.mysql.execution_configurations import (
+    PlannedConfiguration,
     bind_configuration,
     configuration_refusals,
 )
@@ -86,11 +87,19 @@ class MySQLUnitOfWork:
         *,
         commit: Callable[[AsyncSession], Awaitable[None]] | None = None,
         job_id: str | None = None,
+        state_event_id: str | None = None,
+        at: datetime | None = None,
+        configuration: PlannedConfiguration | None = None,
     ) -> None:
         if job_id is not None and str(UUID(job_id)) != job_id:
             raise ValueError("Canonical frozen job identity required")
+        if state_event_id is not None and str(UUID(state_event_id)) != state_event_id:
+            raise ValueError("Canonical frozen state identity required")
+        if at is not None and (not isinstance(at, datetime) or at.utcoffset() is None):
+            raise ValueError("Aware frozen business clock required")
         self._commit = commit
         self._job_id = job_id
+        self._state_event_id, self._at, self._configuration = state_event_id, at, configuration
         self.db, self.capacity = db, capacity
         self.quota_baseline = quota_baseline
         self.models = models
@@ -137,7 +146,12 @@ class MySQLUnitOfWork:
         # Only deterministic validation failures become durable refusals. Database,
         # network and commit failures must still roll back and replay the same ID.
         with configuration_refusals():
-            await bind_configuration(self.db, session, evidence, self.models)
+            if self._configuration is None:
+                await bind_configuration(self.db, session, evidence, self.models)
+            else:
+                await bind_configuration(
+                    self.db, session, evidence, self.models, expected=self._configuration
+                )
 
     async def bind_request(self, session_id: str, request_id: str) -> None:
         result = await self.db.execute(
@@ -181,7 +195,10 @@ class MySQLUnitOfWork:
             )
         )
 
-        await stage_state(self.db, session)
+        if self._state_event_id is None:
+            await stage_state(self.db, session)
+        else:
+            await stage_state(self.db, session, event_id=self._state_event_id)
 
     async def question(self, question_id: str) -> Question:
         row = (
@@ -210,7 +227,11 @@ class MySQLUnitOfWork:
     ) -> None:
         if session.uses_qs_snapshot:
             await reserve_capacity(
-                self.db, session, self.capacity, datetime.now(UTC), self.quota_baseline
+                self.db,
+                session,
+                self.capacity,
+                datetime.now(UTC) if self._at is None else self._at,
+                self.quota_baseline,
             )
         await self.db.execute(
             insert(runs).values(
@@ -270,7 +291,9 @@ class MySQLUnitOfWork:
         )
 
         if session.uses_qs_snapshot:
-            await release_capacity(self.db, session, datetime.now(UTC))
+            await release_capacity(
+                self.db, session, datetime.now(UTC) if self._at is None else self._at
+            )
 
     async def commit(self) -> None:
         if self._commit is None:
@@ -288,11 +311,15 @@ class MySQLUnitOfWorkFactory:
         models: EditableModelPolicy = DEFAULT_EDITABLE_MODELS,
         *,
         job_id: str | None = None,
+        state_event_id: str | None = None,
+        at: datetime | None = None,
+        configuration: PlannedConfiguration | None = None,
     ) -> None:
         self.transactions, self.capacity = transactions, capacity
         self.quota_baseline = quota_baseline
         self.models = models
         self._job_id = job_id
+        self._state_event_id, self._at, self._configuration = state_event_id, at, configuration
 
     @asynccontextmanager
     async def open(self) -> AsyncIterator[UnitOfWork]:
@@ -306,4 +333,7 @@ class MySQLUnitOfWorkFactory:
                 self.models,
                 commit=self.transactions.commit,
                 job_id=self._job_id,
+                state_event_id=self._state_event_id,
+                at=self._at,
+                configuration=self._configuration,
             )
