@@ -1,7 +1,7 @@
 """Frozen local archive codec, independent of signing, network and DB callbacks."""
 
 import struct
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from google.protobuf.message import DecodeError  # type: ignore[import-untyped]
 from reliable_messaging.message import Message
@@ -23,19 +23,37 @@ from qs_ai.infrastructure.workflow_transport.messaging import (
 
 CONTENT_TYPE = "application/vnd.qs-ai.archive.v1+octet-stream"
 MAGIC = b"qs-ai-archive/v1\0"
+CONTEXT_MAGIC = b"qs-ai-archive/v2\0"
+CONTEXT_CONTENT_TYPE = "application/vnd.qs-ai.archive.v2+octet-stream"
+MAX_CONTEXT = 16384
 LAYOUT = struct.Struct(">QQBII")
 MAX_HEADER = INLINE_BODY + 2048
 
 
 @dataclass(frozen=True)
 class FrozenArchive:
-    header: bytes
-    body: bytes
-    wire: bytes
+    header: bytes = field(repr=False)
+    body: bytes = field(repr=False)
+    wire: bytes = field(repr=False)
     organization_id: int
     sequence: int
     ordered: bool
     requires_receipt: bool
+    context: bytes = field(default=b"", repr=False)
+
+    def __post_init__(self) -> None:
+        for name, maximum in (
+            ("header", MAX_HEADER),
+            ("body", MAX_BODY),
+            ("wire", 262144),
+            ("context", MAX_CONTEXT),
+        ):
+            value = getattr(self, name)
+            if not isinstance(value, (bytes, bytearray, memoryview)):
+                raise MessagingContractError("frozen archive bytes required")
+            if len(value) > maximum:
+                raise MessagingContractError("frozen archive byte bounds exceeded")
+            object.__setattr__(self, name, bytes(value))
 
     def envelope(self) -> pb.MessagingEnvelope:
         value = pb.MessagingEnvelope()
@@ -84,7 +102,7 @@ class FrozenArchive:
     def encode(self) -> bytes:
         self.validate()
         flags = int(self.ordered) | (int(self.requires_receipt) << 1)
-        return (
+        original = (
             MAGIC
             + LAYOUT.pack(
                 self.organization_id, self.sequence, flags, len(self.header), len(self.body)
@@ -92,6 +110,9 @@ class FrozenArchive:
             + self.header
             + self.body
         )
+        if not self.context:
+            return original  # Preserve every v1 byte/fingerprint, including unknown fields.
+        return CONTEXT_MAGIC + struct.pack(">I", len(self.context)) + self.context + original
 
     def message(self) -> Message:
         envelope = self.envelope()
@@ -102,13 +123,24 @@ class FrozenArchive:
             pb.MessagingKind.Name(envelope.kind),
             SCHEMA,
             f"org:{self.organization_id}",
-            CONTENT_TYPE,
+            CONTEXT_CONTENT_TYPE if self.context else CONTENT_TYPE,
             envelope.original_occurred_at,
             self.encode(),
         )
 
 
 def decode_archive(payload: bytes, wire: bytes) -> FrozenArchive:
+    context = b""
+    if payload.startswith(CONTEXT_MAGIC):
+        prefix = len(CONTEXT_MAGIC) + 4
+        if len(payload) < prefix:
+            raise MessagingContractError("invalid local context prefix")
+        length = struct.unpack_from(">I", payload, len(CONTEXT_MAGIC))[0]
+        if not 0 < length <= MAX_CONTEXT or len(payload) <= prefix + length:
+            raise MessagingContractError("invalid local context length")
+        context = bytes(payload[prefix : prefix + length])
+        payload = payload[prefix + length :]
+        # Exactly one explicit extension; nested versions are never normalized.
     prefix = len(MAGIC) + LAYOUT.size
     if len(payload) < prefix or not payload.startswith(MAGIC):
         raise MessagingContractError("invalid archive codec version")
@@ -128,6 +160,7 @@ def decode_archive(payload: bytes, wire: bytes) -> FrozenArchive:
         sequence,
         bool(flags & 1),
         bool(flags & 2),
+        context,
     )
     result.validate()
     return result
@@ -142,6 +175,8 @@ def freeze_branch(
     branch_id: str,
     physical_topic: str,
     revision: str,
+    *,
+    context: bytes = b"",
 ) -> FrozenBranch:
     if not valid_number(organization_id) or prepared.topic != route(prepared.envelope.kind)[2]:
         raise MessagingContractError("archive original route or organization differs")
@@ -153,6 +188,7 @@ def freeze_branch(
         sequence,
         ordered,
         requires_receipt,
+        context,
     )
     branch = FrozenBranch(branch_id, physical_topic, revision, value.message(), value.wire)
     decode_branch(branch)

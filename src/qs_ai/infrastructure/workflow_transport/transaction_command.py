@@ -127,6 +127,8 @@ def freeze_admission_plan(
     incoming: FrozenCommandInput,
     operation_id: str,
     publications: tuple[tuple[PreparedMessage, int], ...],
+    *,
+    context: bytes = b"",
 ) -> FrozenPlan:
     """Freeze already prepared first messages; planning/signing happens at the host.
 
@@ -146,6 +148,7 @@ def freeze_admission_plan(
             prepared.envelope.message_id,
             physical,
             "m3-1",
+            context=context,
         )
         for prepared, sequence in publications
     )
@@ -205,6 +208,8 @@ def read_admission_plan(
         raise MessagingContractError("one original receipt and no held business state required")
     for value, body in states:
         _check_state_receipt(value, body, receipts[0], command.aggregate_key)
+    if len({value.context for value in archives}) != 1:
+        raise MessagingContractError("frozen admission local contexts differ")
     return tuple(archives)
 
 
