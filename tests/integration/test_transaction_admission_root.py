@@ -1,5 +1,6 @@
 """Actual host roots/MySQL proofs; no Broker, business admission or packet-fault claim."""
 
+import hashlib
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
@@ -165,7 +166,9 @@ async def test_held_root_uses_actual_inbox_archive_and_witness_atomically(
         )
     stored = await archives.read_committed(receipt.envelope.message_id)
     if committed:
-        assert stored is not None and stored.wire == receipt.wire and stored.body == receipt.body
+        assert stored is not None
+        assert hashlib.sha256(stored.wire).hexdigest() == hashlib.sha256(receipt.wire).hexdigest()
+        assert hashlib.sha256(stored.body).hexdigest() == hashlib.sha256(receipt.body).hexdigest()
         assert stored.context == context
     else:
         assert stored is None
