@@ -10,7 +10,13 @@ import math
 from collections.abc import Awaitable, Callable
 
 from reliable_messaging.durable import MessageConflict
-from reliable_messaging.transaction import BindingError, Execution, LocalOutcome, decide_local
+from reliable_messaging.transaction import (
+    BindingError,
+    Execution,
+    FrozenPlan,
+    LocalOutcome,
+    decide_local,
+)
 from reliable_messaging.transaction_mysql import MySQLTransactionStore
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,6 +28,8 @@ from qs_ai.infrastructure.workflow_transport.admission_receipts import (
     AdmissionDecision,
     build_receipt_body,
 )
+from qs_ai.infrastructure.workflow_transport.command_admission import WorkflowCommandAdmission
+from qs_ai.infrastructure.workflow_transport.frozen_start_admission import FrozenStartAdmission
 from qs_ai.infrastructure.workflow_transport.frozen_start_events import FrozenStartEvents
 from qs_ai.infrastructure.workflow_transport.messaging import valid_id
 from qs_ai.infrastructure.workflow_transport.transaction_command import (
@@ -32,6 +40,36 @@ from qs_ai.infrastructure.workflow_transport.transaction_command import (
 AdmissionAction = Callable[
     [AsyncSession, pb.MessagingEnvelope, pb.MessagingBody], Awaitable[AdmissionDecision]
 ]
+
+
+def make_start_root(
+    transactions: Transactions,
+    archives: TransactionArchive,
+    store: MySQLTransactionStore,
+    inbox: MessagingStore,
+    incoming: FrozenCommandInput,
+    winner: FrozenPlan,
+    admission: WorkflowCommandAdmission,
+    *,
+    database_seconds: float = 2,
+) -> "AdmissionRoot":
+    """Assemble a keyless local executor from the persisted reservation winner.
+
+    The caller passes it to SDK Execute; no constructor opens a connection,
+    sends a half message or commits business. Candidate-local data is unused.
+    """
+    action = FrozenStartAdmission(incoming, winner, admission)
+    return AdmissionRoot(
+        transactions,
+        archives,
+        store,
+        inbox,
+        incoming,
+        reservation_token=action.facts.reservation_token,
+        business=action,
+        events=FrozenStartEvents(incoming, winner),
+        database_seconds=database_seconds,
+    )
 
 
 class AdmissionRoot:
