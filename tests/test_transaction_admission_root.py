@@ -16,7 +16,7 @@ from qs_ai.infrastructure.workflow_transport.transaction_command import freeze_a
 from tests.test_admission_plan import fixture
 
 
-def root_fixture(decision=pb.ACCEPTED):
+def root_fixture(decision=pb.ACCEPTED, *, with_events=True):
     incoming, receipt, state = fixture(decision)
     publications = ((receipt, 2),) if decision == pb.HELD else ((receipt, 2), (state, 2))
     plan = freeze_admission_plan(incoming, str(uuid4()), publications)
@@ -29,6 +29,7 @@ def root_fixture(decision=pb.ACCEPTED):
     original_root = SimpleNamespace(is_active=True)
     db = SimpleNamespace(
         get_transaction=Mock(return_value=original_root),
+        info={},
         begin=AsyncMock(side_effect=lambda: event("begin")),
         commit=AsyncMock(side_effect=lambda: event("commit")),
         rollback=AsyncMock(side_effect=lambda: event("rollback")),
@@ -71,6 +72,9 @@ def root_fixture(decision=pb.ACCEPTED):
         return result
 
     action = AsyncMock(side_effect=business)
+    recorder = SimpleNamespace(
+        plan_digest=plan.digest, flush=AsyncMock(side_effect=lambda _: event("state-proof"))
+    )
     local = AdmissionRoot(
         SimpleNamespace(open=opened),
         archives,
@@ -79,6 +83,7 @@ def root_fixture(decision=pb.ACCEPTED):
         incoming,
         reservation_token=str(uuid4()),
         business=action,
+        events=recorder if with_events else None,
     )
     return SimpleNamespace(**locals())
 
@@ -91,6 +96,7 @@ async def test_original_root_guard_precedes_business_and_all_archives_witness_pr
         "begin",
         "guard",
         "business",
+        "state-proof",
         "archive",
         "archive",
         "witness",
@@ -243,3 +249,29 @@ async def test_commit_reply_loss_never_trusts_partial_foreign_or_unavailable_evi
     assert await f.local(f.execution) == LocalOutcome.UNKNOWN
     f.store.abort.assert_not_called()
     assert f.action.await_count == 1
+
+
+async def test_state_plan_without_original_transcription_is_refused_before_business_root():
+    f = root_fixture(with_events=False)
+    with pytest.raises(BindingError):
+        await f.local(f.execution)
+    assert not f.events
+    f.action.assert_not_called()
+
+
+async def test_state_transcription_cannot_belong_to_another_winner():
+    f = root_fixture()
+    f.recorder.plan_digest = bytes(32)
+    with pytest.raises(BindingError):
+        await f.local(f.execution)
+    assert not f.events
+
+
+async def test_no_state_plan_cannot_run_legacy_message_commit_hook():
+    f = root_fixture(pb.HELD, with_events=False)
+    legacy = SimpleNamespace(flush=AsyncMock())
+    f.db.info["state_events"] = legacy
+    assert await f.local(f.execution) == LocalOutcome.ABORTED
+    legacy.flush.assert_not_called()
+    f.db.commit.assert_not_called()
+    f.action.assert_not_called()

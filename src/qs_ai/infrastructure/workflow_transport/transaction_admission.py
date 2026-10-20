@@ -22,6 +22,7 @@ from qs_ai.infrastructure.workflow_transport.admission_receipts import (
     AdmissionDecision,
     build_receipt_body,
 )
+from qs_ai.infrastructure.workflow_transport.frozen_start_events import FrozenStartEvents
 from qs_ai.infrastructure.workflow_transport.messaging import valid_id
 from qs_ai.infrastructure.workflow_transport.transaction_command import (
     FrozenCommandInput,
@@ -44,6 +45,7 @@ class AdmissionRoot:
         *,
         reservation_token: str,
         business: AdmissionAction,
+        events: FrozenStartEvents | None = None,
         database_seconds: float = 2,
     ) -> None:
         if not valid_id(reservation_token):
@@ -53,6 +55,7 @@ class AdmissionRoot:
         self._transactions, self._archives, self._store = transactions, archives, store
         self._inbox, self._incoming = inbox, incoming
         self._reservation_token, self._business = reservation_token, business
+        self._events = events
         self._database_seconds = database_seconds
         self._used = False
 
@@ -69,6 +72,12 @@ class AdmissionRoot:
         if self._used or not execution.owned:
             raise BindingError("One owned execution per original admission root required")
         archives = read_admission_plan(self._incoming, execution.plan)
+        if self._events is None and any(
+            a.envelope().kind in (pb.INTERPRETATION_STATE, pb.EVALUATION_STATE) for a in archives
+        ):
+            raise BindingError("Original frozen state transcription required")
+        if self._events is not None and self._events.plan_digest != execution.plan.digest:
+            raise BindingError("Frozen state transcription belongs to another plan")
         receipt = next(a for a in archives if a.envelope().kind == pb.COMMAND_RECEIPT)
         expected = pb.MessagingBody.FromString(receipt.body)
         self._used = True
@@ -80,6 +89,10 @@ class AdmissionRoot:
                 try:
                     # First conditional write competes with the same execution's aborter.
                     guard = await self._archives.bind(db, execution)
+                    if self._events is not None:
+                        db.info["state_events"] = self._events
+                    elif db.info.get("state_events") is not None:
+                        raise BindingError("Unplanned legacy state recorder cannot enter the root")
                     duplicate = await self._inbox.reserve_command(
                         db,
                         self._incoming.envelope(),
@@ -108,6 +121,11 @@ class AdmissionRoot:
                     ):
                         integrity_lost = True
                         raise BindingError("Admission replaced the original root")
+                    if self._events is not None:
+                        await self._events.flush(db)
+                        # State validation is explicit and precedes witness staging.
+                        # EventSession.commit must not orchestrate messages again.
+                        db.info.pop("state_events", None)
                     for branch in execution.plan.branches:
                         await guard.put(branch.branch_id)
                     await self._inbox.decide_transaction(
