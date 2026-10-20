@@ -581,3 +581,97 @@ async def test_code_only_levels_admit_replay_and_recover_original_snapshot(ready
         dimension["level"] == {"code": "medium", "label": "medium", "severity": ""}
         for dimension in json.loads(prepared.assembled_input.canonical_json)["facts"]["dimensions"]
     )
+
+
+async def test_configuration_plan_is_read_only_and_matching_root_binding_keeps_exact_proof(
+    admitted,
+):
+    from dataclasses import asdict
+
+    from sqlalchemy import event
+
+    from qs_ai.infrastructure.persistence.mysql.execution_configurations import (
+        bind_configuration,
+        plan_configuration,
+    )
+
+    kit, service, _, receipt, original, _, (tx, _, _, _) = admitted
+    session = (await read_session(service.uows, receipt.session_id)).session
+    evidence = replace(original, id=session.evidence_set_id, session_id=session.id)
+    statements = []
+    engine = tx.database.engine.sync_engine
+
+    def capture(connection, cursor, statement, parameters, context, executemany):
+        statements.append(statement.strip().split()[0].upper())
+
+    async with tx.open() as db:
+        await db.begin()
+        event.listen(engine, "before_cursor_execute", capture)
+        try:
+            planned = await plan_configuration(db, session, evidence)
+        finally:
+            event.remove(engine, "before_cursor_execute", capture)
+        assert statements and set(statements) == {"SELECT"}
+        # Exercise the exact frozen root write in this disposable rollback scope.
+        await db.execute(
+            delete(execution_configurations).where(
+                execution_configurations.c.session_id == session.id
+            )
+        )
+        await bind_configuration(db, session, evidence, expected=planned)
+        rebound = (
+            (
+                await db.execute(
+                    select(execution_configurations).where(
+                        execution_configurations.c.session_id == session.id
+                    )
+                )
+            )
+            .mappings()
+            .one()
+        )
+        assert {key: rebound[key] for key in asdict(planned)} == asdict(planned)
+        await db.rollback()
+
+
+async def test_configuration_plan_rejects_new_pointer_before_rebinding_accepted_facts(admitted):
+    from qs_ai.infrastructure.persistence.mysql.execution_configurations import (
+        ConfigurationPlanConflict,
+        bind_configuration,
+        plan_configuration,
+    )
+
+    _, service, _, receipt, original, first, (tx, scope, command, at) = admitted
+    session = (await read_session(service.uows, receipt.session_id)).session
+    evidence = replace(original, id=session.evidence_set_id, session_id=session.id)
+    async with tx.open() as db:
+        planned = await plan_configuration(db, session, evidence)
+    second = await MySQLPublications(tx).apply(
+        scope,
+        replace(
+            command,
+            command_id=uuid4(),
+            expected_version=1,
+            expected_active_id=first.change.current.active.publication_id,
+        ),
+        at + timedelta(seconds=1),
+    )
+    assert str(second.change.current.active.publication_id) != planned.publication_id
+    async with tx.open() as db:
+        await db.begin()
+        with pytest.raises(ConfigurationPlanConflict):
+            await bind_configuration(db, session, evidence, expected=planned)
+        unchanged = (
+            (
+                await db.execute(
+                    select(execution_configurations).where(
+                        execution_configurations.c.session_id == session.id
+                    )
+                )
+            )
+            .mappings()
+            .one()
+        )
+        assert unchanged["publication_id"] == planned.publication_id
+        assert unchanged["pointer_version"] == planned.pointer_version
+        await db.rollback()
