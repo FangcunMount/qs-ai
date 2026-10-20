@@ -39,18 +39,13 @@ def fits(rows: Sequence[Mapping[Any, Any]], session: Session, limits: tuple[int,
     )
 
 
-async def prior(db: AsyncSession, session: Session) -> Mapping[Any, Any] | None:
-    row = (
-        (
-            await db.execute(
-                select(reservations)
-                .where(reservations.c.run_id == session.active_run_id)
-                .with_for_update()
-            )
-        )
-        .mappings()
-        .one_or_none()
-    )
+async def prior(
+    db: AsyncSession, session: Session, *, lock: bool = True
+) -> Mapping[Any, Any] | None:
+    statement = select(reservations).where(reservations.c.run_id == session.active_run_id)
+    if lock:
+        statement = statement.with_for_update()
+    row = (await db.execute(statement)).mappings().one_or_none()
     if row is not None and (
         row["session_id"] != session.id
         or row["organization_id"] != int(session.actor.org_id)
@@ -59,6 +54,35 @@ async def prior(db: AsyncSession, session: Session) -> Mapping[Any, Any] | None:
     ):
         raise RuleViolation("participant_reservation_conflict")
     return row
+
+
+async def preview(
+    db: AsyncSession,
+    session: Session,
+    policy: ParticipantCapacityPolicy,
+    at: datetime,
+    quota_baseline: QuotaBaseline | None = None,
+) -> None:
+    """Advisory read only; the original root still calls locking reserve()."""
+    if at.tzinfo is None or not session.active_run_id:
+        raise ValueError("Participant preview requires UTC time and Run")
+    if await prior(db, session, lock=False) is not None:
+        return
+    policy, _ = await participant_policy(db, int(session.actor.org_id), policy, quota_baseline)
+    rows = (
+        (
+            await db.execute(
+                select(reservations).where(
+                    reservations.c.organization_id == int(session.actor.org_id),
+                    reservations.c.budget_day == at.astimezone(UTC).date(),
+                )
+            )
+        )
+        .mappings()
+        .all()
+    )
+    if not fits(rows, session, (policy.daily_org, policy.daily_user, policy.daily_assessment)):
+        raise RuleViolation("participant_daily_capacity_exceeded")
 
 
 async def reserve(
