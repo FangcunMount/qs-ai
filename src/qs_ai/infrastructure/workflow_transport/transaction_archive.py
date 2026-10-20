@@ -51,7 +51,7 @@ class FrozenArchive:
             value = getattr(self, name)
             if not isinstance(value, (bytes, bytearray, memoryview)):
                 raise MessagingContractError("frozen archive bytes required")
-            if len(value) > maximum:
+            if memoryview(value).nbytes > maximum:
                 raise MessagingContractError("frozen archive byte bounds exceeded")
             object.__setattr__(self, name, bytes(value))
 

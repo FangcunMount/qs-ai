@@ -87,3 +87,19 @@ def test_context_archive_rejects_ambiguous_or_noncanonical_lengths(mutation):
         payload += b"trailing"
     with pytest.raises(MessagingContractError):
         decode_archive(payload, value.wire)
+
+
+def test_multibyte_view_cannot_bypass_local_context_byte_limit():
+    _, archive = golden()
+    view = memoryview(b"x" * 16388).cast("I")
+    assert len(view) < 16384 < view.nbytes
+    with pytest.raises(MessagingContractError, match="bounds"):
+        replace(archive, context=view)
+
+
+def test_multibyte_view_cannot_bypass_original_wire_byte_limit():
+    incoming, _, _ = fixture()
+    view = memoryview(b"x" * 262148).cast("I")
+    assert len(view) < 262144 < view.nbytes
+    with pytest.raises(MessagingContractError, match="bounds"):
+        replace(incoming, wire=view)

@@ -66,7 +66,7 @@ class FrozenCommandInput:
             value = getattr(self, name)
             if not isinstance(value, (bytes, bytearray, memoryview)):
                 raise MessagingContractError("original command bytes required")
-            if not 0 < len(value) <= (262144 if name == "wire" else MAX_BODY):
+            if not 0 < memoryview(value).nbytes <= (262144 if name == "wire" else MAX_BODY):
                 raise MessagingContractError("original command byte bounds exceeded")
             object.__setattr__(self, name, bytes(value))
         envelope = self.envelope()
