@@ -193,6 +193,8 @@ class StartPlanFacts:
                 raise ValueError("Frozen START configuration binds another evidence input")
         for value in archives:
             envelope = value.envelope()
+            if datetime.fromisoformat(envelope.original_occurred_at) != result.at:
+                raise ValueError("Frozen START clock and first publication time differ")
             body = pb.MessagingBody.FromString(value.body)
             if envelope.kind == pb.COMMAND_RECEIPT and body.command_receipt.HasField(
                 "workflow_receipt"

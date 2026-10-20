@@ -1,7 +1,7 @@
 """Frozen local START facts are read from the durable winner, never regenerated."""
 
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import datetime, timedelta
 from uuid import uuid4
 
 import pytest
@@ -24,7 +24,7 @@ def facts_fixture():
     evidence_id = str(uuid4())
     facts = StartPlanFacts(
         incoming.request.input_hash,
-        datetime(2026, 10, 21, 6, 30, tzinfo=UTC),
+        datetime.fromisoformat(receipt.envelope.original_occurred_at),
         result.session_id,
         result.run_id,
         evidence_id,
@@ -137,3 +137,29 @@ def test_start_facts_configuration_selector_is_canonical_and_unambiguous(selecto
     _, facts, _ = facts_fixture()
     with pytest.raises(ValueError):
         replace(facts, configuration=replace(facts.configuration, selector_query=selector))
+
+
+@pytest.mark.parametrize("changed", ["context", "state"])
+def test_frozen_start_clock_matches_all_first_publication_times(changed):
+    from qs_ai.infrastructure.workflow_transport.messaging import PreparedMessage
+    from qs_ai.infrastructure.workflow_transport.transaction_archive import decode_branch
+
+    incoming, facts, plan = facts_fixture()
+    context = replace(facts, at=facts.at + timedelta(seconds=1)) if changed == "context" else facts
+    publications = []
+    for branch in plan.branches:
+        value = decode_branch(branch)
+        envelope = value.envelope()
+        if changed == "state" and envelope.message_id == facts.state_event_id:
+            envelope.original_occurred_at = (facts.at + timedelta(seconds=1)).isoformat()
+        publications.append(
+            (
+                PreparedMessage(envelope, value.body, value.wire, branch.message.destination),
+                value.sequence,
+            )
+        )
+    wrong = freeze_admission_plan(
+        incoming, plan.operation_id, tuple(publications), context=context.encode()
+    )
+    with pytest.raises(ValueError):
+        StartPlanFacts.from_plan(incoming, wrong)
