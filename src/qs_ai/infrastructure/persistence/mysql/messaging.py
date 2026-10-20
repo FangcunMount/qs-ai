@@ -32,6 +32,7 @@ from qs_ai.infrastructure.workflow_transport.messaging import (
     EVENTS,
     PreparedMessage,
     parse_body,
+    valid_id,
     valid_number,
 )
 
@@ -213,6 +214,8 @@ class MessagingStore:
         envelope: pb.MessagingEnvelope,
         raw: bytes,
         wire: bytes,
+        *,
+        reservation_token: str | None = None,
     ) -> Any | None:
         parse_body(envelope, raw)
         if (
@@ -228,7 +231,13 @@ class MessagingStore:
             )
         ):
             raise MessageConflict("authenticated original command required")
-        token = str(uuid4())
+        if reservation_token is not None and (
+            not isinstance(reservation_token, str) or not valid_id(reservation_token)
+        ):
+            raise MessageConflict("original reservation identity invalid")
+        # New transaction callers freeze this before half messages/the SQL root.
+        # Historical callers retain their original allocation and row semantics.
+        token = str(uuid4()) if reservation_token is None else reservation_token
         statement = mysql.insert(inbox).values(
             producer=envelope.producer,
             destination=envelope.destination,
