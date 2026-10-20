@@ -274,7 +274,7 @@ class MessagingStore:
             envelope.aggregate_key,
         ):
             raise MessageConflict("original command identity conflict")
-        if row["reservation_token"] == token:
+        if row["reservation_token"] == token and row["decision"] == "processing":
             return None  # original owner executes once, on this same uncommitted transaction
         if row["decision"] not in ("accepted", "rejected", "held") or not row["receipt_id"]:
             raise MessageConflict("original command has no durable decision")

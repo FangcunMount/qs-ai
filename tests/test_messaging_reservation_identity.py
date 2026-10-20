@@ -30,6 +30,7 @@ async def test_inbox_can_borrow_identity_without_allocating_inside_original_root
         "kind": envelope.kind,
         "aggregate_key": envelope.aggregate_key,
         "reservation_token": token,
+        "decision": "processing",
     }
     result = Mock()
     result.mappings.return_value.one.return_value = row
@@ -59,3 +60,33 @@ async def test_invalid_frozen_inbox_identity_is_refused_before_sql_or_replacemen
         )
     original.assert_not_called()
     allocate.assert_not_called()
+
+
+@pytest.mark.parametrize("decision", ["accepted", "rejected", "held"])
+@pytest.mark.parametrize("same_token", [False, True])
+async def test_completed_inbox_never_reacquires_execution_even_with_same_frozen_token(
+    monkeypatch, decision, same_token
+):
+    envelope, body, wire = command_fixture()
+    token = str(uuid4())
+    stored = {
+        "body_sha256": envelope.body_sha256,
+        "body": body,
+        "kind": envelope.kind,
+        "aggregate_key": envelope.aggregate_key,
+        "reservation_token": token if same_token else str(uuid4()),
+        "decision": decision,
+        "receipt_id": str(uuid4()),
+    }
+    result = Mock()
+    result.mappings.return_value.one.return_value = stored
+    db = SimpleNamespace(execute=AsyncMock(return_value=result))
+    original = SimpleNamespace(append=AsyncMock())
+    monkeypatch.setattr(messaging, "bind", lambda _: original)
+    observation = AsyncMock()
+    monkeypatch.setattr(messaging, "record_observation", observation)
+    duplicate = await messaging.MessagingStore().reserve_command(
+        db, envelope, body, wire, reservation_token=token
+    )
+    assert duplicate is stored
+    observation.assert_awaited_once_with(db, "duplicate_command")
