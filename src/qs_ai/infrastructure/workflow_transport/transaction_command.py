@@ -9,17 +9,25 @@ import hashlib
 from dataclasses import dataclass, field
 
 from google.protobuf.message import DecodeError  # type: ignore[import-untyped]
-from reliable_messaging.transaction import Request
+from reliable_messaging.transaction import FrozenPlan, Request
+from reliable_messaging.transport import physical_topic_v2
 from reliable_messaging.wire import decode
 
 from qs_ai.contracts.workflow import messaging_pb2 as pb
 from qs_ai.infrastructure.workflow_transport.messaging import (
+    EVENTS,
     FIELDS,
     MAX_BODY,
     METADATA,
     MessagingContractError,
+    PreparedMessage,
     parse_body,
     valid_number,
+)
+from qs_ai.infrastructure.workflow_transport.transaction_archive import (
+    FrozenArchive,
+    decode_branch,
+    freeze_branch,
 )
 
 _COMMAND_KINDS = (
@@ -113,3 +121,120 @@ class FrozenCommandInput:
         return Request(
             "ai.mysql", f"org:{org}", f"ai-command/qs-server/{envelope.message_id}", digest
         )
+
+
+def freeze_admission_plan(
+    incoming: FrozenCommandInput,
+    operation_id: str,
+    publications: tuple[tuple[PreparedMessage, int], ...],
+) -> FrozenPlan:
+    """Freeze already prepared first messages; planning/signing happens at the host.
+
+    Each publication carries its business sequence, not a Broker/FIFO promise.
+    The v1 archive remains byte-compatible. This function never creates IDs,
+    clocks, connections, half messages or a local executor.
+    """
+    physical = physical_topic_v2(EVENTS, "TRANSACTION", "ai.mysql", "m3-1")
+    request = incoming.request
+    branches = tuple(
+        freeze_branch(
+            prepared,
+            incoming.organization_id,
+            sequence,
+            False,
+            True,
+            prepared.envelope.message_id,
+            physical,
+            "m3-1",
+        )
+        for prepared, sequence in publications
+    )
+    plan = FrozenPlan(
+        request.owner, request.scope, operation_id, request.key, request.input_hash, branches
+    )
+    read_admission_plan(incoming, plan)
+    return plan
+
+
+def read_admission_plan(
+    incoming: FrozenCommandInput, plan: FrozenPlan
+) -> tuple[FrozenArchive, ...]:
+    """Read the durable winner, binding every first wire to the original command."""
+    incoming.request.match(plan)
+    physical = physical_topic_v2(EVENTS, "TRANSACTION", "ai.mysql", "m3-1")
+    command = incoming.envelope()
+    expected_state = (
+        pb.EVALUATION_STATE
+        if command.kind in (pb.EVALUATION_START, pb.EVALUATION_CANCEL)
+        else pb.INTERPRETATION_STATE
+    )
+    archives: list[FrozenArchive] = []
+    receipts: list[pb.MessagingCommandReceipt] = []
+    states: list[tuple[FrozenArchive, pb.MessagingBody]] = []
+    for branch in plan.branches:
+        value = decode_branch(branch)
+        envelope = value.envelope()
+        if (
+            branch.physical_topic != physical
+            or branch.branch_id != envelope.message_id
+            or str(value.organization_id) != incoming.organization_id
+            or value.ordered
+            or not value.requires_receipt
+            or envelope.producer != "qs-ai"
+            or envelope.destination != "qs-server"
+            or envelope.aggregate_key != command.aggregate_key
+        ):
+            raise MessagingContractError("frozen admission route or identity differs")
+        body = parse_body(envelope, value.body)
+        if envelope.kind == pb.COMMAND_RECEIPT:
+            receipt = body.command_receipt
+            if (
+                receipt.command_id != command.message_id
+                or receipt.command_body_sha256 != command.body_sha256
+                or len(receipt.code.encode()) > 128
+                or not 0 <= receipt.grpc_status_code <= 16
+            ):
+                raise MessagingContractError("frozen admission receipt differs")
+            receipts.append(receipt)
+        elif envelope.kind != expected_state or envelope.correlation_command_id:
+            raise MessagingContractError("frozen admission state differs")
+        else:
+            states.append((value, body))
+        archives.append(value)
+    if len(receipts) != 1 or (receipts[0].decision == pb.HELD and len(archives) != 1):
+        raise MessagingContractError("one original receipt and no held business state required")
+    for value, body in states:
+        _check_state_receipt(value, body, receipts[0], command.aggregate_key)
+    return tuple(archives)
+
+
+def _check_state_receipt(
+    value: FrozenArchive,
+    body: pb.MessagingBody,
+    receipt: pb.MessagingCommandReceipt,
+    aggregate: str,
+) -> None:
+    if body.HasField("interpretation_state"):
+        state = body.interpretation_state
+        original = receipt.workflow_receipt
+        if (
+            not receipt.HasField("workflow_receipt")
+            or state.request_id != aggregate
+            or state.session_id != original.session_id
+            or state.version != original.version
+            or state.status != original.status
+            or value.sequence != state.version
+        ):
+            raise MessagingContractError("frozen interpretation state and receipt differ")
+    else:
+        evaluation = body.evaluation_state
+        original_evaluation = receipt.evaluation_receipt
+        if (
+            not receipt.HasField("evaluation_receipt")
+            or evaluation.run_id != aggregate
+            or evaluation.run_id != original_evaluation.run_id
+            or evaluation.version != original_evaluation.version
+            or evaluation.status != original_evaluation.status
+            or value.sequence != evaluation.event_sequence
+        ):
+            raise MessagingContractError("frozen evaluation state and receipt differ")
