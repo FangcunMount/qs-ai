@@ -35,6 +35,7 @@ from qs_ai.infrastructure.workflow_transport.messaging import (
     valid_id,
     valid_number,
 )
+from qs_ai.infrastructure.workflow_transport.transaction_archive import FrozenArchive
 
 metadata = sa.MetaData()
 # Isolated storage fixtures may install the separate host-owned technical table.
@@ -290,7 +291,6 @@ class MessagingStore:
         sequence: int,
     ) -> None:
         value = parse_body(receipt.envelope, receipt.body).command_receipt
-        decisions = {pb.ACCEPTED: "accepted", pb.REJECTED: "rejected", pb.HELD: "held"}
         if (
             receipt.envelope.kind != pb.COMMAND_RECEIPT
             or value.command_id != command.message_id
@@ -298,6 +298,51 @@ class MessagingStore:
         ):
             raise MessageConflict("durable receipt must bind the original command")
         await self.stage(db, receipt, organization_id=organization_id, sequence=sequence)
+        await self._decide(db, command, receipt.envelope.message_id, value.decision)
+
+    async def decide_transaction(
+        self,
+        db: AsyncSession,
+        command: pb.MessagingEnvelope,
+        receipt: FrozenArchive,
+        *,
+        organization_id: str,
+    ) -> None:
+        """Stage only the original Inbox decision; the host archives/witnesses it.
+
+        No legacy Outbox row, signing, sending or root commit belongs here. The
+        caller must first bind its SDK execution guard on this same root and
+        commit business, exact archive and all witnesses together.
+        """
+        receipt.validate()
+        envelope = receipt.envelope()
+        value = parse_body(envelope, receipt.body).command_receipt
+        if (
+            command.producer != "qs-server"
+            or command.destination != "qs-ai"
+            or envelope.kind != pb.COMMAND_RECEIPT
+            or envelope.producer != "qs-ai"
+            or envelope.destination != "qs-server"
+            or value.command_id != command.message_id
+            or value.command_body_sha256 != command.body_sha256
+            or envelope.aggregate_key != command.aggregate_key
+            or envelope.correlation_command_id != command.message_id
+            or not valid_number(organization_id)
+            or str(receipt.organization_id) != organization_id
+            or receipt.ordered
+            or not receipt.requires_receipt
+        ):
+            raise MessageConflict("frozen receipt must bind the original command")
+        await self._decide(db, command, envelope.message_id, value.decision)
+
+    async def _decide(
+        self,
+        db: AsyncSession,
+        command: pb.MessagingEnvelope,
+        receipt_id: str,
+        decision: pb.MessagingDecision,
+    ) -> None:
+        decisions = {pb.ACCEPTED: "accepted", pb.REJECTED: "rejected", pb.HELD: "held"}
         await bind(db).validate()
         result = await db.execute(
             sa.update(inbox)
@@ -307,7 +352,7 @@ class MessagingStore:
                 inbox.c.body_sha256 == command.body_sha256,
                 inbox.c.decision == "processing",
             )
-            .values(decision=decisions[value.decision], receipt_id=receipt.envelope.message_id)
+            .values(decision=decisions[decision], receipt_id=receipt_id)
         )
         if cast(CursorResult[Any], result).rowcount != 1:
             raise MessageConflict("decision requires the original reserved command")
