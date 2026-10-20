@@ -1,6 +1,6 @@
 {
   "schema_version": "qs-ai-document-closure/v1",
-  "source_commit": "6aaf13e0d21c8b84791e74ebe96d64261f3bca99",
+  "source_commit": "5c0e5c2041fd6e9a77d30ab47e2b787eb946c6b9",
   "reviewed_on": "2026-10-19",
   "authority": "runtime composition > code > machine contracts/config/migrations > scoped tests > maintained prose > dated evidence/plans/archive",
   "source_catalog": {
@@ -516,8 +516,8 @@
     "src/qs_ai/infrastructure/workflow_transport/transaction_admission.py": "54cc6d0353f4916fc30a5be4d219ccde3e843be004a0280254ca2910d8ad5cf2",
     "tests/test_transaction_admission_root.py": "65d5f410390186b82e6f8fefb1cbe37d63e2a5e5e3ebf32e79bd910f9ad3f177",
     "tests/integration/test_transaction_admission_root.py": "c360084ea0a81e5a9f931bd44cea12a9fa00ee824bd9e3966bba2c0c14d2e750",
-    "src/qs_ai/infrastructure/workflow_transport/start_plan.py": "c0cdaf4c1bd59dfa74d35982f058ae9795031ef669c698dccca6297ae88b1cd9",
-    "tests/test_start_plan_facts.py": "3f3226cfa74a08287eae15694d4007d822eb58b59ba2c8adc9d5d8da76e850f6",
+    "src/qs_ai/infrastructure/workflow_transport/start_plan.py": "76df9ea90cc8889785f2a01f4038a2d3f405fc8a6342f711601a4ed5aae0b146",
+    "tests/test_start_plan_facts.py": "eafdb1a73c72eb2b9cb19ffb82538c3f1368478bef2c33439bb56a54d504902c",
     "tests/test_admission_archive_context.py": "55903a623ea002534839f1fef3d924f3217b5b9cc202a242a39ba042946b0dd8",
     "tests/test_admission_configuration_plan.py": "a77f1a0c9ddeb6195178809bf98d295d2135af9c64edf911cf91d1641164166e"
   },
