@@ -20,7 +20,17 @@ RocketMQ 终态交接携带 provider、原始 Wire 和实际物理来源，宿�
 
 宿主迁移 `0041_transaction_messaging` 显式安装独立 schema v1；owner binding 必须由冻结清单另行安装，不由构造/Start 推断。Down 保留证据并拒绝回退；隔离原事务安装测试见 `tests/integration/test_transaction_schema.py`。
 
-此入口目前未接入 command admission、状态 finalization 或统一 server。旧 `MessagingRuntime.create()` 遇到非空 transactions 明确拒绝，避免继续由 MQRelay 发送事务 owner 的消息。原根事务、首 wire、业务 receipt 和模型 unknown 恢复仍按下文执行；后续批次逐项替换，不因 SDK 具备事务能力就宣称业务已迁移。全局进度以 [infra M3 总表](https://github.com/FangcunMount/infra/blob/codex/rocketmq-m3/docs/server/rocketmq-m3-execution.md) 为准。
+此入口目前未接入 command admission、状态 finalization 或统一 server。旧 `MessagingRuntime.create()` 遇到非空 transactions 明确拒绝，避免继续由 MQRelay 发送事务 owner 的消息。原根事务、首 wire、业务 receipt 和模型 unknown 恢复仍按下文执行；后续批次逐项替换，不因 SDK 具备事务能力就宣称业务已迁移。全局进度以 [infra M3 总表](https://github.com/FangcunMount/infra/blob/main/docs/server/rocketmq-m3-execution.md) 为准。
+
+## T16 command 冻结与原根执行器（接入进行中）
+
+`transaction_command.py` 在认证和正文解析之后持有原始 command bytes，以 owner、组织、原 command ID 和稳定 input hash 标识请求。完整计划保存首次 receipt/state 的 ID、正文、wire 和 v2 路由；仍采用 archive/v1，不修改 SDK codec。读取持久化赢家时，逐分支校验原 command、组织、路由以及业务 receipt/state 的版本和关联。
+
+[`AdmissionRoot`](../../../src/qs_ai/infrastructure/workflow_transport/transaction_admission.py) 是传给 SDK 的单次本地执行器：在宿主原根先取得 SDK guard，借用冻结的 Inbox reservation 身份，执行宿主业务 action，比较真实业务结果与冻结 receipt，再将 Inbox、全部首次档案和 witness 一同提交。HELD 不调用业务 action；旧 Inbox 不能被冒充为新 witness。事务入口的 Inbox 决策不新增旧 messaging_outbox 行。
+
+该执行器不规划业务、不签名、不发送半消息，也不重试业务。根被替换、提交回复丢失或证据不足返回 Unknown；只有原根回滚完成且持久化中止成功，才返回 Aborted。回复丢失后的权威读取采用新 session 边界并有预算。SDK 继续分别报告本地结果与 Broker 最终确认。
+
+解释业务与 SQL job 的身份、Inbox reservation 可以借用预分配值；历史入口默认分配行为不变。实际 command receiver 装配、五类命令的只读业务规划、冻结状态转录和真实 Broker 验收尚未完成，旧 runtime 对 transactions 配置的拒绝继续保留。`tests/integration/test_transaction_admission_root.py` 增加隔离 MySQL 的 HELD 根原子性、服务端拒绝和客户端丢弃已提交回复用例；新增用例尚待 CI 执行，不能视为网络故障或完整业务链路验收。
 
 ## 当前服务怎样装配这条链路
 
