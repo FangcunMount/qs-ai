@@ -5,7 +5,6 @@ from datetime import UTC, datetime
 from typing import Any, cast
 from uuid import UUID, uuid4
 
-from jsonschema.exceptions import SchemaError
 from sqlalchemy import func, insert, select, update
 from sqlalchemy.dialects.mysql import insert as mysql_insert
 from sqlalchemy.engine import CursorResult
@@ -20,8 +19,7 @@ from qs_ai.application.governance.solution_models import (
     DEFAULT_EDITABLE_MODELS,
     EditableModelPolicy,
 )
-from qs_ai.application.interpretation.input import InvalidInput
-from qs_ai.application.interpretation.ports import AdmissionRejected, NotFound, Receipt, UnitOfWork
+from qs_ai.application.interpretation.ports import NotFound, Receipt, UnitOfWork
 from qs_ai.domain.interpretation.model import (
     Actor,
     EvidenceSet,
@@ -31,7 +29,10 @@ from qs_ai.domain.interpretation.model import (
     Status,
 )
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
-from qs_ai.infrastructure.persistence.mysql.execution_configurations import bind_configuration
+from qs_ai.infrastructure.persistence.mysql.execution_configurations import (
+    bind_configuration,
+    configuration_refusals,
+)
 from qs_ai.infrastructure.persistence.mysql.participant_capacity import release as release_capacity
 from qs_ai.infrastructure.persistence.mysql.participant_capacity import reserve as reserve_capacity
 from qs_ai.infrastructure.persistence.mysql.result_outbox import stage_state
@@ -135,19 +136,8 @@ class MySQLUnitOfWork:
     async def bind_configuration(self, session: Session, evidence: EvidenceSet) -> None:
         # Only deterministic validation failures become durable refusals. Database,
         # network and commit failures must still roll back and replay the same ID.
-        try:
+        with configuration_refusals():
             await bind_configuration(self.db, session, evidence, self.models)
-        except RuleViolation as error:
-            code = (
-                "configuration_unavailable"
-                if error.code == "configuration_unavailable"
-                else "admission_input_invalid"
-            )
-            raise AdmissionRejected(code) from None
-        except InvalidInput:
-            raise AdmissionRejected("admission_input_invalid") from None
-        except (ValueError, NotFound, SchemaError, KeyError, TypeError):
-            raise AdmissionRejected("admission_configuration_invalid") from None
 
     async def bind_request(self, session_id: str, request_id: str) -> None:
         result = await self.db.execute(

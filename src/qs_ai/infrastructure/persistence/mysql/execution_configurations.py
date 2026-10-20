@@ -2,6 +2,8 @@
 
 import hashlib
 import json
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from uuid import UUID
 
@@ -26,7 +28,7 @@ from qs_ai.application.interpretation.input import (
     MBTIInputPolicy,
     MBTIThematicInputPolicy,
 )
-from qs_ai.application.interpretation.ports import Claim, NotFound
+from qs_ai.application.interpretation.ports import AdmissionRejected, Claim, NotFound
 from qs_ai.application.interpretation.preparation import prepare_explanation
 from qs_ai.application.interpretation.prompt_assets import executable_prompt
 from qs_ai.application.interpretation.route_assets import executable_route
@@ -164,6 +166,24 @@ class PlannedConfiguration:
 
 class ConfigurationPlanConflict(RuntimeError):
     """Abort a stale frozen plan; never reinterpret it as a business refusal."""
+
+
+@contextmanager
+def configuration_refusals() -> Iterator[None]:
+    """Share the original deterministic-refusal boundary with read planning."""
+    try:
+        yield
+    except RuleViolation as error:
+        code = (
+            "configuration_unavailable"
+            if error.code == "configuration_unavailable"
+            else "admission_input_invalid"
+        )
+        raise AdmissionRejected(code) from None
+    except InvalidInput:
+        raise AdmissionRejected("admission_input_invalid") from None
+    except (ValueError, NotFound, SchemaError, KeyError, TypeError):
+        raise AdmissionRejected("admission_configuration_invalid") from None
 
 
 async def plan_configuration(
