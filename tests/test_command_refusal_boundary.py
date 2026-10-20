@@ -88,3 +88,23 @@ async def test_technical_failure_never_becomes_a_command_refusal(error):
     with pytest.raises(type(error)):
         await admission.admit(db, envelope, body)
     assert db.info["evaluation_events"] == {"original"}
+
+
+async def test_start_borrows_frozen_service_on_original_root_without_committing():
+    from qs_ai.application.interpretation.ports import Receipt
+    from qs_ai.infrastructure.persistence.mysql.database import Transactions
+
+    _, db, envelope, body = fixture(RuntimeError())
+    # The original normal constructor remains valid; only the transaction caller
+    # supplies a service assembled from its durable winner's frozen resources.
+    result = Receipt("session", "run", "queued", 2)
+    service = SimpleNamespace(start_external=AsyncMock(return_value=result))
+    factory = Mock(return_value=service)
+    admission = WorkflowCommandAdmission(
+        *(SimpleNamespace() for _ in range(6)), interpretation_factory=factory
+    )
+    original = Transactions.borrowed(db)
+    decision = await admission._apply(original, envelope, body, "7")
+    factory.assert_called_once_with(original)
+    assert decision.workflow_receipt.session_id == result.session_id
+    assert db.get_transaction() is original.transaction

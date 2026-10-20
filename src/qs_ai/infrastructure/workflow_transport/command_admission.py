@@ -1,5 +1,6 @@
 """Reuse original command rules on the receiver's transaction; never dispatch models."""
 
+from collections.abc import Callable
 from dataclasses import asdict
 from datetime import UTC, datetime
 from uuid import UUID
@@ -63,6 +64,8 @@ class WorkflowCommandAdmission:
         models: EditableModelPolicy,
         quota_baseline: QuotaBaseline | None,
         runtime_limits: EvaluationRuntimeLimits,
+        *,
+        interpretation_factory: Callable[[Transactions], InterpretationService] | None = None,
     ) -> None:
         self.source = source
         self.participant_capacity, self.evaluation_capacity = (
@@ -71,6 +74,7 @@ class WorkflowCommandAdmission:
         )
         self.models, self.quota_baseline = models, quota_baseline
         self.runtime_limits = runtime_limits
+        self._interpretation_factory = interpretation_factory
 
     async def admit(
         self, db: AsyncSession, envelope: pb.MessagingEnvelope, body: pb.MessagingBody
@@ -113,9 +117,15 @@ class WorkflowCommandAdmission:
         body: pb.MessagingBody,
         org: str,
     ) -> AdmissionDecision:
-        service = InterpretationService(
-            MySQLUnitOfWorkFactory(tx, self.participant_capacity, self.quota_baseline, self.models),
-            self.source,
+        service = (
+            InterpretationService(
+                MySQLUnitOfWorkFactory(
+                    tx, self.participant_capacity, self.quota_baseline, self.models
+                ),
+                self.source,
+            )
+            if self._interpretation_factory is None
+            else self._interpretation_factory(tx)
         )
         if envelope.kind == pb.START:
             request = body.start
