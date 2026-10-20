@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from dataclasses import asdict
 from datetime import UTC, datetime
 from typing import Any, cast
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from jsonschema.exceptions import SchemaError
 from sqlalchemy import func, insert, select, update
@@ -84,8 +84,12 @@ class MySQLUnitOfWork:
         models: EditableModelPolicy = DEFAULT_EDITABLE_MODELS,
         *,
         commit: Callable[[AsyncSession], Awaitable[None]] | None = None,
+        job_id: str | None = None,
     ) -> None:
+        if job_id is not None and str(UUID(job_id)) != job_id:
+            raise ValueError("Canonical frozen job identity required")
         self._commit = commit
+        self._job_id = job_id
         self.db, self.capacity = db, capacity
         self.quota_baseline = quota_baseline
         self.models = models
@@ -228,7 +232,7 @@ class MySQLUnitOfWork:
         )
         await self.db.execute(
             insert(jobs).values(
-                id=str(uuid4()),
+                id=str(uuid4()) if self._job_id is None else self._job_id,
                 run_id=session.active_run_id,
                 session_id=session.id,
                 status="queued",
@@ -292,10 +296,13 @@ class MySQLUnitOfWorkFactory:
         capacity: ParticipantCapacityPolicy = DEFAULT_PARTICIPANT_CAPACITY,
         quota_baseline: QuotaBaseline | None = None,
         models: EditableModelPolicy = DEFAULT_EDITABLE_MODELS,
+        *,
+        job_id: str | None = None,
     ) -> None:
         self.transactions, self.capacity = transactions, capacity
         self.quota_baseline = quota_baseline
         self.models = models
+        self._job_id = job_id
 
     @asynccontextmanager
     async def open(self) -> AsyncIterator[UnitOfWork]:
@@ -303,5 +310,10 @@ class MySQLUnitOfWorkFactory:
             if not db.in_transaction():
                 await db.connection(execution_options={"isolation_level": "REPEATABLE READ"})
             yield MySQLUnitOfWork(
-                db, self.capacity, self.quota_baseline, self.models, commit=self.transactions.commit
+                db,
+                self.capacity,
+                self.quota_baseline,
+                self.models,
+                commit=self.transactions.commit,
+                job_id=self._job_id,
             )
