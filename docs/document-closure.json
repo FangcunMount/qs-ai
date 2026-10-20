@@ -1,6 +1,6 @@
 {
   "schema_version": "qs-ai-document-closure/v1",
-  "source_commit": "8bf126c9b9a522f5696bc800c61e80cee9a09010",
+  "source_commit": "a0759ca671613d9ddff7ff40e434767e691faf71",
   "reviewed_on": "2026-10-19",
   "authority": "runtime composition > code > machine contracts/config/migrations > scoped tests > maintained prose > dated evidence/plans/archive",
   "source_catalog": {
@@ -123,7 +123,7 @@
     "src/qs_ai/bootstrap/providers/core.py": "bfe9911eae43b3d8bd09c2f54451d7851c992a40776bb5967843ccce1461d0e5",
     "src/qs_ai/bootstrap/providers/evaluation.py": "cad681366c73be2e0ee7d4d20974949b42bc3126f176dfc780f7a5486bfc7f72",
     "src/qs_ai/bootstrap/providers/generation.py": "c771d83039c2151aa15ad18b440a03c3a0ab0e113774ac2a2b8ffe94e0c671a3",
-    "src/qs_ai/bootstrap/providers/interpretation.py": "b3d8f5a9a12bfeca1457fe016c024b7e72f46d370865059b401c95cfa28c0714",
+    "src/qs_ai/bootstrap/providers/interpretation.py": "0530237511490af2d3ed647a745d8734947fe4f2dd07f572869d3c22671fc9b4",
     "src/qs_ai/bootstrap/recover_semantic_contract.py": "93df69c43e614c4b706f73c16fb561211c6093bc72f3eba834bcef1f504c6971",
     "src/qs_ai/bootstrap/server.py": "4ebd21271b031813fb6e966bd75bf6effca15ec2526a3cee1d5d86dd76ede7ab",
     "src/qs_ai/bootstrap/worker.py": "29966dfbe8b01e6ea0b9bc4d60ec653d2b51e3310ee81906ae0c9f8a087f208b",
