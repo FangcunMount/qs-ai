@@ -2,11 +2,13 @@
 
 from dataclasses import asdict, dataclass
 
-from qs_ai.application.interpretation.ports import Receipt
+from qs_ai.application.evaluation.capacity import CapacityExceeded
+from qs_ai.application.evaluation.checkpoints import CheckpointConflict
+from qs_ai.application.interpretation.ports import AccessDenied, NotFound, Receipt
 from qs_ai.contracts.workflow import messaging_pb2 as pb
 from qs_ai.contracts.workflow import workflow_pb2 as workflow
 from qs_ai.contracts.workflow.command_mapping import receipt_message
-from qs_ai.domain.interpretation.model import Actor
+from qs_ai.domain.interpretation.model import Actor, RuleViolation
 
 
 @dataclass(frozen=True)
@@ -86,3 +88,23 @@ def start_decision(
         status,
         workflow_receipt=receipt_message(receipt),
     )
+
+
+def refusal_decision(kind: int, org: str, error: Exception) -> AdmissionDecision:
+    """Original deterministic command mapping; technical failures still escape."""
+    if isinstance(error, AccessDenied):
+        return AdmissionDecision(org, 1, pb.REJECTED, "resource_access_denied", 7)
+    if isinstance(error, NotFound):
+        return AdmissionDecision(org, 1, pb.REJECTED, "resource_not_found", 5)
+    if isinstance(error, CapacityExceeded):
+        return AdmissionDecision(org, 1, pb.REJECTED, "evaluation_capacity_exceeded", 8)
+    if isinstance(error, CheckpointConflict):
+        return AdmissionDecision(org, 1, pb.REJECTED, "evaluation_state_conflict", 10)
+    if isinstance(error, RuleViolation):
+        status = 8 if error.code == "participant_daily_capacity_exceeded" else 10
+        if kind in (pb.START, pb.CHANGE) and status != 8:
+            status = 10 if "conflict" in error.code or error.code == "invalid_state" else 3
+        return AdmissionDecision(org, 1, pb.REJECTED, error.code, status)
+    if isinstance(error, ValueError):
+        return AdmissionDecision(org, 1, pb.REJECTED, "invalid_command", 3)
+    raise error

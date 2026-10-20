@@ -30,6 +30,7 @@ from qs_ai.infrastructure.persistence.mysql.participant_retries import MySQLPart
 from qs_ai.infrastructure.persistence.mysql.schema import result_outbox
 from qs_ai.infrastructure.workflow_transport.admission_receipts import (
     AdmissionDecision,
+    refusal_decision,
     start_decision,
 )
 from qs_ai.infrastructure.workflow_transport.messaging import FIELDS, valid_number
@@ -94,21 +95,15 @@ class WorkflowCommandAdmission:
             except BaseException:
                 db.info["evaluation_events"] = markers
                 raise
-        except AccessDenied:
-            return AdmissionDecision(org, 1, pb.REJECTED, "resource_access_denied", 7)
-        except NotFound:
-            return AdmissionDecision(org, 1, pb.REJECTED, "resource_not_found", 5)
-        except CapacityExceeded:
-            return AdmissionDecision(org, 1, pb.REJECTED, "evaluation_capacity_exceeded", 8)
-        except CheckpointConflict:
-            return AdmissionDecision(org, 1, pb.REJECTED, "evaluation_state_conflict", 10)
-        except RuleViolation as error:
-            status = 8 if error.code == "participant_daily_capacity_exceeded" else 10
-            if envelope.kind in (pb.START, pb.CHANGE) and status != 8:
-                status = 10 if "conflict" in error.code or error.code == "invalid_state" else 3
-            return AdmissionDecision(org, 1, pb.REJECTED, error.code, status)
-        except ValueError:
-            return AdmissionDecision(org, 1, pb.REJECTED, "invalid_command", 3)
+        except (
+            AccessDenied,
+            NotFound,
+            CapacityExceeded,
+            CheckpointConflict,
+            RuleViolation,
+            ValueError,
+        ) as error:
+            return refusal_decision(envelope.kind, org, error)
         # Database/network/unknown errors deliberately escape to transport REQ.
 
     async def _apply(
