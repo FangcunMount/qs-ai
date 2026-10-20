@@ -1,6 +1,5 @@
 """Transport boundary awaiting original owner's transaction-bound admission seam."""
 
-from dataclasses import dataclass
 from typing import Any, Protocol
 from uuid import uuid4
 
@@ -12,10 +11,13 @@ from reliable_messaging.transport import Received
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from qs_ai.contracts.workflow import messaging_pb2 as pb
-from qs_ai.contracts.workflow import workflow_pb2 as workflow
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
 from qs_ai.infrastructure.persistence.mysql.messaging import MessagingStore
 from qs_ai.infrastructure.persistence.mysql.messaging_observations import record_payload_failure
+from qs_ai.infrastructure.workflow_transport.admission_receipts import (
+    AdmissionDecision,
+    build_receipt_body,
+)
 from qs_ai.infrastructure.workflow_transport.messaging import (
     ACKS,
     COMMANDS,
@@ -27,17 +29,6 @@ from qs_ai.infrastructure.workflow_transport.messaging import (
 )
 from qs_ai.infrastructure.workflow_transport.mq_failure import failed_original
 from qs_ai.infrastructure.workflow_transport.payloads import PayloadResolver
-
-
-@dataclass(frozen=True)
-class AdmissionDecision:
-    organization_id: str
-    sequence: int
-    decision: pb.MessagingDecision
-    code: str = ""
-    grpc_status_code: int = 0
-    workflow_receipt: workflow.Receipt | None = None
-    evaluation_receipt: workflow.EvaluationState | None = None
 
 
 class CommandAdmission(Protocol):
@@ -169,29 +160,12 @@ class CommandReceiver:
         envelope: pb.MessagingEnvelope,
         result: AdmissionDecision,
     ) -> None:
-        if (
-            result.decision not in (pb.ACCEPTED, pb.REJECTED, pb.HELD)
-            or len(result.code.encode()) > 128
-            or not 0 <= result.grpc_status_code <= 16
-            or (result.workflow_receipt is not None and result.evaluation_receipt is not None)
-        ):
-            raise ValueError("invalid durable admission decision")
-        receipt = pb.MessagingCommandReceipt(
-            command_id=envelope.message_id,
-            command_body_sha256=envelope.body_sha256,
-            decision=result.decision,
-            code=result.code,
-            grpc_status_code=result.grpc_status_code,
-        )
-        if result.workflow_receipt is not None:
-            receipt.workflow_receipt.CopyFrom(result.workflow_receipt)
-        if result.evaluation_receipt is not None:
-            receipt.evaluation_receipt.CopyFrom(result.evaluation_receipt)
+        body = build_receipt_body(envelope, result)
         message = prepare(
             pb.COMMAND_RECEIPT,
             str(uuid4()),
             envelope.aggregate_key,
-            pb.MessagingBody(command_receipt=receipt),
+            body,
             organization_id=result.organization_id,
             signing_key=self.signing_key,
             recipient_key=self.qs_recipient_key,
