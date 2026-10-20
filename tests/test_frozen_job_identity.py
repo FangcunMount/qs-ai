@@ -38,7 +38,7 @@ async def test_original_enqueue_borrows_job_id_and_keeps_run_and_payload(monkeyp
         allocate.assert_called_once_with()
 
 
-@pytest.mark.parametrize("identity", ["", "invalid", str(uuid4()).upper()])
+@pytest.mark.parametrize("identity", ["", "invalid", "D5EAC2C2-98A4-4E91-9B9C-1F47EB1C0710"])
 def test_invalid_frozen_job_id_is_rejected_before_sql(identity):
     db = SimpleNamespace(execute=AsyncMock())
     with pytest.raises(ValueError):
