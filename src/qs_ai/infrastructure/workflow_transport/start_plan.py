@@ -14,7 +14,7 @@ from reliable_messaging.transaction import FrozenPlan
 
 from qs_ai.application.interpretation.service import IdentityRole, fingerprint
 from qs_ai.contracts.workflow import messaging_pb2 as pb
-from qs_ai.domain.interpretation.model import EvidenceItem, Fact
+from qs_ai.contracts.workflow.command_mapping import start_arguments
 from qs_ai.infrastructure.persistence.mysql.execution_configurations import PlannedConfiguration
 from qs_ai.infrastructure.workflow_transport.messaging import valid_id
 from qs_ai.infrastructure.workflow_transport.transaction_archive import MAX_CONTEXT
@@ -177,16 +177,7 @@ class StartPlanFacts:
         if result.input_hash != incoming.request.input_hash:
             raise ValueError("Frozen START input differs")
         if result.configuration is not None:
-            evidence = tuple(
-                EvidenceItem(
-                    item.assessment_id,
-                    item.testee_id,
-                    item.report_id,
-                    item.source_version,
-                    tuple(Fact(fact.ref, fact.value) for fact in item.facts),
-                )
-                for item in incoming.body_message().start.evidence
-            )
+            evidence = start_arguments(incoming.body_message().start)[-1]
             if result.configuration.evidence_fingerprint != fingerprint(
                 [asdict(item) for item in evidence]
             ):

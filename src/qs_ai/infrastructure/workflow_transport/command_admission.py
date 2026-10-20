@@ -21,8 +21,8 @@ from qs_ai.application.interpretation.ports import AccessDenied, EvidenceSource,
 from qs_ai.application.interpretation.service import InterpretationService
 from qs_ai.contracts.workflow import messaging_pb2 as pb
 from qs_ai.contracts.workflow import workflow_pb2 as workflow
-from qs_ai.contracts.workflow.command_mapping import receipt_message, scope_from
-from qs_ai.domain.interpretation.model import Actor, EvidenceItem, Fact, RuleViolation
+from qs_ai.contracts.workflow.command_mapping import receipt_message, scope_from, start_arguments
+from qs_ai.domain.interpretation.model import Actor, RuleViolation
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
 from qs_ai.infrastructure.persistence.mysql.evaluation_management import MySQLEvaluationManagement
 from qs_ai.infrastructure.persistence.mysql.interpretation import MySQLUnitOfWorkFactory
@@ -119,23 +119,7 @@ class WorkflowCommandAdmission:
         )
         if envelope.kind == pb.START:
             request = body.start
-            receipt = await service.start_external(
-                Actor(request.actor.org_id, request.actor.subject_id),
-                request.testee_id,
-                tuple(request.assessment_ids),
-                request.goal,
-                request.request_id,
-                tuple(
-                    EvidenceItem(
-                        item.assessment_id,
-                        item.testee_id,
-                        item.report_id,
-                        item.source_version,
-                        tuple(Fact(f.ref, f.value) for f in item.facts),
-                    )
-                    for item in request.evidence
-                ),
-            )
+            receipt = await service.start_external(*start_arguments(request))
             return await _start_decision(tx, request, receipt, org)
         elif envelope.kind == pb.CHANGE:
             request = body.change

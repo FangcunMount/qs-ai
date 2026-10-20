@@ -5,6 +5,30 @@ from uuid import UUID
 from qs_ai.application.evaluation.management import ManagementScope
 from qs_ai.application.interpretation.ports import Receipt
 from qs_ai.contracts.workflow import workflow_pb2 as pb
+from qs_ai.domain.interpretation.model import Actor, EvidenceItem, Fact
+
+
+def start_arguments(
+    request: pb.StartCommand,
+) -> tuple[Actor, str, tuple[str, ...], str, str, tuple[EvidenceItem, ...]]:
+    """Copy authenticated START values; no validation result or execution proof."""
+    return (
+        Actor(request.actor.org_id, request.actor.subject_id),
+        request.testee_id,
+        tuple(request.assessment_ids),
+        request.goal,
+        request.request_id,
+        tuple(
+            EvidenceItem(
+                item.assessment_id,
+                item.testee_id,
+                item.report_id,
+                item.source_version,
+                tuple(Fact(fact.ref, fact.value) for fact in item.facts),
+            )
+            for item in request.evidence
+        ),
+    )
 
 
 def receipt_message(result: Receipt) -> pb.Receipt:
