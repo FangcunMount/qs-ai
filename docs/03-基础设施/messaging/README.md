@@ -66,7 +66,7 @@ worker 预检通过显式 `preflight_dispatch` 借用 [`PreflightStateDispatcher
 
 [`TransactionalEvaluationManagement`](../../../src/qs_ai/infrastructure/workflow_transport/transactional_evaluation_management.py) 为定稿/重开提供显式管理适配器。原RPC处理函数继续校验QS工作负载、主体、版本和确认，服务端首次分配操作ID/时间；每个新RPC仍遵循原CAS行为，不新增公共幂等承诺。其余写入口继承原实现，因此默认容器/生产装配仍等待完整迁移，不能提前启用混合运行。
 
-原 [`accept_reviews/plan_reviews`](../../../src/qs_ai/infrastructure/persistence/mysql/evaluation_reviews.py) 共享评审准入与投影。`plan_reviews(lock=False)` 仅使用宿主明确的 RR 只读快照，不推进 checkpoint、写业务或提交；原写入口仍先锁 checkpoint/Run，再写原 CAS 与审核事实。原 1–35 项、单项理由和语义评审边界继续有效，不因消息元数据预算缩小合法输入。只读规划不等于评审 RPC 已接入事务消息；相关 MySQL 用例与下一批冻结执行仍以 infra 总表为准。
+原 [`accept_reviews/plan_reviews`](../../../src/qs_ai/infrastructure/persistence/mysql/evaluation_reviews.py) 共享评审准入与投影。`plan_reviews(lock=False)` 仅使用宿主明确的 RR 只读快照，不推进 checkpoint、写业务或提交；原写入口仍先锁 checkpoint/Run，再写原 CAS 与审核事实。原 1–35 项、单项理由和语义评审边界继续有效，不因消息元数据预算缩小合法输入。只读规划和原写入口共享规则；[`ReviewStatePlanner/ReviewStateRoot`](../../../src/qs_ai/infrastructure/workflow_transport/review_state.py) 已提供显式评审事务入口，但默认生产装配仍未启用。相关真实 MySQL 用例执行状态以 infra 总表为准。
 
 本批尚未替换全部 worker、治理和终态入口。MySQL 原状态根、实际 worker 及固定 SDK/Broker profile 分别验证；当前进度和失败记录回链 infra 总表，不据单项通过启用统一 runtime 或标记 T17 完成。
 
@@ -286,3 +286,7 @@ Receiver候选f7fbc89本地完整2624通过，381源文件类型检查通过；6
 Broker第二轮39539009218暴露最后确认的适配缺口：固定SDK在最终RPC确认未知时抛出TransactionSendError，异常的result仍可能是LocalCommitted。3e6f178在receiver单独读取该结构化结果；仅本地已提交时继续逐项权威核验，完整witness/档案/Inbox缺一仍拒绝确认入站。未提交、回滚、Unknown结果继续抛出原异常，不重执行业务，也不把最终状态改成CommitConfirmed。该条件不再消耗新的业务技术失败预算。
 
 故障profile的观察器也记录异常携带的真实SDK result后原样抛出，由实际receiver决定是否确认；不在测试观察器吞错或确认消息。故意red回归和5个SDK异常状态案例保留；3e6f178完整纯单元2636通过、895项真实依赖按标记未选，mypy381通过。真实Broker与新候选CI仍待重跑，不能把前两轮失败计通过。
+
+[`ReviewStateInput/ReviewPlanFacts`](../../../src/qs_ai/infrastructure/workflow_transport/review_state_plan.py) 将完整的已授权评审输入绑定为稳定摘要，持久化源快照摘要及最多35项首次评审时间，不把完整正文塞入协议元数据，也不新增总计8KiB的RPC限制。原宿主持有不可变输入，原事务前恢复持久化赢家的首次时间和偏移；原事务重验输入摘要、源状态及全部原评审/审核规则，再共同提交业务、sequence、首次档案和witness。Checker仅读证据，不重建或补执行业务。
+
+评审沿用同一显式管理适配器及发送编排：半消息未确认准备成功不执行原事务；只有精确提交证明与首次档案都存在才返回原事务内取得的响应。提交未知保留未决责任，不返回版本冲突、不自动重做评审。原RPC无跨请求幂等键，每次调用保留原版本CAS语义。新增12项原生用例覆盖单项/35项、档案拒绝、客户端丢弃已完成提交回复、并发版本变化及实际RPC处理函数；DB-only runtime与客户端故障注入不冒充真实Broker、网络或进程故障，最终验收以infra总表为准。
