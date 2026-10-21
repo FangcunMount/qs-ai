@@ -152,3 +152,39 @@ async def test_premature_business_commit_cannot_transcribe_or_claim_rollback():
     f.root._events.flush.assert_not_called()
     f.guard.put.assert_not_called()
     f.store.abort.assert_not_called()
+
+
+async def test_explicit_governance_snapshot_isolation_precedes_original_guard():
+    f = fixture()
+    f.db.connection = AsyncMock(side_effect=lambda **_: f.trace.append("isolation"))
+    root = EvaluationStateRoot(
+        f.root._transactions,
+        f.archives,
+        f.store,
+        f.intent,
+        f.plan,
+        f.business,
+        isolation_level="REPEATABLE READ",
+    )
+    root._events.flush = AsyncMock(side_effect=lambda _: f.trace.append("state-proof"))
+    assert not f.trace
+    assert await root(f.execution) == LocalOutcome.COMMITTED
+    assert f.trace.index("begin") < f.trace.index("isolation") < f.trace.index("guard")
+    f.db.connection.assert_awaited_once_with(
+        execution_options={"isolation_level": "REPEATABLE READ"}
+    )
+
+
+def test_original_state_root_rejects_unreviewed_isolation_before_opening():
+    f = fixture()
+    with pytest.raises(ValueError):
+        EvaluationStateRoot(
+            f.root._transactions,
+            f.archives,
+            f.store,
+            f.intent,
+            f.plan,
+            f.business,
+            isolation_level="AUTOCOMMIT",
+        )
+    assert not f.trace

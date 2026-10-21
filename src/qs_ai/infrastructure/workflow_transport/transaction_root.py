@@ -25,7 +25,7 @@ async def commit_original(
     write: OriginalWrite,
     *,
     database_seconds: float,
-    isolation_level: Literal["READ COMMITTED"] | None = None,
+    isolation_level: Literal["READ COMMITTED", "REPEATABLE READ"] | None = None,
 ) -> LocalOutcome:
     """Invoke one already frozen write on the host root, then read fresh proof if needed.
 
