@@ -27,6 +27,10 @@ from qs_ai.infrastructure.persistence.mysql.transaction_archive import (
 )
 
 
+class TransactionAdmissionClosed(RuntimeError):
+    """Host admission is closed while transaction checking may remain available."""
+
+
 class StateTransactions(Protocol):
     @property
     def store(self) -> MySQLTransactionStore: ...
@@ -42,6 +46,8 @@ class AuthorizedStateTransactions(StateTransactions, Protocol):
     async def retry(self, authorization: RetryAuthorization) -> Reservation: ...
 
     async def replan(self, authorization: ReplanAuthorization) -> Reservation: ...
+
+    def stats(self) -> dict[str, int | bool]: ...
 
 
 OriginalWrite = Callable[[AsyncSession, ArchiveGuard], Awaitable[None]]

@@ -35,6 +35,10 @@ class InterpretationClaimPending(RuntimeError):
     """One original claim remains unresolved; no retry or model permission is granted."""
 
 
+class InterpretationClaimQuotaDenied(InterpretationClaimPending):
+    """Local root is exactly Aborted after original quota denial; no model grant."""
+
+
 class InterpretationClaimSender:
     def __init__(
         self,
@@ -97,6 +101,9 @@ class InterpretationClaimSender:
                     return None
         return claim
 
+    async def source(self, job_id: str, session_id: str) -> InterpretationClaimSource:
+        return await self._planner.source(job_id, session_id)
+
     async def __call__(self, source: InterpretationClaimSource, ttl_seconds: int) -> Claim | None:
         intent = source.intent(ttl_seconds)
         async with asyncio.timeout(self._database_seconds):
@@ -148,8 +155,12 @@ class InterpretationClaimSender:
             outcome = await self._runtime.execute(owned, root)
         except TransactionSendError as error:
             outcome = error.result
-            if outcome.local != LocalOutcome.COMMITTED:
+            if outcome.local != LocalOutcome.COMMITTED and not (
+                outcome.local == LocalOutcome.ABORTED and write.quota_denied
+            ):
                 raise
+        if outcome.local == LocalOutcome.ABORTED and write.quota_denied:
+            raise InterpretationClaimQuotaDenied("Original quota refused and claim root aborted")
         if outcome.local != LocalOutcome.COMMITTED:
             raise InterpretationClaimPending("Original claim root is not confirmed committed")
         await self._committed(source, ttl_seconds, owned)

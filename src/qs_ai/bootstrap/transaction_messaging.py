@@ -26,10 +26,9 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from qs_ai.bootstrap.messaging import read_rocketmq_config
 from qs_ai.config import MessagingOptions
 from qs_ai.infrastructure.workflow_transport.messaging import EVENTS
-
-
-class TransactionAdmissionClosed(RuntimeError):
-    pass
+from qs_ai.infrastructure.workflow_transport.transaction_root import (
+    TransactionAdmissionClosed as TransactionAdmissionClosed,
+)
 
 
 class TransactionRuntime:

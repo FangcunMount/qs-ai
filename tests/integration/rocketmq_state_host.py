@@ -155,7 +155,7 @@ def state_receipt(required_broker, request):
                     )
                 ),
                 "root": "original_mysql_sqlalchemy",
-                "sdk": "0.4.0a1",
+                "sdk": "0.4.0a2",
                 "client": "5.1.2",
                 "python": sys.version.split()[0],
                 "system_login_not_claimed": True,
@@ -181,6 +181,12 @@ class WorkerRuntime(TransactionRuntime):
 
     async def reserve(self, request, candidate):
         value = await super().reserve(request, candidate)
+        if value.acquired:
+            self.host.executions.append(value.execution)
+        return value
+
+    async def retry(self, authorization):
+        value = await super().retry(authorization)
         if value.acquired:
             self.host.executions.append(value.execution)
         return value
@@ -1782,3 +1788,112 @@ async def test_actual_interpretation_claim_capacity_denial_cannot_publish_runnin
     governance_broker,
 ):
     await _actual_claim_rollback(governance_broker, quota=True)
+
+
+@pytest.mark.parametrize("old_abort", [False, True])
+async def test_actual_original_claim_scanner_first_plan_and_explicit_abort_retry(
+    governance_broker,
+    monkeypatch,
+    old_abort,
+):
+    from qs_ai.application.execution.generation import DurableGeneration
+    from qs_ai.infrastructure.workflow_transport.interpretation_claim_state import read_claim_plan
+    from qs_ai.infrastructure.workflow_transport.transactional_interpretation_execution import (
+        TransactionalInterpretationExecutionStore,
+    )
+    from tests.integration.test_interpretation_claim_root import rows
+
+    b = governance_broker
+    source, before = await _seed_original_claim(b)
+    worker = TransactionalInterpretationExecutionStore(
+        b.host.kit.store,
+        b.host.archives,
+        b.runtime,
+        signing_key=b.host.keys["ai.sign"],
+        recipient_key=b.host.keys["qs.encrypt"],
+    )
+    previous = None
+    if old_abort:
+        plan = await worker._claims._planner.candidate(source, 60)
+        previous = await b.runtime.reserve(source.intent(60).request, plan)
+        assert await b.host.store.abort(previous.execution)
+        monkeypatch.setattr(
+            worker._claims._planner,
+            "candidate",
+            AsyncMock(
+                side_effect=AssertionError("Explicit abort retry must reuse first wire"),
+            ),
+        )
+    no_generation = AsyncMock(side_effect=AssertionError("Scanner cannot invoke provider"))
+    monkeypatch.setattr(DurableGeneration, "execute", no_generation)
+    b.runtime.pause = True
+    task = asyncio.create_task(worker.claim(60))
+    try:
+        await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
+        owned = b.host.executions[-1]
+        _, first = read_claim_plan(source, 60, owned.plan)
+        message_id = first.envelope().message_id
+        b.empty_poll.clear()
+        await asyncio.wait_for(b.empty_poll.wait(), timeout=20)
+        assert message_id not in b.messages and await rows(b.host.kit, source.session.id) == before
+        passed("scanner_half_before_original_root")
+        b.runtime.release.set()
+        claim = await task
+        assert claim is not None and claim.session.id == source.session.id
+        assert await StoreChecker(b.host.store).check(owned.references[0]) == Decision.COMMIT
+        if previous is not None:
+            assert owned.plan == previous.execution.plan
+            assert owned.fence == previous.execution.fence + 1
+            assert (
+                await StoreChecker(b.host.store).check(previous.execution.references[0])
+                == Decision.ROLLBACK
+            )
+            passed("scanner_explicit_abort_retry_first_wire")
+        async with asyncio.timeout(60):
+            while message_id not in b.messages:
+                assert not b.failures
+                await asyncio.sleep(0.05)
+        assert b.messages[message_id] == hashlib.sha256(first.wire).hexdigest()
+        assert await b.host.archives.read_committed(message_id) == first
+        passed("scanner_first_claim_committed_handoff")
+        assert await worker.claim(60) is None and b.runtime.calls == 1
+        no_generation.assert_not_called()
+        b.recorder.flush.assert_not_called()
+        passed("scanner_duplicate_no_new_model_or_send")
+    finally:
+        b.runtime.release.set()
+        await asyncio.gather(task, return_exceptions=True)
+
+
+async def test_actual_original_claim_scanner_quota_defers_without_running_event(
+    governance_broker,
+):
+    from qs_ai.infrastructure.workflow_transport.interpretation_claim_state import read_claim_plan
+    from qs_ai.infrastructure.workflow_transport.transactional_interpretation_execution import (
+        TransactionalInterpretationExecutionStore,
+    )
+    from tests.integration.test_interpretation_claim_root import rows
+
+    b = governance_broker
+    source, before = await _seed_original_claim(b, quota=True)
+    worker = TransactionalInterpretationExecutionStore(
+        b.host.kit.store,
+        b.host.archives,
+        b.runtime,
+        signing_key=b.host.keys["ai.sign"],
+        recipient_key=b.host.keys["qs.encrypt"],
+    )
+    assert await worker.claim(60) is None
+    owned = b.host.executions[-1]
+    _, first = read_claim_plan(source, 60, owned.plan)
+    assert await StoreChecker(b.host.store).check(owned.references[0]) == Decision.ROLLBACK
+    after = await rows(b.host.kit, source.session.id)
+    assert after[0] == before[0] and after[2:] == before[2:]
+    old_job, new_job = dict(before[1][0]), dict(after[1][0])
+    assert new_job.pop("available_at") > old_job.pop("available_at") and new_job == old_job
+    assert not after[3] and not after[4]
+    b.empty_poll.clear()
+    await asyncio.wait_for(b.empty_poll.wait(), timeout=20)
+    assert first.envelope().message_id not in b.messages
+    b.recorder.flush.assert_not_called()
+    passed("scanner_quota_deferral_no_running_event")
