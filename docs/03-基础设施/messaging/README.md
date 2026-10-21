@@ -358,3 +358,8 @@ ResolveUnknown 的显式事务入口由 [`ResolutionStateOperation`](../../../sr
 [`GovernanceStateDispatcher`](../../../src/qs_ai/infrastructure/workflow_transport/evaluation_governance_dispatch.py) 必须显式绑定同一 Transactions 所有者的原 management，才能处理该操作；缺绑定在读取协议或准备消息前拒绝，不复制默认容量来替代宿主配置。[`TransactionalEvaluationManagement.resolve`](../../../src/qs_ai/infrastructure/workflow_transport/transactional_evaluation_management.py) 在事务前生成本次调用身份，保留原权限 scope 与风险确认。此接口不新增跨 RPC 重试幂等约定；已有调用保持未决，不重跑原裁决或用当前视图冒充首次响应。本地提交和首次档案/witness证实后，Broker最终确认Unknown仍返回原业务成功。人工 authorize_replacement 继续只授权原预算内的未来业务，Checker和协议维护不代替人工授权或调用模型。
 
 本批27项协议/原根目标测试、3098项非集成/非interop回归、405源文件类型及lint/format通过。新增12项真实MySQL用例仅收集，包括原人工裁决与witness共同提交/回滚、档案/witness拒绝、客户端丢弃已完成提交回复、实际ResolveUnknown处理入口的准备门禁、并发裁决和真实第二个Run竞争原宿主容量；保留原未知执行账本并检查无新增模型调用。完整CI、真实Broker、成对QS及生产验收分别记入infra；默认DI继续关闭。
+
+
+显式真实Broker验收档扩展原ResolveUnknown处理器：半消息后暂停原根，证明旧业务仍为blocked且事件不可消费；按首份人工审核时间放行原resolver并在客户端丢弃已完成最终确认回复后，核对原审核、首次wire、witness和未改动的未知执行账本。相同内部调用再次出现保持未决，不重发、不重做裁决或模型；另一场景由原写者先提交取消裁决，新执行须回滚半消息并保留竞争事实。额外fixture使用独立名字和显式关闭，保留旧worker/治理/Solution的原fixture形态。
+
+扩展档总计12个宿主用例、35项必需证据，本地仅收集；实际运行由固定源码的infra矩阵验收。客户端丢弃已完成回复、直接处理器与事件观察者分别界定，不能代替网络故障、真实QS业务、system登录或真实模型验收；默认DI保持关闭。
