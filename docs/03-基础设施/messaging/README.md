@@ -392,3 +392,12 @@ ResolveUnknown 的显式事务入口由 [`ResolutionStateOperation`](../../../sr
 
 
 真实Broker隔离profile新增串行generation/semantic发送器与并发原取消三项用例，总计15项宿主/42项精确证据。直接调用显式WorkerDispatchSender，真实SDK先准备半消息；observer确认不可见后才放行原根，客户端丢弃已完成二次确认回复，核对首次模型输入、两次CAS、原不可变dispatch账本、witness及首次wire，并验证permit只移交一次、重复调用不再发送或调用模型。并发原取消获胜时只能回滚已准备半消息。本批仅完成用例收集，真实六档执行仍由infra报告给出；profile不调用真实provider，不代表完整graph终态、成对QS、进程退出或数据库断网验收。
+
+
+可信主机的语义契约例外现有显式 [`ContractRecoveryInput/Planner`](../../../src/qs_ai/infrastructure/workflow_transport/contract_recovery_state.py) 与 [`Sender`](../../../src/qs_ai/infrastructure/workflow_transport/contract_recovery_sender.py)。输入绑定原Run/version、组织、release、失败执行/输出、成本例外确认和operator审核；首次时间不参与稳定业务hash，首份审核与源/规划结果摘要写入冻结context。只读规划复用原失败证据、未知排除、预算和精确下一动作，关闭来源后才Seal；原根guard后重新核验，再调用原authorize_contract_recovery的锁/CAS，将原业务、审核、档案、sequence和witness共同提交。Checker和协议维护不构造此授权或调用模型。
+
+[`recover_semantic_contract`](../../../src/qs_ai/bootstrap/recover_semantic_contract.py) 保留原preview回滚与旧配置路径。显式配置事务owner时，apply仍校验当前Unix操作者、原preview输出指纹和成本确认，先关闭来源读取，再启动所属SDK；发布准入关闭直接拒绝，不降级旧提交路径。Start不安装schema，完整本owner Topic仍由固定工厂登记。关闭先排SDK，ShutdownIncomplete继续Wait之后才关闭命令自己的数据库；不关闭其他宿主资源。此源码未执行任何生产命令。
+
+同操作只有精确首次witness/档案证明Committed后才返回首份操作元数据；FinalUnknown保持本地成功，后续Run变化不替换原响应或首审核。Prepared/Aborted/未知只返回未决，不自动重新授权；改变理由、操作者、输出或release不能复用原请求。此操作明确授权原预算内的一次未来业务，发送器本身不调用模型。
+
+改动前25项既有规则与4项原CLI表征通过；本批57项目标、3189项非集成/非interop回归零失败跳过，409源类型与lint/format通过。9项真实MySQL用例仅收集，覆盖原失败证据/审核/witness共同提交回滚、archive/witness拒绝、客户端丢弃完成提交回复、竞争取消、FinalUnknown模拟、后续状态后的首次响应重读及实际CLI的预览/原库根；模拟transport不算真实Broker。默认应用装配、完整故障、成对QS和生产验收仍待完成，以infra总表为准。

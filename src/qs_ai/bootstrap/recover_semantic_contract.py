@@ -8,6 +8,11 @@ import pwd
 from datetime import UTC, datetime
 from uuid import UUID
 
+from reliable_messaging.transaction import ShutdownIncompleteError
+from sqlalchemy.ext.asyncio import async_sessionmaker
+
+from qs_ai.bootstrap.messaging import read_key
+from qs_ai.bootstrap.transaction_messaging import TransactionRuntime, make_transaction_sender
 from qs_ai.config import Settings
 from qs_ai.domain.evaluation.contract_recovery import ContractRecovery
 from qs_ai.infrastructure.persistence.mysql.completion_records import (
@@ -18,15 +23,21 @@ from qs_ai.infrastructure.persistence.mysql.evaluation_contract_recovery import 
     authorize_contract_recovery,
 )
 from qs_ai.infrastructure.persistence.mysql.evaluation_projection import decode_semantic_completion
+from qs_ai.infrastructure.persistence.mysql.transaction_archive import TransactionArchive
+from qs_ai.infrastructure.workflow_transport.contract_recovery_sender import ContractRecoverySender
+from qs_ai.infrastructure.workflow_transport.contract_recovery_state import ContractRecoveryInput
 
 
 async def run(args: argparse.Namespace) -> dict:
-    url = Settings().database_url
+    settings = Settings()
+    url = settings.database_url
     if url is None:
         raise ValueError("Database is not configured")
     database = Database(url.get_secret_value())
+    runtime: TransactionRuntime | None = None
+    transactions = Transactions(database)
     try:
-        async with Transactions(database).open() as db:
+        async with transactions.open() as db:
             row = (
                 (
                     await db.execute(
@@ -55,35 +66,73 @@ async def run(args: argparse.Namespace) -> dict:
                 datetime.now(UTC),
                 True,
             )
-            state = await authorize_contract_recovery(
-                db,
-                args.run_id,
-                args.expected_version,
-                args.organization_id,
-                args.expected_release_fingerprint,
-                value,
-                confirm=True,
-            )
-            result = {
-                "mode": "applied" if args.apply else "preview_rolled_back",
-                "run_id": str(args.run_id),
-                "expected_version": args.expected_version,
-                "result_version": state.version,
-                "execution_id": value.execution_id,
-                "candidate_id": value.candidate_id,
-                "output_fingerprint": value.output_fingerprint,
-                "release_fingerprint": args.expected_release_fingerprint,
-                "actor": value.actor,
-                "recovery_version": value.recovery_version,
-                "instruction_fingerprint": value.instruction_fingerprint,
-                "reason": value.reason,
-                "next_action": "retry_same_candidate_semantic_once",
-                "existing_generation_outputs": "preserved",
-            }
-            if args.apply:
-                await db.commit()
-            return result
+            if args.apply and settings.messaging.transactions:
+                if not settings.messaging.enabled or not settings.messaging.publish_enabled:
+                    raise ValueError("Trusted policy exception transaction admission is closed")
+                incoming = ContractRecoveryInput(
+                    args.run_id,
+                    args.organization_id,
+                    args.expected_version,
+                    args.expected_release_fingerprint,
+                    value,
+                    True,
+                )
+            else:
+                state = await authorize_contract_recovery(
+                    db,
+                    args.run_id,
+                    args.expected_version,
+                    args.organization_id,
+                    args.expected_release_fingerprint,
+                    value,
+                    confirm=True,
+                )
+                result = {
+                    "mode": "applied" if args.apply else "preview_rolled_back",
+                    "run_id": str(args.run_id),
+                    "expected_version": args.expected_version,
+                    "result_version": state.version,
+                    "execution_id": value.execution_id,
+                    "candidate_id": value.candidate_id,
+                    "output_fingerprint": value.output_fingerprint,
+                    "release_fingerprint": args.expected_release_fingerprint,
+                    "actor": value.actor,
+                    "recovery_version": value.recovery_version,
+                    "instruction_fingerprint": value.instruction_fingerprint,
+                    "reason": value.reason,
+                    "next_action": "retry_same_candidate_semantic_once",
+                    "existing_generation_outputs": "preserved",
+                }
+                if args.apply:
+                    await db.commit()
+                return result
+
+        # The original source read is closed before keys, runtime startup or halves.
+        options = settings.messaging
+        if database.engine is None:
+            raise ValueError("Original maintenance primary is not configured")
+        sessions = async_sessionmaker(database.engine, expire_on_commit=False)
+        runtime = make_transaction_sender(options, sessions)
+        if not options.signing_key_file or not options.qs_recipient_key_file:
+            raise ValueError("Explicit trusted-host transaction keys required")
+        signing = await asyncio.to_thread(read_key, options.signing_key_file, private=True)
+        recipient = await asyncio.to_thread(read_key, options.qs_recipient_key_file, private=False)
+        sender = ContractRecoverySender(
+            transactions,
+            TransactionArchive(sessions, runtime.store.binding),
+            runtime,
+            signing_key=signing,
+            recipient_key=recipient,
+        )
+        await runtime.start()
+        return await sender(incoming)
     finally:
+        # Never dispose the original primary while the SDK still owns real work.
+        if runtime is not None:
+            try:
+                await runtime.close(grace_seconds=30)
+            except ShutdownIncompleteError:
+                await runtime.wait()
         await database.close()
 
 
