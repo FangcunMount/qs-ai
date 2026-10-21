@@ -413,3 +413,6 @@ interpretation原 [`MySQLExecutionStore.finish_in`](../../../src/qs_ai/infrastru
 interpretation首业务历史的keyless校验现由 [`InterpretationStateTranscription`](../../../src/qs_ai/infrastructure/workflow_transport/frozen_start_events.py) 复用；原FrozenInterpretationEvents/FrozenStartEvents仍负责Start/Change/Retry的完整command计划校验，实例类型和首次状态规则保留。独立原根适配器以后可在验证完整冻结计划后传入精确digest/状态，不伪造command或Inbox；primitive复制外部protobuf，调用方后续变更不影响首投影。
 
 原history精确身份/正文/版本、零旧投递责任、同根检查和mq_owned CAS保持不变；primitive只暂存原业务历史归属，不生成首wire、发布消息、写witness、授权模型或确认消费者完成。独立state计划/Sender尚未接通。抽取前30项旧Start/Change/Retry门禁、抽取后35目标与3205项非集成/非interop回归零失败跳过、409源类型及lint/format通过。4项真实MySQL用例仅收集，验证同根归属共同提交/回滚和拒绝旧投递责任；不是SDK/Broker验收，默认装配与生产仍未变更。
+
+
+[`ArtifactIdentity`](../../../src/qs_ai/application/execution/artifact.py) 在进入执行器前验证原Artifact ID与Run/invocation的原UUID5关系。原build_artifact默认行为和v1/v2结果不变；显式适配器可传入已验证身份，原内容、来源、配置及安全校验仍完整执行，校验期间不重新调用UUID生成。finish_in同时核对该身份与原claim/candidate，不能借用另一执行的身份。它只为完整冻结计划提供已有身份基础，不新增模型重试授权或替代witness；当前验收和完整Sender接入状态回链infra总表。
