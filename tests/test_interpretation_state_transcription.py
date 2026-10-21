@@ -41,3 +41,43 @@ async def test_explicit_no_event_transcription_cannot_adopt_an_existing_history_
 def test_standalone_transcription_requires_exact_immutable_plan_identity(digest):
     with pytest.raises(MessageConflict):
         module.InterpretationStateTranscription(digest, None)
+
+
+def test_completed_history_accepts_mysql_json_key_order_without_changing_first_body(monkeypatch):
+    p = recorder_fixture(monkeypatch)
+    first = '{"id":"original","invocation_id":"first invocation"}'
+    p.body.status, p.body.artifact_json = "completed", first
+    recorder = module.InterpretationStateTranscription(p.plan.digest, p.body)
+    before = recorder._expected.SerializeToString(deterministic=True)
+    p.row["payload"].update(
+        status="completed",
+        artifact_json='{ "invocation_id": "first invocation", "id": "original" }',
+    )
+    recorder._check_row(p.row)
+    assert recorder._expected.SerializeToString(deterministic=True) == before
+    assert recorder._expected.artifact_json == first
+    assert p.row["payload"]["artifact_json"] != first  # No history/first-wire rewrite.
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        '{"id":"changed","invocation_id":"first invocation"}',
+        '{"id":"original","invocation_id":"first invocation","extra":"unplanned"}',
+        '{"id":"original","id":"original","invocation_id":"first invocation"}',
+        '{"id":"original","invocation_id":true}',
+        '{"id":"original","invocation_id":null}',
+        "[]",
+        "{}",
+        "not JSON",
+        '{"id":NaN}',
+    ],
+)
+def test_completed_history_refuses_different_ambiguous_or_untyped_artifact_fields(monkeypatch, raw):
+    p = recorder_fixture(monkeypatch)
+    p.body.status = "completed"
+    p.body.artifact_json = '{"id":"original","invocation_id":"first invocation"}'
+    recorder = module.InterpretationStateTranscription(p.plan.digest, p.body)
+    p.row["payload"].update(status="completed", artifact_json=raw)
+    with pytest.raises(MessageConflict):
+        recorder._check_row(p.row)
