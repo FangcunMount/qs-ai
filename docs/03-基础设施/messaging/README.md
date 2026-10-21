@@ -477,3 +477,8 @@ ClaimStage 仅描述 miss/deferred/exhausted/claimed 的暂存结果。returned 
 
 
 无事件维护根在任何job或配额写入前，同根锁定并核对已安装的ai.mysql owner、store_id、writer epoch及schema版本，同时拒绝旧epoch的执行引用。协议证据存在于另一配置或旧writer，不构成当前业务库的维护授权；此保护不绑定新消息或改写旧Aborted状态。绑定不符必须拒绝而非降级，新增真实epoch变化拒绝用例与其余矩阵一并验收。
+
+
+显式授权衔接正在开发：TransactionRuntime.retry/replan只向SDK公开Sender入口传递宿主决策，临时封闭和最终停止均先拒绝新准入；不直接调用Store绕过SDK在途/关闭记账。InterpretationClaimSender.retry要求显式旧执行和同一个冻结候选，先核对首计划并新读原到期来源，再由SDK原子验证精确旧Aborted和新fence。它复用首次完整计划，不签名加密、不重建ID或时间，不把重复lookup当作新业务授权。新的owned执行仍复用原guard/业务/档案/witness和首次提交后移交边界；未取得资格不移交模型。
+
+本批当前仅在独立开发环境安装候选0.4.0a2 wheel（SHA256 5e9873836e393f9b28e214e7b8cb0e32d3046e2e90f498e2e6941d1f53267576），SDK从隔离site-packages导入，未使用SDK工作区或editable导入。仓库依赖锁和既有环境仍为已发布0.4.0a1；此候选覆盖不计required门禁或固定制品验收，固定修订发布并按真实URL/摘要重新安装后必须再验证。开发105组合目标、3417完整非集成/非interop单元零失败跳过、417类型通过，5原生仅收集。默认装配、scanner责任、其余终态及恢复、生产仍按infra总表独立推进。
