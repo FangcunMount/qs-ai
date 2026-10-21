@@ -1,5 +1,8 @@
 """CAS correction of one's own decision, with durable command replay and no model calls."""
 
+from collections.abc import Mapping
+from typing import Any
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -46,6 +49,39 @@ async def correct_review(
 
         raise NotFound("Evaluation unavailable in organization")
     run = await lock_run_in_transaction(db, scope, version)
+    updated = await plan_review_correction(
+        db,
+        scope,
+        expected_version,
+        command_id,
+        previous_review_fingerprint,
+        candidate_output_fingerprint,
+        value,
+        run=run,
+    )
+    if updated is not None:
+        await save_progress(db, scope, version, updated)
+
+
+async def plan_review_correction(
+    db: AsyncSession,
+    scope: ManagementScope,
+    expected_version: int,
+    command_id: str,
+    previous_review_fingerprint: str,
+    candidate_output_fingerprint: str,
+    value: CandidateHumanReview,
+    *,
+    run: Mapping[Any, Any],
+) -> dict | None:
+    """Only read original evidence; None is an exact historical business replay.
+
+    Caller supplies a scoped RR snapshot or the locked original Run. Replay stays
+    before version/status CAS and authorizes no new event or transaction witness.
+    """
+    if type(expected_version) is not int or expected_version < 1 or value.reviewer != scope.actor:
+        raise ValueError("Trusted original reviewer and explicit version required")
+    version = run["version"]
     progress = run["progress_json"]
     archives = [
         progress,
@@ -72,7 +108,7 @@ async def correct_review(
                 != (value.candidate_id, value.role, scope.actor, value.decision, value.reason)
             ):
                 raise CheckpointConflict("Correction command ID reused with different intent")
-            return
+            return None
     if version != expected_version or progress["status"] != "awaiting_review":
         raise CheckpointConflict("Review correction requires current awaiting-review version")
     snapshot = await load_snapshot(db, scope, run, version, value.reviewed_at)
@@ -101,15 +137,10 @@ async def correct_review(
         value.reviewed_at,
         "v2",
     )
-    await save_progress(
-        db,
-        scope,
-        version,
-        {
-            **progress,
-            "review_corrections": [
-                *(encode_correction(c) for c in corrections),
-                encode_correction(entry),
-            ],
-        },
-    )
+    return {
+        **progress,
+        "review_corrections": [
+            *(encode_correction(c) for c in corrections),
+            encode_correction(entry),
+        ],
+    }
