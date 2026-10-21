@@ -29,6 +29,9 @@ from qs_ai.infrastructure.persistence.mysql.evaluation_candidate_completion impo
     completion_owner,
 )
 from qs_ai.infrastructure.persistence.mysql.evaluation_checkpoints import decode, save_checkpoint
+from qs_ai.infrastructure.persistence.mysql.evaluation_completion_progress import (
+    semantic_completion_progress,
+)
 from qs_ai.infrastructure.persistence.mysql.evaluation_contracts import semantic_contract
 from qs_ai.infrastructure.persistence.mysql.evaluation_frozen_policies import frozen_policies
 from qs_ai.infrastructure.persistence.mysql.evaluation_projection import (
@@ -256,37 +259,13 @@ async def complete_semantic(
             )
             .values(candidate_json=candidate)
         )
-    progress = dict(run["progress_json"])
-    cause = ""
-    if completion.status == "result_unknown":
-        progress["unresolved_result_unknown_count"] = (
-            progress.get("unresolved_result_unknown_count", 0) + 1
-        )
-        cause = "result_unknown_requires_review"
-    elif completion.status == "failed":
-        if completion.execution_ordinal >= policy.semantic_per_candidate:
-            cause = "semantic_budget_exhausted"
-        elif completion.failure is None or not policy.allows_automatic_semantic_recovery(
-            completion.failure
-        ):
-            cause = "semantic_recovery_not_allowed"
+    progress = semantic_completion_progress(
+        run["progress_json"], completion, policy, owner, candidate_claim=claim is not None
+    )
     if claim is not None:
         return await complete_claim(
             db, run_id, expected_version, claim, progress, owner, completion.finished_at
         )
-    if cause:
-        progress["status"] = "blocked"
-        progress["transitions"] = [
-            *progress["transitions"],
-            {
-                "from": "collecting",
-                "to": "blocked",
-                "actor": owner.strip(),
-                "cause_code": cause,
-                "at": completion.finished_at.isoformat(),
-                "evidence_refs": [completion.execution_id],
-            },
-        ]
     if result is not None and not progress.get("cancel_requested"):
         generations = (
             (
