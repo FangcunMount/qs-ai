@@ -244,3 +244,6 @@ Receiver候选f7fbc89本地完整2624通过，381源文件类型检查通过；6
 真实SDK/Broker使用显式文件 `tests/integration/rocketmq_admission_host.py`，不进入普通依赖作业的自动收集。infra以 `make rocketmq-ai-admission-test` 新建隔离Docker项目、回环端口、账号和临时schema，显式安装本候选迁移，再运行8项具名宿主用例/15项检查。Source与固定0.4.0a1 wheel分开验证，Python client固定5.1.2；缺依赖失败、不得跳过。该文件目前只完成收集与静态检查，尚未验证通过。
 
 该隔离profile通过实际Broker投递控制QS输入，调用真实AI接收器和发布SDK，以已完成的空poll响应验证半消息不可见，并核对原事务、首次wire、旧重复输入与技术HELD。QS输入witness及接收observer属于测试夹具，不表示成对QS业务、外部模型或system验收；最终回复丢失为客户端丢弃真实完成回复，不冒充网络故障。SDK客户端日志、JUnit、正文与凭据均留在本次私有目录，只导出摘要/具名结果并清理本次资源。
+
+
+首轮infra Broker六档39535745152均失败并完整清理临时资源：控制QS输入在freeze_branch之前缺少original_occurred_at，SDK的不可变Message时间校验正确拒绝；未准备这些输入半消息。本地复现同一错误后，cde36ea仅为测试构造器增加显式时间参数，由Broker profile在首次签名前传入，未改应用/SDK或重新加密已冻结输入。五种控制命令的完整SDK分支冻结及历史默认行为6项回归、相关合计36项通过，9项interop按标记未选。此前2bfbb65源码CI14成功、两档各3520零失败/跳过的证据保持原SHA；新候选与Broker重跑仍待验证，T16未完成。
