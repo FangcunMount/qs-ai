@@ -1,0 +1,94 @@
+"""Readonly candidate terminal overlays; never release ownership or prove a commit."""
+
+from dataclasses import dataclass, field
+from typing import Any
+from uuid import UUID
+
+from qs_ai.application.evaluation.checkpoints import CheckpointConflict
+from qs_ai.domain.evaluation.semantic_completion import SemanticCompletion
+from qs_ai.infrastructure.persistence.mysql.evaluation_semantic import (
+    SemanticAcceptance,
+    semantic_terminal_values,
+)
+from qs_ai.infrastructure.persistence.mysql.evaluation_slot_claims import (
+    SlotClaim,
+    terminal_dispatches,
+)
+
+
+@dataclass(frozen=True)
+class CandidateTerminalRecords:
+    active: tuple[SlotClaim, ...] = field(repr=False)
+    dispatches: tuple[Any, ...] = field(repr=False)
+    generations: tuple[Any, ...] = field(repr=False)
+    semantics: tuple[Any, ...] = field(repr=False)
+
+
+def semantic_terminal_records(
+    run_id: UUID,
+    claim: SlotClaim,
+    active: tuple[SlotClaim, ...],
+    completion: SemanticCompletion,
+    accepted: SemanticAcceptance,
+    *,
+    dispatches: list[Any],
+    generations: list[Any],
+    semantics: list[Any],
+) -> CandidateTerminalRecords:
+    """Overlay an already validated semantic terminal onto one exact candidate claim.
+
+    Caller must first read the scoped owner and original semantic acceptance in
+    one snapshot. Original writers repeat those reads under their root locks;
+    this data grants no claim, commit, provider or business retry authority.
+    """
+    cp = claim.checkpoint
+    if (
+        claim.run_id != run_id
+        or cp.kind != "semantic"
+        or cp.phase != "dispatching"
+        or not completion.matches_checkpoint(
+            cp, cp.owner, accepted.generated.normalized_fingerprint
+        )
+        or (accepted.result is not None) != (completion.status == "succeeded")
+        or (accepted.generated.case_id, accepted.generated.slot_ordinal)
+        != (cp.case_id, cp.slot_ordinal)
+        or accepted.candidate["id"] != cp.candidate_id
+        or sum(c == claim for c in active) != 1
+        or any(c.run_id != run_id for c in active)
+        or len({(c.checkpoint.case_id, c.checkpoint.slot_ordinal) for c in active}) != len(active)
+        or any(row["run_id"] != str(run_id) for row in dispatches + generations + semantics)
+    ):
+        raise CheckpointConflict("Exact scoped candidate terminal source required")
+    # Validate all existing live dispatches before removing the completing claim.
+    terminal_dispatches(dispatches, generations + semantics, active)
+    if any(
+        row["execution_id"] == completion.execution_id
+        or row["invocation_id"] == completion.invocation_id
+        for row in semantics
+    ):
+        raise CheckpointConflict("Candidate semantic terminal already exists")
+    matches = [row for row in generations if row["execution_id"] == accepted.generated.execution_id]
+    if (
+        len(matches) != 1
+        or matches[0]["candidate_id"] != completion.candidate_id
+        or not matches[0]["candidate_json"]
+        or matches[0]["candidate_json"]["id"] != completion.candidate_id
+        or matches[0]["candidate_json"]["generation_execution_id"]
+        != accepted.generated.execution_id
+        or matches[0]["candidate_json"]["normalized_output_fingerprint"]
+        != accepted.generated.normalized_fingerprint
+        or matches[0]["candidate_json"]["review_ready"]
+    ):
+        raise CheckpointConflict("Exact unreviewed generation candidate required")
+    updated = tuple(
+        {**row, "candidate_json": accepted.candidate}
+        if row is matches[0] and accepted.result is not None
+        else row
+        for row in generations
+    )
+    return CandidateTerminalRecords(
+        tuple(c for c in active if c != claim),
+        tuple(dispatches),
+        updated,
+        (*semantics, semantic_terminal_values(run_id, completion, accepted)),
+    )
