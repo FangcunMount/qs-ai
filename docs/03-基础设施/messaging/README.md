@@ -307,3 +307,8 @@ Broker第二轮39539009218暴露最后确认的适配缺口：固定SDK在最终
 [`CreationStateInput/CreationPlanFacts`](../../../src/qs_ai/infrastructure/workflow_transport/creation_state_plan.py) 将原Run UUID、组织、操作者、完整release和规范化原因绑定为稳定创建请求；当前宿主模式与新采样时间不属于请求输入。持久化事实保留首次原始definition摘要、执行模式及带时区创建时间，完整首次wire仍归SDK计划。读取只接受初始version/sequence为1、requested状态及精确release；未知字段、重复字段、非规范编码或替换定义/策略被拒绝。
 
 [`CreationStatePlanner/CreationStateRoot`](../../../src/qs_ai/infrastructure/workflow_transport/creation_state.py) 复用原MySQLRunCreator只读资产解析，会话关闭后才Seal；半消息之后的单次原RR根先取SDK guard，重读并核验原不可变合约，再共同写Run、冻结policy、checkpoint、sequence、档案和witness。原定义和首次模式、时区格式不重新生成，提交回复丢失只用精确持久证据判定。新增10项原生测试分别覆盖两种模式、档案/witness拒绝、客户端丢弃已完成提交回复及不能收养已存在的legacy Run；当前执行结果以infra总表为准，不能替代Broker、网络或生产证明。此批尚未接通公开创建Sender及Solution Prepare事务入口，默认装配继续关闭。
+
+
+[`TransactionalEvaluationRequests`](../../../src/qs_ai/infrastructure/workflow_transport/transactional_evaluation_requests.py) 提供独立Create-once入口：先查原稳定请求和精确业务回执，再冻结候选；全部半消息成功后才执行单次原创建根。原RPC仍用调用方Run UUID幂等，同键不同输入仅在精确身份/输入证据成立时返回冲突；Prepared/Aborted责任不自动重建。新执行返回原根内捕获的响应；本地Committed而Broker最终确认Unknown时，逐项验证原witness和首次档案后保留业务成功，不重新创建。
+
+重复创建继续返回当前业务视图和首次creation receipt，即使Run已启动或宿主模式配置已改变。legacy回执没有SDK记录时只读返回，不能被收养为新witness；已有SDK记录必须同时核对精确Committed证据、首次档案和原definition/mode，缺一保持未决。预查/回执读取竞态只有一次有界权威重查，不自动重执行业务。新增14项真实MySQL用例覆盖实际Create RPC、本地执行前准备门禁、两种首次模式、原回执、新旧输入冲突和并发赢家；DB-only运行器不证明真实Broker，验收结果与总进度以infra记录为准。统一生产装配及Solution Prepare事务入口仍未启用。
