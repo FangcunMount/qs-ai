@@ -48,7 +48,13 @@ T16 command 组件已合并并通过隔离原事务及固定发布 SDK/Broker �
 
 command 与独立状态共用 [`commit_original`](../../../src/qs_ai/infrastructure/workflow_transport/transaction_root.py) 的根提交/新读取边界：提交回复不明只查询精确 witness，原根回滚且持久化中止成功才证明 Aborted；取消和连接错误不构成回滚证明。宿主继续持有连接池、业务条件和生命周期。新状态入口不创建旧发布 Outbox，不自动 Retry/Replan 或调用模型。
 
-本批基础尚未替换全部 worker、治理和终态入口。新增隔离 MySQL 原状态根故障用例只完成本地收集，必须等待真实依赖验证；不得据此启用统一 runtime 或标记 T17 完成。
+worker 预检通过显式 `preflight_dispatch` 借用 [`PreflightStateDispatcher`](../../../src/qs_ai/infrastructure/workflow_transport/evaluation_preflight_dispatch.py)。先按原 Run/version/组织及稳定操作键查询 SDK 请求；已提交的旧 hint 只核验首次证据，不因当前 checkpoint 已推进而重新规划。未决或中止记录需要精确证明或显式恢复，不自动创建新执行。
+
+[`PreflightStatePlanner`](../../../src/qs_ai/infrastructure/workflow_transport/evaluation_preflight_state.py) 只读当前 Run/checkpoint、原登记 suite 与序号，关闭读取后再计算原无模型预检、生成身份和第一次 Seal。赢家上下文冻结首 PreflightEvidence、时间及源快照摘要；原执行器锁定并重新核验源，再调用原 preflight 完成规则。稳定请求输入和可变源快照分别保存，避免已提交重投因业务推进而误报输入冲突。
+
+空业务上下文保持已有状态 facts/v1 的每个字节；非空预检上下文采用显式 facts/v2，原始操作上下文最多8 KiB，整个宿主上下文仍最多16 KiB。读取支持两个显式版本，SDK codec/schema及原业务 wire 不变。worker 的新入口只接受精确原根提交证明；`LocalCommitted + FinalUnknown`（含SDK结构化异常）保留Broker确认责任，不授权模型重做。默认装配继续保留原入口，事务运行装配须等待全部状态、ACK和历史责任接入。
+
+本批尚未替换全部 worker、治理和终态入口。MySQL 原状态根、实际 worker 及固定 SDK/Broker profile 分别验证；当前进度和失败记录回链 infra 总表，不据单项通过启用统一 runtime 或标记 T17 完成。
 
 ## 当前服务怎样装配这条链路
 
