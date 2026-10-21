@@ -36,6 +36,7 @@ from qs_ai.infrastructure.workflow_transport.transaction_archive import (
 
 _MAGIC = b"qs-ai-evaluation-state/v1\0"
 _CONTEXT_MAGIC = b"qs-ai-evaluation-state/v2\0"
+_SOURCE_MAGIC = b"qs-ai-evaluation-state/v3\0"
 _MAX_VERSION = 2**63 - 1
 
 
@@ -103,6 +104,7 @@ class EvaluationStateFacts:
     previous_sequence: int
     previous_version: int
     business_context: bytes = field(default=b"", repr=False)
+    source_version: int | None = None
 
     def __post_init__(self) -> None:
         if (
@@ -114,7 +116,15 @@ class EvaluationStateFacts:
                 for value in (self.previous_sequence, self.previous_version)
             )
             or bool(self.previous_sequence) != bool(self.previous_version)
-            or self.previous_version > self.intent.expected_version
+            or (
+                self.source_version is not None
+                and (
+                    type(self.source_version) is not int
+                    or not self.intent.expected_version <= self.source_version < _MAX_VERSION
+                )
+            )
+            or self.previous_version
+            > (self.intent.expected_version if self.source_version is None else self.source_version)
             or type(self.business_context) is not bytes
             or len(self.business_context) > 8192
         ):
@@ -124,7 +134,10 @@ class EvaluationStateFacts:
     @property
     def sequence(self) -> int:
         return next_evaluation_sequence(
-            self.previous_sequence, self.previous_version, self.intent.expected_version + 1
+            self.previous_sequence,
+            self.previous_version,
+            (self.intent.expected_version if self.source_version is None else self.source_version)
+            + 1,
         )
 
     def encode(self) -> bytes:
@@ -134,10 +147,17 @@ class EvaluationStateFacts:
             "previous_sequence": self.previous_sequence,
             "previous_version": self.previous_version,
         }
-        if self.business_context:
+        if self.business_context or self.source_version is not None:
             value["business_context"] = base64.b64encode(self.business_context).decode("ascii")
-        # Every already-frozen v1 byte remains unchanged when no extension exists.
-        raw = (_CONTEXT_MAGIC if self.business_context else _MAGIC) + _canonical(value)
+        if self.source_version is not None:
+            value["source_version"] = self.source_version
+        # None keeps every already-frozen v1/v2 byte unchanged.
+        magic = (
+            _SOURCE_MAGIC
+            if self.source_version is not None
+            else (_CONTEXT_MAGIC if self.business_context else _MAGIC)
+        )
+        raw = magic + _canonical(value)
         if len(raw) > MAX_CONTEXT:
             raise ValueError("State plan context exceeds bounds")
         return raw
@@ -146,8 +166,9 @@ class EvaluationStateFacts:
     def decode(cls, raw: bytes) -> "EvaluationStateFacts":
         if type(raw) is not bytes or len(raw) > MAX_CONTEXT:
             raise ValueError("Explicit bounded state plan context required")
-        extended = raw.startswith(_CONTEXT_MAGIC)
-        magic = _CONTEXT_MAGIC if extended else _MAGIC
+        source_bound = raw.startswith(_SOURCE_MAGIC)
+        extended = source_bound or raw.startswith(_CONTEXT_MAGIC)
+        magic = _SOURCE_MAGIC if source_bound else _CONTEXT_MAGIC if extended else _MAGIC
         if not raw.startswith(magic):
             raise ValueError("Explicit bounded state plan context required")
         try:
@@ -164,6 +185,8 @@ class EvaluationStateFacts:
             }
             if extended:
                 fields.add("business_context")
+            if source_bound:
+                fields.add("source_version")
             if not isinstance(value, dict) or set(value) != fields:
                 raise ValueError
             result = cls(
@@ -178,6 +201,7 @@ class EvaluationStateFacts:
                 value["previous_sequence"],
                 value["previous_version"],
                 base64.b64decode(value["business_context"], validate=True) if extended else b"",
+                value["source_version"] if source_bound else None,
             )
             if result.encode() != raw:
                 raise ValueError
@@ -242,6 +266,7 @@ def read_evaluation_state_plan(
         state.run_id != intent.run_id
         or state.organization_id != intent.organization_id
         or not intent.expected_version < state.version <= _MAX_VERSION
+        or (facts.source_version is not None and state.version <= facts.source_version)
         or state.event_sequence != facts.sequence
         or header.message_id != str(uuid5(UUID(state.run_id), f"state:{state.version}"))
         or not 0 < len(state.status.encode()) <= 128
