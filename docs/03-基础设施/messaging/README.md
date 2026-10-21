@@ -555,3 +555,8 @@ semantic终态先抽取原有未知计数、固定预算及blocked转换为纯 `
 SerialSemanticPlanner/Sender/Write使用独立semantic context和原SerialResponseReference，原generation candidate ID不能改变。只读取原持久化响应，并在同session快照中重建原输入、判定和虚拟终态；源连接在Seal/半消息前关闭。全部半消息后，原根重验来源、调用原complete_semantic，将原判定/候选/进度、archive和witness共同提交。重复从精确witness/archive/不可变semantic receipt读取首次结果；未知不重做模型，显式Retry/Replan继续由宿主授权并竞争旧Aborted。没有伪造SlotClaim或新candidate，构造不启动网络/线程，也不接管宿主资源。
 
 150组合目标、3631完整本地单元（1229 integration/interop明确排除）、423源类型通过；13实际MySQL根用例及新Broker档34宿主/84证据仅收集，覆盖成功/未知、取消drain、原根witness拒绝与提交回复丢弃、首结果/旧中止/首响应与candidate保留。尚不计实际依赖门禁、T18真实provider/网络/进程恢复或默认装配。旧31/76不能代替新档验收。
+
+
+candidate终态的completion_owner新增显式只读观察：沿用原checkpoint→组织Run→全部active claim→精确claim读取顺序；默认加锁行为保持，原写者继续使用原coordinator/claim冲突保护。只读数据不是提交凭证、活跃租约证明或模型调用授权。原Run状态、candidate模式、serial checkpoint拒绝、claim版本/owner/phase/索引/执行身份检查保持；原complete_claim聚合与事务归属未改变。
+
+本批先在原入口增加17项表征，再扩展为34项RO/锁定一致性；116组合目标、3665完整本地单元（1233 integration/interop明确排除）、423源类型、1099文件格式检查通过。4项真实MySQL用例仅收集，验证原根租约/Run共同提交回滚，以及旧观察不能跨越claim释放或slot重用。required实际依赖CI尚待通过；完整candidate终态Sender、聚合虚拟计划和默认装配仍待实施。
