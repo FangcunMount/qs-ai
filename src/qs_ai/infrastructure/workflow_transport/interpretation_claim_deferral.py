@@ -5,15 +5,16 @@ import math
 from datetime import UTC, datetime
 
 from reliable_messaging.sqlalchemy import bind
-from reliable_messaging.transaction import Execution, LocalOutcome, decide_local
+from reliable_messaging.transaction import BindingError, Execution, LocalOutcome, decide_local
 from reliable_messaging.transaction_mysql import MySQLTransactionStore
-from sqlalchemy import update
+from sqlalchemy import select, update
 
 from qs_ai.application.execution.errors import LeaseLost
 from qs_ai.infrastructure.persistence.mysql.execution import MySQLExecutionStore, expiry
 from qs_ai.infrastructure.persistence.mysql.participant_capacity import acquire
 from qs_ai.infrastructure.persistence.mysql.schema import jobs
 from qs_ai.infrastructure.persistence.mysql.transaction_archive import TransactionArchive
+from qs_ai.infrastructure.persistence.mysql.transaction_schema import binding
 from qs_ai.infrastructure.workflow_transport.interpretation_claim_state import (
     InterpretationClaimSource,
     read_claim_plan,
@@ -36,6 +37,8 @@ class InterpretationClaimDeferral:
     ) -> None:
         if not math.isfinite(database_seconds) or database_seconds <= 0:
             raise ValueError("Finite positive original deferral budget required")
+        if store.binding.owner != "ai.mysql":
+            raise BindingError("Original ai.mysql deferral binding required")
         self._business, self._store, self._archives = business, store, archives
         self._database_seconds = database_seconds
 
@@ -47,6 +50,8 @@ class InterpretationClaimDeferral:
     ) -> bool:
         """Only delay the same still-capacity-denied job; never call its claim executor."""
         _, first = read_claim_plan(source, ttl_seconds, previous.plan)
+        if previous.writer_epoch != self._store.binding.writer_epoch:
+            raise BindingError("Original deferral writer epoch differs")
         if source.exhausted or not source.session.uses_qs_snapshot:
             return False
         async with asyncio.timeout(self._database_seconds):
@@ -64,6 +69,26 @@ class InterpretationClaimDeferral:
                 root = db.get_transaction()
                 appender = bind(db)
                 await appender.validate()
+                installed = (
+                    (
+                        await db.execute(
+                            select(binding)
+                            .where(
+                                binding.c.owner == self._store.binding.owner.encode(),
+                            )
+                            .with_for_update(read=True)
+                        )
+                    )
+                    .mappings()
+                    .one_or_none()
+                )
+                if (
+                    installed is None
+                    or installed["store_id"] != self._store.binding.store_id.encode()
+                    or installed["writer_epoch"] != self._store.binding.writer_epoch.encode()
+                    or installed["schema_version"] != 1
+                ):
+                    raise BindingError("Original deferral database binding differs")
                 try:
                     current = await read_claim_source(
                         self._business,

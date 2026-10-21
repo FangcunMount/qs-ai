@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, Mock
 from uuid import uuid4
 
 import pytest
-from reliable_messaging.transaction import Evidence, Execution, State
+from reliable_messaging.transaction import Binding, BindingError, Evidence, Execution, State
 
 from qs_ai.application.execution.capacity import ParticipantCapacityPolicy
 from qs_ai.application.execution.errors import LeaseLost
@@ -66,7 +66,16 @@ async def original(monkeypatch):
     events.clear()
     execution = Execution(plan, 1, "m3-1", b"x" * 32, datetime.now(UTC) + timedelta(seconds=60))
     evidence = Evidence(execution.references[0], State.ABORTED, State.ABORTED)
-    store = SimpleNamespace(evidence=AsyncMock(return_value=evidence))
+    installed = dict(store_id=b"original-db", writer_epoch=b"m3-1", schema_version=1)
+    db.execute.return_value = SimpleNamespace(
+        mappings=lambda: SimpleNamespace(
+            one_or_none=lambda: installed,
+        )
+    )
+    store = SimpleNamespace(
+        evidence=AsyncMock(return_value=evidence),
+        binding=Binding("ai.mysql", "original-db", "m3-1"),
+    )
     archives = SimpleNamespace(read_committed=AsyncMock(return_value=None))
     binding = SimpleNamespace(validate=AsyncMock())
     read, acquire = AsyncMock(return_value=source), AsyncMock(return_value=False)
@@ -133,7 +142,7 @@ async def test_source_changed_or_no_longer_due_leaves_job_untouched(original, ch
         p.read.side_effect = LeaseLost("original job no longer due")
     assert await p.deferred(p.source, 60, p.execution) is False
     p.acquire.assert_not_called()
-    p.db.execute.assert_not_called()
+    assert p.db.execute.await_count == 1  # Read-only original binding check only.
     p.db.commit.assert_not_called()
 
 
@@ -141,7 +150,7 @@ async def test_capacity_available_does_not_commit_staged_slot_or_create_a_claim(
     p = original
     p.acquire.return_value = True
     assert await p.deferred(p.source, 60, p.execution) is False
-    p.db.execute.assert_not_called()
+    assert p.db.execute.await_count == 1  # Read-only original binding check only.
     p.db.commit.assert_not_called()
     p.business.claim_in.assert_not_called()
 
@@ -168,3 +177,23 @@ async def test_lost_job_commit_reply_never_claims_rollback_or_model_authority(or
     p.db.commit.assert_awaited_once()
     p.business.claim_in.assert_not_called()
     assert p.events == ["open", "close"]
+
+
+@pytest.mark.parametrize("damage", ["store_id", "writer_epoch", "schema_version"])
+async def test_wrong_original_database_binding_refuses_job_writes(original, damage):
+    p = original
+    p.installed[damage] = 2 if damage == "schema_version" else b"wrong"
+    with pytest.raises(BindingError):
+        await p.deferred(p.source, 60, p.execution)
+    p.read.assert_not_called()
+    p.acquire.assert_not_called()
+    p.db.commit.assert_not_called()
+    assert p.db.execute.await_count == 1
+
+
+async def test_previous_writer_epoch_cannot_authorize_current_job_maintenance(original):
+    p = original
+    with pytest.raises(BindingError):
+        await p.deferred(p.source, 60, replace(p.execution, writer_epoch="old-epoch"))
+    assert not p.events
+    p.store.evidence.assert_not_called()

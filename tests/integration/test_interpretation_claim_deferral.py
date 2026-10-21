@@ -123,3 +123,34 @@ async def test_original_job_scope_change_prevents_operational_deferral(host):
     competing = await rows(host.kit, source.session.id)
     assert await deferred(source, 60, execution) is False
     assert await rows(host.kit, source.session.id) == competing
+
+
+async def test_new_writer_epoch_cannot_use_old_abort_to_write_original_job(host):
+    from reliable_messaging.transaction import BindingError
+
+    from qs_ai.infrastructure.persistence.mysql.transaction_schema import binding
+
+    source, before, execution, deferred = await prior(host)
+    async with host.tx.open() as db:
+        await db.execute(
+            update(binding)
+            .where(binding.c.owner == b"ai.mysql")
+            .values(
+                writer_epoch=b"another-epoch",
+            )
+        )
+        await db.commit()
+    try:
+        with pytest.raises(BindingError):
+            await deferred(source, 60, execution)
+        assert await rows(host.kit, source.session.id) == before
+    finally:
+        async with host.tx.open() as db:
+            await db.execute(
+                update(binding)
+                .where(binding.c.owner == b"ai.mysql")
+                .values(
+                    writer_epoch=host.store.binding.writer_epoch.encode(),
+                )
+            )
+            await db.commit()
