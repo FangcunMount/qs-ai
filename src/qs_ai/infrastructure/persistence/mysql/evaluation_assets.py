@@ -11,7 +11,7 @@ from qs_ai.application.interpretation.preparation import PreparedExplanation
 from qs_ai.application.interpretation.prompt_assets import executable_prompt
 from qs_ai.application.interpretation.provider import ModelRoute
 from qs_ai.application.interpretation.route_assets import executable_route
-from qs_ai.application.interpretation.schema_assets import SchemaAssets
+from qs_ai.application.interpretation.schema_assets import SchemaReader
 from qs_ai.domain.evaluation.identity import EvidenceReleaseIdentity, FrozenContractRef
 from qs_ai.domain.governance.prompt import PromptAsset
 from qs_ai.domain.governance.route import RouteAsset
@@ -120,7 +120,7 @@ def require_generation_manifest(creation: dict[str, Any]) -> None:
 
 
 async def frozen_output_schema(
-    release: EvidenceReleaseIdentity, schemas: SchemaAssets
+    release: EvidenceReleaseIdentity, schemas: SchemaReader
 ) -> dict[str, Any]:
     """Original immutable output schema for generation, assertions and judge input."""
     ref = release.output_schema

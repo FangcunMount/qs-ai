@@ -20,6 +20,7 @@ from qs_ai.infrastructure.persistence.mysql.evaluation_candidate_recovery import
 )
 from qs_ai.infrastructure.persistence.mysql.evaluation_progress import execute_preflight
 from qs_ai.infrastructure.persistence.mysql.evaluation_scan import RecoveryCursor, recover_next
+from qs_ai.infrastructure.persistence.mysql.evaluation_step import PreparedStep
 from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_checkpoints,
     evaluation_runs,
@@ -43,6 +44,7 @@ class EvaluationWorker:
         capacity: ModelCapacity | None = None,
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
         preflight_dispatch: Callable[[UUID, int, int], Awaitable[None]] | None = None,
+        prepare_dispatch: Callable[[UUID, int, int], Awaitable[PreparedStep]] | None = None,
     ) -> None:
         if type(candidate_limit) is not int or not 1 <= candidate_limit <= 32:
             raise ValueError("Invalid candidate concurrency")
@@ -52,6 +54,7 @@ class EvaluationWorker:
         self.gateway, self.routes, self.schemas = gateway, routes, schemas
         self.owner, self.enabled, self.clock = owner, enabled, clock
         self._preflight_dispatch = preflight_dispatch
+        self._prepare_dispatch = prepare_dispatch
         self.recovery_cursor = recovery_cursor if recovery_cursor is not None else RecoveryCursor()
 
     async def once(self) -> bool:
@@ -145,6 +148,7 @@ class EvaluationWorker:
                         self.schemas,
                         clock=self.clock,
                         capacity=self.capacity,
+                        prepare_dispatch=self._prepare_dispatch,
                         candidate_limit=self.candidate_limit
                         if row["execution_mode"] == "candidate_v2"
                         else None,

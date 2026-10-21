@@ -1,7 +1,7 @@
 """A graph per durable evaluation attempt; existing CAS owns recovery."""
 
 import asyncio
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from contextlib import suppress
 from datetime import UTC, datetime, timedelta
 from typing import TypedDict
@@ -55,7 +55,10 @@ async def execute_step(
     clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     candidate_limit: int | None = None,
     capacity: ModelCapacity | None = None,
+    prepare_dispatch: Callable[[UUID, int, int], Awaitable[PreparedStep]] | None = None,
 ) -> CheckpointState:
+    if prepare_dispatch is not None and candidate_limit is not None:
+        raise ValueError("Serial transaction dispatcher cannot own candidate claims")
     heartbeat: asyncio.Task[None] | None = None
     token: CapacityToken | None = None
 
@@ -72,18 +75,21 @@ async def execute_step(
     async def prepare(state: EvaluationState) -> EvaluationState:
         nonlocal heartbeat, token
         with operation("graph.evaluation.prepare", "evaluation"):
-            value = await prepare_step(
-                transactions,
-                run_id,
-                expected_version,
-                organization_id,
-                owner,
-                routes,
-                schemas,
-                clock=clock,
-                candidate_limit=candidate_limit,
-                capacity=capacity,
-            )
+            if prepare_dispatch is None:
+                value = await prepare_step(
+                    transactions,
+                    run_id,
+                    expected_version,
+                    organization_id,
+                    owner,
+                    routes,
+                    schemas,
+                    clock=clock,
+                    candidate_limit=candidate_limit,
+                    capacity=capacity,
+                )
+            else:
+                value = await prepare_dispatch(run_id, expected_version, organization_id)
             token = value.capacity_token
             if value.claim is not None:
                 heartbeat = asyncio.create_task(renew(value))
