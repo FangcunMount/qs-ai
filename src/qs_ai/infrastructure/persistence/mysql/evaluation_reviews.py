@@ -49,6 +49,25 @@ async def accept_reviews(
     values: tuple[CandidateHumanReview, ...],
 ) -> CheckpointState:
     """Caller authorizes the review role, supplies server times and owns the commit."""
+    state, updated = await plan_reviews(db, scope, expected_version, values, lock=True)
+    await save_checkpoint(db, state, expected_version)
+    await db.execute(
+        update(evaluation_runs)
+        .where(evaluation_runs.c.run_id == str(scope.run_id))
+        .values(progress_json=updated)
+    )
+    return state
+
+
+async def plan_reviews(
+    db: AsyncSession,
+    scope: ManagementScope,
+    expected_version: int,
+    values: tuple[CandidateHumanReview, ...],
+    *,
+    lock: bool = False,
+) -> tuple[CheckpointState, dict]:
+    """Project original review rules; lock=False only reads the caller's RR snapshot."""
     if (
         type(expected_version) is not int
         or expected_version < 1
@@ -58,33 +77,21 @@ async def accept_reviews(
         or len({v.role for v in values}) != 1
     ):
         raise ValueError("Trusted reviewer, single role and Run version required")
-    cp = (
-        (
-            await db.execute(
-                select(evaluation_checkpoints)
-                .where(evaluation_checkpoints.c.run_id == str(scope.run_id))
-                .with_for_update()
-            )
-        )
-        .mappings()
-        .one_or_none()
+    checkpoint_query = select(evaluation_checkpoints).where(
+        evaluation_checkpoints.c.run_id == str(scope.run_id)
     )
+    if lock:
+        checkpoint_query = checkpoint_query.with_for_update()
+    cp = (await db.execute(checkpoint_query)).mappings().one_or_none()
     if cp is None or cp["version"] != expected_version or cp["checkpoint_json"] is not None:
         raise CheckpointConflict("Run version changed or execution is active")
-    run = (
-        (
-            await db.execute(
-                select(evaluation_runs)
-                .where(
-                    evaluation_runs.c.run_id == str(scope.run_id),
-                    evaluation_runs.c.organization_id == scope.organization_id,
-                )
-                .with_for_update()
-            )
-        )
-        .mappings()
-        .one_or_none()
+    run_query = select(evaluation_runs).where(
+        evaluation_runs.c.run_id == str(scope.run_id),
+        evaluation_runs.c.organization_id == scope.organization_id,
     )
+    if lock:
+        run_query = run_query.with_for_update()
+    run = (await db.execute(run_query)).mappings().one_or_none()
     if run is None or run["progress_json"] is None:
         raise CheckpointConflict("Run unavailable in organization")
     creation, progress = json.loads(run["definition_json"]), run["progress_json"]
@@ -202,11 +209,4 @@ async def accept_reviews(
         **progress,
         "human_reviews": [{**asdict(r), "reviewed_at": r.reviewed_at.isoformat()} for r in result],
     }
-    state = CheckpointState(scope.run_id, expected_version + 1, None)
-    await save_checkpoint(db, state, expected_version)
-    await db.execute(
-        update(evaluation_runs)
-        .where(evaluation_runs.c.run_id == str(scope.run_id))
-        .values(progress_json=updated)
-    )
-    return state
+    return CheckpointState(scope.run_id, expected_version + 1, None), updated

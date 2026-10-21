@@ -5,16 +5,20 @@ must stay disabled until all writers and retained responsibilities are ready.
 """
 
 from collections.abc import Awaitable, Callable
-from datetime import datetime
+from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 from qs_ai.application.evaluation.management import EvaluationView, ManagementScope
+from qs_ai.domain.evaluation.review import CandidateHumanReview
 from qs_ai.infrastructure.persistence.mysql.evaluation_management import MySQLEvaluationManagement
 from qs_ai.infrastructure.workflow_transport.evaluation_governance_state import (
     GovernanceStateOperation,
 )
+from qs_ai.infrastructure.workflow_transport.review_state_plan import ReviewStateInput
 
-GovernanceDispatch = Callable[[GovernanceStateOperation, datetime], Awaitable[EvaluationView]]
+GovernanceDispatch = Callable[
+    [GovernanceStateOperation | ReviewStateInput, datetime], Awaitable[EvaluationView]
+]
 
 
 class TransactionalEvaluationManagement(MySQLEvaluationManagement):
@@ -33,6 +37,16 @@ class TransactionalEvaluationManagement(MySQLEvaluationManagement):
             original.runtime_limits,
         )
         self._dispatch, self._new_id = dispatch, new_id
+
+    async def review(
+        self,
+        scope: ManagementScope,
+        expected_version: int,
+        values: tuple[CandidateHumanReview, ...],
+    ) -> EvaluationView:
+        incoming = ReviewStateInput(scope, self._new_id(), expected_version, values)
+        at = max(v.reviewed_at for v in values).astimezone(UTC)
+        return await self._dispatch(incoming, at)
 
     async def finalize(
         self,
