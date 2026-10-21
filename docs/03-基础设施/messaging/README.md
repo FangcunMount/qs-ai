@@ -444,3 +444,8 @@ Artifact的JSON对象在MySQL中不保留键顺序。完成状态转录仅对art
 评测终态在 [`prepare_step_completion / finish_step_in`](../../../src/qs_ai/infrastructure/persistence/mysql/evaluation_step.py) 分开准备和原根写入：准备阶段沿用原响应证据、语义校验、结束时间及状态分类，首次generation候选ID在数据库根之前生成；原根入口仅借用活跃AsyncSession，拒绝savepoint和根替换，保留原claim/恢复所有权及generation/semantic完成接受规则。返回的state和applied只描述暂存写入，不能证明根提交或消息投递。原finish_step调用仍拥有其根提交，已完成candidate重读仍不重复提交或发出成功指标。
 
 StepCompletion是宿主内存中的准备结果，未替代持久化SDK计划、原业务授权、witness或模型响应检查点。SDK完整终态Sender、其他活动写入口和T18确定性恢复须继续独立接通与验证；默认装配及生产状态回链infra总表。
+
+
+[`SerialResponseReference / save_serial_response`](../../../src/qs_ai/infrastructure/persistence/mysql/evaluation_serial_response_receipts.py) 为原serial_v1 dispatch保留首次provider响应。它使用原Run/组织、聚合checkpoint version、精确dispatching checkpoint和账本，不能伪造candidate SlotClaim。借用的原根只保存现有evaluation_response_receipts中的输入证据，不推进Run/attempt、发布消息或调用模型；根提交仍由宿主负责。claim_version物理列对这种显式串行记录保存原聚合版本，独立的serial-response/v1外层codec和完整引用使其不会被旧candidate v1读取器混用，既有schema和candidate路径不变。
+
+首次正文、结束时间和SHA不可覆盖，原串行取消drain只允许原实现中同一cancel_requested版本边界。该输入证据即使重复读取也不构成业务提交、事务witness、业务receipt或模型重试授权。编码上限为4MiB，解码拒绝摘要、scope/dispatch、版本、歧义字段和非规范字节差异；响应正文不进入日志。新适配尚未接入默认工作流，完整终态Sender和T18恢复/调用次数故障验收仍须独立完成。
