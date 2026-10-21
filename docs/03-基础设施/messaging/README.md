@@ -60,7 +60,11 @@ worker 预检通过显式 `preflight_dispatch` 借用 [`PreflightStateDispatcher
 
 [`GovernanceStateOperation`](../../../src/qs_ai/infrastructure/workflow_transport/evaluation_governance_state.py) 冻结宿主已授权的定稿/重开操作、原版本、操作者、理由和明确确认。操作 ID 由宿主在数据库根事务外分配，不新增公共跨 RPC 幂等承诺。稳定业务输入摘要与可变源快照摘要分别保存；两者都绑定首次状态计划。
 
-`GovernanceStatePlanner` 在显式 REPEATABLE READ 只读边界中复用原门槛/拒绝证据和纯投影，读取结束后才第一次 Seal。`GovernanceStateRoot` 在 guard 前设置同一隔离级别，在原根中锁定 Run/checkpoint、重验源快照和业务门槛，再提交状态、原审核历史、sequence、档案和 witness。构造不产生资源或 DDL；两种原治理操作仍不执行模型。8 项原生验收用例已提供，执行状态以 infra 总表为准。治理 RPC 与最终运行装配尚未切换。
+`GovernanceStatePlanner` 在显式 REPEATABLE READ 只读边界中复用原门槛/拒绝证据和纯投影，读取结束后才第一次 Seal。`GovernanceStateRoot` 在 guard 前设置同一隔离级别，在原根中锁定 Run/checkpoint、重验源快照和业务门槛，再提交状态、原审核历史、sequence、档案和 witness。构造不产生资源或 DDL；两种原治理操作仍不执行模型。原生验收用例现为12项，包含直接RPC处理函数及数据库原子性边界；数据库专用runtime不冒充SDK半消息或Broker证明，执行状态以infra总表为准。治理默认RPC装配与最终运行装配尚未切换。
+
+[`GovernanceStateDispatcher`](../../../src/qs_ai/infrastructure/workflow_transport/evaluation_governance_dispatch.py) 先查原请求再规划/准备，使用持久化赢家并仅执行一次。只有精确 witness 和首次档案都证明原提交，才返回原根中取得的原响应；不读取今天的 Run 来替代该次响应。`LocalCommitted + FinalUnknown` 保留确认责任；原 CAS/业务错误只有在原根已证实 Aborted 时才能继续按原错误返回，未知结果不改写为冲突或授权业务重做。
+
+[`TransactionalEvaluationManagement`](../../../src/qs_ai/infrastructure/workflow_transport/transactional_evaluation_management.py) 为定稿/重开提供显式管理适配器。原RPC处理函数继续校验QS工作负载、主体、版本和确认，服务端首次分配操作ID/时间；每个新RPC仍遵循原CAS行为，不新增公共幂等承诺。其余写入口继承原实现，因此默认容器/生产装配仍等待完整迁移，不能提前启用混合运行。
 
 本批尚未替换全部 worker、治理和终态入口。MySQL 原状态根、实际 worker 及固定 SDK/Broker profile 分别验证；当前进度和失败记录回链 infra 总表，不据单项通过启用统一 runtime 或标记 T17 完成。
 
