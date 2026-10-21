@@ -422,7 +422,14 @@ interpretation首业务历史的keyless校验现由 [`InterpretationStateTranscr
 
 [`InterpretationStateRoot`](../../../src/qs_ai/infrastructure/workflow_transport/interpretation_state_root.py) 只接受一次owned执行，在原RR根先绑定SDK guard，再交由宿主业务暂存；同根检查后转录精确首历史，将档案和全部witness与业务共同提交。确认丢失通过新权威读取收敛，不以业务返回值、取消或lease到期猜测回滚。构造不打开连接或启动客户端，回查和关闭仍归宿主SDK生命周期。
 
-这些通用基础不授权业务或模型；具体finish/claim/candidate/recovery的首源读取、执行资格及完整Sender仍须接通并独立验证。原根故障用例直接调用存储/执行器，不能当作半消息、真实Broker、成对QS或system验收；当前源码/CI/合并/运行状态仅维护在infra总表。
+这些通用基础不授权业务或模型；具体业务入口的首源读取、执行资格及Sender须分别接通并独立验证。原根故障用例直接调用存储/执行器，不能当作半消息、真实Broker、成对QS或system验收；当前源码/CI/合并/运行状态仅维护在infra总表。
 
 
 原 [`MySQLExecutionStore.read_claim`](../../../src/qs_ai/infrastructure/persistence/mysql/execution.py) 提供只读来源视图，沿用原Session状态/version/active Run、job租用/fence、活跃lease/fence及session→job→lease的读取规则。原_guard显式lock=True，原锁顺序和业务条件保留；只读来源不取写锁、不提交，也不延长lease或赋予执行资格。规划后的真正根仍须重新竞争并验证原活跃所有权，不能把较早快照当作未来执行授权。完整接入、故障和部署状态回链infra总表。
+
+
+[`InterpretationFinishSender`](../../../src/qs_ai/infrastructure/workflow_transport/interpretation_finish_sender.py) 提供显式的原解释任务完成入口：先读取原组织/request绑定并查询请求赢家，缺记录时才由 [`InterpretationFinishPlanner`](../../../src/qs_ai/infrastructure/workflow_transport/interpretation_finish_state.py) 在只读RR快照核对原Session/job/活跃lease，关闭来源后冻结首次Event/Question ID、Question序号、时间、完整结果投影与首wire。稳定输入包含原server Claim和WorkflowResult；首次ID、时钟与密文不参与业务输入冲突判断。已存在的未决或中止执行不自动授权新模型调用、重封消息或业务重做。
+
+全部半消息成功后，原根先竞争SDK guard，再精确复核原Session/job/run/fence、答案/问题身份、请求绑定及源摘要，调用原finish_in暂存业务、首历史、档案和witness并共同提交。心跳延长租约不改变业务摘要；真正提交仍以原guard和末尾数据库活跃租约校验为准。Question序号须等于冻结快照和原根实际count+1，原调用未提供序号时保持旧语义。Artifact沿用原持久化response、来源、配置、内容与安全检查，执行器前验证原UUID5身份，原根不重新生成ID。
+
+Sender只在LocalCommitted且新权威读取精确witness与首档案均匹配后完成；FinalUnknown仍可保留已证实的本地提交。重复完成读取首次结果，即使业务后来继续推进，也不重新规划、发送或执行模型。当前为显式接入组件，默认应用装配、claim/refusal、其余evaluation终态与恢复责任仍分别受迁移门禁保护。真实依赖报告与合并/部署进度统一回链infra总表；模拟发送器和客户端主动丢弃提交回复不算实际Broker或网络级故障证明。
