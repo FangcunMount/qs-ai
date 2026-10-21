@@ -288,7 +288,10 @@ async def test_atomic_preparation_dispatch_emits_only_final_checkpoint_from_one_
         prepared = await prepare_step(
             tx, run_id, 3, 1, "worker:step", routes, schemas, clock=lambda: AT
         )
-        assert prepared.state.version == 5 and prepared.cp.phase == "dispatching"
+        assert prepared.state.version == 5 and prepared.cp.phase == "prepared"
+        # The return value keeps the preparation snapshot alongside the final state.
+        assert prepared.state.checkpoint is not None
+        assert prepared.state.checkpoint.phase == "dispatching"
         assert observed == [(5, "dispatching")]
         assert (await rows(tx, run_id))[2]["version"] == 5
     finally:
