@@ -10,6 +10,7 @@ from qs_ai.application.evaluation.management import ManagementScope
 from qs_ai.infrastructure.persistence.mysql.evaluation_management import MySQLEvaluationManagement
 from qs_ai.infrastructure.persistence.mysql.evaluation_semantic import (
     load_serial_semantic_state,
+    project_semantic_progress,
     read_semantic_acceptance,
 )
 from tests.integration.test_evaluation_completions import dispatched as dispatched
@@ -43,6 +44,17 @@ async def test_readonly_semantic_state_and_original_acceptor_keep_cancel_candida
         planned = await read_semantic_acceptance(
             db, run_id, 1, "worker:2", value, source.run, source.checkpoint, judge[3], lock=False
         )
+        projected = await project_semantic_progress(
+            db,
+            run_id,
+            value,
+            "worker:2",
+            source.run,
+            planned,
+            candidate_claim=False,
+            lock=False,
+            before_insert=True,
+        )
         assert planned.candidate["review_ready"] is True
         assert (
             planned.result is not None
@@ -71,6 +83,7 @@ async def test_readonly_semantic_state_and_original_acceptor_keep_cancel_candida
         assert candidate["candidate_json"]["accepted_semantic_execution_id"] == value.execution_id
         assert candidate["raw_output"] == generations[0]["raw_output"]
         assert (await rows(tx, run_id))[2]["version"] == source.version + 1
+        assert (await rows(tx, run_id))[0]["progress_json"] == json.loads(json.dumps(projected))
     else:
         assert await rows(tx, run_id) == before and await stored(tx, run_id) == generations
         assert await evidence(tx, run_id) == []
