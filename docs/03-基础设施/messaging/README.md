@@ -290,3 +290,5 @@ Broker第二轮39539009218暴露最后确认的适配缺口：固定SDK在最终
 [`ReviewStateInput/ReviewPlanFacts`](../../../src/qs_ai/infrastructure/workflow_transport/review_state_plan.py) 将完整的已授权评审输入绑定为稳定摘要，持久化源快照摘要及最多35项首次评审时间，不把完整正文塞入协议元数据，也不新增总计8KiB的RPC限制。原宿主持有不可变输入，原事务前恢复持久化赢家的首次时间和偏移；原事务重验输入摘要、源状态及全部原评审/审核规则，再共同提交业务、sequence、首次档案和witness。Checker仅读证据，不重建或补执行业务。
 
 评审沿用同一显式管理适配器及发送编排：半消息未确认准备成功不执行原事务；只有精确提交证明与首次档案都存在才返回原事务内取得的响应。提交未知保留未决责任，不返回版本冲突、不自动重做评审。原RPC无跨请求幂等键，每次调用保留原版本CAS语义。新增12项原生用例覆盖单项/35项、档案拒绝、客户端丢弃已完成提交回复、并发版本变化及实际RPC处理函数；DB-only runtime与客户端故障注入不冒充真实Broker、网络或进程故障，最终验收以infra总表为准。
+
+评审更正的原 [`correct_review/plan_review_correction`](../../../src/qs_ai/infrastructure/persistence/mysql/evaluation_review_corrections.py) 共享只读业务规划。精确 command ID 和输入的历史重放在版本/状态CAS之前判断，覆盖当前和重开前归档的更正记录；重放不写新状态、不新增事件、不生成或收养witness。原写入口仍配置RR并按checkpoint/Run顺序加锁，仅新更正保存原审核链，根提交归宿主。此抽取不是更正入口已迁移事务SDK，相关真实依赖验证与后续接入仍以infra总表为准。
