@@ -1,6 +1,6 @@
 """Poll started Runs; active checkpoints belong to recovery, never ordinary polling."""
 
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from uuid import UUID
 
@@ -42,6 +42,7 @@ class EvaluationWorker:
         candidate_limit: int = 1,
         capacity: ModelCapacity | None = None,
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+        preflight_dispatch: Callable[[UUID, int, int], Awaitable[None]] | None = None,
     ) -> None:
         if type(candidate_limit) is not int or not 1 <= candidate_limit <= 32:
             raise ValueError("Invalid candidate concurrency")
@@ -50,6 +51,7 @@ class EvaluationWorker:
         self.transactions = transactions
         self.gateway, self.routes, self.schemas = gateway, routes, schemas
         self.owner, self.enabled, self.clock = owner, enabled, clock
+        self._preflight_dispatch = preflight_dispatch
         self.recovery_cursor = recovery_cursor if recovery_cursor is not None else RecoveryCursor()
 
     async def once(self) -> bool:
@@ -118,11 +120,19 @@ class EvaluationWorker:
         try:
             with attempt_context(run_id=str(run_id)), operation("evaluation.step", "evaluation"):
                 if "preflight" not in row["progress_json"]:
-                    async with self.transactions.open() as db:
-                        await execute_preflight(
-                            db, run_id, row["version"], row["organization_id"], self.clock()
+                    if self._preflight_dispatch is not None:
+                        # The explicit state dispatcher prepares halves before
+                        # owning a separate original business root. This poll
+                        # owns only its read hint, never the new root commit.
+                        await self._preflight_dispatch(
+                            run_id, row["version"], row["organization_id"]
                         )
-                        await db.commit()
+                    else:
+                        async with self.transactions.open() as db:
+                            await execute_preflight(
+                                db, run_id, row["version"], row["organization_id"], self.clock()
+                            )
+                            await db.commit()
                 else:
                     await execute_step(
                         self.transactions,
