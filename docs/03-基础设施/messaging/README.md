@@ -477,3 +477,20 @@ ClaimStage 仅描述 miss/deferred/exhausted/claimed 的暂存结果。returned 
 
 
 无事件维护根在任何job或配额写入前，同根锁定并核对已安装的ai.mysql owner、store_id、writer epoch及schema版本，同时拒绝旧epoch的执行引用。协议证据存在于另一配置或旧writer，不构成当前业务库的维护授权；此保护不绑定新消息或改写旧Aborted状态。绑定不符必须拒绝而非降级，新增真实epoch变化拒绝用例与其余矩阵一并验收。
+
+
+显式授权衔接正在开发：TransactionRuntime.retry/replan只向SDK公开Sender入口传递宿主决策，临时封闭和最终停止均先拒绝新准入；不直接调用Store绕过SDK在途/关闭记账。InterpretationClaimSender.retry要求显式旧执行和同一个冻结候选，先核对首计划并新读原到期来源，再由SDK原子验证精确旧Aborted和新fence。它复用首次完整计划，不签名加密、不重建ID或时间，不把重复lookup当作新业务授权。新的owned执行仍复用原guard/业务/档案/witness和首次提交后移交边界；未取得资格不移交模型。
+
+本批当前仅在独立开发环境安装候选0.4.0a2 wheel（SHA256 5e9873836e393f9b28e214e7b8cb0e32d3046e2e90f498e2e6941d1f53267576），SDK从隔离site-packages导入，未使用SDK工作区或editable导入。仓库依赖锁和既有环境仍为已发布0.4.0a1；此候选覆盖不计required门禁或固定制品验收，固定修订发布并按真实URL/摘要重新安装后必须再验证。开发105组合目标、3417完整非集成/非interop单元零失败跳过、417类型通过，5原生仅收集。默认装配、scanner责任、其余终态及恢复、生产仍按infra总表独立推进。
+
+
+显式 [`TransactionalInterpretationExecutionStore`](../../../src/qs_ai/infrastructure/workflow_transport/transactional_interpretation_execution.py) 接通原20候选/原顺序的只读扫描，查询根在规划和MQ前关闭。每个候选先检查宿主准入；Prepared跳过，已确认Aborted的原到期job由宿主明确调用SDK公共Retry，CAS成功才使用新fence继续首次冻结计划。普通重复请求和Checker不调用重试，首次wire不重新Seal。首次提交且新权威读取witness、档案和活跃lease通过后才移交Claim；重复或耗尽不再次移交模型。
+
+只有原执行器实际发生配额拒绝且本地确认为Aborted时，才发出专用QuotaDenied信号。scanner还须重新查询精确中止证明，随后独立无事件job维护根沿用原绑定、锁和容量检查。半消息NotStarted/Unknown、取消或其他异常不能触发这项维护。renew/evidence继续委托原store，finish仍交给独立完成Sender；此组件显式opt-in，默认DI未启用，完整finalization/恢复与T17其他活动写入口仍需后续门禁。
+
+本批锁定已发布Python `0.4.0a2` URL及wheel摘要`570822f9ed51eee25001624858d30b7433468eb7da59e34348289c50a37cabb2`；其他第三方锁项未变，底层客户端仍5.1.2。替代前述仅开发候选环境后，已重新安装正式发布制品，122组合目标及3427非integration/noninterop回归、418源类型与lint/format通过；6新增scanner原生MySQL及3新增Broker入口仅收集，实际门禁回链infra总表。新的Broker档要求26宿主用例/64精确证据，不能重用旧23/59证明新源。源码009b287，不表示生产、稳定SDK、system或T18模型故障验收完成。
+
+
+无事件配额维护根使用局部JobOnlyEvents保护：新根继承的旧提交钩子只在该session中替换，拒绝interpretation状态写入、非空evaluation事件集、原根或记录器替换；提交前和EventSession提交钩子均校验该边界。独立维护拒绝BorrowedTransactions，不能替宿主提交已有业务事务。全局Database.state_events保留，正常业务记录器不受该局部session影响。
+
+该修订由真实Broker scanner配额用例发现：原fd141候选在已返回的Python3.11档中63/64证据通过，job-only根调用了被禁止的旧flush，隔离清理完整；失败报告保留在infra总表。54007b0修复候选通过127目标、3432完整本地单元（1182 integration/interop排除）、418源类型及lint/format；9项原生配额维护用例（新增3）仅收集，须按新源码重跑真实MySQL和26/64 Broker门禁，不能复用旧fd141通过项替代验收。生产和默认装配未变。

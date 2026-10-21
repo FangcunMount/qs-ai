@@ -278,6 +278,7 @@ class InterpretationClaimWrite:
         self.facts, self.archive = read_claim_plan(source, ttl_seconds, winner)
         self.store, self.source, self.ttl_seconds = store, source, ttl_seconds
         self.staged: ClaimStage | None = None
+        self.quota_denied = False
 
     async def __call__(self, db: AsyncSession, facts: InterpretationStateFacts) -> None:
         if facts != self.facts:
@@ -301,6 +302,7 @@ class InterpretationClaimWrite:
         )
         expected = "exhausted" if self.source.exhausted else "claimed"
         if staged.status != expected:
+            self.quota_denied = staged.status == "deferred"
             # Capacity denial has no visible state. Never commit a prepared running
             # event for this original no-event deferral. The outer root rolls back.
             raise LeaseLost("Original claim did not produce its frozen state")

@@ -222,22 +222,26 @@ class MySQLExecutionStore:
                 invocation_id=invocation_id,
             )
 
+    async def claim_candidates(self, db: AsyncSession) -> list[tuple[str, str]]:
+        """Original bounded due-job snapshot only; no lease or execution permission."""
+        rows = (
+            await db.execute(
+                select(jobs.c.id, jobs.c.session_id)
+                .where(_eligible_jobs())
+                .order_by(jobs.c.available_at, jobs.c.id)
+                .limit(20)
+            )
+        ).all()
+        return [(row.id, row.session_id) for row in rows]
+
     async def claim(self, ttl_seconds: int) -> Claim | None:
         if ttl_seconds < 3:
             raise ValueError("Lease TTL must be at least three seconds")
         async with self.transactions.open() as db:
-            candidates = (
-                await db.execute(
-                    select(jobs.c.id, jobs.c.session_id)
-                    .where(_eligible_jobs())
-                    .order_by(jobs.c.available_at, jobs.c.id)
-                    .limit(20)
-                )
-            ).all()
-            for candidate in candidates:
+            for job_id, session_id in await self.claim_candidates(db):
                 if db.get_transaction() is None:
                     await db.begin()
-                staged = await self.claim_in(db, candidate.id, candidate.session_id, ttl_seconds)
+                staged = await self.claim_in(db, job_id, session_id, ttl_seconds)
                 if staged.status != "miss":
                     await db.commit()
                 if staged.status in ("claimed", "exhausted"):

@@ -14,9 +14,11 @@ from reliable_messaging.transaction import (
     Execution,
     FrozenPlan,
     LocalExecutor,
+    ReplanAuthorization,
     Request,
     Reservation,
     Result,
+    RetryAuthorization,
 )
 from reliable_messaging.transaction_mysql import MySQLTransactionStore
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -24,10 +26,9 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from qs_ai.bootstrap.messaging import read_rocketmq_config
 from qs_ai.config import MessagingOptions
 from qs_ai.infrastructure.workflow_transport.messaging import EVENTS
-
-
-class TransactionAdmissionClosed(RuntimeError):
-    pass
+from qs_ai.infrastructure.workflow_transport.transaction_root import (
+    TransactionAdmissionClosed as TransactionAdmissionClosed,
+)
 
 
 class TransactionRuntime:
@@ -63,6 +64,16 @@ class TransactionRuntime:
         if not self._admitted or self._stopping:
             raise TransactionAdmissionClosed("Host transaction admission closed")
         return await self._sender.execute(execution, local)
+
+    async def retry(self, authorization: RetryAuthorization) -> Reservation:
+        if not self._admitted or self._stopping:
+            raise TransactionAdmissionClosed("Host transaction admission closed")
+        return await self._sender.retry(authorization)
+
+    async def replan(self, authorization: ReplanAuthorization) -> Reservation:
+        if not self._admitted or self._stopping:
+            raise TransactionAdmissionClosed("Host transaction admission closed")
+        return await self._sender.replan(authorization)
 
     def stop_admission(self) -> None:
         self._admitted = False
