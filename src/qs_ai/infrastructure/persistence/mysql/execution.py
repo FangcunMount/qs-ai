@@ -456,6 +456,7 @@ class MySQLExecutionStore:
         result: WorkflowResult,
         *,
         question_id: str | None = None,
+        question_sequence: int | None = None,
         state_event_id: str | None = None,
         at: datetime | None = None,
         artifact_identity: ArtifactIdentity | None = None,
@@ -473,6 +474,12 @@ class MySQLExecutionStore:
             raise ValueError("Canonical frozen finish identities required")
         if question_id is not None and result.question is None:
             raise ValueError("Frozen question identity requires an original question result")
+        if question_sequence is not None and (
+            result.question is None
+            or type(question_sequence) is not int
+            or not 0 < question_sequence < 2**31
+        ):
+            raise ValueError("Exact frozen original question sequence required")
         if at is not None and (not isinstance(at, datetime) or at.utcoffset() is None):
             raise ValueError("Aware frozen finish clock required")
         if artifact_identity is not None and (
@@ -548,6 +555,8 @@ class MySQLExecutionStore:
                 )
                 or 0
             ) + 1
+            if question_sequence is not None and question_sequence != seq:
+                raise ValueError("Frozen original question sequence changed")
             await db.execute(
                 insert(questions).values(
                     id=question_id,

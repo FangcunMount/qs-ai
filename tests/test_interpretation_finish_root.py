@@ -178,6 +178,39 @@ async def test_borrowed_finish_detects_replaced_root_without_claiming_commit(ori
     with pytest.raises(BindingError):
         await p.store.finish_in(p.db, p.claim, WorkflowResult("checkpoint:original"))
     p.db.commit.assert_not_called()
+
+
+@pytest.mark.parametrize("sequence", [0, -1, True, 2**31, "3"])
+async def test_frozen_question_sequence_is_validated_before_original_business(original, sequence):
+    p = original
+    with pytest.raises(ValueError):
+        await p.store.finish_in(
+            p.db,
+            p.claim,
+            WorkflowResult("checkpoint:first", question="first question"),
+            question_id=str(uuid4()),
+            question_sequence=sequence,
+        )
+    p.store._guard.assert_not_called()
+    p.db.commit.assert_not_called()
+
+
+@pytest.mark.parametrize("sequence", [2, 3])
+async def test_frozen_question_sequence_must_match_original_count_in_same_root(original, sequence):
+    p = original
+    result = WorkflowResult("checkpoint:first", question="first question")
+    if sequence == 2:
+        with pytest.raises(ValueError, match="sequence changed"):
+            await p.store.finish_in(
+                p.db, p.claim, result, question_id=str(uuid4()), question_sequence=sequence
+            )
+        assert p.events == ["original_guard"]
+    else:
+        await p.store.finish_in(
+            p.db, p.claim, result, question_id=str(uuid4()), question_sequence=sequence
+        )
+        assert p.session.status == Status.AWAITING_ANSWER
+    p.db.commit.assert_not_called()
     p.db.rollback.assert_not_called()
 
 
