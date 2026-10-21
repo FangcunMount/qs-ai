@@ -6,6 +6,7 @@ from dataclasses import replace
 import pytest
 from sqlalchemy import delete, update
 
+from qs_ai.domain.evaluation.failure import ClassifiedFailure
 from qs_ai.infrastructure.persistence.mysql.completion_records import (
     generation_completions,
     select_records,
@@ -20,6 +21,7 @@ from qs_ai.infrastructure.persistence.mysql.evaluation_candidate_plan import (
 )
 from qs_ai.infrastructure.persistence.mysql.evaluation_candidate_records import (
     semantic_terminal_records,
+    virtual_blocked_execution,
 )
 from qs_ai.infrastructure.persistence.mysql.evaluation_completion_progress import (
     semantic_completion_progress,
@@ -49,12 +51,28 @@ from tests.integration.test_semantic_completions import judge as judge
 pytestmark = pytest.mark.integration
 
 
+@pytest.mark.parametrize("unknown", [False, True])
 @pytest.mark.parametrize("other", [False, True])
 @pytest.mark.parametrize("commit", [False, True])
 async def test_virtual_candidate_semantic_records_match_original_root_commit_and_rollback(
-    judge, other, commit
+    judge, other, commit, unknown
 ):
     tx, run_id, value, routes = judge
+    if unknown:
+        value = replace(
+            value,
+            status="result_unknown",
+            failure=ClassifiedFailure(
+                "semantic_evaluation",
+                "result_unknown",
+                "provider_result_unknown",
+                False,
+                True,
+                "manual_acknowledgement",
+                "Original unknown evidence",
+                (value.execution_id,),
+            ),
+        )
     # Isolated original evidence is reused to seed candidate ownership. This is
     # neither a production migration nor permission to convert live serial Runs.
     async with tx.open() as db:
@@ -140,6 +158,11 @@ async def test_virtual_candidate_semantic_records_match_original_root_commit_and
                 value.finished_at,
                 active=virtual.active,
                 plan=plan,
+                blocked_evidence=virtual_blocked_execution(
+                    virtual, progress, "result_unknown_requires_review", plan.blocked
+                )
+                if unknown
+                else None,
             )
         assert version == 8 and await rows(tx, run_id) == before
         assert await stored(tx, run_id) == generations_before and await evidence(tx, run_id) == []

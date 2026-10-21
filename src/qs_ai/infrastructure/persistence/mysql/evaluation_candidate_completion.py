@@ -160,6 +160,7 @@ async def candidate_completion_progress(
     *,
     active: tuple[SlotClaim, ...],
     plan: ParallelPlan,
+    blocked_evidence: tuple[str, datetime] | None = None,
 ) -> dict:
     """Original aggregate rules over validated post-completion data, without writes.
 
@@ -178,7 +179,11 @@ async def candidate_completion_progress(
     reference = claim.checkpoint.execution_id
     evidence_time: dict[str, str] = {}
     if target == "blocked":
-        reference, failed_at = await _blocked_execution(db, run_id, progress, cause, plan.blocked)
+        reference, failed_at = (
+            blocked_evidence
+            if blocked_evidence is not None
+            else await _blocked_execution(db, run_id, progress, cause, plan.blocked)
+        )
         if cause == "semantic_recovery_not_allowed":
             # Another candidate may have failed before an earlier recovery was
             # authorized. Record the new block now without changing that evidence.

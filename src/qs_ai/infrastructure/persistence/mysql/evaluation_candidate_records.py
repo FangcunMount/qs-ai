@@ -1,6 +1,7 @@
 """Readonly candidate terminal overlays; never release ownership or prove a commit."""
 
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
@@ -92,3 +93,49 @@ def semantic_terminal_records(
         updated,
         (*semantics, semantic_terminal_values(run_id, completion, accepted)),
     )
+
+
+def virtual_blocked_execution(
+    records: CandidateTerminalRecords, progress: dict, cause: str, blocked: tuple
+) -> tuple[str, datetime]:
+    """Select original block evidence from the exact proposed record view.
+
+    This is planning data. The original writer still reads real durable evidence
+    in _blocked_execution; it does not trust a virtual selection as commit proof.
+    """
+    if cause == "result_unknown_requires_review":
+        resolved = {
+            value["execution_id"] for value in progress.get("result_unknown_resolutions", [])
+        }
+        unknowns = [
+            row
+            for row in (*records.generations, *records.semantics)
+            if row["execution_id"] not in resolved
+            and row["evidence_json"]["status"] == "result_unknown"
+        ]
+        if not unknowns:
+            raise CheckpointConflict("Unresolved unknown result lacks terminal evidence")
+        row = min(unknowns, key=lambda item: item["evidence_json"]["finished_at"])
+    else:
+        if not blocked or blocked[0].cause != cause:
+            raise CheckpointConflict("Blocked candidate differs from projected cause")
+        action = blocked[0]
+        semantic = cause.startswith("semantic_")
+        if not semantic and not cause.startswith("generation_"):
+            raise CheckpointConflict("Unsupported candidate block cause")
+        source = records.semantics if semantic else records.generations
+
+        def matches(row: Any) -> bool:
+            if semantic:
+                return bool(row["candidate_id"] == action.candidate_id)
+            return (row["case_id"], row["slot_ordinal"]) == (action.case_id, action.slot_ordinal)
+
+        rows = [
+            r
+            for r in source
+            if r["execution_ordinal"] == action.execution_ordinal - 1 and matches(r)
+        ]
+        if len(rows) != 1 or rows[0]["evidence_json"]["status"] == "succeeded":
+            raise CheckpointConflict("Candidate block lacks failed terminal evidence")
+        row = rows[0]
+    return row["execution_id"], datetime.fromisoformat(row["evidence_json"]["finished_at"])
