@@ -20,7 +20,7 @@ from qs_ai.infrastructure.workflow_transport.transaction_command import (
     read_admission_plan,
 )
 
-_MAGIC_BY_KIND = {
+_MAGIC_BY_KIND: dict[int, bytes] = {
     pb.CHANGE: b"qs-ai-change-plan/v1\0",
     pb.PARTICIPANT_RETRY: b"qs-ai-participant-retry-plan/v1\0",
 }
