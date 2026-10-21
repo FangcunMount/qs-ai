@@ -2,7 +2,7 @@
 
 import asyncio
 import json
-from dataclasses import asdict
+from dataclasses import asdict, dataclass, field
 from uuid import UUID
 
 from sqlalchemy import select, update
@@ -51,6 +51,58 @@ from qs_ai.infrastructure.qs_server.evaluation_assertions import (
 from qs_ai.infrastructure.qs_server.semantic_output import parse_semantic_output
 
 
+@dataclass(frozen=True)
+class SerialSemanticState:
+    """Scoped source data, not candidate ownership, commit proof or model authority."""
+
+    version: int
+    checkpoint: ExecutionCheckpoint | None = field(repr=False)
+    run: dict | RowMapping = field(repr=False)
+
+
+async def load_serial_semantic_state(
+    db: AsyncSession,
+    run_id: UUID,
+    expected_version: int,
+    organization_id: int,
+    *,
+    lock: bool,
+) -> SerialSemanticState:
+    """Original serial state/cancellation boundary; candidate validation remains separate.
+
+    The readonly planner must still verify accepted generation, exact candidate,
+    terminal/dispatch history and immutable assets. The original writer repeats
+    these scoped reads with locks and retains all those original validations.
+    """
+    checkpoint_query = select(evaluation_checkpoints).where(
+        evaluation_checkpoints.c.run_id == str(run_id)
+    )
+    if lock:
+        checkpoint_query = checkpoint_query.with_for_update()
+    checkpoint = (await db.execute(checkpoint_query)).mappings().one_or_none()
+    if checkpoint is None:
+        raise CheckpointConflict("Run version changed")
+    cp = decode(checkpoint["checkpoint_json"])
+    run_query = select(evaluation_runs).where(
+        evaluation_runs.c.run_id == str(run_id),
+        evaluation_runs.c.organization_id == organization_id,
+    )
+    if lock:
+        run_query = run_query.with_for_update()
+    run = (await db.execute(run_query)).mappings().one_or_none()
+    if run is None or not run["progress_json"] or run["progress_json"]["status"] != "collecting":
+        raise CheckpointConflict("Collecting Run in organization required")
+    if checkpoint["version"] != expected_version:
+        intent = run["progress_json"].get("cancel_requested", {})
+        if (
+            intent.get("source_version") != expected_version
+            or intent.get("version") != checkpoint["version"]
+        ):
+            raise CheckpointConflict("Run version changed outside cancellation")
+        expected_version = checkpoint["version"]
+    return SerialSemanticState(expected_version, cp, run)
+
+
 async def complete_semantic(
     db: AsyncSession,
     run_id: UUID,
@@ -68,50 +120,10 @@ async def complete_semantic(
         run, expected_version, claim = await completion_owner(db, run_id, organization_id, claim)
         cp = claim.checkpoint
     else:
-        checkpoint = (
-            (
-                await db.execute(
-                    select(evaluation_checkpoints)
-                    .where(evaluation_checkpoints.c.run_id == str(run_id))
-                    .with_for_update()
-                )
-            )
-            .mappings()
-            .one_or_none()
+        source = await load_serial_semantic_state(
+            db, run_id, expected_version, organization_id, lock=True
         )
-        if checkpoint is None:
-            raise CheckpointConflict("Run version changed")
-        cp = decode(checkpoint["checkpoint_json"])
-        run = (
-            (
-                await db.execute(
-                    select(evaluation_runs)
-                    .where(
-                        evaluation_runs.c.run_id == str(run_id),
-                        evaluation_runs.c.organization_id == organization_id,
-                    )
-                    .with_for_update()
-                )
-            )
-            .mappings()
-            .one_or_none()
-        )
-        if (
-            run is None
-            or not run["progress_json"]
-            or run["progress_json"]["status"] != "collecting"
-        ):
-            raise CheckpointConflict("Collecting Run in organization required")
-    if claim is None:
-        assert checkpoint is not None
-    if claim is None and checkpoint is not None and checkpoint["version"] != expected_version:
-        intent = run["progress_json"].get("cancel_requested", {})
-        if (
-            intent.get("source_version") != expected_version
-            or intent.get("version") != checkpoint["version"]
-        ):
-            raise CheckpointConflict("Run version changed outside cancellation")
-        expected_version = checkpoint["version"]
+        run, cp, expected_version = source.run, source.checkpoint, source.version
     # Use the conditional unique key for the original single-candidate lock boundary.
     row = (
         (
