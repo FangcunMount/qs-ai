@@ -29,6 +29,7 @@ from qs_ai.infrastructure.workflow_transport.admission_receipts import (
     build_receipt_body,
 )
 from qs_ai.infrastructure.workflow_transport.command_admission import WorkflowCommandAdmission
+from qs_ai.infrastructure.workflow_transport.frozen_change_admission import FrozenChangeAdmission
 from qs_ai.infrastructure.workflow_transport.frozen_start_admission import FrozenStartAdmission
 from qs_ai.infrastructure.workflow_transport.frozen_start_events import (
     FrozenInterpretationEvents,
@@ -71,6 +72,32 @@ def make_start_root(
         reservation_token=action.facts.reservation_token,
         business=action,
         events=FrozenStartEvents(incoming, winner),
+        database_seconds=database_seconds,
+    )
+
+
+def make_change_root(
+    transactions: Transactions,
+    archives: TransactionArchive,
+    store: MySQLTransactionStore,
+    inbox: MessagingStore,
+    incoming: FrozenCommandInput,
+    winner: FrozenPlan,
+    admission: WorkflowCommandAdmission,
+    *,
+    database_seconds: float = 2,
+) -> "AdmissionRoot":
+    """Build a keyless CHANGE executor from the persisted winner, no new I/O."""
+    action = FrozenChangeAdmission(incoming, winner, admission)
+    return AdmissionRoot(
+        transactions,
+        archives,
+        store,
+        inbox,
+        incoming,
+        reservation_token=action.facts.reservation_token,
+        business=action,
+        events=FrozenInterpretationEvents(incoming, winner),
         database_seconds=database_seconds,
     )
 
