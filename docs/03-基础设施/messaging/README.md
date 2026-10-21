@@ -423,3 +423,6 @@ interpretation首业务历史的keyless校验现由 [`InterpretationStateTranscr
 [`InterpretationStateRoot`](../../../src/qs_ai/infrastructure/workflow_transport/interpretation_state_root.py) 只接受一次owned执行，在原RR根先绑定SDK guard，再交由宿主业务暂存；同根检查后转录精确首历史，将档案和全部witness与业务共同提交。确认丢失通过新权威读取收敛，不以业务返回值、取消或lease到期猜测回滚。构造不打开连接或启动客户端，回查和关闭仍归宿主SDK生命周期。
 
 这些通用基础不授权业务或模型；具体finish/claim/candidate/recovery的首源读取、执行资格及完整Sender仍须接通并独立验证。原根故障用例直接调用存储/执行器，不能当作半消息、真实Broker、成对QS或system验收；当前源码/CI/合并/运行状态仅维护在infra总表。
+
+
+原 [`MySQLExecutionStore.read_claim`](../../../src/qs_ai/infrastructure/persistence/mysql/execution.py) 提供只读来源视图，沿用原Session状态/version/active Run、job租用/fence、活跃lease/fence及session→job→lease的读取规则。原_guard显式lock=True，原锁顺序和业务条件保留；只读来源不取写锁、不提交，也不延长lease或赋予执行资格。规划后的真正根仍须重新竞争并验证原活跃所有权，不能把较早快照当作未来执行授权。完整接入、故障和部署状态回链infra总表。
