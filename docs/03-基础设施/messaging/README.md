@@ -343,3 +343,6 @@ Solution Prepare 的显式事务适配现由 [`SolutionPreparationInput/Facts`](
 [`TransactionalSolutions`](../../../src/qs_ai/infrastructure/workflow_transport/transactional_solutions.py) 只显式替换 Prepare；Create/Save 继续委托原写入口，连接池和运行生命周期仍由宿主持有。重复 Prepare 先验证原回执的组织、操作者和输入，再读取精确 SDK 记录：没有协议记录的历史回执只读返回，已有 Prepared/Aborted 不自动重建或收养。Committed 必须重新核对精确 witness、首次 wire 档案和原回执摘要；不能用当前视图或内存中的结果证明提交。LocalCommitted + FinalUnknown 保留已证实的业务成功；模型调用、业务重试和自动回退均不在此适配中执行。
 
 本批本地56项目标测试及3061项非集成、非interop回归通过。新增27项真实 MySQL 用例仅在本地收集，覆盖两种首次模式、档案/witness拒绝、客户端丢弃已完成提交回复、源冲突、实际 Prepare 处理器、并发、首次回执与越权保护；DB-only transport 不作为 Broker、mTLS、QS成对业务或网络级故障证明。执行结果及源 SHA 以 infra 总表为准，统一默认装配继续关闭。
+
+
+显式真实 SDK/Broker 验收档新增 Solution Prepare 实际处理器：全部半消息准备后暂停原根，验证不可消费且资产/Run尚未提交；放行原根并在客户端丢弃已完成最终确认回复后，核对首次资产、业务回执、wire 与精确 witness，再用原命令重放证明没有新发送。另一用例在半消息后由原旧写者改变源状态，验证新执行回滚、无新档案/可消费消息且竞争事实保留。扩展后总计10个宿主用例、30项必需证据，本地仅收集；客户端丢弃回复不等同网络级提交故障，事件观察者也不等同 QS 成对业务或 system 验收。
