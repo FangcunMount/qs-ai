@@ -1,9 +1,11 @@
 """A retry atomically creates a new run, budget reservation, audit and result event."""
 
 from dataclasses import asdict
+from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import insert, select
+from sqlalchemy import Select, insert, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from qs_ai.application.execution.capacity import ParticipantCapacityPolicy
 from qs_ai.application.execution.retry import (
@@ -14,7 +16,7 @@ from qs_ai.application.execution.retry import (
 )
 from qs_ai.application.governance.prompt_drafts import DraftScope
 from qs_ai.application.governance.quotas import QuotaBaseline
-from qs_ai.application.interpretation.ports import NotFound, Receipt
+from qs_ai.application.interpretation.ports import NotFound, Receipt, UnitOfWork
 from qs_ai.application.interpretation.service import fingerprint
 from qs_ai.domain.interpretation.model import RuleViolation
 from qs_ai.infrastructure.persistence.model_call_codec import JSONModelCallCodec
@@ -39,6 +41,20 @@ class MySQLParticipantRetries:
     ) -> None:
         self.transactions, self.capacity = transactions, capacity
         self.quota_baseline = quota_baseline
+
+    def _unit(self, db: AsyncSession) -> UnitOfWork:
+        return MySQLUnitOfWork(
+            db, self.capacity, self.quota_baseline, commit=self.transactions.commit
+        )
+
+    def _new_run(self) -> str:
+        return str(uuid4())
+
+    def _current(self, statement: Select[Any]) -> Select[Any]:
+        return statement.with_for_update()
+
+    async def _record_retry(self, db: AsyncSession, values: dict[str, Any]) -> None:
+        await db.execute(insert(participant_retries).values(**values))
 
     async def get(self, scope: DraftScope, session_id: str) -> ParticipantExecution:
         async with self.transactions.open() as db:
@@ -154,9 +170,7 @@ class MySQLParticipantRetries:
 
     async def retry(self, command: ParticipantRetry) -> Receipt:
         async with self.transactions.open() as db:
-            uow = MySQLUnitOfWork(
-                db, self.capacity, self.quota_baseline, commit=self.transactions.commit
-            )
+            uow = self._unit(db)
             previous = await uow.reserve(
                 fingerprint(["participant-retry-v1", command.scope.organization_id]),
                 command.command_id,
@@ -171,12 +185,12 @@ class MySQLParticipantRetries:
             source_run = (
                 (
                     await db.execute(
-                        select(runs)
-                        .where(
-                            runs.c.id == command.expected_run_id,
-                            runs.c.session_id == session.id,
+                        self._current(
+                            select(runs).where(
+                                runs.c.id == command.expected_run_id,
+                                runs.c.session_id == session.id,
+                            )
                         )
-                        .with_for_update()
                     )
                 )
                 .mappings()
@@ -192,9 +206,7 @@ class MySQLParticipantRetries:
             job = (
                 (
                     await db.execute(
-                        select(jobs)
-                        .where(jobs.c.run_id == command.expected_run_id)
-                        .with_for_update()
+                        self._current(select(jobs).where(jobs.c.run_id == command.expected_run_id))
                     )
                 )
                 .mappings()
@@ -205,9 +217,11 @@ class MySQLParticipantRetries:
             call = (
                 (
                     await db.execute(
-                        select(model_calls)
-                        .where(model_calls.c.run_id == command.expected_run_id)
-                        .with_for_update()
+                        self._current(
+                            select(model_calls).where(
+                                model_calls.c.run_id == command.expected_run_id
+                            )
+                        )
                     )
                 )
                 .mappings()
@@ -243,12 +257,13 @@ class MySQLParticipantRetries:
             ):
                 raise RuleViolation("participant_retry_requires_accepted_configuration")
             failure = session.failure_code
-            session.retry(command.expected_run_id, str(uuid4()))
+            session.retry(command.expected_run_id, self._new_run())
             await uow.enqueue(session, None, False, None)
             await uow.save(session)
             receipt = Receipt(session.id, session.active_run_id, session.status, session.version)
-            await db.execute(
-                insert(participant_retries).values(
+            await self._record_retry(
+                db,
+                dict(
                     organization_id=command.scope.organization_id,
                     command_id=command.command_id,
                     session_id=session.id,
@@ -262,7 +277,7 @@ class MySQLParticipantRetries:
                     source_failure_code=failure,
                     frozen_request_json=frozen_request,
                     receipt=asdict(receipt),
-                )
+                ),
             )
             await uow.receipt(
                 fingerprint(["participant-retry-v1", command.scope.organization_id]),
