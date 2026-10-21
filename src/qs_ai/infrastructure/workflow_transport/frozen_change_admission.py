@@ -23,10 +23,10 @@ from qs_ai.infrastructure.workflow_transport.admission_receipts import (
     AdmissionDecision,
     refusal_decision,
 )
-from qs_ai.infrastructure.workflow_transport.change_plan import ChangePlanFacts
 from qs_ai.infrastructure.workflow_transport.command_admission import WorkflowCommandAdmission
 from qs_ai.infrastructure.workflow_transport.frozen_authorization import FrozenEvidenceSource
 from qs_ai.infrastructure.workflow_transport.frozen_start_events import FrozenInterpretationEvents
+from qs_ai.infrastructure.workflow_transport.interpretation_plan import InterpretationMutationFacts
 from qs_ai.infrastructure.workflow_transport.transaction_command import FrozenCommandInput
 
 
@@ -35,7 +35,7 @@ class FrozenChangeAdmission:
         self, incoming: FrozenCommandInput, plan: FrozenPlan, admission: WorkflowCommandAdmission
     ) -> None:
         self._incoming = incoming
-        self._facts = ChangePlanFacts.from_plan(incoming, plan)
+        self._facts = InterpretationMutationFacts.from_plan(incoming, plan)
         self._plan_digest, self._base = plan.digest, admission
         self._source = FrozenEvidenceSource(self._facts.authorization)
         self._admission = WorkflowCommandAdmission(
@@ -49,7 +49,7 @@ class FrozenChangeAdmission:
         )
 
     @property
-    def facts(self) -> ChangePlanFacts:
+    def facts(self) -> InterpretationMutationFacts:
         return self._facts
 
     def _service(self, transactions: Transactions) -> InterpretationService:

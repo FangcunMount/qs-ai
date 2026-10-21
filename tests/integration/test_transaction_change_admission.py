@@ -24,8 +24,8 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
     runs,
     sessions,
 )
-from qs_ai.infrastructure.workflow_transport.change_plan import ChangePlanFacts
 from qs_ai.infrastructure.workflow_transport.change_planner import ChangeAdmissionPlanner
+from qs_ai.infrastructure.workflow_transport.interpretation_plan import InterpretationMutationFacts
 from qs_ai.infrastructure.workflow_transport.messaging import COMMANDS, authenticate
 from qs_ai.infrastructure.workflow_transport.transaction_admission import make_change_root
 from qs_ai.infrastructure.workflow_transport.transaction_command import (
@@ -120,7 +120,7 @@ async def test_original_change_commits_business_first_state_receipt_and_all_witn
     candidate = await ChangeAdmissionPlanner(
         host.tx, source, signing_key=host.keys["ai.sign"], recipient_key=host.keys["qs.encrypt"]
     ).candidate(message)
-    facts = ChangePlanFacts.from_plan(message, candidate)
+    facts = InterpretationMutationFacts.from_plan(message, candidate)
     owned = (await reserve(host, message, candidate)).execution
     assert source.authorize.await_count == 1
     source.authorize.side_effect = AssertionError("remote client forbidden after half preparation")
@@ -164,7 +164,7 @@ async def test_changed_authorization_target_aborts_whole_root_without_new_busine
         recipient_key=host.keys["qs.encrypt"],
     ).candidate(message)
     owned = (await reserve(host, message, candidate)).execution
-    facts = ChangePlanFacts.from_plan(message, owned.plan)
+    facts = InterpretationMutationFacts.from_plan(message, owned.plan)
     async with host.tx.open() as db:
         await db.execute(
             update(sessions).where(sessions.c.id == first.session.id).values(testee_id=20)

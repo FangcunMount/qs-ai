@@ -13,7 +13,7 @@ from jwcrypto import jwk
 from qs_ai.application.interpretation.ports import AccessDenied
 from qs_ai.contracts.workflow import messaging_pb2 as pb
 from qs_ai.infrastructure.workflow_transport import change_planner as planning
-from qs_ai.infrastructure.workflow_transport.change_plan import ChangePlanFacts
+from qs_ai.infrastructure.workflow_transport.interpretation_plan import InterpretationMutationFacts
 from qs_ai.infrastructure.workflow_transport.transaction_command import (
     FrozenCommandInput,
     read_admission_plan,
@@ -84,7 +84,7 @@ async def test_complete_change_plan_uses_original_rules_and_preallocated_resourc
     f = fixture(monkeypatch, action=action)
     assert not f.ids and f.read.db.execute.await_count == 0
     plan = await f.planner.candidate(f.incoming)
-    facts = ChangePlanFacts.from_plan(f.incoming, plan)
+    facts = InterpretationMutationFacts.from_plan(f.incoming, plan)
     values = read_admission_plan(f.incoming, plan)
     receipt = pb.MessagingBody.FromString(values[0].body).command_receipt
     state = pb.MessagingBody.FromString(values[1].body).interpretation_state
@@ -101,7 +101,7 @@ async def test_complete_change_plan_uses_original_rules_and_preallocated_resourc
 async def test_qs_snapshot_does_not_invent_a_remote_authorization_proof(monkeypatch):
     f = fixture(monkeypatch, snapshot=True)
     plan = await f.planner.candidate(f.incoming)
-    assert ChangePlanFacts.from_plan(f.incoming, plan).authorization is None
+    assert InterpretationMutationFacts.from_plan(f.incoming, plan).authorization is None
     f.read.source.authorize.assert_not_called()
 
 
@@ -109,7 +109,7 @@ async def test_explicit_remote_denial_freezes_only_original_rejection(monkeypatc
     f = fixture(monkeypatch)
     f.read.source.authorize.side_effect = AccessDenied()
     plan = await f.planner.candidate(f.incoming)
-    facts = ChangePlanFacts.from_plan(f.incoming, plan)
+    facts = InterpretationMutationFacts.from_plan(f.incoming, plan)
     receipt = pb.MessagingBody.FromString(
         read_admission_plan(f.incoming, plan)[0].body
     ).command_receipt
@@ -132,7 +132,7 @@ async def test_unknown_dependency_does_not_freeze_a_false_business_refusal(monke
 async def test_invalid_original_command_has_only_its_durable_rejection_and_no_reads(monkeypatch):
     f = fixture(monkeypatch, action="unsupported")
     plan = await f.planner.candidate(f.incoming)
-    facts = ChangePlanFacts.from_plan(f.incoming, plan)
+    facts = InterpretationMutationFacts.from_plan(f.incoming, plan)
     receipt = pb.MessagingBody.FromString(
         read_admission_plan(f.incoming, plan)[0].body
     ).command_receipt

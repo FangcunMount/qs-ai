@@ -29,8 +29,8 @@ from qs_ai.infrastructure.workflow_transport.admission_receipts import (
     build_receipt_body,
     refusal_decision,
 )
-from qs_ai.infrastructure.workflow_transport.change_plan import ChangePlanFacts
 from qs_ai.infrastructure.workflow_transport.frozen_authorization import RecordingEvidenceSource
+from qs_ai.infrastructure.workflow_transport.interpretation_plan import InterpretationMutationFacts
 from qs_ai.infrastructure.workflow_transport.messaging import prepare
 from qs_ai.infrastructure.workflow_transport.transaction_command import (
     FrozenCommandInput,
@@ -70,7 +70,7 @@ class ChangeAdmissionPlanner:
         if envelope.kind != pb.CHANGE:
             raise ValueError("Only authenticated original CHANGE planning supported")
         operation_id, receipt_id = self._new_id(), self._new_id()
-        facts = ChangePlanFacts(
+        facts = InterpretationMutationFacts(
             incoming.request.input_hash,
             self._clock(),
             body.change.session_id,
@@ -139,5 +139,5 @@ class ChangeAdmissionPlanner:
         plan = freeze_admission_plan(
             incoming, operation_id, tuple(publications), context=facts.encode()
         )
-        ChangePlanFacts.from_plan(incoming, plan)
+        InterpretationMutationFacts.from_plan(incoming, plan)
         return plan
