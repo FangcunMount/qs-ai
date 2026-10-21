@@ -26,7 +26,7 @@ from qs_ai.infrastructure.workflow_transport.transaction_command import (
 class FrozenInterpretationEvents:
     def __init__(self, incoming: FrozenCommandInput, plan: FrozenPlan) -> None:
         archives = read_admission_plan(incoming, plan)
-        if incoming.envelope().kind not in (pb.START, pb.CHANGE):
+        if incoming.envelope().kind not in (pb.START, pb.CHANGE, pb.PARTICIPANT_RETRY):
             raise ValueError("Original interpretation or CHANGE state transcription required")
         states = [a for a in archives if a.envelope().kind == pb.INTERPRETATION_STATE]
         if len(states) > 1:

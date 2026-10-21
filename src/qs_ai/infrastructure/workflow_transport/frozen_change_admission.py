@@ -34,6 +34,8 @@ class FrozenChangeAdmission:
     def __init__(
         self, incoming: FrozenCommandInput, plan: FrozenPlan, admission: WorkflowCommandAdmission
     ) -> None:
+        if incoming.envelope().kind != pb.CHANGE:
+            raise BindingError("Only original CHANGE action supported")
         self._incoming = incoming
         self._facts = InterpretationMutationFacts.from_plan(incoming, plan)
         self._plan_digest, self._base = plan.digest, admission
