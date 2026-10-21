@@ -2,7 +2,9 @@
 
 import hashlib
 import json
-from dataclasses import asdict
+from collections.abc import Iterator
+from contextlib import contextmanager
+from dataclasses import asdict, dataclass
 from uuid import UUID
 
 from jsonschema import Draft202012Validator
@@ -26,7 +28,7 @@ from qs_ai.application.interpretation.input import (
     MBTIInputPolicy,
     MBTIThematicInputPolicy,
 )
-from qs_ai.application.interpretation.ports import Claim, NotFound
+from qs_ai.application.interpretation.ports import AdmissionRejected, Claim, NotFound
 from qs_ai.application.interpretation.preparation import prepare_explanation
 from qs_ai.application.interpretation.prompt_assets import executable_prompt
 from qs_ai.application.interpretation.route_assets import executable_route
@@ -151,24 +153,58 @@ async def compile_configuration(
     )
 
 
-async def bind_configuration(
+@dataclass(frozen=True)
+class PlannedConfiguration:
+    session_id: str
+    evidence_set_id: str
+    evidence_fingerprint: str
+    publication_id: str
+    publication_sha256: str
+    pointer_version: int
+    selector_query: str
+
+
+class ConfigurationPlanConflict(RuntimeError):
+    """Abort a stale frozen plan; never reinterpret it as a business refusal."""
+
+
+@contextmanager
+def configuration_refusals() -> Iterator[None]:
+    """Share the original deterministic-refusal boundary with read planning."""
+    try:
+        yield
+    except RuleViolation as error:
+        code = (
+            "configuration_unavailable"
+            if error.code == "configuration_unavailable"
+            else "admission_input_invalid"
+        )
+        raise AdmissionRejected(code) from None
+    except InvalidInput:
+        raise AdmissionRejected("admission_input_invalid") from None
+    except (ValueError, NotFound, SchemaError, KeyError, TypeError):
+        raise AdmissionRejected("admission_configuration_invalid") from None
+
+
+async def plan_configuration(
     db: AsyncSession,
     session: Session,
     evidence: EvidenceSet,
     models: EditableModelPolicy = DEFAULT_EDITABLE_MODELS,
-) -> None:
-    """Caller owns the same transaction as task acceptance and idempotency receipt."""
+    *,
+    lock: bool = False,
+) -> PlannedConfiguration:
+    """Read and validate the original binding without staging any business fact.
+
+    The ordinary planner does not lock. A frozen root recheck explicitly locks
+    pointers in a stable order and holds them through the host's root commit.
+    """
     query = report_selector(session, evidence)
     selectors = query.admission_candidates()
-    rows = (
-        (
-            await db.execute(
-                select(pointers).where(pointers.c.selector_key.in_([q.key() for q in selectors]))
-            )
-        )
-        .mappings()
-        .all()
-    )
+    statement = select(pointers).where(pointers.c.selector_key.in_([q.key() for q in selectors]))
+    if lock:
+        statement = statement.order_by(pointers.c.selector_key).with_for_update()
+    rows = (await db.execute(statement)).mappings().all()
     candidates = [await load_pointer(db, row) for row in rows]
     publication = resolve_publication(tuple(candidates), query)
     if publication is None:
@@ -178,17 +214,30 @@ async def bind_configuration(
     prepared = prepare_explanation(session, evidence, config.release, config.package)
     config.validate_input(prepared.assembled_input.canonical_json)
     pointer = next(p for p in candidates if p.active == publication)
-    await db.execute(
-        insert(bindings).values(
-            session_id=session.id,
-            evidence_set_id=evidence.id,
-            evidence_fingerprint=evidence.fingerprint,
-            publication_id=str(publication.publication_id),
-            publication_sha256=publication_hash(publication),
-            pointer_version=pointer.version,
-            selector_query=canonical(asdict(query)),
-        )
+    return PlannedConfiguration(
+        session.id,
+        evidence.id,
+        evidence.fingerprint,
+        str(publication.publication_id),
+        publication_hash(publication),
+        pointer.version,
+        canonical(asdict(query)),
     )
+
+
+async def bind_configuration(
+    db: AsyncSession,
+    session: Session,
+    evidence: EvidenceSet,
+    models: EditableModelPolicy = DEFAULT_EDITABLE_MODELS,
+    *,
+    expected: PlannedConfiguration | None = None,
+) -> None:
+    """Caller owns the same transaction as task acceptance and idempotency receipt."""
+    planned = await plan_configuration(db, session, evidence, models, lock=expected is not None)
+    if expected is not None and planned != expected:
+        raise ConfigurationPlanConflict("Original configuration differs from frozen admission")
+    await db.execute(insert(bindings).values(**asdict(planned)))
 
 
 async def read_configuration(

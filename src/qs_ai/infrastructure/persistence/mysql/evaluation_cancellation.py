@@ -3,8 +3,9 @@
 import asyncio
 import json
 from datetime import datetime
+from typing import Any
 
-from sqlalchemy import select, update
+from sqlalchemy import Select, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict, CheckpointState
@@ -16,7 +17,6 @@ from qs_ai.infrastructure.persistence.mysql.evaluation_checkpoints import decode
 from qs_ai.infrastructure.persistence.mysql.evaluation_creation_receipt import creation_receipt
 from qs_ai.infrastructure.persistence.mysql.evaluation_finalization import (
     read_finalization,
-    save_progress,
 )
 from qs_ai.infrastructure.persistence.mysql.evaluation_projection import project_slots
 from qs_ai.infrastructure.persistence.mysql.evaluation_resolution_evidence import (
@@ -104,7 +104,11 @@ async def record_for(
     }
 
 
-async def cancel(
+def _read_statement(statement: Select[Any], lock: bool) -> Select[Any]:
+    return statement.with_for_update() if lock else statement
+
+
+async def plan_cancellation(
     db: AsyncSession,
     scope: ManagementScope,
     expected_version: int,
@@ -113,7 +117,8 @@ async def cancel(
     *,
     discard: bool,
     confirm: bool,
-) -> None:
+    lock: bool = False,
+) -> tuple[CheckpointState, dict[str, Any]]:
     if (
         confirm is not True
         or type(expected_version) is not int
@@ -121,14 +126,17 @@ async def cancel(
     ):
         raise ValueError("Explicit version and confirmation required")
     decision = CancellationDecision(scope.actor, reason.strip(), discard, at)
-    if not db.in_transaction():
+    if lock and not db.in_transaction():
         await db.connection(execution_options={"isolation_level": "REPEATABLE READ"})
     checkpoint = (
         (
             await db.execute(
-                select(evaluation_checkpoints)
-                .where(evaluation_checkpoints.c.run_id == str(scope.run_id))
-                .with_for_update()
+                _read_statement(
+                    select(evaluation_checkpoints).where(
+                        evaluation_checkpoints.c.run_id == str(scope.run_id)
+                    ),
+                    lock,
+                )
             )
         )
         .mappings()
@@ -137,12 +145,13 @@ async def cancel(
     run = (
         (
             await db.execute(
-                select(evaluation_runs)
-                .where(
-                    evaluation_runs.c.run_id == str(scope.run_id),
-                    evaluation_runs.c.organization_id == scope.organization_id,
+                _read_statement(
+                    select(evaluation_runs).where(
+                        evaluation_runs.c.run_id == str(scope.run_id),
+                        evaluation_runs.c.organization_id == scope.organization_id,
+                    ),
+                    lock,
                 )
-                .with_for_update()
             )
         )
         .mappings()
@@ -154,7 +163,9 @@ async def cancel(
         raise CheckpointConflict("Cancellation version changed")
     progress = run["progress_json"]
     active = (
-        await active_claims(db, scope.run_id) if run["execution_mode"] == "candidate_v2" else ()
+        await active_claims(db, scope.run_id, lock=lock)
+        if run["execution_mode"] == "candidate_v2"
+        else ()
     )
     cp = decode(checkpoint["checkpoint_json"])
     if progress and (
@@ -182,31 +193,42 @@ async def cancel(
             "reason": decision.reason,
             "requested_at": at.isoformat(),
         }
-        await save_checkpoint(
-            db, CheckpointState(scope.run_id, expected_version + 1, cp), expected_version
-        )
-        await db.execute(
-            update(evaluation_runs)
-            .where(evaluation_runs.c.run_id == str(scope.run_id))
-            .values(progress_json={**progress, "cancel_requested": intent})
-        )
-        return
+        return CheckpointState(scope.run_id, expected_version + 1, cp), {
+            **progress,
+            "cancel_requested": intent,
+        }
     original = {**run, "version": expected_version}
     record = await record_for(db, scope, original, checkpoint["checkpoint_json"], decision)
     progress = run["progress_json"]
-    await save_progress(
-        db,
-        scope,
-        expected_version,
-        {
-            **progress,
-            "status": "canceled",
-            "canceled_at": record["canceled_at"],
-            "cancellation": record,
-            # Preserve the exact prepared checkpoint as audit evidence, never as resumable work.
-            "canceled_checkpoint": checkpoint["checkpoint_json"],
-            "transitions": [*progress["transitions"], transition(record)],
-        },
+    return CheckpointState(scope.run_id, expected_version + 1, None), {
+        **progress,
+        "status": "canceled",
+        "canceled_at": record["canceled_at"],
+        "cancellation": record,
+        # Preserve the exact prepared checkpoint as audit evidence, never as resumable work.
+        "canceled_checkpoint": checkpoint["checkpoint_json"],
+        "transitions": [*progress["transitions"], transition(record)],
+    }
+
+
+async def cancel(
+    db: AsyncSession,
+    scope: ManagementScope,
+    expected_version: int,
+    reason: str,
+    at: datetime,
+    *,
+    discard: bool,
+    confirm: bool,
+) -> None:
+    state, updated = await plan_cancellation(
+        db, scope, expected_version, reason, at, discard=discard, confirm=confirm, lock=True
+    )
+    await save_checkpoint(db, state, expected_version)
+    await db.execute(
+        update(evaluation_runs)
+        .where(evaluation_runs.c.run_id == str(scope.run_id))
+        .values(progress_json=updated)
     )
 
 

@@ -32,8 +32,10 @@ from qs_ai.infrastructure.workflow_transport.messaging import (
     EVENTS,
     PreparedMessage,
     parse_body,
+    valid_id,
     valid_number,
 )
+from qs_ai.infrastructure.workflow_transport.transaction_archive import FrozenArchive
 
 metadata = sa.MetaData()
 # Isolated storage fixtures may install the separate host-owned technical table.
@@ -207,12 +209,44 @@ class MessagingStore:
             raise MessageConflict("first persisted event identity conflict")
         return row  # only first wire is retained; repeated identity never overwrites it
 
+    async def read_command(
+        self, db: AsyncSession, envelope: pb.MessagingEnvelope, raw: bytes
+    ) -> Any | None:
+        """Read an existing original decision without claiming or creating witness."""
+        parse_body(envelope, raw)
+        row = (
+            (
+                await db.execute(
+                    sa.select(inbox).where(
+                        inbox.c.producer == envelope.producer,
+                        inbox.c.message_id == envelope.message_id,
+                    )
+                )
+            )
+            .mappings()
+            .one_or_none()
+        )
+        if row is None:
+            return None
+        if (row["body_sha256"], row["body"], row["kind"], row["aggregate_key"]) != (
+            envelope.body_sha256,
+            raw,
+            envelope.kind,
+            envelope.aggregate_key,
+        ):
+            raise MessageConflict("Original command identity differs")
+        if row["decision"] not in ("accepted", "rejected", "held") or not row["receipt_id"]:
+            raise RuntimeError("Original command decision remains unresolved")
+        return row
+
     async def reserve_command(
         self,
         db: AsyncSession,
         envelope: pb.MessagingEnvelope,
         raw: bytes,
         wire: bytes,
+        *,
+        reservation_token: str | None = None,
     ) -> Any | None:
         parse_body(envelope, raw)
         if (
@@ -228,7 +262,13 @@ class MessagingStore:
             )
         ):
             raise MessageConflict("authenticated original command required")
-        token = str(uuid4())
+        if reservation_token is not None and (
+            not isinstance(reservation_token, str) or not valid_id(reservation_token)
+        ):
+            raise MessageConflict("original reservation identity invalid")
+        # New transaction callers freeze this before half messages/the SQL root.
+        # Historical callers retain their original allocation and row semantics.
+        token = str(uuid4()) if reservation_token is None else reservation_token
         statement = mysql.insert(inbox).values(
             producer=envelope.producer,
             destination=envelope.destination,
@@ -264,7 +304,7 @@ class MessagingStore:
             envelope.aggregate_key,
         ):
             raise MessageConflict("original command identity conflict")
-        if row["reservation_token"] == token:
+        if row["reservation_token"] == token and row["decision"] == "processing":
             return None  # original owner executes once, on this same uncommitted transaction
         if row["decision"] not in ("accepted", "rejected", "held") or not row["receipt_id"]:
             raise MessageConflict("original command has no durable decision")
@@ -281,7 +321,6 @@ class MessagingStore:
         sequence: int,
     ) -> None:
         value = parse_body(receipt.envelope, receipt.body).command_receipt
-        decisions = {pb.ACCEPTED: "accepted", pb.REJECTED: "rejected", pb.HELD: "held"}
         if (
             receipt.envelope.kind != pb.COMMAND_RECEIPT
             or value.command_id != command.message_id
@@ -289,6 +328,51 @@ class MessagingStore:
         ):
             raise MessageConflict("durable receipt must bind the original command")
         await self.stage(db, receipt, organization_id=organization_id, sequence=sequence)
+        await self._decide(db, command, receipt.envelope.message_id, value.decision)
+
+    async def decide_transaction(
+        self,
+        db: AsyncSession,
+        command: pb.MessagingEnvelope,
+        receipt: FrozenArchive,
+        *,
+        organization_id: str,
+    ) -> None:
+        """Stage only the original Inbox decision; the host archives/witnesses it.
+
+        No legacy Outbox row, signing, sending or root commit belongs here. The
+        caller must first bind its SDK execution guard on this same root and
+        commit business, exact archive and all witnesses together.
+        """
+        receipt.validate()
+        envelope = receipt.envelope()
+        value = parse_body(envelope, receipt.body).command_receipt
+        if (
+            command.producer != "qs-server"
+            or command.destination != "qs-ai"
+            or envelope.kind != pb.COMMAND_RECEIPT
+            or envelope.producer != "qs-ai"
+            or envelope.destination != "qs-server"
+            or value.command_id != command.message_id
+            or value.command_body_sha256 != command.body_sha256
+            or envelope.aggregate_key != command.aggregate_key
+            or envelope.correlation_command_id != command.message_id
+            or not valid_number(organization_id)
+            or str(receipt.organization_id) != organization_id
+            or receipt.ordered
+            or not receipt.requires_receipt
+        ):
+            raise MessageConflict("frozen receipt must bind the original command")
+        await self._decide(db, command, envelope.message_id, value.decision)
+
+    async def _decide(
+        self,
+        db: AsyncSession,
+        command: pb.MessagingEnvelope,
+        receipt_id: str,
+        decision: pb.MessagingDecision,
+    ) -> None:
+        decisions = {pb.ACCEPTED: "accepted", pb.REJECTED: "rejected", pb.HELD: "held"}
         await bind(db).validate()
         result = await db.execute(
             sa.update(inbox)
@@ -298,7 +382,7 @@ class MessagingStore:
                 inbox.c.body_sha256 == command.body_sha256,
                 inbox.c.decision == "processing",
             )
-            .values(decision=decisions[value.decision], receipt_id=receipt.envelope.message_id)
+            .values(decision=decisions[decision], receipt_id=receipt_id)
         )
         if cast(CursorResult[Any], result).rowcount != 1:
             raise MessageConflict("decision requires the original reserved command")

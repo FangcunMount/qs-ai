@@ -54,7 +54,7 @@ class EvaluationView:
     review_fingerprints_json: str = "[]"
 
 
-class EvaluationManagementStore(Protocol):
+class EvaluationAdmissionStore(Protocol):
     async def cancel(
         self,
         scope: ManagementScope,
@@ -66,6 +66,18 @@ class EvaluationManagementStore(Protocol):
         confirm: bool,
     ) -> EvaluationView: ...
 
+    async def start(
+        self,
+        scope: ManagementScope,
+        expected_version: int,
+        reason: str,
+        at: datetime,
+        *,
+        confirm: bool,
+    ) -> EvaluationView: ...
+
+
+class EvaluationManagementStore(EvaluationAdmissionStore, Protocol):
     async def list_unknowns(
         self, scope: ManagementScope, expected_version: int
     ) -> UnknownExecutionIndex: ...
@@ -116,16 +128,6 @@ class EvaluationManagementStore(Protocol):
         previous_review_fingerprint: str,
         candidate_output_fingerprint: str,
         value: CandidateHumanReview,
-    ) -> EvaluationView: ...
-
-    async def start(
-        self,
-        scope: ManagementScope,
-        expected_version: int,
-        reason: str,
-        at: datetime,
-        *,
-        confirm: bool,
     ) -> EvaluationView: ...
 
     async def resolve(

@@ -69,19 +69,17 @@ async def lock_run(db: AsyncSession, run_id: UUID, organization_id: int) -> tupl
     return dict(run), coordinator["version"]
 
 
-async def active_claims(db: AsyncSession, run_id: UUID) -> tuple[SlotClaim, ...]:
-    rows = (
-        (
-            await db.execute(
-                select(claims)
-                .where(claims.c.run_id == str(run_id))
-                .order_by(claims.c.case_id, claims.c.slot_ordinal)
-                .with_for_update()
-            )
-        )
-        .mappings()
-        .all()
+async def active_claims(
+    db: AsyncSession, run_id: UUID, *, lock: bool = True
+) -> tuple[SlotClaim, ...]:
+    statement = (
+        select(claims)
+        .where(claims.c.run_id == str(run_id))
+        .order_by(claims.c.case_id, claims.c.slot_ordinal)
     )
+    if lock:
+        statement = statement.with_for_update()
+    rows = (await db.execute(statement)).mappings().all()
     result = []
     for row in rows:
         cp = decode(row["checkpoint_json"])

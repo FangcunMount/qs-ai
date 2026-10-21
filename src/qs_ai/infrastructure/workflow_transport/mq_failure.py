@@ -12,7 +12,7 @@ from tornado.httpclient import AsyncHTTPClient, HTTPRequest
 from qs_ai.infrastructure.workflow_transport.messaging import CHANNELS, valid_id
 
 
-def failed_original(wire: bytes, topic: str) -> bytes:
+def failed_original(wire: bytes, topic: str, *, rocketmq_topic: str | None = None) -> bytes:
     """Recover only the signed original transport, ignoring claimed failure counts.
 
     Failure wrappers are not signed. A matching wrapper is still untrusted until
@@ -28,8 +28,10 @@ def failed_original(wire: bytes, topic: str) -> bytes:
             not in {(FAILED_TYPE, "nsq"), ("reliable-messaging.failed.v1", "rocketmq")}
             or (
                 value.get("provider") == "rocketmq"
-                and value.get("physical_topic") != physical_topic(topic)
+                and value.get("physical_topic")
+                != (physical_topic(topic) if rocketmq_topic is None else rocketmq_topic)
             )
+            or (rocketmq_topic is not None and value.get("provider") != "rocketmq")
             or value.get("topic") != topic
             or value.get("channel") != CHANNELS[topic]
             or not isinstance(value.get("uuid"), str)

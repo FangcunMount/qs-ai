@@ -1,6 +1,6 @@
 import json
 from dataclasses import asdict
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from reliable_messaging.sqlalchemy import bind
 from sqlalchemy import func, select
@@ -17,7 +17,9 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
 )
 
 
-async def stage_state(db: AsyncSession, session: Session) -> None:
+async def stage_state(db: AsyncSession, session: Session, *, event_id: str | None = None) -> None:
+    if event_id is not None and str(UUID(event_id)) != event_id:
+        raise ValueError("Canonical frozen state identity required")
     request_id = await db.scalar(select(sessions.c.request_id).where(sessions.c.id == session.id))
     if request_id is None:
         return
@@ -41,7 +43,7 @@ async def stage_state(db: AsyncSession, session: Session) -> None:
             raise ValueError("Completed session requires a durable artifact")
         artifact_json = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
     event = StateEvent(
-        str(uuid4()),
+        str(uuid4()) if event_id is None else event_id,
         request_id,
         session.id,
         session.actor,

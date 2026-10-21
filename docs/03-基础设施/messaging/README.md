@@ -20,7 +20,21 @@ RocketMQ 终态交接携带 provider、原始 Wire 和实际物理来源，宿�
 
 宿主迁移 `0041_transaction_messaging` 显式安装独立 schema v1；owner binding 必须由冻结清单另行安装，不由构造/Start 推断。Down 保留证据并拒绝回退；隔离原事务安装测试见 `tests/integration/test_transaction_schema.py`。
 
-此入口目前未接入 command admission、状态 finalization 或统一 server。旧 `MessagingRuntime.create()` 遇到非空 transactions 明确拒绝，避免继续由 MQRelay 发送事务 owner 的消息。原根事务、首 wire、业务 receipt 和模型 unknown 恢复仍按下文执行；后续批次逐项替换，不因 SDK 具备事务能力就宣称业务已迁移。全局进度以 [infra M3 总表](https://github.com/FangcunMount/infra/blob/codex/rocketmq-m3/docs/server/rocketmq-m3-execution.md) 为准。
+此入口目前未接入 command admission、状态 finalization 或统一 server。旧 `MessagingRuntime.create()` 遇到非空 transactions 明确拒绝，避免继续由 MQRelay 发送事务 owner 的消息。原根事务、首 wire、业务 receipt 和模型 unknown 恢复仍按下文执行；后续批次逐项替换，不因 SDK 具备事务能力就宣称业务已迁移。全局进度以 [infra M3 总表](https://github.com/FangcunMount/infra/blob/main/docs/server/rocketmq-m3-execution.md) 为准。
+
+## T16 command 冻结与原根执行器（接入进行中）
+
+`transaction_command.py` 在认证和正文解析之后持有原始 command bytes，以 owner、组织、原 command ID 和稳定 input hash 标识请求。完整计划保存首次 receipt/state 的 ID、正文、wire 和 v2 路由。无本地上下文时 archive/v1 的 bytes 和摘要不变；带上下文时显式采用宿主 archive/v2，最多 16 KiB，上下文计入本地计划与消息指纹，原业务 wire 不变。SDK codec/schema 保持原版本。读取持久化赢家时，逐分支校验原 command、组织、路由以及业务 receipt/state 的版本和关联；同一计划所有分支的上下文必须相同。
+
+[`AdmissionRoot`](../../../src/qs_ai/infrastructure/workflow_transport/transaction_admission.py) 是传给 SDK 的单次本地执行器：在宿主原根先取得 SDK guard，借用冻结的 Inbox reservation 身份，执行宿主业务 action，比较真实业务结果与冻结 receipt，再将 Inbox、全部首次档案和 witness 一同提交。HELD 不调用业务 action；旧 Inbox 不能被冒充为新 witness。事务入口的 Inbox 决策不新增旧 messaging_outbox 行。
+
+该执行器不规划业务、不签名、不发送半消息，也不重试业务。根被替换、提交回复丢失或证据不足返回 Unknown；只有原根回滚完成且持久化中止成功，才返回 Aborted。回复丢失后的权威读取采用新 session 边界并有预算。SDK 继续分别报告本地结果与 Broker 最终确认。
+
+`StartPlanFacts` 保存冻结时间、原 input hash、session/run/evidence/job/Inbox/state 身份及精确配置依据。它采用显式版本和规范 JSON，拒绝重复/未知字段、错误身份/证据及不一致 receipt/state；并发失败方必须读取赢家的事实，不能继续使用自己新生成的候选。`plan_configuration` 复用原配置解析和输入校验，只读生成绑定依据；原根 `bind_configuration(expected=...)` 锁定并核对 pointer、publication、evidence 后才写入。冲突不转换为业务拒绝。
+
+解释业务与 SQL job 的身份、Inbox reservation 可以借用预分配值；历史入口默认分配行为不变。START 已提供只读 `ReadOnlyStartUnitOfWork` 和完整 `StartAdmissionPlanner`：复用原服务规则，预查幂等、配置和容量，读事务关闭后才冻结 receipt/state 首次 wire。执行时 `make_start_root` 从 reservation 赢家读取 `StartPlanFacts`，借用原服务与 SQL 根，重校验配置和 UTC 预算日，明确验证状态后再写 witness/提交；`EventSession.commit` 不再编排这次发送。状态历史仍保留必要拒绝证据并标记 MQ 责任，事务入口不创建 messaging_outbox 发布责任。已完成 Inbox 不能因 token 相同而再次取得业务执行资格。
+
+两类评测命令已增加只读完整规划和原根装配，待新候选原生验证；实际 command receiver 装配和真实 Broker 验收仍待完成，旧 runtime 对 transactions 配置的拒绝继续保留。`tests/integration/test_transaction_admission_root.py` 提供两种宿主档案格式的隔离 MySQL HELD 根原子性、服务端拒绝和客户端丢弃已提交回复用例；`test_execution_configurations.py` 增加真实只读规划、匹配绑定及 pointer 冲突用例。候选80805fb的两档MySQL完整CI各3242项零失败/跳过，已下载核对八份分片覆盖；这是原根/配置与历史回归的证据。后续真实只读START、并发赢家、原业务+witness及显式Replan旧证据验证用例已加入，待新候选CI。它们仍不计为Broker、网络故障或完整业务链路验收。
 
 ## 当前服务怎样装配这条链路
 
@@ -193,3 +207,48 @@ apply 是逐条提交，不是整批一个事务。第一条已提交而第二�
 `ArchivePayloadReader` 是显式可选 reader，先验证新档案的 owner/store、精确 SDK 指纹、wire hash、组织及 execution/branch 双 committed 证据；Prepared、缺证据、损坏或不匹配直接拒绝。只有新身份不存在才走旧 MessagingStore.payload，原 mTLS workload、组织、hash/length 授权仍有效。没有新扫描器、attempt、due、业务回执结算或证据清理；业务受理及 StateEventRecorder 仍沿原链路，后续任务才接入事务 Sender。
 
 0041保留0040的旧业务/Outbox物理布局，旧消息移交和只读 inventory 可以读取这些保留表；不由此授权旧全库转换/备份工具操作0041。历史转换 CLI 测试显式指向0040，新镜像启动校验测试使用0041。真实数据库档案原子性由隔离 M3 schema 门禁验证，不能把本地 codec 测试当成生产验收。
+
+T16 新原生 START 验收曾发现配额预览间接取得权威行锁；预览现在显式使用无锁配额读取，原提交仍保持锁。原生测试清理中误用 SDK `Request.key_digest` 属性也已修正。失败报告保留于 infra 总表；修复候选384a440的完整CI12项与消息兼容2项均通过；八份下载分片各档3339项零失败/跳过，无遗漏或重复，测试合并SHA f907af2c 的父提交已核对。每档包含8项HELD根、2项只读START及3项完整START原根证明。新CHANGE批次不沿用这次成功结论。CHANGE 已新增只读规则规划、完整首次 receipt/state、冻结身份与有界目标授权，以及原根执行器。规划使用原 answer/cancel 规则；原根锁定当前 Session 再核验主体与授权目标，不调用远程客户端。授权 Unknown 不构造允许/拒绝证明；60秒或跨预算日的过期观察中止，需宿主显式重建计划。缺少 Session 或当前主体不符，按原确定性拒绝生成实际结果，冻结结果不同时整根回滚。START 严格入口保留，通用解释状态转录共用第一历史记录核验；不创建新 messaging_outbox 发布责任。候选62f5053已通过完整12检查与消息兼容2检查，两档MySQL各3381项零失败/跳过，八份分片覆盖已核对，含新增4项真实CHANGE原根证明，也尚未接入实际 receiver/Broker。
+
+PARTICIPANT_RETRY 已复用原风险确认、blocked Run/CAS、首次模型请求和业务重试授权，新增只读规划与原根冻结资源。完整冻结计划包含首次 receipt/state、当前原参与者授权观察及原重试档案摘要；原事务重新核验原主体、目标和档案，再共同提交业务/witness，不在消息回查或故障恢复时授权模型重做。候选8264093的完整12检查及消息兼容2检查成功，两档MySQL各3408项零失败/跳过，包含新增3项原生重试证明；只读/原根组件的定向通过不替代实际SDK/Broker验收。CHANGE与RETRY共用有明确类型版本的解释变更上下文，CHANGE既有bytes有固定摘要向量保护；SDK codec/schema和历史archive/v1未改动。
+
+重试批次 b210b84 本地完整纯单元2527通过（881项integration/interop按标记未选，不当作真实依赖验收），mypy374源文件、Ruff和文档门禁通过。8264093的完整CI已覆盖原入口回归、共享上下文和三项原生重试证明；T16仍不勾选，实际receiver、两类评测命令原生复验与Broker验证待完成。
+
+
+### 评测启动与取消的冻结原根（本地实现，原生复验待完成）
+
+`EvaluationAdmissionProjection` 组合原 requested 转移、容量估算、审计视图与取消规则，SELECT 规划不取得行锁、不预占预算。`EvaluationAdmissionPlanner` 在独立一致性读取中保存原 Run/checkpoint 摘要、原事件序号和完整业务结果；关闭读取后才签名、加密 receipt/state。取消中的未知或已 dispatch 工作仍保留原 checkpoint，生成 `cancel_requested`，不会伪造终态或再次调用模型。
+
+`EvaluationPlanFacts` 是有界宿主上下文，精确绑定原命令、UTC 时间、Inbox 身份、源摘要和前序序号；拒绝重复字段、非规范编码、错类型与错关联。状态身份沿用原 `uuid5(run_id, state:version)`，新事务事件的时间是这次已冻结操作时间；历史 wire 不改写。
+
+`make_evaluation_root` 在首条 guard SQL 前显式设置本事务 READ COMMITTED；普通入口及其他三类 command 默认隔离不变。START 随后先取得原组织准入锁，再锁定 checkpoint/Run 并重新验证冻结摘要，避免 guard 的早期读取固定旧容量快照。这个顺序依据 [SQLAlchemy 单事务隔离设置](https://docs.sqlalchemy.org/en/20/orm/session_transaction.html#setting-isolation-for-individual-transactions)及 [MySQL 一致性读取规则](https://dev.mysql.com/doc/refman/8.4/en/innodb-consistent-read.html)。数据库连接池和连接生命周期仍由宿主拥有。
+
+原服务只借用根事务；`FrozenEvaluationEvents` 对照计划核验业务投影，以原序号 CAS 转录，再显式写档案/witness，由宿主提交。序号或业务条件变化时整根中止，不能更换消息 ID、重新签名或自动执行业务。没有新的 messaging_outbox/Relay 发布责任。新增9项实际MySQL用例覆盖两类提交、源/序号竞争、服务端拒绝、客户端丢弃提交回复、组织容量竞争与 dispatch 取消 drain；仅收集待CI，不称为网络故障或Broker验收。
+
+
+### 独立事务 command receiver（原生与Broker复验待完成）
+
+`TransactionCommandReceiver` 复用原 `CommandReceiver.resolve_command` 的 JOSE 认证、受限载荷读取及拒绝隔离；先检查实际 provider、逻辑 Topic 和 `qs.mysql/m3-1` TRANSACTION 物理 Topic，再查 SDK 请求。同请求已提交时逐项核验权威 witness、首次档案与 Inbox 决策；未决或中止状态不自动创建新执行、重建计划或调用业务。首次请求先只读兼容旧 Inbox，旧决策不成为新事务 witness。
+
+没有已有计划时才构建完整候选并 reserve，执行器只从持久化赢家组装。仅本地已提交且精确证据齐全才允许入站确认，`LocalCommitted + FinalUnknown` 保留 Checker 的 Broker 确认责任。取消不制造回滚证明。新组件不修改普通运行入口、连接池或全局事件循环，尚未启用生产装配。
+
+原本地技术失败预算仍单独持久化。达到8次且没有已有事务计划时，只冻结一条原技术HELD receipt；原根以独立空状态转录替换 commit hook，不执行业务。物理失败包装只归档，不使用其 attempts 授予业务执行、重试或HELD。新 v2 失败读取由宿主显式绑定物理 Topic，旧 NSQ/普通消息默认读取不变。
+
+评测候选fbb1bbd的两档原生CI各3485通过/2失败/0跳过；失败为新故障测试使用应用账号安装触发器而触发MySQL1419。98f4bf9改用现有显式隔离管理员连接，并验证相同回环host/port/database；应用事务仍用原账号/池，不新增权限或修改服务器参数。失败报告保留，等待修复候选复验，不将其他通过用例或M7成功视为完整门禁通过。
+
+Receiver候选f7fbc89本地完整2624通过，381源文件类型检查通过；61c1cda的HELD转录补充后完整2624通过（895项integration/interop未选择），mypy381通过。新增4项数据库接收器用例显式使用database-only runtime，只验证原接收/SQL语义，不能冒充SDK半消息或真实Broker验收。
+
+
+30b3d32的两档评测原生9项全部通过，故障管理员修复有效；整轮CI仍失败。新增receiver在读取技术失败预算之前遗漏原事务，现6597f45补齐短技术读取事务并保留故意red回归；这不是MQ准备前的业务执行。接收器夹具的自动清理还提前创建participant，导致publication早于执行配置清理，现改为显式receiver_host依赖并保留原publication→participant的建立/逆序释放，未关闭外键或放宽业务校验。f528e63本地完整2625通过、381源文件类型检查通过，新原生复验待完成。
+
+真实SDK/Broker使用显式文件 `tests/integration/rocketmq_admission_host.py`，不进入普通依赖作业的自动收集。infra以 `make rocketmq-ai-admission-test` 新建隔离Docker项目、回环端口、账号和临时schema，显式安装本候选迁移，再运行8项具名宿主用例/15项检查。Source与固定0.4.0a1 wheel分开验证，Python client固定5.1.2；缺依赖失败、不得跳过。该文件目前只完成收集与静态检查，尚未验证通过。
+
+该隔离profile通过实际Broker投递控制QS输入，调用真实AI接收器和发布SDK，以已完成的空poll响应验证半消息不可见，并核对原事务、首次wire、旧重复输入与技术HELD。QS输入witness及接收observer属于测试夹具，不表示成对QS业务、外部模型或system验收；最终回复丢失为客户端丢弃真实完成回复，不冒充网络故障。SDK客户端日志、JUnit、正文与凭据均留在本次私有目录，只导出摘要/具名结果并清理本次资源。
+
+
+首轮infra Broker六档39535745152均失败并完整清理临时资源：控制QS输入在freeze_branch之前缺少original_occurred_at，SDK的不可变Message时间校验正确拒绝；未准备这些输入半消息。本地复现同一错误后，cde36ea仅为测试构造器增加显式时间参数，由Broker profile在首次签名前传入，未改应用/SDK或重新加密已冻结输入。五种控制命令的完整SDK分支冻结及历史默认行为6项回归、相关合计36项通过，9项interop按标记未选。此前2bfbb65源码CI14成功、两档各3520零失败/跳过的证据保持原SHA；新候选与Broker重跑仍待验证，T16未完成。
+
+
+Broker第二轮39539009218暴露最后确认的适配缺口：固定SDK在最终RPC确认未知时抛出TransactionSendError，异常的result仍可能是LocalCommitted。3e6f178在receiver单独读取该结构化结果；仅本地已提交时继续逐项权威核验，完整witness/档案/Inbox缺一仍拒绝确认入站。未提交、回滚、Unknown结果继续抛出原异常，不重执行业务，也不把最终状态改成CommitConfirmed。该条件不再消耗新的业务技术失败预算。
+
+故障profile的观察器也记录异常携带的真实SDK result后原样抛出，由实际receiver决定是否确认；不在测试观察器吞错或确认消息。故意red回归和5个SDK异常状态案例保留；3e6f178完整纯单元2636通过、895项真实依赖按标记未选，mypy381通过。真实Broker与新候选CI仍待重跑，不能把前两轮失败计通过。

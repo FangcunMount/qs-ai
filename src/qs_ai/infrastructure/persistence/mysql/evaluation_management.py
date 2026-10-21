@@ -1,5 +1,7 @@
 import json
+from collections.abc import Mapping
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -84,6 +86,19 @@ async def read_view(
     )
     if row is None:
         raise NotFound("Evaluation unavailable in organization")
+    return await view_from_snapshot(db, scope, dict(row), runtime_limits)
+
+
+async def view_from_snapshot(
+    db: AsyncSession,
+    scope: ManagementScope,
+    source: Mapping[Any, Any],
+    runtime_limits: EvaluationRuntimeLimits = SERIAL_RUNTIME_LIMITS,
+) -> EvaluationView:
+    """Reuse original view/audit readers for an explicit scoped state projection."""
+    if source["run_id"] != str(scope.run_id) or source["organization_id"] != scope.organization_id:
+        raise NotFound("Evaluation unavailable in organization")
+    row = dict(source)
     progress = row["progress_json"]
     if progress is None:
         raise ValueError("Legacy progress needs reconciliation")

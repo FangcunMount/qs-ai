@@ -57,7 +57,7 @@ def admission(source):
     )
 
 
-def command(keys, kind, body, aggregate, command_id=None):
+def command(keys, kind, body, aggregate, command_id=None, *, original_occurred_at=""):
     return prepare(
         kind,
         command_id or str(uuid4()),
@@ -66,6 +66,7 @@ def command(keys, kind, body, aggregate, command_id=None):
         organization_id="1",
         signing_key=keys["qs.sign"],
         recipient_key=keys["ai.encrypt"],
+        original_occurred_at=original_occurred_at,
     )
 
 
@@ -84,7 +85,7 @@ async def mq_env(kit, keys):
             await db.commit()
 
 
-def start_message(kit, keys):
+def start_message(kit, keys, *, original_occurred_at=""):
     identity = str(uuid4())
     item = bound_case()[1].items[0]
     return command(
@@ -102,6 +103,7 @@ def start_message(kit, keys):
         ),
         identity,
         identity,
+        original_occurred_at=original_occurred_at,
     )
 
 

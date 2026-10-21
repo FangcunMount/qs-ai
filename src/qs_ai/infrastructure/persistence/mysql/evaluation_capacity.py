@@ -3,6 +3,7 @@
 import asyncio
 import json
 from datetime import UTC, datetime
+from typing import Any
 
 from sqlalchemy import and_, func, insert, or_, select
 from sqlalchemy.dialects.mysql import insert as mysql_insert
@@ -66,18 +67,20 @@ async def lock_admission(db: AsyncSession, organization_id: int) -> None:
     await db.execute(stmt.on_duplicate_key_update(organization_id=organization_id))
 
 
-async def admit(
+async def plan_admission(
     db: AsyncSession,
     scope: ManagementScope,
     policy: EvaluationCapacityPolicy,
     at: datetime,
     quota_baseline: QuotaBaseline | None = None,
-) -> None:
-    """Caller holds organization admission lock; failures roll back the Run transition."""
+    *,
+    lock_quota: bool = False,
+) -> dict[str, Any] | None:
+    """Read original capacity math; only the actual root may install its reservation."""
     if at.tzinfo is None or at.utcoffset() is None:
         raise ValueError("Admission time must have a time zone")
     policy, quota_snapshot = await evaluation_policy(
-        db, scope.organization_id, policy, quota_baseline
+        db, scope.organization_id, policy, quota_baseline, lock=lock_quota
     )
     active = (
         await db.execute(
@@ -101,7 +104,7 @@ async def admit(
         if prior["organization_id"] != scope.organization_id:
             raise ValueError("Evaluation reservation organization mismatch")
         # Resuming the same frozen Run consumes its original worst-case reservation.
-        return
+        return None
     creation = (
         await db.execute(
             select(evaluation_runs.c.definition_json).where(
@@ -129,18 +132,29 @@ async def admit(
     ).scalar_one()
     if used + calls > policy.daily_provider_calls:
         raise CapacityExceeded("Organization daily evaluation budget reached")
-    await db.execute(
-        insert(reservations).values(
-            run_id=str(scope.run_id),
-            organization_id=scope.organization_id,
-            budget_day=day,
-            provider_calls=calls,
-            daily_limit=policy.daily_provider_calls,
-            quota_snapshot=quota_snapshot,
-            requested_by=scope.actor,
-            reserved_at=at.astimezone(UTC).replace(tzinfo=None),
-        )
+    return dict(
+        run_id=str(scope.run_id),
+        organization_id=scope.organization_id,
+        budget_day=day,
+        provider_calls=calls,
+        daily_limit=policy.daily_provider_calls,
+        quota_snapshot=quota_snapshot,
+        requested_by=scope.actor,
+        reserved_at=at.astimezone(UTC).replace(tzinfo=None),
     )
+
+
+async def admit(
+    db: AsyncSession,
+    scope: ManagementScope,
+    policy: EvaluationCapacityPolicy,
+    at: datetime,
+    quota_baseline: QuotaBaseline | None = None,
+) -> None:
+    """Caller holds organization admission lock; failures roll back the Run transition."""
+    values = await plan_admission(db, scope, policy, at, quota_baseline, lock_quota=True)
+    if values is not None:
+        await db.execute(insert(reservations).values(**values))
 
 
 class MySQLEvaluationCapacity:

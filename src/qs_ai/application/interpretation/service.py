@@ -1,6 +1,8 @@
 import hashlib
 import json
+from collections.abc import Callable
 from dataclasses import asdict
+from typing import Literal
 from uuid import UUID, uuid4
 
 from qs_ai.application.interpretation.commands import AnswerCommand, CancelCommand
@@ -70,10 +72,26 @@ def validate_session_input(testee_id: str, assessment_ids: tuple[str, ...], goal
         raise RuleViolation("invalid_session_input")
 
 
+IdentityRole = Literal["session", "run", "evidence"]
+
+
+def _random_identity(_role: IdentityRole) -> str:
+    return str(uuid4())
+
+
 class InterpretationService:
-    def __init__(self, uows: UnitOfWorkFactory, source: EvidenceSource) -> None:
+    def __init__(
+        self,
+        uows: UnitOfWorkFactory,
+        source: EvidenceSource,
+        *,
+        new_identity: Callable[[IdentityRole], str] | None = None,
+    ) -> None:
         self.uows = uows
         self.source = source
+        # Transaction callers supply already frozen identities. The historical
+        # default retains its allocation points and ownership semantics.
+        self._new_identity = _random_identity if new_identity is None else new_identity
 
     async def _owned(self, actor: Actor, session_id: str) -> Session:
         async with self.uows.open() as uow:
@@ -123,7 +141,7 @@ class InterpretationService:
                 await uow.cancel_jobs(session)
             else:
                 await self._record_answer(uow, session, actor, command)
-                session.queue(str(uuid4()), question_id=command.question_id)
+                session.queue(self._new_identity("run"), question_id=command.question_id)
                 await uow.enqueue(session, command.answer, command.skip, command.question_id)
             await uow.save(session)
             receipt = Receipt(session.id, session.active_run_id, session.status, session.version)
@@ -181,8 +199,8 @@ class InterpretationService:
             previous = await uow.reserve(scope, request_id, request_hash)
             if previous:
                 return previous
-            session = Session(str(uuid4()), actor, testee_id, assessment_ids, goal)
-            session.queue(str(uuid4()))
+            session = Session(self._new_identity("session"), actor, testee_id, assessment_ids, goal)
+            session.queue(self._new_identity("run"))
             await uow.add(session)
             session.workflow_version = published_workflow_version(evidence)
             await uow.bind_request(session.id, request_id)
@@ -192,7 +210,7 @@ class InterpretationService:
                 except RuleViolation:
                     raise AdmissionRejected("admission_input_invalid") from None
                 frozen = EvidenceSet(
-                    str(uuid4()),
+                    self._new_identity("evidence"),
                     session.id,
                     fingerprint([asdict(item) for item in evidence]),
                     evidence,

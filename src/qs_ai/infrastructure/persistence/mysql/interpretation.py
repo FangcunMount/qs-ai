@@ -3,9 +3,8 @@ from contextlib import asynccontextmanager
 from dataclasses import asdict
 from datetime import UTC, datetime
 from typing import Any, cast
-from uuid import uuid4
+from uuid import UUID, uuid4
 
-from jsonschema.exceptions import SchemaError
 from sqlalchemy import func, insert, select, update
 from sqlalchemy.dialects.mysql import insert as mysql_insert
 from sqlalchemy.engine import CursorResult
@@ -20,8 +19,7 @@ from qs_ai.application.governance.solution_models import (
     DEFAULT_EDITABLE_MODELS,
     EditableModelPolicy,
 )
-from qs_ai.application.interpretation.input import InvalidInput
-from qs_ai.application.interpretation.ports import AdmissionRejected, NotFound, Receipt, UnitOfWork
+from qs_ai.application.interpretation.ports import NotFound, Receipt, UnitOfWork
 from qs_ai.domain.interpretation.model import (
     Actor,
     EvidenceSet,
@@ -31,7 +29,11 @@ from qs_ai.domain.interpretation.model import (
     Status,
 )
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
-from qs_ai.infrastructure.persistence.mysql.execution_configurations import bind_configuration
+from qs_ai.infrastructure.persistence.mysql.execution_configurations import (
+    PlannedConfiguration,
+    bind_configuration,
+    configuration_refusals,
+)
 from qs_ai.infrastructure.persistence.mysql.participant_capacity import release as release_capacity
 from qs_ai.infrastructure.persistence.mysql.participant_capacity import reserve as reserve_capacity
 from qs_ai.infrastructure.persistence.mysql.result_outbox import stage_state
@@ -84,8 +86,20 @@ class MySQLUnitOfWork:
         models: EditableModelPolicy = DEFAULT_EDITABLE_MODELS,
         *,
         commit: Callable[[AsyncSession], Awaitable[None]] | None = None,
+        job_id: str | None = None,
+        state_event_id: str | None = None,
+        at: datetime | None = None,
+        configuration: PlannedConfiguration | None = None,
     ) -> None:
+        if job_id is not None and str(UUID(job_id)) != job_id:
+            raise ValueError("Canonical frozen job identity required")
+        if state_event_id is not None and str(UUID(state_event_id)) != state_event_id:
+            raise ValueError("Canonical frozen state identity required")
+        if at is not None and (not isinstance(at, datetime) or at.utcoffset() is None):
+            raise ValueError("Aware frozen business clock required")
         self._commit = commit
+        self._job_id = job_id
+        self._state_event_id, self._at, self._configuration = state_event_id, at, configuration
         self.db, self.capacity = db, capacity
         self.quota_baseline = quota_baseline
         self.models = models
@@ -131,19 +145,13 @@ class MySQLUnitOfWork:
     async def bind_configuration(self, session: Session, evidence: EvidenceSet) -> None:
         # Only deterministic validation failures become durable refusals. Database,
         # network and commit failures must still roll back and replay the same ID.
-        try:
-            await bind_configuration(self.db, session, evidence, self.models)
-        except RuleViolation as error:
-            code = (
-                "configuration_unavailable"
-                if error.code == "configuration_unavailable"
-                else "admission_input_invalid"
-            )
-            raise AdmissionRejected(code) from None
-        except InvalidInput:
-            raise AdmissionRejected("admission_input_invalid") from None
-        except (ValueError, NotFound, SchemaError, KeyError, TypeError):
-            raise AdmissionRejected("admission_configuration_invalid") from None
+        with configuration_refusals():
+            if self._configuration is None:
+                await bind_configuration(self.db, session, evidence, self.models)
+            else:
+                await bind_configuration(
+                    self.db, session, evidence, self.models, expected=self._configuration
+                )
 
     async def bind_request(self, session_id: str, request_id: str) -> None:
         result = await self.db.execute(
@@ -187,7 +195,10 @@ class MySQLUnitOfWork:
             )
         )
 
-        await stage_state(self.db, session)
+        if self._state_event_id is None:
+            await stage_state(self.db, session)
+        else:
+            await stage_state(self.db, session, event_id=self._state_event_id)
 
     async def question(self, question_id: str) -> Question:
         row = (
@@ -216,7 +227,11 @@ class MySQLUnitOfWork:
     ) -> None:
         if session.uses_qs_snapshot:
             await reserve_capacity(
-                self.db, session, self.capacity, datetime.now(UTC), self.quota_baseline
+                self.db,
+                session,
+                self.capacity,
+                datetime.now(UTC) if self._at is None else self._at,
+                self.quota_baseline,
             )
         await self.db.execute(
             insert(runs).values(
@@ -228,7 +243,7 @@ class MySQLUnitOfWork:
         )
         await self.db.execute(
             insert(jobs).values(
-                id=str(uuid4()),
+                id=str(uuid4()) if self._job_id is None else self._job_id,
                 run_id=session.active_run_id,
                 session_id=session.id,
                 status="queued",
@@ -276,7 +291,9 @@ class MySQLUnitOfWork:
         )
 
         if session.uses_qs_snapshot:
-            await release_capacity(self.db, session, datetime.now(UTC))
+            await release_capacity(
+                self.db, session, datetime.now(UTC) if self._at is None else self._at
+            )
 
     async def commit(self) -> None:
         if self._commit is None:
@@ -292,10 +309,17 @@ class MySQLUnitOfWorkFactory:
         capacity: ParticipantCapacityPolicy = DEFAULT_PARTICIPANT_CAPACITY,
         quota_baseline: QuotaBaseline | None = None,
         models: EditableModelPolicy = DEFAULT_EDITABLE_MODELS,
+        *,
+        job_id: str | None = None,
+        state_event_id: str | None = None,
+        at: datetime | None = None,
+        configuration: PlannedConfiguration | None = None,
     ) -> None:
         self.transactions, self.capacity = transactions, capacity
         self.quota_baseline = quota_baseline
         self.models = models
+        self._job_id = job_id
+        self._state_event_id, self._at, self._configuration = state_event_id, at, configuration
 
     @asynccontextmanager
     async def open(self) -> AsyncIterator[UnitOfWork]:
@@ -303,5 +327,13 @@ class MySQLUnitOfWorkFactory:
             if not db.in_transaction():
                 await db.connection(execution_options={"isolation_level": "REPEATABLE READ"})
             yield MySQLUnitOfWork(
-                db, self.capacity, self.quota_baseline, self.models, commit=self.transactions.commit
+                db,
+                self.capacity,
+                self.quota_baseline,
+                self.models,
+                commit=self.transactions.commit,
+                job_id=self._job_id,
+                state_event_id=self._state_event_id,
+                at=self._at,
+                configuration=self._configuration,
             )
