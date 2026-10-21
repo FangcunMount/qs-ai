@@ -10,9 +10,11 @@ from reliable_messaging.transaction import (
     FrozenPlan,
     LocalExecutor,
     LocalOutcome,
+    ReplanAuthorization,
     Request,
     Reservation,
     Result,
+    RetryAuthorization,
     decide_local,
 )
 from reliable_messaging.transaction_mysql import MySQLTransactionStore
@@ -32,6 +34,14 @@ class StateTransactions(Protocol):
     async def reserve(self, request: Request, candidate: FrozenPlan) -> Reservation: ...
 
     async def execute(self, execution: Execution, local: LocalExecutor) -> Result: ...
+
+
+class AuthorizedStateTransactions(StateTransactions, Protocol):
+    """Explicit host permission only; admission and owned work remain SDK bounded."""
+
+    async def retry(self, authorization: RetryAuthorization) -> Reservation: ...
+
+    async def replan(self, authorization: ReplanAuthorization) -> Reservation: ...
 
 
 OriginalWrite = Callable[[AsyncSession, ArchiveGuard], Awaitable[None]]

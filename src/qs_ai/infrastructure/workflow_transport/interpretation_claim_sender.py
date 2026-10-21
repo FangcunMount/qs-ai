@@ -5,7 +5,13 @@ import math
 from typing import Any
 
 from reliable_messaging.rocketmq_transaction import TransactionSendError
-from reliable_messaging.transaction import Execution, LocalOutcome, State, decide_local
+from reliable_messaging.transaction import (
+    Execution,
+    LocalOutcome,
+    RetryAuthorization,
+    State,
+    decide_local,
+)
 from sqlalchemy import select
 
 from qs_ai.application.execution.errors import LeaseLost
@@ -22,7 +28,7 @@ from qs_ai.infrastructure.workflow_transport.interpretation_claim_state import (
 from qs_ai.infrastructure.workflow_transport.interpretation_state_root import (
     InterpretationStateRoot,
 )
-from qs_ai.infrastructure.workflow_transport.transaction_root import StateTransactions
+from qs_ai.infrastructure.workflow_transport.transaction_root import AuthorizedStateTransactions
 
 
 class InterpretationClaimPending(RuntimeError):
@@ -34,7 +40,7 @@ class InterpretationClaimSender:
         self,
         store: MySQLExecutionStore,
         archives: TransactionArchive,
-        runtime: StateTransactions,
+        runtime: AuthorizedStateTransactions,
         *,
         signing_key: Any,
         recipient_key: Any,
@@ -103,25 +109,50 @@ class InterpretationClaimSender:
                 await self._committed(source, ttl_seconds, reserved.execution)
                 return None  # A duplicate is proof lookup, never a second model admission.
             raise InterpretationClaimPending("Original claim already owned or unresolved")
-        write = InterpretationClaimWrite(self._store, source, ttl_seconds, reserved.execution.plan)
+        return await self._execute_owned(source, ttl_seconds, reserved.execution)
+
+    async def retry(
+        self,
+        source: InterpretationClaimSource,
+        ttl_seconds: int,
+        previous: Execution,
+    ) -> Claim | None:
+        """An explicit host decision, never called by Checker or ordinary duplicate lookup."""
+        read_claim_plan(source, ttl_seconds, previous.plan)
+        current = await self._planner.source(source.job_id, source.session.id)
+        if current != source:
+            raise LeaseLost("Original claim retry source differs from its frozen plan")
+        reserved = await self._runtime.retry(RetryAuthorization(previous))
+        if not reserved.acquired:
+            raise InterpretationClaimPending("Explicit claim retry was not acquired")
+        return await self._execute_owned(source, ttl_seconds, reserved.execution)
+
+    async def _execute_owned(
+        self,
+        source: InterpretationClaimSource,
+        ttl_seconds: int,
+        owned: Execution,
+    ) -> Claim | None:
+        read_claim_plan(source, ttl_seconds, owned.plan)
+        write = InterpretationClaimWrite(self._store, source, ttl_seconds, owned.plan)
         root = InterpretationStateRoot(
             self._store.transactions,
             self._archives,
             self._runtime.store,
-            intent,
-            reserved.execution.plan,
+            source.intent(ttl_seconds),
+            owned.plan,
             write,
             database_seconds=self._database_seconds,
         )
         try:
-            outcome = await self._runtime.execute(reserved.execution, root)
+            outcome = await self._runtime.execute(owned, root)
         except TransactionSendError as error:
             outcome = error.result
             if outcome.local != LocalOutcome.COMMITTED:
                 raise
         if outcome.local != LocalOutcome.COMMITTED:
             raise InterpretationClaimPending("Original claim root is not confirmed committed")
-        await self._committed(source, ttl_seconds, reserved.execution)
+        await self._committed(source, ttl_seconds, owned)
         if write.staged is None:
             raise InterpretationClaimPending("Original claim staging result unavailable")
         return await self._handoff(write.staged.claim) if write.staged.claim is not None else None
