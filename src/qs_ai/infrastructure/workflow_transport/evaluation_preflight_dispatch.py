@@ -2,22 +2,16 @@
 
 import asyncio
 import math
-from typing import Any, Protocol
+from typing import Any
 from uuid import UUID
 
 from reliable_messaging.rocketmq_transaction import TransactionSendError
 from reliable_messaging.transaction import (
     Execution,
-    FrozenPlan,
-    LocalExecutor,
     LocalOutcome,
-    Request,
-    Reservation,
-    Result,
     State,
     decide_local,
 )
-from reliable_messaging.transaction_mysql import MySQLTransactionStore
 
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
 from qs_ai.infrastructure.persistence.mysql.transaction_archive import TransactionArchive
@@ -32,15 +26,7 @@ from qs_ai.infrastructure.workflow_transport.evaluation_state_plan import (
     read_evaluation_state_plan,
 )
 from qs_ai.infrastructure.workflow_transport.evaluation_state_root import EvaluationStateRoot
-
-
-class StateTransactions(Protocol):
-    @property
-    def store(self) -> MySQLTransactionStore: ...
-
-    async def reserve(self, request: Request, candidate: FrozenPlan) -> Reservation: ...
-
-    async def execute(self, execution: Execution, local: LocalExecutor) -> Result: ...
+from qs_ai.infrastructure.workflow_transport.transaction_root import StateTransactions
 
 
 class PreflightTransactionPending(RuntimeError):

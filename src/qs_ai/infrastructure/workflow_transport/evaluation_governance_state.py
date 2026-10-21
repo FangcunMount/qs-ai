@@ -21,7 +21,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict
-from qs_ai.application.evaluation.management import ManagementScope
+from qs_ai.application.evaluation.execution_mode import (
+    SERIAL_RUNTIME_LIMITS,
+    EvaluationRuntimeLimits,
+)
+from qs_ai.application.evaluation.management import EvaluationView, ManagementScope
 from qs_ai.contracts.workflow import messaging_pb2 as pb
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
 from qs_ai.infrastructure.persistence.mysql.evaluation_finalization import (
@@ -31,6 +35,7 @@ from qs_ai.infrastructure.persistence.mysql.evaluation_finalization import (
     verified_final_snapshot,
 )
 from qs_ai.infrastructure.persistence.mysql.evaluation_gates import evaluate_snapshot
+from qs_ai.infrastructure.persistence.mysql.evaluation_management import read_view
 from qs_ai.infrastructure.persistence.mysql.evaluation_reopening import reopened_progress
 from qs_ai.infrastructure.persistence.mysql.evaluation_snapshot import header
 from qs_ai.infrastructure.persistence.mysql.transaction_archive import TransactionArchive
@@ -282,19 +287,43 @@ class GovernanceStateRoot(EvaluationStateRoot):
         winner: FrozenPlan,
         *,
         database_seconds: float = 2,
+        runtime_limits: EvaluationRuntimeLimits = SERIAL_RUNTIME_LIMITS,
     ) -> None:
         facts, archived = read_evaluation_state_plan(operation.intent, winner)
         actual, _ = GovernanceStateOperation.from_facts(facts)
         state = pb.MessagingBody.FromString(archived.body).evaluation_state
-        if actual != operation or state.version != operation.expected_version + 1:
+        if (
+            actual != operation
+            or winner.operation_id != str(operation.operation_id)
+            or state.version != operation.expected_version + 1
+        ):
             raise MessageConflict("Exact original governance operation required")
+        self._view: EvaluationView | None = None
+        self._business_error: Exception | None = None
+
+        async def original(db: AsyncSession, frozen: EvaluationStateFacts) -> None:
+            try:
+                await apply_governance_state(db, frozen)
+                self._view = await read_view(db, operation.scope, runtime_limits)
+            except Exception as error:
+                self._business_error = error
+                raise
+
         super().__init__(
             transactions,
             archives,
             store,
             operation.intent,
             winner,
-            apply_governance_state,
+            original,
             database_seconds=database_seconds,
             isolation_level="REPEATABLE READ",
         )
+
+    @property
+    def view(self) -> EvaluationView | None:
+        return self._view
+
+    @property
+    def business_error(self) -> Exception | None:
+        return self._business_error

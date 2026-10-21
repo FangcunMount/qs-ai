@@ -162,3 +162,135 @@ async def test_original_governance_business_history_sequence_archive_and_witness
                     evaluation_sequences.c.run_id == str(scope.run_id)
                 )
             )
+
+
+@pytest.mark.parametrize("kind", ["finalize", "reopen"])
+@pytest.mark.parametrize("reject_before_local", [False, True])
+async def test_rpc_handler_and_original_governance_root_require_preparation_before_business(
+    host, eligible_semantics, reviewable, kind, reject_before_local
+):
+    from contextlib import asynccontextmanager
+
+    from reliable_messaging.rocketmq_transaction import TransactionSendError
+    from reliable_messaging.transaction import Result
+
+    from qs_ai.application.evaluation.management import EvaluationManagementStore
+    from qs_ai.contracts.workflow import workflow_pb2 as workflow
+    from qs_ai.infrastructure.workflow_transport.evaluation_governance_dispatch import (
+        GovernanceStateDispatcher,
+    )
+    from qs_ai.infrastructure.workflow_transport.transactional_evaluation_management import (
+        TransactionalEvaluationManagement,
+    )
+    from qs_ai.transport.grpc.evaluation import EvaluationManagement
+    from tests.test_grpc_commands import Aborted, Context
+
+    tx, scope, _, review = reviewable
+    version = await reviewed(reviewable)
+    original = MySQLEvaluationManagement(tx)
+    if kind == "reopen":
+        previous = await original.finalize(
+            scope,
+            version,
+            False,
+            "原拒绝证据",
+            review.reviewed_at + timedelta(seconds=1),
+            confirm=True,
+        )
+        version = previous.version
+    before = await rows(tx, scope.run_id)
+
+    # This exercises the actual handler and database roots, deliberately without
+    # SDK halves/Broker. The separate published-SDK profile owns that proof.
+    class DatabaseOnlyRuntime:
+        store = host.store
+        local_calls = 0
+
+        async def reserve(self, request, candidate):
+            value = await self.store.reserve(request, candidate)
+            if value.acquired:
+                host.executions.append(value.execution)
+            return value
+
+        async def execute(self, execution, local):
+            if reject_before_local:
+                raise TransactionSendError(
+                    "isolated_preparation_refusal", Result(LocalOutcome.NOT_STARTED, ())
+                )
+            self.local_calls += 1
+            return Result(await local(execution), ())
+
+    runtime = DatabaseOnlyRuntime()
+    send = GovernanceStateDispatcher(
+        host.tx,
+        host.archives,
+        runtime,
+        signing_key=host.keys["ai.sign"],
+        recipient_key=host.keys["qs.encrypt"],
+    )
+    management = TransactionalEvaluationManagement(MySQLEvaluationManagement(host.tx), send)
+
+    @asynccontextmanager
+    async def container():
+        class Scope:
+            async def get(self, dependency):
+                assert dependency is EvaluationManagementStore
+                return management
+
+        yield Scope()
+
+    service = EvaluationManagement(container)
+    request = (
+        workflow.EvaluationFinalizeCommand
+        if kind == "finalize"
+        else workflow.EvaluationReopenCommand
+    )(
+        scope=workflow.EvaluationQuery(
+            run_id=str(scope.run_id),
+            organization_id=scope.organization_id,
+            operator_user_id=scope.operator_user_id,
+        ),
+        expected_version=version,
+        reason="原RPC治理事务验收",
+        confirm=True,
+    )
+    if kind == "finalize":
+        request.expected_passed = False
+    method = service.Finalize if kind == "finalize" else service.ReopenReview
+    try:
+        if reject_before_local:
+            import grpc
+
+            with pytest.raises(Aborted) as caught:
+                await method(request, Context())
+            assert caught.value.args[0] == grpc.StatusCode.UNAVAILABLE
+            assert runtime.local_calls == 0 and await rows(tx, scope.run_id) == before
+        else:
+            reply = await method(request, Context())
+            assert reply.version == version + 1 and runtime.local_calls == 1
+            assert reply.status == ("rejected" if kind == "finalize" else "awaiting_review")
+            stored = await original.get(scope)
+            assert reply.finalization_json == stored.finalization_json
+            assert reply.reopenings_json == stored.reopenings_json
+        owned = host.executions[-1]
+        assert await StoreChecker(host.store).check(owned.references[0]) == (
+            Decision.UNKNOWN if reject_before_local else Decision.COMMIT
+        )
+        from qs_ai.infrastructure.workflow_transport.evaluation_state_plan import (
+            EvaluationStateFacts,
+        )
+        from qs_ai.infrastructure.workflow_transport.transaction_archive import decode_branch
+
+        facts = EvaluationStateFacts.decode(decode_branch(owned.plan.branches[0]).context)
+        operation, _ = GovernanceStateOperation.from_facts(facts)
+        _, first = read_evaluation_state_plan(operation.intent, owned.plan)
+        assert await host.archives.read_committed(first.envelope().message_id) == (
+            None if reject_before_local else first
+        )
+    finally:
+        async with host.tx.open() as db, db.begin():
+            await db.execute(
+                delete(evaluation_sequences).where(
+                    evaluation_sequences.c.run_id == str(scope.run_id)
+                )
+            )

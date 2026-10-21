@@ -5,6 +5,7 @@ import copy
 import json
 from contextlib import asynccontextmanager
 from dataclasses import replace
+from datetime import timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 from uuid import uuid4
@@ -195,9 +196,54 @@ async def test_governance_root_binds_exact_authorized_operation_and_explicit_sna
     plan = await f.planner.candidate(f.operation, f.at)
     root = governance.GovernanceStateRoot(f.tx, object(), object(), f.operation, plan)
     assert root._isolation_level == "REPEATABLE READ"
-    assert root._business is governance.apply_governance_state
+    assert root.view is None and root.business_error is None
     with pytest.raises(ValueError):
         governance.GovernanceStateRoot(
             f.tx, object(), object(), replace(f.operation, reason="另一项授权"), plan
         )
     f.db.commit.assert_not_called()
+
+
+@pytest.mark.parametrize("failure,aborted", [(False, True), (True, True), (True, False)])
+async def test_actual_governance_root_captures_its_response_or_error_without_owning_proof(
+    monkeypatch, failure, aborted
+):
+    from reliable_messaging.transaction import Execution, LocalOutcome
+
+    from qs_ai.application.evaluation.checkpoints import CheckpointConflict
+
+    f = fixture(monkeypatch)
+    plan = await f.planner.candidate(f.operation, f.at)
+    owned = Execution(plan, 1, "m3-1", b"x" * 32, f.at + timedelta(seconds=60))
+    original = SimpleNamespace(is_active=True)
+    f.db.get_transaction = Mock(return_value=original)
+    f.db.info = {}
+    f.db.begin, f.db.rollback, f.db.connection = AsyncMock(), AsyncMock(), AsyncMock()
+    guard = SimpleNamespace(put=AsyncMock(), commit_witness=AsyncMock())
+    archives = SimpleNamespace(bind=AsyncMock(return_value=guard))
+    store = SimpleNamespace(abort=AsyncMock(return_value=aborted), evidence=AsyncMock())
+    apply = AsyncMock()
+    expected = object()
+    read = AsyncMock(return_value=expected)
+    error = CheckpointConflict("Original governance CAS changed")
+    if failure:
+        apply.side_effect = error
+    monkeypatch.setattr(governance, "apply_governance_state", apply)
+    monkeypatch.setattr(governance, "read_view", read)
+    root = governance.GovernanceStateRoot(f.tx, archives, store, f.operation, plan)
+    root._events.flush = AsyncMock()
+    outcome = await root(owned)
+    if failure:
+        assert outcome == (LocalOutcome.ABORTED if aborted else LocalOutcome.UNKNOWN)
+        assert root.business_error is error and root.view is None
+        read.assert_not_called()
+        f.db.commit.assert_not_called()
+    else:
+        assert outcome == LocalOutcome.COMMITTED and root.view is expected
+        assert root.business_error is None
+        read.assert_awaited_once_with(f.db, f.f.scope, governance.SERIAL_RUNTIME_LIMITS)
+        f.db.commit.assert_awaited_once()
+    f.db.connection.assert_awaited_once_with(
+        execution_options={"isolation_level": "REPEATABLE READ"}
+    )
+    apply.assert_awaited_once()
