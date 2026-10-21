@@ -295,3 +295,45 @@ async def test_publication_change_aborts_original_root_and_explicit_replan_keeps
     await assert_committed_original_root(host, message, advanced.execution, "blocked")
     for reference in owned.references:
         assert await StoreChecker(host.store).check(reference) == Decision.ROLLBACK
+
+
+@pytest.mark.usefixtures("published_configuration")
+async def test_explicit_current_read_mode_keeps_real_original_root_and_host_default(host):
+    from sqlalchemy import text
+
+    from qs_ai.infrastructure.workflow_transport.frozen_start_admission import FrozenStartAdmission
+    from qs_ai.infrastructure.workflow_transport.frozen_start_events import FrozenStartEvents
+    from qs_ai.infrastructure.workflow_transport.transaction_admission import AdmissionRoot
+
+    async with host.tx.open() as db:
+        before = await db.scalar(text("SELECT @@transaction_isolation"))
+    message = incoming(host)
+    candidate = await planner(host).candidate(message)
+    owned = (await reserve(host, message, candidate)).execution
+    action = FrozenStartAdmission(message, owned.plan, admission(host.kit.source))
+    observations = []
+
+    async def business(db, envelope, body):
+        original = db.get_transaction()
+        observations.append(await db.scalar(text("SELECT @@transaction_isolation")))
+        decision = await action(db, envelope, body)
+        assert db.get_transaction() is original and original.is_active
+        return decision
+
+    local = AdmissionRoot(
+        host.tx,
+        host.archives,
+        host.store,
+        MessagingStore(),
+        message,
+        reservation_token=action.facts.reservation_token,
+        business=business,
+        events=FrozenStartEvents(message, owned.plan),
+        isolation_level="READ COMMITTED",
+    )
+    assert await local(owned) == LocalOutcome.COMMITTED
+    assert observations == ["READ-COMMITTED"]
+    for reference in owned.references:
+        assert await StoreChecker(host.store).check(reference) == Decision.COMMIT
+    async with host.tx.open() as db:
+        assert await db.scalar(text("SELECT @@transaction_isolation")) == before
