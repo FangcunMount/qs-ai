@@ -290,3 +290,5 @@ Broker第二轮39539009218暴露最后确认的适配缺口：固定SDK在最终
 [`ReviewStateInput/ReviewPlanFacts`](../../../src/qs_ai/infrastructure/workflow_transport/review_state_plan.py) 将完整的已授权评审输入绑定为稳定摘要，持久化源快照摘要及最多35项首次评审时间，不把完整正文塞入协议元数据，也不新增总计8KiB的RPC限制。原宿主持有不可变输入，原事务前恢复持久化赢家的首次时间和偏移；原事务重验输入摘要、源状态及全部原评审/审核规则，再共同提交业务、sequence、首次档案和witness。Checker仅读证据，不重建或补执行业务。
 
 评审沿用同一显式管理适配器及发送编排：半消息未确认准备成功不执行原事务；只有精确提交证明与首次档案都存在才返回原事务内取得的响应。提交未知保留未决责任，不返回版本冲突、不自动重做评审。原RPC无跨请求幂等键，每次调用保留原版本CAS语义。新增12项原生用例覆盖单项/35项、档案拒绝、客户端丢弃已完成提交回复、并发版本变化及实际RPC处理函数；DB-only runtime与客户端故障注入不冒充真实Broker、网络或进程故障，最终验收以infra总表为准。
+
+隔离的 [`rocketmq_state_host.py`](../../../tests/integration/rocketmq_state_host.py) 扩展为6项实际SDK/Broker验收：原worker预检3项继续保留，新增定稿后重开、35项评审RPC处理函数和评审源冲突回滚。新增路径使用固定发布wheel及真实半消息，暂停在本地根前观察不可消费，提交后核对原审核事实、首次时间/wire、精确witness与实际消费；源冲突必须回滚且不可消费。二次确认回复丢失仍是客户端丢弃真实RPC回复，不冒充网络级提交故障或进程退出。该文件按infra显式profile执行，普通pytest收集不会替代真实Broker验收；执行结果与20项必需证据以infra总表为准。
