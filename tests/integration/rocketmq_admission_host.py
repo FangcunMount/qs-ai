@@ -110,7 +110,8 @@ def required_broker(request):
     assert Path(reliable_messaging.__file__).resolve().is_relative_to(Path(sys.prefix).resolve())
     # Pinned upstream opens a default handler on import. No client/key exists
     # yet: replace only this isolated process's log sink before any RPC.
-    logger = logging.getLogger("rocketmq-python-client")
+    from rocketmq.v5.log.log_config import logger
+
     for handler in list(logger.handlers):
         logger.removeHandler(handler)
         handler.close()
@@ -128,7 +129,11 @@ def required_broker(request):
                     "cases": _CASES,
                     "passed": len(_CASES),
                     "failed": request.session.testsfailed,
-                    "skipped": 0,
+                    "skipped": len(
+                        request.config.pluginmanager.get_plugin("terminalreporter").stats.get(
+                            "skipped", []
+                        )
+                    ),
                     "root": "original_mysql_sqlalchemy",
                     "sdk": "0.4.0a1",
                     "client": "5.1.2",
