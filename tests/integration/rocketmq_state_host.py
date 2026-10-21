@@ -82,6 +82,7 @@ from qs_ai.infrastructure.workflow_transport.transactional_evaluation_management
 )
 from qs_ai.infrastructure.workflow_transport.transactional_solutions import TransactionalSolutions
 from qs_ai.transport.grpc.evaluation import EvaluationManagement
+from qs_ai.transport.grpc.solutions import response as solution_response
 from tests.integration.rocketmq_admission_host import required_broker as required_broker
 from tests.integration.test_evaluation_completions import dispatched as dispatched
 from tests.integration.test_evaluation_creation_interop import persisted_assets as persisted_assets
@@ -960,12 +961,12 @@ async def test_actual_solution_prepare_rpc_half_gate_first_receipt_and_final_unk
         await b.consumed(incoming)
         actual = await evaluation_rows(b.host.tx, incoming.identities.run_id)
         assert actual[0]["execution_mode"] == facts.execution_mode == "candidate_v2"
-        assert await original.receipt(scope, command.command_id) == value
+        assert solution_response(await original.receipt(scope, command.command_id)) == response
         assert await b.host.archives.read_committed(first.envelope().message_id) == first
         passed("solution_original_assets_receipt_wire_and_witness")
         original.settings = previous.settings
         replay = await sender.apply(scope, solution_id, command, at + timedelta(hours=1))
-        assert replay == value
+        assert solution_response(replay) == response
         assert await evaluation_rows(b.host.tx, incoming.identities.run_id) == actual
         assert b.runtime.calls == len(b.host.executions) == 1
         b.recorder.flush.assert_not_called()
