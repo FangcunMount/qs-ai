@@ -115,7 +115,20 @@ async def test_creation_first_definition_mode_policy_sequence_archive_and_witnes
         assert await host.archives.read_committed(first.envelope().message_id) == (
             first if committed else None
         )
-        assert (root.view is not None) is committed
+        # read_view is captured inside business, before archive/witness writes.
+        # That in-memory candidate is not a commit receipt. The sender must
+        # require COMMITTED plus exact fresh evidence before returning it.
+        if fault == "existing_run":
+            assert root.view is None
+        else:
+            assert root.view is not None
+            assert (root.view.status, root.view.version, root.view.execution_mode) == (
+                "requested",
+                1,
+                mode,
+            )
+            if not committed:
+                assert outcome == LocalOutcome.ABORTED and actual == [None, None, None]
         async with host.tx.open() as db:
             sequence = (
                 (
