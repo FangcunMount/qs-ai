@@ -98,13 +98,13 @@ def test_wrong_route_identity_or_wire_never_becomes_an_original_state_plan(damag
 
 
 @pytest.mark.parametrize("damage", ["organization_id", "run_id", "version", "event_sequence"])
-def test_frozen_state_must_match_original_target_and_exact_next_version_sequence(damage):
+def test_frozen_state_must_match_original_target_and_exact_next_sequence(damage):
     f = fixture()
     changed = pb.EvaluationRuntimeState.FromString(f.state.SerializeToString())
     setattr(
         changed,
         damage,
-        {"organization_id": "8", "run_id": str(uuid4()), "version": 4, "event_sequence": 10}[
+        {"organization_id": "8", "run_id": str(uuid4()), "version": 2, "event_sequence": 10}[
             damage
         ],
     )
@@ -174,3 +174,29 @@ def test_frozen_operation_context_is_bounded_owned_and_uses_an_explicit_new_vers
     for invalid in (b"x" * 8193, bytearray(b"mutable"), "not bytes"):
         with pytest.raises(ValueError):
             replace(f.facts, business_context=invalid)
+
+
+@pytest.mark.parametrize("version", [4, 2**63 - 1])
+def test_atomic_multi_checkpoint_root_keeps_only_frozen_final_version_and_one_event(version):
+    f = fixture()
+    state = pb.EvaluationRuntimeState.FromString(f.state.SerializeToString())
+    # Existing preparation and dispatch advance twice inside one original root.
+    # A single state event describes its final version, never an intermediate one.
+    state.version = version
+    plan = freeze_evaluation_state_plan(f.facts, str(uuid4()), f.seal(state))
+    restored = decode_plan(encode_plan(plan))
+    facts, value = read_evaluation_state_plan(f.intent, restored)
+    assert facts == f.facts
+    assert value.sequence == f.facts.sequence == 9
+    assert value.wire == plan.branches[0].wire
+    assert pb.MessagingBody.FromString(value.body).evaluation_state == state
+    assert len(restored.branches) == 1
+
+
+@pytest.mark.parametrize("version", [0, 1, 2, 2**63, 2**64 - 1])
+def test_state_target_must_advance_original_version_within_signed_storage_range(version):
+    f = fixture()
+    state = pb.EvaluationRuntimeState.FromString(f.state.SerializeToString())
+    with pytest.raises(ValueError):
+        state.version = version
+        freeze_evaluation_state_plan(f.facts, str(uuid4()), f.seal(state))

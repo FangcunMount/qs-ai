@@ -241,7 +241,7 @@ def read_evaluation_state_plan(
     if (
         state.run_id != intent.run_id
         or state.organization_id != intent.organization_id
-        or state.version != intent.expected_version + 1
+        or not intent.expected_version < state.version <= _MAX_VERSION
         or state.event_sequence != facts.sequence
         or header.message_id != str(uuid5(UUID(state.run_id), f"state:{state.version}"))
         or not 0 < len(state.status.encode()) <= 128
