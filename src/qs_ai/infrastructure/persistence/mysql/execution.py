@@ -1,8 +1,8 @@
 import hashlib
 import json
-from dataclasses import asdict, replace
+from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID, uuid4
 
 from reliable_messaging.sqlalchemy import bind
@@ -10,6 +10,7 @@ from reliable_messaging.transaction import BindingError
 from sqlalchemy import and_, func, insert, literal_column, or_, select, update
 from sqlalchemy.dialects.mysql import insert as mysql_insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.elements import ColumnElement
 from sqlalchemy.sql.functions import Function
 
 from qs_ai.application.execution.artifact import ArtifactIdentity, build_artifact
@@ -49,6 +50,24 @@ def expiry(
     ttl_seconds: int,
 ) -> Function[Any]:  # SQL expression uses database UTC time, never local process time.
     return func.timestampadd(literal_column("SECOND"), ttl_seconds, func.utc_timestamp(6))
+
+
+def _eligible_jobs() -> ColumnElement[bool]:
+    return or_(
+        and_(jobs.c.status == "queued", jobs.c.available_at <= func.utc_timestamp(6)),
+        and_(jobs.c.status == "leased", jobs.c.lease_until <= func.utc_timestamp(6)),
+    )
+
+
+_ClaimStatus = Literal["miss", "deferred", "exhausted", "claimed"]
+
+
+@dataclass(frozen=True)
+class ClaimStage:
+    """Original admission writes only; the caller still owns commit and execution handoff."""
+
+    status: _ClaimStatus
+    claim: Claim | None = field(default=None, repr=False)
 
 
 class MySQLExecutionStore:
@@ -206,151 +225,184 @@ class MySQLExecutionStore:
     async def claim(self, ttl_seconds: int) -> Claim | None:
         if ttl_seconds < 3:
             raise ValueError("Lease TTL must be at least three seconds")
-        eligible = or_(
-            and_(jobs.c.status == "queued", jobs.c.available_at <= func.utc_timestamp(6)),
-            and_(jobs.c.status == "leased", jobs.c.lease_until <= func.utc_timestamp(6)),
-        )
         async with self.transactions.open() as db:
-            # Consistent lock order for commands and workers: Session -> Job -> Lease.
             candidates = (
                 await db.execute(
                     select(jobs.c.id, jobs.c.session_id)
-                    .where(eligible)
+                    .where(_eligible_jobs())
                     .order_by(jobs.c.available_at, jobs.c.id)
                     .limit(20)
                 )
             ).all()
             for candidate in candidates:
-                row = (
-                    (
-                        await db.execute(
-                            select(sessions)
-                            .where(sessions.c.id == candidate.session_id)
-                            .with_for_update(skip_locked=True)
-                        )
-                    )
-                    .mappings()
-                    .first()
-                )
-                if row is None:
-                    continue
-                job = (
-                    (
-                        await db.execute(
-                            select(jobs)
-                            .where(jobs.c.id == candidate.id, eligible)
-                            .with_for_update(skip_locked=True)
-                        )
-                    )
-                    .mappings()
-                    .first()
-                )
-                if job is None:
-                    continue
-                session = session_from(row)
-                if session.active_run_id != job["run_id"] or session.status not in (
-                    Status.QUEUED,
-                    Status.RUNNING,
-                ):
-                    continue
-                # Infinite crash loops become a visible blocked session.
-                if job["attempt"] >= 3:
-                    session.running()
-                    session.block("attempts_exhausted")
-                    await MySQLUnitOfWork(db).save(session)
-                    await db.execute(
-                        update(jobs).where(jobs.c.id == job["id"]).values(status="dead")
-                    )
-                    await db.execute(
-                        update(runs).where(runs.c.id == job["run_id"]).values(status="blocked")
-                    )
-                    await db.execute(
-                        update(execution_leases)
-                        .where(execution_leases.c.thread_id == session.id)
-                        .values(
-                            fence=execution_leases.c.fence + 1, expires_at=func.utc_timestamp(6)
-                        )
-                    )
-                    if session.uses_qs_snapshot:
-                        await release_capacity(db, session, datetime.now(UTC))
+                if db.get_transaction() is None:
+                    await db.begin()
+                staged = await self.claim_in(db, candidate.id, candidate.session_id, ttl_seconds)
+                if staged.status != "miss":
                     await db.commit()
-                    return None
-                statement = mysql_insert(execution_leases).values(
-                    thread_id=session.id, fence=0, expires_at=func.utc_timestamp(6)
-                )
-                await db.execute(
-                    statement.on_duplicate_key_update(thread_id=execution_leases.c.thread_id)
-                )
-                guard = (
-                    (
-                        await db.execute(
-                            select(
-                                execution_leases,
-                                (execution_leases.c.expires_at <= func.utc_timestamp(6)).label(
-                                    "expired"
-                                ),
-                            )
-                            .where(execution_leases.c.thread_id == session.id)
-                            .with_for_update()
-                        )
-                    )
-                    .mappings()
-                    .one()
-                )
-                if not guard["expired"]:
-                    continue
-                if session.uses_qs_snapshot and not await acquire_capacity(
-                    db, session, self.capacity, datetime.now(UTC), self.quota_baseline
-                ):
-                    # Defer this queued job; release all locks before trying another.
-                    await db.execute(
-                        update(jobs).where(jobs.c.id == job["id"]).values(available_at=expiry(1))
-                    )
-                    await db.commit()
-                    continue
-                fence = guard["fence"] + 1
-                await record(
-                    db,
-                    session.id,
-                    job["run_id"],
-                    "execution_claimed",
-                    f"claim:{job['id']}:{fence}",
-                    attempt=job["attempt"] + 1,
-                    retention_days=self.diagnostic_retention_days,
-                )
-                session.running()
-                await MySQLUnitOfWork(db).save(session)
-                await db.execute(
-                    update(execution_leases)
-                    .where(execution_leases.c.thread_id == session.id)
-                    .values(fence=fence, expires_at=expiry(ttl_seconds))
-                )
-                await db.execute(
-                    update(jobs)
-                    .where(jobs.c.id == job["id"])
-                    .values(
-                        status="leased",
-                        fence_token=fence,
-                        lease_until=expiry(ttl_seconds),
-                        attempt=job["attempt"] + 1,
-                    )
-                )
-                await db.execute(
-                    update(runs)
-                    .where(runs.c.id == job["run_id"])
-                    .values(status="running", session_version=session.version)
-                )
-                await db.commit()
-                return Claim(
-                    job["id"],
-                    job["run_id"],
-                    session,
-                    fence,
-                    job["answer"],
-                    job["skipped"],
-                    job["question_id"],
-                )
+                if staged.status in ("claimed", "exhausted"):
+                    return staged.claim
         return None
+
+    async def claim_in(
+        self,
+        db: AsyncSession,
+        job_id: str,
+        session_id: str,
+        ttl_seconds: int,
+        *,
+        state_event_id: str | None = None,
+        at: datetime | None = None,
+    ) -> ClaimStage:
+        """Stage one original candidate; status/Claim is never root commit proof."""
+        if ttl_seconds < 3:
+            raise ValueError("Lease TTL must be at least three seconds")
+        if state_event_id is not None and (
+            not isinstance(state_event_id, str) or str(UUID(state_event_id)) != state_event_id
+        ):
+            raise ValueError("Canonical first claim event identity required")
+        if at is not None and (not isinstance(at, datetime) or at.utcoffset() is None):
+            raise ValueError("Aware first claim clock required")
+        if not isinstance(db, AsyncSession) or db.in_nested_transaction():
+            raise BindingError("Original interpretation claim root required")
+        original = db.get_transaction()
+        if original is None or not original.is_active:
+            raise BindingError("Active original interpretation claim root required")
+        binding = bind(db)
+        await binding.validate()
+
+        async def done(status: _ClaimStatus, claim: Claim | None = None) -> ClaimStage:
+            if db.get_transaction() is not original or not original.is_active:
+                raise BindingError("Original interpretation claim root was replaced")
+            await binding.validate()
+            return ClaimStage(status, claim)
+
+        eligible = _eligible_jobs()
+        row = (
+            (
+                await db.execute(
+                    select(sessions)
+                    .where(sessions.c.id == session_id)
+                    .with_for_update(skip_locked=True)
+                )
+            )
+            .mappings()
+            .first()
+        )
+        if row is None:
+            return await done("miss")
+        job = (
+            (
+                await db.execute(
+                    select(jobs)
+                    .where(jobs.c.id == job_id, eligible)
+                    .with_for_update(skip_locked=True)
+                )
+            )
+            .mappings()
+            .first()
+        )
+        if job is None:
+            return await done("miss")
+        session = session_from(row)
+        if session.active_run_id != job["run_id"] or session.status not in (
+            Status.QUEUED,
+            Status.RUNNING,
+        ):
+            return await done("miss")
+        # Infinite crash loops become a visible blocked session.
+        if job["attempt"] >= 3:
+            session.running()
+            session.block("attempts_exhausted")
+            await MySQLUnitOfWork(db, state_event_id=state_event_id).save(session)
+            await db.execute(update(jobs).where(jobs.c.id == job["id"]).values(status="dead"))
+            await db.execute(
+                update(runs).where(runs.c.id == job["run_id"]).values(status="blocked")
+            )
+            await db.execute(
+                update(execution_leases)
+                .where(execution_leases.c.thread_id == session.id)
+                .values(fence=execution_leases.c.fence + 1, expires_at=func.utc_timestamp(6))
+            )
+            if session.uses_qs_snapshot:
+                await release_capacity(db, session, (datetime.now(UTC) if at is None else at))
+            return await done("exhausted")
+        statement = mysql_insert(execution_leases).values(
+            thread_id=session.id, fence=0, expires_at=func.utc_timestamp(6)
+        )
+        await db.execute(statement.on_duplicate_key_update(thread_id=execution_leases.c.thread_id))
+        guard = (
+            (
+                await db.execute(
+                    select(
+                        execution_leases,
+                        (execution_leases.c.expires_at <= func.utc_timestamp(6)).label("expired"),
+                    )
+                    .where(execution_leases.c.thread_id == session.id)
+                    .with_for_update()
+                )
+            )
+            .mappings()
+            .one()
+        )
+        if not guard["expired"]:
+            return await done("miss")
+        if session.uses_qs_snapshot and not await acquire_capacity(
+            db,
+            session,
+            self.capacity,
+            (datetime.now(UTC) if at is None else at),
+            self.quota_baseline,
+        ):
+            # The owned scanner commits this deferral before its next candidate.
+            await db.execute(
+                update(jobs).where(jobs.c.id == job["id"]).values(available_at=expiry(1))
+            )
+            return await done("deferred")
+        fence = guard["fence"] + 1
+        await record(
+            db,
+            session.id,
+            job["run_id"],
+            "execution_claimed",
+            f"claim:{job['id']}:{fence}",
+            attempt=job["attempt"] + 1,
+            retention_days=self.diagnostic_retention_days,
+        )
+        session.running()
+        await MySQLUnitOfWork(db, state_event_id=state_event_id).save(session)
+        await db.execute(
+            update(execution_leases)
+            .where(execution_leases.c.thread_id == session.id)
+            .values(fence=fence, expires_at=expiry(ttl_seconds))
+        )
+        await db.execute(
+            update(jobs)
+            .where(jobs.c.id == job["id"])
+            .values(
+                status="leased",
+                fence_token=fence,
+                lease_until=expiry(ttl_seconds),
+                attempt=job["attempt"] + 1,
+            )
+        )
+        await db.execute(
+            update(runs)
+            .where(runs.c.id == job["run_id"])
+            .values(status="running", session_version=session.version)
+        )
+        return await done(
+            "claimed",
+            Claim(
+                job["id"],
+                job["run_id"],
+                session,
+                fence,
+                job["answer"],
+                job["skipped"],
+                job["question_id"],
+            ),
+        )
 
     async def _guard(self, db: AsyncSession, claim: Claim) -> Session:
         return await self.read_claim(db, claim, lock=True)
