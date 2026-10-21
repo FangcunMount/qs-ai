@@ -370,3 +370,8 @@ ResolveUnknown 的显式事务入口由 [`ResolutionStateOperation`](../../../sr
 原 prepare_execution 仍显式按checkpoint、Run、dispatch、generation、semantic的原顺序取锁，重新计算后执行一次原CP CAS；同一原 prepare_step 后续dispatch与第二次CAS的根提交边界未拆开，PreparedStep.cp的原prepared快照语义不变。生成与语义证据共用统一物理表时仍分别保留kind条件，不能用表名替代证据类型作用域。此基础函数尚未接通worker事务发送器、ModelCapacity转移、candidate并发或恢复路径。
 
 抽取前10项原行为表征、抽取后28项目标与3117项非集成/非interop回归通过，405源文件类型、lint/format通过。新增4项真实MySQL用例仅收集，覆盖generation/semantic原准备的只读SELECT、冻结身份/时间与原CP共同提交/回滚；不是完整prepare+dispatch的SDK/Broker验收。执行结果仍以infra总表为准，原worker配置、默认DI和生产链路保持原状。
+
+
+原串行及candidate共用的 [`DispatchRecordPlan/plan_dispatch_record`](../../../src/qs_ai/infrastructure/persistence/mysql/evaluation_dispatches.py) 只读冻结原dispatch记录：沿用冻结策略、generation/semantic阶段预算、精确slot/candidate目标预算、下一execution ordinal及原checkpoint JSON。预览不加写锁或插入，不表示已取得dispatch或模型执行资格；返回记录为不可变JSON，每次读取均为独立副本。原record_dispatch仍在调用者原根内按原顺序读取冻结策略、锁定最新dispatch账本，再执行一次原不可变插入；原prepare+dispatch共同提交、两次checkpoint CAS及PreparedStep.cp快照语义不变。
+
+抽取前6项原实现表征、抽取后19项目标和3125项非集成/非interop回归通过，405源文件类型与lint/format通过。新增4项真实MySQL用例仅收集，覆盖generation/semantic只读预览与原reserve_dispatch共同提交/回滚、不可变账本及原模型调用计数；不是worker SDK/Broker验收。ModelCapacity、外部模型调用、candidate claim及默认DI仍按原路径运行，真实CI与进度回链infra。
