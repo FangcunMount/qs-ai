@@ -1984,7 +1984,7 @@ async def test_actual_explicit_finalization_retry_preserves_first_wire_and_durab
         await asyncio.gather(task, return_exceptions=True)
 
 
-async def _serial_terminal_seed(b, ready, *, unknown=False):
+async def _serial_terminal_seed(b, ready, *, unknown=False, semantic=False):
     from qs_ai.domain.evaluation.failure import ClassifiedFailure
     from qs_ai.infrastructure.persistence.mysql.evaluation_response_receipts import (
         EvaluationResponse,
@@ -2000,11 +2000,14 @@ async def _serial_terminal_seed(b, ready, *, unknown=False):
     from qs_ai.infrastructure.workflow_transport.serial_generation_state import (
         SerialGenerationPlanner,
     )
-    from tests.integration.test_evaluation_step import AT, Gateway
+    from tests.integration.test_evaluation_step import AT, Gateway, step
 
     tx, run_id, _, routes, schemas = ready
+    generation_gateway = Gateway(ready) if semantic else None
+    version = (await step(ready, generation_gateway)).version if semantic else 3
+    started = AT + timedelta(seconds=2) if semantic else AT
     prepared = await prepare_step(
-        tx, run_id, 3, 1, "worker:real-terminal", routes, schemas, clock=lambda: AT
+        tx, run_id, version, 1, "worker:real-terminal", routes, schemas, clock=lambda: started
     )
     gateway = Gateway(ready)
     response = await gateway.generate_messages(
@@ -2012,7 +2015,7 @@ async def _serial_terminal_seed(b, ready, *, unknown=False):
     )
     failure = (
         ClassifiedFailure(
-            "generation_execution",
+            "semantic_evaluation" if semantic else "generation_execution",
             "result_unknown",
             "provider_result_unknown",
             False,
@@ -2024,19 +2027,36 @@ async def _serial_terminal_seed(b, ready, *, unknown=False):
         if unknown
         else None
     )
-    result = EvaluationResponse(None if unknown else response, failure, AT + timedelta(seconds=1))
+    result = EvaluationResponse(
+        None if unknown else response, failure, started + timedelta(seconds=1)
+    )
     reference = SerialResponseReference.from_prepared(1, prepared)
     async with tx.open() as db:
         await db.begin()
         await save_serial_response(db, reference, result)
         await db.commit()
-    planner = SerialGenerationPlanner(
-        b.host.tx,
-        routes,
-        signing_key=b.host.keys["ai.sign"],
-        recipient_key=b.host.keys["qs.encrypt"],
-    )
-    sender = SerialGenerationSender(b.host.tx, b.host.archives, b.runtime, planner)
+    if semantic:
+        from qs_ai.infrastructure.workflow_transport.serial_semantic_sender import (
+            SerialSemanticSender,
+        )
+        from qs_ai.infrastructure.workflow_transport.serial_semantic_state import (
+            SerialSemanticPlanner,
+        )
+
+        planner = SerialSemanticPlanner(
+            b.host.tx,
+            signing_key=b.host.keys["ai.sign"],
+            recipient_key=b.host.keys["qs.encrypt"],
+        )
+        sender = SerialSemanticSender(b.host.tx, b.host.archives, b.runtime, planner)
+    else:
+        planner = SerialGenerationPlanner(
+            b.host.tx,
+            routes,
+            signing_key=b.host.keys["ai.sign"],
+            recipient_key=b.host.keys["qs.encrypt"],
+        )
+        sender = SerialGenerationSender(b.host.tx, b.host.archives, b.runtime, planner)
     intent = await planner.intent(reference)
     return SimpleNamespace(**locals())
 
@@ -2194,6 +2214,154 @@ async def test_actual_serial_terminal_cancel_requires_explicit_old_abort_replan(
         assert old_wire.envelope().message_id not in b.messages
         b.recorder.flush.assert_not_called()
         passed("serial_completion_cancel_old_abort_and_new_plan")
+    finally:
+        b.runtime.release.set()
+        await asyncio.gather(task, *([next_task] if next_task else []), return_exceptions=True)
+        await _clean_serial_terminal(p)
+
+
+@pytest.mark.parametrize("outcome", ["success", "unknown"])
+async def test_actual_serial_semantic_terminal_half_gate_and_first_response(
+    governance_broker, resolution_ready, monkeypatch, outcome
+):
+    from qs_ai.application.execution.generation import DurableGeneration
+    from qs_ai.infrastructure.persistence.mysql.evaluation_serial_response_receipts import (
+        read_serial_response,
+    )
+    from qs_ai.infrastructure.workflow_transport.serial_semantic_state import (
+        read_serial_semantic_plan,
+    )
+    from tests.integration.test_evaluation_unknowns import snapshot
+
+    b = governance_broker
+    p = await _serial_terminal_seed(
+        b, resolution_ready, unknown=outcome == "unknown", semantic=True
+    )
+    no_generation = AsyncMock(side_effect=AssertionError("Terminal sender cannot invoke provider"))
+    monkeypatch.setattr(DurableGeneration, "execute", no_generation)
+    before = await snapshot(p.tx, p.run_id)
+    b.runtime.pause = True
+    task = asyncio.create_task(p.sender(p.reference))
+    try:
+        await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
+        owned = b.host.executions[-1]
+        facts, operation = read_serial_semantic_plan(p.intent, owned.plan)
+        _, first = read_evaluation_state_plan(p.intent, owned.plan)
+        b.empty_poll.clear()
+        await asyncio.wait_for(b.empty_poll.wait(), timeout=20)
+        assert first.envelope().message_id not in b.messages
+        assert await snapshot(p.tx, p.run_id) == before
+        passed("semantic_completion_half_invisible_" + outcome)
+        actual_end = b.sender._client.end_transaction
+
+        def discard(*args, **kwargs):
+            actual_end(*args, **kwargs)
+            raise TimeoutError("client discarded completed serial terminal final reply")
+
+        with monkeypatch.context() as patch:
+            patch.setattr(b.sender._client, "end_transaction", discard)
+            b.runtime.release.set()
+            state = await task
+        result = b.runtime.results[-1]
+        assert result.local == LocalOutcome.COMMITTED
+        assert all(branch.final == FinalOutcome.UNKNOWN for branch in result.branches)
+        assert state.version == 9 and state.checkpoint is None and facts.source_version == 8
+        passed("semantic_completion_final_unknown_keeps_commit")
+        await b.consumed(SimpleNamespace(intent=p.intent))
+        after = await snapshot(p.tx, p.run_id)
+        assert after[0][2]["version"] == 9
+        assert after[0][0]["progress_json"]["status"] == (
+            "blocked" if outcome == "unknown" else "collecting"
+        )
+        async with p.tx.open() as db:
+            assert await read_serial_response(db, p.reference) == p.result
+        assert operation.candidate_id == p.reference.checkpoint.candidate_id
+        passed("semantic_completion_first_response_candidate_wire_and_witness")
+        p.planner.candidate = AsyncMock(
+            side_effect=AssertionError("Duplicate must read original first result")
+        )
+        assert await p.sender(p.reference) == state
+        assert await snapshot(p.tx, p.run_id) == after
+        assert p.gateway.calls == b.runtime.calls == len(b.host.executions) == 1
+        p.planner.candidate.assert_not_called()
+        no_generation.assert_not_called()
+        b.recorder.flush.assert_not_called()
+        passed("semantic_completion_duplicate_first_result_no_model")
+    finally:
+        b.runtime.release.set()
+        await asyncio.gather(task, return_exceptions=True)
+        await _clean_serial_terminal(p)
+
+
+async def test_actual_serial_semantic_cancel_requires_explicit_old_abort_replan(
+    governance_broker, resolution_ready
+):
+    from qs_ai.application.evaluation.management import ManagementScope
+    from qs_ai.infrastructure.workflow_transport.serial_semantic_sender import (
+        SerialSemanticPending,
+    )
+    from qs_ai.infrastructure.workflow_transport.serial_semantic_state import (
+        read_serial_semantic_plan,
+    )
+    from tests.integration.test_evaluation_step import AT
+
+    b = governance_broker
+    p = await _serial_terminal_seed(b, resolution_ready, semantic=True)
+    b.runtime.pause = True
+    task = asyncio.create_task(p.sender(p.reference))
+    next_task = None
+    try:
+        await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
+        previous = b.host.executions[-1]
+        _, original_op = read_serial_semantic_plan(p.intent, previous.plan)
+        _, old_wire = read_evaluation_state_plan(p.intent, previous.plan)
+        await MySQLEvaluationManagement(p.tx).cancel(
+            ManagementScope(p.run_id, 1, 42),
+            8,
+            "Drain original semantic response after frozen source",
+            AT + timedelta(seconds=4),
+            discard=False,
+            confirm=True,
+        )
+        b.runtime.release.set()
+        with pytest.raises(SerialSemanticPending):
+            await task
+        assert await StoreChecker(b.host.store).check(previous.references[0]) == Decision.ROLLBACK
+        assert all(
+            v.final == FinalOutcome.ROLLBACK_CONFIRMED for v in b.runtime.results[-1].branches
+        )
+        b.runtime.entered.clear()
+        b.runtime.release.clear()
+        next_task = asyncio.create_task(p.sender.replan(p.reference, previous))
+        await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
+        current = b.host.executions[-1]
+        facts, operation = read_serial_semantic_plan(p.intent, current.plan)
+        _, first = read_evaluation_state_plan(p.intent, current.plan)
+        assert current.plan.digest != previous.plan.digest and facts.source_version == 9
+        assert (
+            operation.reference == original_op.reference
+            and operation.response_hash == original_op.response_hash
+        )
+        assert operation.candidate_id == original_op.candidate_id
+        passed("semantic_completion_cancel_same_response_candidate")
+        b.empty_poll.clear()
+        await asyncio.wait_for(b.empty_poll.wait(), timeout=20)
+        assert (
+            first.envelope().message_id not in b.messages
+            and old_wire.envelope().message_id not in b.messages
+        )
+        passed("semantic_completion_cancel_new_half_invisible")
+        b.runtime.release.set()
+        state = await next_task
+        assert state.version == 10 and state.checkpoint is None
+        await b.consumed(SimpleNamespace(intent=p.intent))
+        assert await StoreChecker(b.host.store).check(previous.references[0]) == Decision.ROLLBACK
+        assert await StoreChecker(b.host.store).check(current.references[0]) == Decision.COMMIT
+        assert await p.sender(p.reference) == state
+        assert p.gateway.calls == 1 and b.runtime.calls == len(b.host.executions) == 2
+        assert old_wire.envelope().message_id not in b.messages
+        b.recorder.flush.assert_not_called()
+        passed("semantic_completion_cancel_old_abort_and_new_plan")
     finally:
         b.runtime.release.set()
         await asyncio.gather(task, *([next_task] if next_task else []), return_exceptions=True)
