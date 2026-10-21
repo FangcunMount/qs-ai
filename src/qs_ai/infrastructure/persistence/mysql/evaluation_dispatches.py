@@ -3,6 +3,7 @@
 import asyncio
 import hashlib
 import json
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import cast
 from uuid import UUID
@@ -116,12 +117,25 @@ async def reserve_dispatch(
     return state
 
 
-async def record_dispatch(
+@dataclass(frozen=True)
+class DispatchRecordPlan:
+    record_json: str = field(repr=False)
+
+    def values(self) -> dict:
+        value = json.loads(self.record_json)
+        if not isinstance(value, dict):
+            raise ValueError("Original immutable dispatch record required")
+        return value
+
+
+async def plan_dispatch_record(
     db: AsyncSession,
     run_id: UUID,
     checkpoint: ExecutionCheckpoint,
-) -> None:
-    """Caller holds coordinator, Run and slot locks. Shared budget and immutable ledger."""
+    *,
+    lock: bool = False,
+) -> DispatchRecordPlan:
+    """Read the original stage/target budget; a preview is not a dispatch reservation."""
     dispatched = checkpoint
     policy = (
         await db.execute(
@@ -133,18 +147,14 @@ async def record_dispatch(
     policy = json.loads(policy)
     stage = checkpoint.kind
     budget = policy["generation_budget" if stage == "generation" else "semantic_budget"]
-    # Locking reads see the latest committed ledger even if the caller already read in RR.
-    entries = (
-        (
-            await db.execute(
-                select(dispatches)
-                .where(dispatches.c.run_id == str(run_id), dispatches.c.kind == stage)
-                .with_for_update()
-            )
-        )
-        .mappings()
-        .all()
+    # The original writer locks the latest ledger even after an earlier RR
+    # snapshot; read-only previews retain their caller's snapshot boundary.
+    entries_query = select(dispatches).where(
+        dispatches.c.run_id == str(run_id), dispatches.c.kind == stage
     )
+    if lock:
+        entries_query = entries_query.with_for_update()
+    entries = (await db.execute(entries_query)).mappings().all()
     total = len(entries)
     used = sum(
         item["case_id"] == checkpoint.case_id
@@ -159,15 +169,30 @@ async def record_dispatch(
         raise CheckpointConflict("Evaluation execution budget exhausted")
     if checkpoint.execution_ordinal != used + 1:
         raise CheckpointConflict("Evaluation execution ordinal is not next")
-    await db.execute(
-        insert(dispatches).values(
-            run_id=str(run_id),
-            invocation_id=checkpoint.invocation_id,
-            execution_id=checkpoint.execution_id,
-            kind=stage,
-            case_id=checkpoint.case_id,
-            slot_ordinal=checkpoint.slot_ordinal,
-            candidate_id=checkpoint.candidate_id,
-            checkpoint_json=encode(dispatched),
+    return DispatchRecordPlan(
+        json.dumps(
+            dict(
+                run_id=str(run_id),
+                invocation_id=checkpoint.invocation_id,
+                execution_id=checkpoint.execution_id,
+                kind=stage,
+                case_id=checkpoint.case_id,
+                slot_ordinal=checkpoint.slot_ordinal,
+                candidate_id=checkpoint.candidate_id,
+                checkpoint_json=encode(dispatched),
+            ),
+            ensure_ascii=False,
+            allow_nan=False,
+            separators=(",", ":"),
         )
     )
+
+
+async def record_dispatch(
+    db: AsyncSession,
+    run_id: UUID,
+    checkpoint: ExecutionCheckpoint,
+) -> None:
+    """Original caller holds coordinator/Run/slot locks; budget read then immutable insert."""
+    plan = await plan_dispatch_record(db, run_id, checkpoint, lock=True)
+    await db.execute(insert(dispatches).values(**plan.values()))
