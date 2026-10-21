@@ -449,3 +449,8 @@ StepCompletion是宿主内存中的准备结果，未替代持久化SDK计划、
 [`SerialResponseReference / save_serial_response`](../../../src/qs_ai/infrastructure/persistence/mysql/evaluation_serial_response_receipts.py) 为原serial_v1 dispatch保留首次provider响应。它使用原Run/组织、聚合checkpoint version、精确dispatching checkpoint和账本，不能伪造candidate SlotClaim。借用的原根只保存现有evaluation_response_receipts中的输入证据，不推进Run/attempt、发布消息或调用模型；根提交仍由宿主负责。claim_version物理列对这种显式串行记录保存原聚合版本，独立的serial-response/v1外层codec和完整引用使其不会被旧candidate v1读取器混用，既有schema和candidate路径不变。
 
 首次正文、结束时间和SHA不可覆盖，原串行取消drain只允许原实现中同一cancel_requested版本边界。该输入证据即使重复读取也不构成业务提交、事务witness、业务receipt或模型重试授权。编码上限为4MiB，解码拒绝摘要、scope/dispatch、版本、歧义字段和非规范字节差异；响应正文不进入日志。新适配尚未接入默认工作流，完整终态Sender和T18恢复/调用次数故障验收仍须独立完成。
+
+
+InterpretationStateFacts的expected_version表示真实源版本，target_version表示原事务最终可见版本。默认version_delta=1保持旧v1全部字节及原位置参数顺序；一次原事务连续推进两次版本时，可显式选version_delta=2并使用v2 context，冻结一个最终事件和对应最终sequence。解码同时支持原v1和显式v2，拒绝歧义字段、跨版本字段拼装、超出有符号协议范围或与最终正文/序号不符的计划。单次finish仍按原业务投影校验其一次推进。
+
+此扩展仅提供兼容冻结与同根转录基础，完整claim/refusal/attempts-exhausted执行资格、租约/配额和Sender仍须分别接通并验收；四项原根协议用例不等同半消息、实际Broker、完整claim入口或system验收。
