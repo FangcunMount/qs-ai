@@ -12,7 +12,7 @@ from qs_ai.application.interpretation.commands import AnswerCommand, CancelComma
 from qs_ai.application.interpretation.ports import AccessDenied, Receipt
 from qs_ai.application.interpretation.service import InterpretationService
 from qs_ai.domain.interpretation.model import Actor, Question, RuleViolation, Session, Status
-from qs_ai.infrastructure.persistence.mysql import change_admission as reads
+from qs_ai.infrastructure.persistence.mysql import interpretation_admission as reads
 from qs_ai.infrastructure.persistence.mysql.interpretation import session_values
 
 
@@ -50,7 +50,7 @@ def fixture(monkeypatch, *, snapshot=False, previous=None):
     db = SimpleNamespace(execute=AsyncMock(side_effect=execute), commit=AsyncMock())
     capacity = AsyncMock()
     monkeypatch.setattr(reads, "preview_capacity", capacity)
-    uow = reads.ReadOnlyChangeUnitOfWork(
+    uow = reads.ReadOnlyInterpretationMutation(
         db, at=datetime(2026, 10, 21, tzinfo=UTC), run_id=run_id, state_event_id=event_id
     )
     source = SimpleNamespace(authorize=AsyncMock())

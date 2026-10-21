@@ -20,8 +20,10 @@ from qs_ai.contracts.workflow import messaging_pb2 as pb
 from qs_ai.contracts.workflow import workflow_pb2 as workflow
 from qs_ai.contracts.workflow.command_mapping import change_arguments, receipt_message
 from qs_ai.domain.interpretation.model import RuleViolation
-from qs_ai.infrastructure.persistence.mysql.change_admission import ReadOnlyChangeUnitOfWork
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
+from qs_ai.infrastructure.persistence.mysql.interpretation_admission import (
+    ReadOnlyInterpretationMutation,
+)
 from qs_ai.infrastructure.workflow_transport.admission_receipts import (
     AdmissionDecision,
     build_receipt_body,
@@ -83,7 +85,7 @@ class ChangeAdmissionPlanner:
             actor, session_id, command, key = change_arguments(body.change)
             async with self._transactions.open() as db:
                 await db.connection(execution_options={"isolation_level": "REPEATABLE READ"})
-                uow = ReadOnlyChangeUnitOfWork(
+                uow = ReadOnlyInterpretationMutation(
                     db,
                     at=facts.at,
                     run_id=facts.run_id,

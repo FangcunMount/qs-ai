@@ -1,4 +1,4 @@
-"""SELECT-only projection of original answer/cancel; no lock or business commit."""
+"""SELECT-only interpretation mutation projection; no lock or business commit."""
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -28,7 +28,7 @@ from qs_ai.infrastructure.persistence.mysql.schema import idempotency, questions
 from qs_ai.infrastructure.workflow_transport.messaging import valid_id
 
 
-class ReadOnlyChangeUnitOfWork:
+class ReadOnlyInterpretationMutation:
     def __init__(
         self,
         db: AsyncSession,
@@ -57,7 +57,7 @@ class ReadOnlyChangeUnitOfWork:
     async def open(self) -> AsyncIterator[UnitOfWork]:
         # Original service opens once for ownership, once for mutation planning.
         if self._entered or self._opens >= 2:
-            raise RuntimeError("One original CHANGE projection required")
+            raise RuntimeError("One original interpretation projection required")
         self._entered = True
         self._opens += 1
         try:
@@ -138,7 +138,7 @@ class ReadOnlyChangeUnitOfWork:
     async def save(self, session: Session) -> None:
         self._original(session)
         if session.current_question_id or session.status not in (Status.CANCELLED, Status.QUEUED):
-            raise RuntimeError("Only original CHANGE state can be planned")
+            raise RuntimeError("Only original interpretation mutation state can be planned")
         # Legacy sessions with no original QS request never emitted a state event.
         if self._request_id is not None:
             self._state = StateEvent(
