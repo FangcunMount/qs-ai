@@ -13,6 +13,7 @@ import logging
 import os
 import sys
 from contextlib import AsyncExitStack
+from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
 from uuid import uuid4
@@ -454,7 +455,11 @@ async def broker(host, required_broker):
 
 
 def frozen_start(host):
-    value = start_message(host.kit, host.keys)
+    value = start_message(
+        host.kit,
+        host.keys,
+        original_occurred_at=datetime.now(UTC).isoformat(timespec="microseconds"),
+    )
     header = authenticate(
         value.wire,
         COMMANDS,
@@ -497,7 +502,12 @@ async def test_actual_start_half_gate_and_duplicate_reuses_original_plan(broker)
 @pytest.mark.parametrize("action", ["answer", "cancel"])
 async def test_actual_change_original_root_over_broker(broker, action):
     first = await initial_change(broker.host)
-    incoming = change_input(broker.host, first, action)
+    incoming = change_input(
+        broker.host,
+        first,
+        action,
+        original_occurred_at=datetime.now(UTC).isoformat(timespec="microseconds"),
+    )
     await broker.send(incoming)
     await broker.complete(incoming)
     passed("change_" + action)
@@ -507,7 +517,11 @@ async def test_actual_change_original_root_over_broker(broker, action):
 async def test_actual_participant_retry_does_not_add_model_invocations(broker):
     value, _ = await blocked(broker.host.kit)
     before = calls_digest(await calls(broker.host.kit, value.session_id))
-    incoming = await retry_input(broker.host, value)
+    incoming = await retry_input(
+        broker.host,
+        value,
+        original_occurred_at=datetime.now(UTC).isoformat(timespec="microseconds"),
+    )
     await broker.send(incoming)
     await broker.complete(incoming)
     assert calls_digest(await calls(broker.host.kit, value.session_id)) == before
@@ -518,7 +532,12 @@ async def test_actual_participant_retry_does_not_add_model_invocations(broker):
 async def test_actual_evaluation_original_root_over_broker(broker, requested, kind):
     _, scope, store = requested
     try:
-        incoming = evaluation_input(broker.host, scope, kind)
+        incoming = evaluation_input(
+            broker.host,
+            scope,
+            kind,
+            original_occurred_at=datetime.now(UTC).isoformat(timespec="microseconds"),
+        )
         await broker.send(incoming)
         await broker.complete(incoming)
         view = await store.get(scope)

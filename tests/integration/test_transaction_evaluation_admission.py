@@ -86,7 +86,7 @@ async def trigger_admin(host):
         await engine.dispose()
 
 
-def incoming(host, scope, kind=pb.EVALUATION_START, version=1):
+def incoming(host, scope, kind=pb.EVALUATION_START, version=1, *, original_occurred_at=""):
     body = pb.MessagingBody()
     request = body.evaluation_start if kind == pb.EVALUATION_START else body.evaluation_cancel
     request.scope.CopyFrom(
@@ -103,7 +103,9 @@ def incoming(host, scope, kind=pb.EVALUATION_START, version=1):
     )
     if kind == pb.EVALUATION_CANCEL:
         request.discard = False
-    prepared = command(host.keys, kind, body, str(scope.run_id))
+    prepared = command(
+        host.keys, kind, body, str(scope.run_id), original_occurred_at=original_occurred_at
+    )
     header = authenticate(
         prepared.wire,
         COMMANDS,

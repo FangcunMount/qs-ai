@@ -80,7 +80,7 @@ async def initial(host):
     return SimpleNamespace(**locals())
 
 
-def incoming(host, initial, action):
+def incoming(host, initial, action, *, original_occurred_at=""):
     command_id = str(uuid4())
     prepared = command(
         host.keys,
@@ -100,6 +100,7 @@ def incoming(host, initial, action):
         ),
         initial.request_id,
         command_id=command_id,
+        original_occurred_at=original_occurred_at,
     )
     header = authenticate(
         prepared.wire,

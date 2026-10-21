@@ -49,7 +49,7 @@ def calls_digest(values):
     return hashlib.sha256(raw.encode()).digest()
 
 
-async def incoming(host, value):
+async def incoming(host, value, *, original_occurred_at=""):
     async with host.tx.open() as db:
         original_request = await db.scalar(
             select(sessions.c.request_id).where(sessions.c.id == value.session_id)
@@ -75,6 +75,7 @@ async def incoming(host, value):
         ),
         original_request,
         command_id=value.command_id,
+        original_occurred_at=original_occurred_at,
     )
     header = authenticate(
         prepared.wire,
