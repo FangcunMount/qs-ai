@@ -38,10 +38,11 @@ def fixture():
     return SimpleNamespace(**locals())
 
 
+@pytest.mark.parametrize("lock", [False, True])
 @pytest.mark.parametrize("status", ["collecting", "blocked"])
 @pytest.mark.parametrize("renewed", [False, True])
 async def test_original_candidate_owner_keeps_scoped_coordinator_active_then_exact_claim(
-    status, renewed
+    status, renewed, lock
 ):
     p = fixture()
     p.run["progress_json"]["status"] = status
@@ -49,7 +50,7 @@ async def test_original_candidate_owner_keeps_scoped_coordinator_active_then_exa
         p.claim_row["checkpoint_json"] = encode(
             replace(p.p.cp, lease_expires_at=p.p.cp.lease_expires_at + timedelta(seconds=5))
         )
-    run, version, actual = await completion_owner(p.db, p.p.run_id, 1, p.claim)
+    run, version, actual = await completion_owner(p.db, p.p.run_id, 1, p.claim, lock=lock)
     assert run == p.run and version == 10
     assert (
         actual.version == 3 and actual.checkpoint.invocation_id == p.claim.checkpoint.invocation_id
@@ -59,7 +60,9 @@ async def test_original_candidate_owner_keeps_scoped_coordinator_active_then_exa
     )
     calls = p.db.execute.await_args_list
     assert len(calls) == 4
-    assert all(c.args[0].is_select and c.args[0]._for_update_arg is not None for c in calls)
+    assert all(
+        c.args[0].is_select and (c.args[0]._for_update_arg is not None) == lock for c in calls
+    )
     assert calls[1].args[0].compile().params["organization_id_1"] == 1
     assert [c.args[0].get_final_froms()[0].name for c in calls] == [
         "evaluation_checkpoints",
@@ -71,6 +74,7 @@ async def test_original_candidate_owner_keeps_scoped_coordinator_active_then_exa
     p.db.rollback.assert_not_called()
 
 
+@pytest.mark.parametrize("lock", [False, True])
 @pytest.mark.parametrize(
     "damage",
     [
@@ -91,6 +95,7 @@ async def test_original_candidate_owner_keeps_scoped_coordinator_active_then_exa
 )
 async def test_original_candidate_owner_rejects_wrong_scope_or_changed_claim_before_any_write(
     damage,
+    lock,
 ):
     p = fixture()
     claim = p.claim
@@ -129,7 +134,7 @@ async def test_original_candidate_owner_rejects_wrong_scope_or_changed_claim_bef
             )
         )
     with pytest.raises(CheckpointConflict):
-        await completion_owner(p.db, p.p.run_id, 1, claim)
+        await completion_owner(p.db, p.p.run_id, 1, claim, lock=lock)
     assert all(c.args[0].is_select for c in p.db.execute.await_args_list)
     p.db.commit.assert_not_called()
     p.db.rollback.assert_not_called()

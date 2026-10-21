@@ -97,12 +97,15 @@ async def completion_owner(
     run_id: UUID,
     organization_id: int,
     claim: SlotClaim,
+    *,
+    lock: bool = True,
 ) -> tuple[dict, int, SlotClaim]:
+    """Original candidate completion source, not a witness or model retry permit."""
     if claim.run_id != run_id:
         raise CheckpointConflict("Claim belongs to another Run")
-    run, version = await lock_run(db, run_id, organization_id)
-    await active_claims(db, run_id)
-    current = await require_claim(db, claim)
+    run, version = await lock_run(db, run_id, organization_id, lock=lock)
+    await active_claims(db, run_id, lock=lock)
+    current = await require_claim(db, claim, lock=lock)
     if not run["progress_json"] or run["progress_json"]["status"] not in ("collecting", "blocked"):
         raise CheckpointConflict("Run no longer accepts candidate results")
     return run, version, current
