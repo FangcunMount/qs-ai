@@ -304,3 +304,8 @@ Broker第二轮39539009218暴露最后确认的适配缺口：固定SDK在最终
 显式真实Broker profile继续增加更正两项：准备半消息后验证不可见；首次审核时间/wire/witness、客户端丢弃真实Commit回复仍保留LocalCommitted；通过真实事务消息定稿后，重复原command只读返回当前结果且不再发送；并发源变化必须回滚且不可消费。该版共8宿主用例/25必需证据，保持原资源、固定wheel/client和两种Python/三档MySQL矩阵。新版本验收必须绑定本版源码和工具，旧6/20报告仍独立保留，不冒充新更正验证。
 
 创建入口的原 [`create_run/plan_run_creation/apply_run_creation`](../../../src/qs_ai/infrastructure/persistence/mysql/evaluation_runs.py) 分离只读计划与原事务写入。不可变计划持有原始definition JSON、原执行模式和冻结策略，隐藏大正文repr；原创建包装保持相同参数、SQL顺序和调用者提交归属。独立RPC与Solution Prepare均继续借用原会话，后者的资产注册和Run创建不拆成多个提交。原定义字节、时区时间格式、两种执行模式和重复创建行为由基线与原生测试保护；这一步尚未接通创建事务Sender，也不改变默认装配。
+
+
+[`CreationStateInput/CreationPlanFacts`](../../../src/qs_ai/infrastructure/workflow_transport/creation_state_plan.py) 将原Run UUID、组织、操作者、完整release和规范化原因绑定为稳定创建请求；当前宿主模式与新采样时间不属于请求输入。持久化事实保留首次原始definition摘要、执行模式及带时区创建时间，完整首次wire仍归SDK计划。读取只接受初始version/sequence为1、requested状态及精确release；未知字段、重复字段、非规范编码或替换定义/策略被拒绝。
+
+[`CreationStatePlanner/CreationStateRoot`](../../../src/qs_ai/infrastructure/workflow_transport/creation_state.py) 复用原MySQLRunCreator只读资产解析，会话关闭后才Seal；半消息之后的单次原RR根先取SDK guard，重读并核验原不可变合约，再共同写Run、冻结policy、checkpoint、sequence、档案和witness。原定义和首次模式、时区格式不重新生成，提交回复丢失只用精确持久证据判定。新增10项原生测试分别覆盖两种模式、档案/witness拒绝、客户端丢弃已完成提交回复及不能收养已存在的legacy Run；当前执行结果以infra总表为准，不能替代Broker、网络或生产证明。此批尚未接通公开创建Sender及Solution Prepare事务入口，默认装配继续关闭。
