@@ -4,6 +4,7 @@ The result row remains business/refusal history. This adapter never signs,
 sends, scans, stages a messaging Outbox row, or confirms business delivery.
 """
 
+import json
 from collections.abc import Mapping
 from typing import Any, cast
 
@@ -21,6 +22,29 @@ from qs_ai.infrastructure.workflow_transport.transaction_command import (
     FrozenCommandInput,
     read_admission_plan,
 )
+
+
+def _artifact_fields(raw: str) -> dict[str, str]:
+    """MySQL JSON objects have no key order; an Artifact's field values are strings."""
+
+    def unique(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        value: dict[str, Any] = {}
+        for key, item in pairs:
+            if key in value:
+                raise ValueError("Duplicate original Artifact field")
+            value[key] = item
+        return value
+
+    if len(raw.encode()) > 131072:
+        raise ValueError("Original Artifact exceeds its delivery bound")
+    value = json.loads(raw, object_pairs_hook=unique)
+    if (
+        not isinstance(value, dict)
+        or not value
+        or any(not isinstance(k, str) or not isinstance(v, str) for k, v in value.items())
+    ):
+        raise ValueError("Exact original Artifact string fields required")
+    return value
 
 
 class InterpretationStateTranscription:
@@ -53,6 +77,14 @@ class InterpretationStateTranscription:
             raise MessageConflict("Unplanned interpretation state cannot be recorded")
         try:
             actual = workflow.StateEvent(**row["payload"])
+            if expected.status == actual.status == "completed" and expected.artifact_json:
+                if _artifact_fields(actual.artifact_json) != _artifact_fields(
+                    expected.artifact_json
+                ):
+                    raise ValueError("Original Artifact fields differ")
+                # Compare the remaining exact projection without re-encoding or
+                # replacing the immutable first body/wire in its archive.
+                actual.artifact_json = expected.artifact_json
             valid = (
                 actual == expected
                 and row["event_id"] == expected.event_id
@@ -64,7 +96,7 @@ class InterpretationStateTranscription:
                 and type(row["mq_owned"]) is bool
                 and (self._seen or row["mq_owned"] is False)
             )
-        except (KeyError, TypeError, ValueError):
+        except (KeyError, TypeError, ValueError, RecursionError, UnicodeError):
             raise MessageConflict("Original interpretation state evidence invalid") from None
         if not valid:
             raise MessageConflict(
