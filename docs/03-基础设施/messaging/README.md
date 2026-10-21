@@ -319,3 +319,8 @@ Broker第二轮39539009218暴露最后确认的适配缺口：固定SDK在最终
 Solution Prepare同时写资产和Run，仍须在同一原根接入事务消息，不能把资产提前提交。其前置只读规划现已提供 [`PromptFreezePlan/plan_freeze`](../../../src/qs_ai/infrastructure/persistence/mysql/prompt_freezes.py) 和 [`ProfileRegistrationPlan/plan_registration`](../../../src/qs_ai/infrastructure/persistence/mysql/profile_registrations.py)：复用原草稿、来源、不可变身份、内容、渲染和回执规则，规划不加写锁、不执行DML；原写路径及根提交归属保持不变。原路径仍读取数据库中的真实资产验证，不能用预览覆盖持久化核验。
 
 [`PlannedAssetReader`](../../../src/qs_ai/infrastructure/persistence/mysql/asset_snapshot.py) 仅供宿主规划器显式组合未来的不可变资产，精确匹配封闭类型与身份，其他读取委托同一原快照。内存计划不是提交证明，不授权发布，不用于Checker、正文服务或历史回执权威读取。新增4项真实MySQL用例分别验证Prompt和Profile规划只有SELECT、原事务共同提交/回滚；测试结果以infra记录为准。Suite、完整Run计划和Solution原根发送尚待完成，默认装配仍关闭。
+
+
+[`SuiteRegistrationPlan/plan_registration`](../../../src/qs_ai/infrastructure/persistence/mysql/evaluation_suites.py) 继续把原Suite注册的所有只读校验放在DML之前，保存原案例、schema、manifest和不可变SuiteContracts；原apply仍只在同一根插入一份资产/回执，重放读取首次回执。显式未来资产只供预览，默认注册仍验证实际持久化资产。原 [`freeze_run_creation`](../../../src/qs_ai/infrastructure/persistence/mysql/evaluation_runs.py) 从已核验suite/contracts冻结创建定义，不发起数据库、模型或网络调用；注册表规划仍先验证请求，再读取原库并调用同一冻结函数，原定义字节和SQL提交归属不变。
+
+Prompt/Profile/Suite只读规划共有6项新真实MySQL用例，分别证明仅SELECT以及原根共同提交/回滚；本地仅收集，required CI结果另行记录。完整Solution Prepare的身份冻结、整批计划、发送器及原根仍待完成，不能把这些基础函数计作业务已迁移。
