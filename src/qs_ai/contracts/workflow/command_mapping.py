@@ -3,6 +3,7 @@
 from uuid import UUID
 
 from qs_ai.application.evaluation.management import ManagementScope
+from qs_ai.application.interpretation.commands import AnswerCommand, CancelCommand
 from qs_ai.application.interpretation.ports import Receipt
 from qs_ai.contracts.workflow import workflow_pb2 as pb
 from qs_ai.domain.interpretation.model import Actor, EvidenceItem, Fact
@@ -28,6 +29,34 @@ def start_arguments(
             )
             for item in request.evidence
         ),
+    )
+
+
+def change_arguments(
+    request: pb.ChangeCommand,
+) -> tuple[Actor, str, AnswerCommand | CancelCommand, str]:
+    """Retain the original CHANGE validation and optional answer semantics."""
+    if (
+        str(UUID(request.command_id)) != request.command_id
+        or str(UUID(request.session_id)) != request.session_id
+        or request.action not in {"answer", "cancel"}
+    ):
+        raise ValueError("Invalid command")
+    command: AnswerCommand | CancelCommand = (
+        AnswerCommand(
+            request.expected_version,
+            request.question_id,
+            request.answer if request.HasField("answer") else None,
+            request.skip,
+        )
+        if request.action == "answer"
+        else CancelCommand(request.expected_version)
+    )
+    return (
+        Actor(request.actor.org_id, request.actor.subject_id),
+        request.session_id,
+        command,
+        request.command_id,
     )
 
 

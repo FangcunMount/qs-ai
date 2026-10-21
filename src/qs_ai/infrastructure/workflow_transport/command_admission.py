@@ -3,7 +3,6 @@
 from collections.abc import Callable
 from dataclasses import asdict
 from datetime import UTC, datetime
-from uuid import UUID
 
 from reliable_messaging.durable import MessageConflict
 from sqlalchemy import select
@@ -17,13 +16,18 @@ from qs_ai.application.execution.retry import ParticipantRetry, RetryParticipant
 from qs_ai.application.governance.prompt_drafts import DraftScope
 from qs_ai.application.governance.quotas import QuotaBaseline
 from qs_ai.application.governance.solution_models import EditableModelPolicy
-from qs_ai.application.interpretation.commands import AnswerCommand, CancelCommand
+from qs_ai.application.interpretation.commands import AnswerCommand
 from qs_ai.application.interpretation.ports import AccessDenied, EvidenceSource, NotFound, Receipt
 from qs_ai.application.interpretation.service import InterpretationService
 from qs_ai.contracts.workflow import messaging_pb2 as pb
 from qs_ai.contracts.workflow import workflow_pb2 as workflow
-from qs_ai.contracts.workflow.command_mapping import receipt_message, scope_from, start_arguments
-from qs_ai.domain.interpretation.model import Actor, RuleViolation
+from qs_ai.contracts.workflow.command_mapping import (
+    change_arguments,
+    receipt_message,
+    scope_from,
+    start_arguments,
+)
+from qs_ai.domain.interpretation.model import RuleViolation
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
 from qs_ai.infrastructure.persistence.mysql.evaluation_management import MySQLEvaluationManagement
 from qs_ai.infrastructure.persistence.mysql.interpretation import MySQLUnitOfWorkFactory
@@ -132,33 +136,11 @@ class WorkflowCommandAdmission:
             receipt = await service.start_external(*start_arguments(request))
             return await _start_decision(tx, request, receipt, org)
         elif envelope.kind == pb.CHANGE:
-            request = body.change
-            if (
-                str(UUID(request.command_id)) != request.command_id
-                or str(UUID(request.session_id)) != request.session_id
-                or request.action not in {"answer", "cancel"}
-            ):
-                raise ValueError("Invalid command")
-            actor = Actor(request.actor.org_id, request.actor.subject_id)
-            if request.action == "answer":
-                receipt = await service.answer(
-                    actor,
-                    request.session_id,
-                    AnswerCommand(
-                        request.expected_version,
-                        request.question_id,
-                        request.answer if request.HasField("answer") else None,
-                        request.skip,
-                    ),
-                    request.command_id,
-                )
+            actor, session_id, change, key = change_arguments(body.change)
+            if isinstance(change, AnswerCommand):
+                receipt = await service.answer(actor, session_id, change, key)
             else:
-                receipt = await service.cancel(
-                    actor,
-                    request.session_id,
-                    CancelCommand(request.expected_version),
-                    request.command_id,
-                )
+                receipt = await service.cancel(actor, session_id, change, key)
         elif envelope.kind == pb.PARTICIPANT_RETRY:
             request = body.participant_retry
             if request.ByteSize() > 8192:
