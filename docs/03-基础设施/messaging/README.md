@@ -433,3 +433,6 @@ interpretation首业务历史的keyless校验现由 [`InterpretationStateTranscr
 全部半消息成功后，原根先竞争SDK guard，再精确复核原Session/job/run/fence、答案/问题身份、请求绑定及源摘要，调用原finish_in暂存业务、首历史、档案和witness并共同提交。心跳延长租约不改变业务摘要；真正提交仍以原guard和末尾数据库活跃租约校验为准。Question序号须等于冻结快照和原根实际count+1，原调用未提供序号时保持旧语义。Artifact沿用原持久化response、来源、配置、内容与安全检查，执行器前验证原UUID5身份，原根不重新生成ID。
 
 Sender只在LocalCommitted且新权威读取精确witness与首档案均匹配后完成；FinalUnknown仍可保留已证实的本地提交。重复完成读取首次结果，即使业务后来继续推进，也不重新规划、发送或执行模型。当前为显式接入组件，默认应用装配、claim/refusal、其余evaluation终态与恢复责任仍分别受迁移门禁保护。真实依赖报告与合并/部署进度统一回链infra总表；模拟发送器和客户端主动丢弃提交回复不算实际Broker或网络级故障证明。
+
+
+Artifact的JSON对象在MySQL中不保留键顺序。完成状态转录仅对artifact_json按无重复键、全字符串字段对象核对原业务值，拒绝字段/类型/内容变化；其余事件身份、版本、投递责任和原根保护仍逐项精确校验。此比较不重建或替换首次消息正文、wire或档案哈希，历史读取继续保留原数据库投影。
