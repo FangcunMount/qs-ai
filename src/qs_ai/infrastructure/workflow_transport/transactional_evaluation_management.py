@@ -9,16 +9,24 @@ from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 from qs_ai.application.evaluation.management import EvaluationView, ManagementScope
+from qs_ai.domain.evaluation.resolution import ResultUnknownResolution
 from qs_ai.domain.evaluation.review import CandidateHumanReview
 from qs_ai.infrastructure.persistence.mysql.evaluation_management import MySQLEvaluationManagement
 from qs_ai.infrastructure.workflow_transport.correction_state_plan import CorrectionStateOperation
 from qs_ai.infrastructure.workflow_transport.evaluation_governance_state import (
     GovernanceStateOperation,
 )
+from qs_ai.infrastructure.workflow_transport.resolution_state_plan import ResolutionStateOperation
 from qs_ai.infrastructure.workflow_transport.review_state_plan import ReviewStateInput
 
 GovernanceDispatch = Callable[
-    [GovernanceStateOperation | ReviewStateInput | CorrectionStateOperation, datetime],
+    [
+        GovernanceStateOperation
+        | ReviewStateInput
+        | CorrectionStateOperation
+        | ResolutionStateOperation,
+        datetime,
+    ],
     Awaitable[EvaluationView],
 ]
 
@@ -39,6 +47,19 @@ class TransactionalEvaluationManagement(MySQLEvaluationManagement):
             original.runtime_limits,
         )
         self._dispatch, self._new_id = dispatch, new_id
+
+    async def resolve(
+        self,
+        scope: ManagementScope,
+        expected_version: int,
+        value: ResultUnknownResolution,
+        *,
+        confirm: bool,
+    ) -> EvaluationView:
+        operation = ResolutionStateOperation(
+            scope, self._new_id(), expected_version, value, confirm
+        )
+        return await self._dispatch(operation, value.resolved_at.astimezone(UTC))
 
     async def review(
         self,

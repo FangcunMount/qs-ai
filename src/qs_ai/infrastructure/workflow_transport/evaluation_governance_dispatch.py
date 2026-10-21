@@ -9,6 +9,7 @@ from reliable_messaging.rocketmq_transaction import TransactionSendError
 from reliable_messaging.transaction import (
     BindingError,
     Execution,
+    FrozenPlan,
     LocalOutcome,
     Reservation,
     SchemaError,
@@ -23,6 +24,7 @@ from qs_ai.application.evaluation.execution_mode import (
 )
 from qs_ai.application.evaluation.management import EvaluationView
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
+from qs_ai.infrastructure.persistence.mysql.evaluation_management import MySQLEvaluationManagement
 from qs_ai.infrastructure.persistence.mysql.transaction_archive import TransactionArchive
 from qs_ai.infrastructure.persistence.mysql.transaction_input import input_conflicts
 from qs_ai.infrastructure.workflow_transport.correction_state import (
@@ -40,11 +42,21 @@ from qs_ai.infrastructure.workflow_transport.evaluation_state_plan import (
     EvaluationStateIntent,
     read_evaluation_state_plan,
 )
+from qs_ai.infrastructure.workflow_transport.resolution_state import (
+    ResolutionStatePlanner,
+    ResolutionStateRoot,
+)
+from qs_ai.infrastructure.workflow_transport.resolution_state_plan import ResolutionStateOperation
 from qs_ai.infrastructure.workflow_transport.review_state import ReviewStatePlanner, ReviewStateRoot
 from qs_ai.infrastructure.workflow_transport.review_state_plan import ReviewStateInput
 from qs_ai.infrastructure.workflow_transport.transaction_root import StateTransactions
 
-StateOperation = GovernanceStateOperation | ReviewStateInput | CorrectionStateOperation
+StateOperation = (
+    GovernanceStateOperation
+    | ReviewStateInput
+    | CorrectionStateOperation
+    | ResolutionStateOperation
+)
 
 
 class GovernanceTransactionPending(RuntimeError):
@@ -62,11 +74,28 @@ class GovernanceStateDispatcher:
         recipient_key: Any,
         database_seconds: float = 2,
         runtime_limits: EvaluationRuntimeLimits = SERIAL_RUNTIME_LIMITS,
+        resolution_management: MySQLEvaluationManagement | None = None,
     ) -> None:
         if not math.isfinite(database_seconds) or database_seconds <= 0:
             raise ValueError("Finite positive governance evidence budget required")
+        if (
+            resolution_management is not None
+            and resolution_management.transactions is not transactions
+        ):
+            raise ValueError("Resolution must borrow this exact host transaction owner")
         self._transactions, self._archives, self._runtime = transactions, archives, runtime
         self._database_seconds, self._runtime_limits = database_seconds, runtime_limits
+        self._resolution_original = resolution_management
+        self._resolution_planner = (
+            ResolutionStatePlanner(
+                resolution_management,
+                signing_key=signing_key,
+                recipient_key=recipient_key,
+                database_seconds=database_seconds,
+            )
+            if resolution_management is not None
+            else None
+        )
         self._planner = GovernanceStatePlanner(
             transactions,
             signing_key=signing_key,
@@ -90,6 +119,8 @@ class GovernanceStateDispatcher:
         )
 
     async def __call__(self, operation: StateOperation, at: datetime) -> EvaluationView:
+        if isinstance(operation, ResolutionStateOperation) and self._resolution_planner is None:
+            raise BindingError("Explicit original resolution management binding required")
         existing = await self._lookup(operation)
         if isinstance(operation, CorrectionStateOperation):
             replay = await self._correction_result(operation, existing)
@@ -99,7 +130,11 @@ class GovernanceStateDispatcher:
             # This interface has no durable public operation-result reader.
             # Returning today's Run view would substitute a different response.
             raise GovernanceTransactionPending("Original governance invocation already exists")
-        if isinstance(operation, CorrectionStateOperation):
+        candidate: FrozenPlan | None
+        if isinstance(operation, ResolutionStateOperation):
+            assert self._resolution_planner is not None
+            candidate = await self._resolution_planner.candidate(operation, at)
+        elif isinstance(operation, CorrectionStateOperation):
             candidate = await self._correction_planner.candidate(operation, at)
             if candidate is None:
                 replay = await self._correction_result(operation, await self._lookup(operation))
@@ -123,8 +158,18 @@ class GovernanceStateDispatcher:
                 if replay is not None:
                     return replay
             raise GovernanceTransactionPending("Original governance invocation is already owned")
-        local: CorrectionStateRoot | ReviewStateRoot | GovernanceStateRoot
-        if isinstance(operation, CorrectionStateOperation):
+        local: CorrectionStateRoot | ReviewStateRoot | GovernanceStateRoot | ResolutionStateRoot
+        if isinstance(operation, ResolutionStateOperation):
+            assert self._resolution_original is not None
+            local = ResolutionStateRoot(
+                self._resolution_original,
+                self._archives,
+                self._runtime.store,
+                operation,
+                reservation.execution.plan,
+                database_seconds=self._database_seconds,
+            )
+        elif isinstance(operation, CorrectionStateOperation):
             local = CorrectionStateRoot(
                 self._transactions,
                 self._archives,
