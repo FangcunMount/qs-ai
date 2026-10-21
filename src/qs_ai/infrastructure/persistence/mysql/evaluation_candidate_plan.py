@@ -3,6 +3,7 @@
 import asyncio
 import json
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict, CheckpointState
 from qs_ai.domain.evaluation.checkpoint import ExecutionCheckpoint
 from qs_ai.domain.evaluation.parallel_plan import ParallelPlan, plan_parallel
+from qs_ai.domain.evaluation.policy import ExecutionPolicy
 from qs_ai.infrastructure.persistence.mysql.completion_records import (
     generation_completions as evaluation_generation_completions,
 )
@@ -40,6 +42,8 @@ async def candidate_plan(
     run: dict,
     active: tuple[SlotClaim, ...],
     limit: int,
+    *,
+    lock: bool = True,
 ) -> ParallelPlan:
     creation, progress = json.loads(run["definition_json"]), run["progress_json"]
     policy, _ = await asyncio.to_thread(frozen_policies, creation)
@@ -49,18 +53,39 @@ async def candidate_plan(
         evaluation_generation_completions,
         evaluation_semantic_completions,
     ):
-        records.append(
-            list(
-                (
-                    await db.execute(
-                        select_records(table).where(table.c.run_id == str(run_id)).with_for_update()
-                    )
-                )
-                .mappings()
-                .all()
-            )
-        )
+        statement = select_records(table).where(table.c.run_id == str(run_id))
+        if lock:
+            statement = statement.with_for_update()
+        records.append(list((await db.execute(statement)).mappings().all()))
     dispatches, generations, semantics = records
+    return await project_candidate_records(
+        creation,
+        progress,
+        policy,
+        active,
+        limit,
+        dispatches=dispatches,
+        generations=generations,
+        semantics=semantics,
+    )
+
+
+async def project_candidate_records(
+    creation: dict,
+    progress: dict,
+    policy: ExecutionPolicy,
+    active: tuple[SlotClaim, ...],
+    limit: int,
+    *,
+    dispatches: list[Any],
+    generations: list[Any],
+    semantics: list[Any],
+) -> ParallelPlan:
+    """Original record/active-dispatch projection, without storage or model authority.
+
+    Virtual terminal planners can reuse these rules with an exact in-memory
+    overlay; writers still validate real records under the original root locks.
+    """
     terminal = terminal_dispatches(dispatches, generations + semantics, active)
     slots = await asyncio.to_thread(
         project_slots,
