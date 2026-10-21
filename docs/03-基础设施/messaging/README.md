@@ -331,3 +331,8 @@ Prompt/Profile/Suite只读规划共有6项新真实MySQL用例，分别证明仅
 原 [`PreparationIDs/prepare_assets`](../../../src/qs_ai/infrastructure/persistence/mysql/solution_assets.py) 可显式接收在事务前冻结的确定性身份，默认旧路径保持原派生规则；新执行传入完整身份后不在业务阶段生成UUID。原 [`contracts_from_binding`](../../../src/qs_ai/infrastructure/persistence/mysql/evaluation_contracts.py) 允许规划器验证未来Suite的精确绑定，保留组织所有权与四项原ref校验，仍从同一原库读取固定policy/semantic字节，不能选择其他数据库或绕过源Suite规则。
 
 新增4项真实MySQL用例覆盖两种首次模式、规划阶段仅SELECT、原资产与Run共同提交/回滚、定义/回执一致和执行阶段禁止新UUID；本地仅收集，实际结果以infra总表为准。完整Solution命令的SDK发送器、冻结源状态、原revision/命令回执与witness共同提交及真实Broker仍待接入，此批不改变默认DI。
+
+
+[`MySQLSolutions.apply_in/SolutionApplyResult`](../../../src/qs_ai/infrastructure/persistence/mysql/solutions.py) 借用调用方已经存在的根事务，不配置连接、不提交/回滚/关闭，拒绝缺失、失效根及savepoint。原公开apply仍自行建立RC边界：新写入在响应校验后只提交一次，首次或加锁后命中的历史回执不写入也不提交。原稳定请求编码抽成solution_request，旧命令/回执字节及唯一冲突恢复不变。
+
+wrote只表示本次在原根中暂存了业务写入，不是提交证明；SDK原根仍须统一写全部witness并提交，提交结果必须另行验证。Prepare可显式借用首次身份和执行模式，原其余写入口保持原语义。新增4项真实MySQL用例覆盖两种模式、原Solution revision/命令回执/全部资产/Run共同提交或回滚；本地仅收集，SDK原根和真实Broker仍待接通。

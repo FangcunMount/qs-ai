@@ -2,7 +2,7 @@
 
 import hashlib
 import json
-from dataclasses import asdict
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid5
@@ -45,6 +45,7 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
     solution_revisions as solutions,
 )
 from qs_ai.infrastructure.persistence.mysql.solution_assets import (
+    PreparationIDs,
     model_values,
     prepare_assets,
     release_from,
@@ -78,6 +79,46 @@ def decode(raw: str, digest: str) -> dict[str, Any]:
     if not isinstance(value, dict) or value.get("schema_version") != "qs-ai-solution/v1":
         raise ValueError("Solution snapshot format invalid")
     return value
+
+
+@dataclass(frozen=True)
+class SolutionApplyResult:
+    value: dict[str, Any] = field(repr=False)
+    wrote: bool
+
+
+def solution_request(
+    scope: DraftScope,
+    solution_id: UUID,
+    command: CreateSolution | SaveSolution | PrepareSolution,
+) -> str:
+    """Original request bytes exclude a fresh server clock and current host mode."""
+    command_payload = asdict(command)
+    if isinstance(command, CreateSolution) and command.template_ref is None:
+        command_payload.pop("template_ref")  # Preserve original command receipt bytes.
+    if isinstance(command, SaveSolution):
+        for purpose in ("generation", "semantic"):
+            values = command_payload[purpose]
+            for optional in (
+                "model_key",
+                "catalog_revision",
+                "thinking",
+                "temperature",
+                "top_p",
+            ):
+                if values.get(optional) is None:
+                    values.pop(optional, None)
+        for key in ("evaluation_suite", "semantic_prompt", "semantic_owner_organization_id"):
+            if command_payload[key] in (None, 0):
+                command_payload.pop(key)
+    return encode(
+        {
+            "scope": asdict(scope),
+            "solution_id": str(solution_id),
+            "action": type(command).__name__,
+            "command": command_payload,
+        }
+    )
 
 
 async def read_state(
@@ -297,122 +338,14 @@ class MySQLSolutions:
     ) -> dict[str, Any]:
         if not solution_id.int or at.tzinfo is None:
             raise ValueError("Solution identity and server time required")
-        command_payload = asdict(command)
-        if isinstance(command, CreateSolution) and command.template_ref is None:
-            command_payload.pop("template_ref")  # Preserve original command receipt bytes.
-        if isinstance(command, SaveSolution):
-            for purpose in ("generation", "semantic"):
-                values = command_payload[purpose]
-                for optional in (
-                    "model_key",
-                    "catalog_revision",
-                    "thinking",
-                    "temperature",
-                    "top_p",
-                ):
-                    if values.get(optional) is None:
-                        values.pop(optional, None)
-            for key in ("evaluation_suite", "semantic_prompt", "semantic_owner_organization_id"):
-                if command_payload[key] in (None, 0):
-                    command_payload.pop(key)
-        request = encode(
-            {
-                "scope": asdict(scope),
-                "solution_id": str(solution_id),
-                "action": type(command).__name__,
-                "command": command_payload,
-            }
-        )
+        request = solution_request(scope, solution_id, command)
         try:
             async with self.transactions.open() as db:
                 await db.connection(execution_options={"isolation_level": "READ COMMITTED"})
-                previous = await prior(db, scope, command.command_id, request)
-                if previous is not None:
-                    return await hydrate(db, scope, previous)
-                if isinstance(command, CreateSolution):
-                    state = await self._create(db, scope, solution_id, command, at)
-                else:
-                    state = await read_state(db, scope, solution_id, lock=True)
-                    previous = await prior(db, scope, command.command_id, request)
-                    if previous is not None:
-                        return await hydrate(db, scope, previous)
-                    if state["revision"] != command.expected_revision or state["prepared"]:
-                        raise DraftConflict("Solution changed or is already prepared")
-                    current = await read_draft(db, scope, UUID(state["draft_id"]), lock=True)
-                    if current.revision != state["draft_revision"]:
-                        raise DraftConflict("Linked Prompt was edited outside this workspace")
-                    state["reason"] = command.reason
-                    if isinstance(command, SaveSolution):
-                        if not command.title.strip():
-                            raise ValueError("Title required")
-                        await self._check_selections(
-                            db, state, command.generation, command.semantic
-                        )
-                        selected_assets = await select_evaluation_assets(db, scope, state, command)
-                        draft = await apply_draft(
-                            db,
-                            scope,
-                            RevisePromptDraft(
-                                current.draft_id,
-                                uuid5(command.command_id, "prompt-save"),
-                                current.revision,
-                                command.content,
-                                command.reason,
-                            ),
-                            at,
-                        )
-                        state.update(
-                            title=command.title,
-                            draft_revision=draft.revision,
-                            generation=asdict(command.generation),
-                            semantic=asdict(command.semantic),
-                            evaluation_assets=selected_assets,
-                        )
-                    else:
-                        await self._check_selections(
-                            db,
-                            state,
-                            ModelSelection(**state["generation"]),
-                            ModelSelection(**state["semantic"]),
-                        )
-                        state["prepared"] = await prepare_assets(
-                            db,
-                            scope,
-                            state,
-                            command.command_id,
-                            at,
-                            self.settings.governance_models,
-                            self.settings.models,
-                            execution_mode="candidate_v2"
-                            if self.settings.evaluation.candidate_mode_enabled
-                            else "serial_v1",
-                        )
-                    state.update(revision=state["revision"] + 1, updated_at=at.isoformat())
-                raw = encode(state)
-                if not isinstance(command, CreateSolution):
-                    await db.execute(
-                        update(solutions)
-                        .where(solutions.c.solution_id == str(solution_id))
-                        .values(
-                            revision=state["revision"], state_json=raw, state_sha256=checksum(raw)
-                        )
-                    )
-                await db.execute(
-                    insert(commands).values(
-                        command_id=str(command.command_id),
-                        solution_id=str(solution_id),
-                        organization_id=scope.organization_id,
-                        operator_user_id=scope.operator_user_id,
-                        request_json=request,
-                        receipt_json=raw,
-                        receipt_sha256=checksum(raw),
-                    )
-                )
-                result = await hydrate(db, scope, state)
-                if len(encode(result).encode()) > 1048576:
-                    raise ValueError("Solution response exceeds limit")
-                await db.commit()
-                return result
+                result = await self.apply_in(db, scope, solution_id, command, at)
+                if result.wrote:
+                    await db.commit()
+                return result.value
         except IntegrityError as error:
             if error.orig is None or not error.orig.args or error.orig.args[0] != 1062:
                 raise
@@ -421,6 +354,118 @@ class MySQLSolutions:
             if previous is not None:
                 return await hydrate(db, scope, previous)
         raise DraftConflict("Solution identity or immutable asset already exists")
+
+    async def apply_in(
+        self,
+        db: AsyncSession,
+        scope: DraftScope,
+        solution_id: UUID,
+        command: CreateSolution | SaveSolution | PrepareSolution,
+        at: datetime,
+        *,
+        preparation_ids: PreparationIDs | None = None,
+        execution_mode: str | None = None,
+    ) -> SolutionApplyResult:
+        """Borrow the already active caller root; never configure, commit or close it."""
+        original = db.get_transaction()
+        if original is None or not original.is_active or db.in_nested_transaction():
+            raise RuntimeError("Original active solution root required")
+        if not solution_id.int or at.tzinfo is None:
+            raise ValueError("Solution identity and server time required")
+        if execution_mode is not None and execution_mode not in ("serial_v1", "candidate_v2"):
+            raise ValueError("Original first preparation mode required")
+        if not isinstance(command, PrepareSolution) and (
+            preparation_ids is not None or execution_mode is not None
+        ):
+            raise ValueError("Frozen preparation facts require the original Prepare command")
+        request = solution_request(scope, solution_id, command)
+        previous = await prior(db, scope, command.command_id, request)
+        if previous is not None:
+            return SolutionApplyResult(await hydrate(db, scope, previous), False)
+        if isinstance(command, CreateSolution):
+            state = await self._create(db, scope, solution_id, command, at)
+        else:
+            state = await read_state(db, scope, solution_id, lock=True)
+            previous = await prior(db, scope, command.command_id, request)
+            if previous is not None:
+                return SolutionApplyResult(await hydrate(db, scope, previous), False)
+            if state["revision"] != command.expected_revision or state["prepared"]:
+                raise DraftConflict("Solution changed or is already prepared")
+            current = await read_draft(db, scope, UUID(state["draft_id"]), lock=True)
+            if current.revision != state["draft_revision"]:
+                raise DraftConflict("Linked Prompt was edited outside this workspace")
+            state["reason"] = command.reason
+            if isinstance(command, SaveSolution):
+                if not command.title.strip():
+                    raise ValueError("Title required")
+                await self._check_selections(db, state, command.generation, command.semantic)
+                selected_assets = await select_evaluation_assets(db, scope, state, command)
+                draft = await apply_draft(
+                    db,
+                    scope,
+                    RevisePromptDraft(
+                        current.draft_id,
+                        uuid5(command.command_id, "prompt-save"),
+                        current.revision,
+                        command.content,
+                        command.reason,
+                    ),
+                    at,
+                )
+                state.update(
+                    title=command.title,
+                    draft_revision=draft.revision,
+                    generation=asdict(command.generation),
+                    semantic=asdict(command.semantic),
+                    evaluation_assets=selected_assets,
+                )
+            else:
+                await self._check_selections(
+                    db,
+                    state,
+                    ModelSelection(**state["generation"]),
+                    ModelSelection(**state["semantic"]),
+                )
+                state["prepared"] = await prepare_assets(
+                    db,
+                    scope,
+                    state,
+                    command.command_id,
+                    at,
+                    self.settings.governance_models,
+                    self.settings.models,
+                    execution_mode=execution_mode
+                    if execution_mode is not None
+                    else (
+                        "candidate_v2"
+                        if self.settings.evaluation.candidate_mode_enabled
+                        else "serial_v1"
+                    ),
+                    identities=preparation_ids,
+                )
+            state.update(revision=state["revision"] + 1, updated_at=at.isoformat())
+        raw = encode(state)
+        if not isinstance(command, CreateSolution):
+            await db.execute(
+                update(solutions)
+                .where(solutions.c.solution_id == str(solution_id))
+                .values(revision=state["revision"], state_json=raw, state_sha256=checksum(raw))
+            )
+        await db.execute(
+            insert(commands).values(
+                command_id=str(command.command_id),
+                solution_id=str(solution_id),
+                organization_id=scope.organization_id,
+                operator_user_id=scope.operator_user_id,
+                request_json=request,
+                receipt_json=raw,
+                receipt_sha256=checksum(raw),
+            )
+        )
+        result = await hydrate(db, scope, state)
+        if len(encode(result).encode()) > 1048576:
+            raise ValueError("Solution response exceeds limit")
+        return SolutionApplyResult(result, True)
 
     async def _check_selections(
         self,
