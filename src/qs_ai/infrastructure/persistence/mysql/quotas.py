@@ -271,9 +271,11 @@ async def evaluation_policy(
     organization_id: int,
     defaults: EvaluationCapacityPolicy,
     baseline: QuotaBaseline | None = None,
+    *,
+    lock: bool = True,
 ) -> tuple[EvaluationCapacityPolicy, dict[str, Any]]:
     if baseline is None:
         values = QuotaValues(ParticipantCapacityPolicy(), defaults)
         baseline = QuotaBaseline(values, values)
-    snapshot = await effective(db, organization_id, baseline)
+    snapshot = await effective(db, organization_id, baseline, lock=lock)
     return EvaluationCapacityPolicy(**snapshot["effective"]["evaluation"]), snapshot
