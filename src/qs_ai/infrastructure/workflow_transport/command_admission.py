@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from qs_ai.application.evaluation.capacity import CapacityExceeded, EvaluationCapacityPolicy
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict
 from qs_ai.application.evaluation.execution_mode import EvaluationRuntimeLimits
+from qs_ai.application.evaluation.management import EvaluationAdmissionStore
 from qs_ai.application.execution.capacity import ParticipantCapacityPolicy
 from qs_ai.application.execution.retry import ParticipantRetryStore, RetryParticipant
 from qs_ai.application.governance.quotas import QuotaBaseline
@@ -22,9 +23,9 @@ from qs_ai.contracts.workflow import messaging_pb2 as pb
 from qs_ai.contracts.workflow import workflow_pb2 as workflow
 from qs_ai.contracts.workflow.command_mapping import (
     change_arguments,
+    evaluation_arguments,
     participant_retry_command,
     receipt_message,
-    scope_from,
     start_arguments,
 )
 from qs_ai.domain.interpretation.model import RuleViolation
@@ -71,6 +72,8 @@ class WorkflowCommandAdmission:
         *,
         interpretation_factory: Callable[[Transactions], InterpretationService] | None = None,
         retry_factory: Callable[[Transactions], ParticipantRetryStore] | None = None,
+        evaluation_factory: Callable[[Transactions], EvaluationAdmissionStore] | None = None,
+        clock: Callable[[], datetime] | None = None,
     ) -> None:
         self.source = source
         self.participant_capacity, self.evaluation_capacity = (
@@ -81,6 +84,7 @@ class WorkflowCommandAdmission:
         self.runtime_limits = runtime_limits
         self._interpretation_factory = interpretation_factory
         self._retry_factory = retry_factory
+        self._evaluation_factory, self._clock = evaluation_factory, clock
 
     async def admit(
         self, db: AsyncSession, envelope: pb.MessagingEnvelope, body: pb.MessagingBody
@@ -157,28 +161,24 @@ class WorkflowCommandAdmission:
                 if envelope.kind == pb.EVALUATION_START
                 else body.evaluation_cancel
             )
-            if request.expected_version < 1 or not request.confirm:
-                raise ValueError("Explicit version and confirmation required")
-            store = MySQLEvaluationManagement(
-                tx, self.evaluation_capacity, self.models, self.quota_baseline, self.runtime_limits
+            scope, version, reason, discard = evaluation_arguments(request)
+            store = (
+                MySQLEvaluationManagement(
+                    tx,
+                    self.evaluation_capacity,
+                    self.models,
+                    self.quota_baseline,
+                    self.runtime_limits,
+                )
+                if self._evaluation_factory is None
+                else self._evaluation_factory(tx)
             )
-            scope = scope_from(request.scope)
-            at = datetime.now(UTC)
+            at = datetime.now(UTC) if self._clock is None else self._clock()
             if envelope.kind == pb.EVALUATION_START:
-                view = await store.start(
-                    scope, request.expected_version, request.reason, at, confirm=True
-                )
+                view = await store.start(scope, version, reason, at, confirm=True)
             else:
-                if request.ByteSize() > 8192 or not request.HasField("discard"):
-                    raise ValueError("Explicit discard decision required")
-                view = await store.cancel(
-                    scope,
-                    request.expected_version,
-                    request.reason,
-                    at,
-                    discard=request.discard,
-                    confirm=True,
-                )
+                assert discard is not None
+                view = await store.cancel(scope, version, reason, at, discard=discard, confirm=True)
             return AdmissionDecision(
                 org,
                 view.version,

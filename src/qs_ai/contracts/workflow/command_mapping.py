@@ -79,6 +79,21 @@ def participant_retry_command(request: pb.ParticipantRetryCommand) -> Participan
     )
 
 
+def evaluation_arguments(
+    request: pb.EvaluationStartCommand | pb.EvaluationCancelCommand,
+) -> tuple[ManagementScope, int, str, bool | None]:
+    """Retain original explicit authority and distinguish absent/false discard."""
+    if request.expected_version < 1 or not request.confirm:
+        raise ValueError("Explicit version and confirmation required")
+    scope = scope_from(request.scope)
+    discard = None
+    if isinstance(request, pb.EvaluationCancelCommand):
+        if request.ByteSize() > 8192 or not request.HasField("discard"):
+            raise ValueError("Explicit discard decision required")
+        discard = request.discard
+    return scope, request.expected_version, request.reason, discard
+
+
 def receipt_message(result: Receipt) -> pb.Receipt:
     return pb.Receipt(
         session_id=result.session_id,
