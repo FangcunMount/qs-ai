@@ -570,3 +570,8 @@ candidate_completion_progress共享原complete_claim的终态规则，仅对已�
 candidate_plan保留原policy→dispatch/generation/semantic三组读取的顺序，默认锁定；显式lock=False用于只读规划，原根仍锁定真实记录。project_candidate_records共享原terminal_dispatches、project_slots与plan_parallel规则及原active slot/limit/unknown预算，不访问存储、不授权claim、提交或模型。后续虚拟终态只能复用这些规则，不能把虚拟记录当作提交证明。
 
 先补8项原入口表征，再扩展为24项原锁/只读/纯记录三入口对照；110目标、3711完整本地单元（1237 integration/interop明确排除）、423源类型、1102文件格式及文档门禁通过。4项新增真实MySQL用例仅收集，对比有/无active claim、limit1/3的原加锁与RO结果并核对事实和预算不变。required实际依赖仍待验收，尚未实现完整虚拟overlay、candidate Sender或默认装配。
+
+
+semantic_terminal_records为candidate规划构造只读虚拟终态：先验证精确Run、dispatching claim、当前全部active claim/ledger及尚未复核的原generation candidate，再仅在内存中移除本次claim、追加原semantic_terminal_values；成功时复用原受理结果更新精确candidate，失败/Unknown保持原candidate。其他claim、dispatch和原generation字节保留；重复/跨Run/缺失/变化来源被拒绝。所有DTO隐藏正文repr，不执行SQL、提交、模型或发布，不能作为witness或租约/重试授权。
+
+18项overlay正反例与原规则共153目标通过；3729完整本地单元（1241 integration/interop明确排除）、424源类型、1105文件格式及文档门禁通过。4项新增真实MySQL原受理器对照仅收集，覆盖有/无其他claim及原根提交/回滚。夹具明确仅在隔离库复用既有serial判定证据构造candidate所有权，不是生产转换或迁移模板。required实际依赖CI尚未通过；虚拟失败证据选择、generation overlay、完整candidate Sender和默认装配仍待实现。
