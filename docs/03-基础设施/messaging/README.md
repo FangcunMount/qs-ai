@@ -439,3 +439,8 @@ Artifact的JSON对象在MySQL中不保留键顺序。完成状态转录仅对art
 
 
 隔离真实Broker档通过原InterpretationFinishSender检查问题、失败和Artifact完成：暂停原本地执行器时半消息不可见，根提交后精确首wire/witness可读取，最终确认客户端丢回复仍保留本地提交，重复完成不重规划或发送。源变化必须回滚准备分支并保留竞争事实。档案只使用事件观察者，不等同QS业务、真实模型、进程退出、网络故障或system验收；该档声明19宿主用例/51必需证据，实际执行结果回链infra总表。
+
+
+评测终态在 [`prepare_step_completion / finish_step_in`](../../../src/qs_ai/infrastructure/persistence/mysql/evaluation_step.py) 分开准备和原根写入：准备阶段沿用原响应证据、语义校验、结束时间及状态分类，首次generation候选ID在数据库根之前生成；原根入口仅借用活跃AsyncSession，拒绝savepoint和根替换，保留原claim/恢复所有权及generation/semantic完成接受规则。返回的state和applied只描述暂存写入，不能证明根提交或消息投递。原finish_step调用仍拥有其根提交，已完成candidate重读仍不重复提交或发出成功指标。
+
+StepCompletion是宿主内存中的准备结果，未替代持久化SDK计划、原业务授权、witness或模型响应检查点。SDK完整终态Sender、其他活动写入口和T18确定性恢复须继续独立接通与验证；默认装配及生产状态回链infra总表。
