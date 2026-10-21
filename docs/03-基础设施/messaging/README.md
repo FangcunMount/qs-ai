@@ -469,3 +469,8 @@ ClaimStage 仅描述 miss/deferred/exhausted/claimed 的暂存结果。returned 
 
 
 隔离Broker档扩展原领取Sender的normal、耗尽、源冲突与真实配额拒绝四种输入：半消息不可见、原业务/租约/attempt/首档案/witness、最终确认客户端丢回复、首次移交和重复不再移交，以及无事件配额拒绝时精确回滚。该档要求23宿主用例/59项证据，保留固定SDK/Broker矩阵和完整清理；本地仅收集，实际结果回链infra总表。Observer不执行QS投影或provider，不能代替完整模型恢复、进程/网络故障及system验收。
+
+
+[`InterpretationClaimDeferral`](../../../src/qs_ai/infrastructure/workflow_transport/interpretation_claim_deferral.py) 明确分开无状态的配额延后。显式宿主提供同一个冻结候选及旧执行，必须先从新权威边界读到全部精确Aborted witness且不存在Committed首档案，再开启独立的job维护根；它不再次调用SDK本地执行器。原Session/job/lease来源在原锁下重新核对，沿用原容量与daily reservation检查，仍被拒绝时只将job延后1秒；不创建模型租约、不增加attempt、不生成状态事件或消息、不改写旧协议终态。
+
+容量恢复时，新根回滚所有暂存slot并返回False，不能借维护操作授予执行资格。新job维护根的提交回复丢失保留Pending，不声称回滚或消息提交，调用方只能核对现有job；这与旧事务已确认Aborted是两个独立事实。新操作不创建空的fence0租约占位；原claim默认实现和配额/租约权属保留。scanner责任交接、显式新执行授权及默认装配仍待完成。85组合目标/3397完整本地非集成回归零失败跳过，417源类型与lint/format通过；5真实MySQL仅收集，完整进度与CI回链infra总表。
