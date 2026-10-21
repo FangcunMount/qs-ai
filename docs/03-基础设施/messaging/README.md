@@ -34,7 +34,7 @@ RocketMQ 终态交接携带 provider、原始 Wire 和实际物理来源，宿�
 
 解释业务与 SQL job 的身份、Inbox reservation 可以借用预分配值；历史入口默认分配行为不变。START 已提供只读 `ReadOnlyStartUnitOfWork` 和完整 `StartAdmissionPlanner`：复用原服务规则，预查幂等、配置和容量，读事务关闭后才冻结 receipt/state 首次 wire。执行时 `make_start_root` 从 reservation 赢家读取 `StartPlanFacts`，借用原服务与 SQL 根，重校验配置和 UTC 预算日，明确验证状态后再写 witness/提交；`EventSession.commit` 不再编排这次发送。状态历史仍保留必要拒绝证据并标记 MQ 责任，事务入口不创建 messaging_outbox 发布责任。已完成 Inbox 不能因 token 相同而再次取得业务执行资格。
 
-实际 command receiver 装配、两类评测命令规划和真实 Broker 验收仍待完成，旧 runtime 对 transactions 配置的拒绝继续保留。`tests/integration/test_transaction_admission_root.py` 提供两种宿主档案格式的隔离 MySQL HELD 根原子性、服务端拒绝和客户端丢弃已提交回复用例；`test_execution_configurations.py` 增加真实只读规划、匹配绑定及 pointer 冲突用例。候选80805fb的两档MySQL完整CI各3242项零失败/跳过，已下载核对八份分片覆盖；这是原根/配置与历史回归的证据。后续真实只读START、并发赢家、原业务+witness及显式Replan旧证据验证用例已加入，待新候选CI。它们仍不计为Broker、网络故障或完整业务链路验收。
+两类评测命令已增加只读完整规划和原根装配，待新候选原生验证；实际 command receiver 装配和真实 Broker 验收仍待完成，旧 runtime 对 transactions 配置的拒绝继续保留。`tests/integration/test_transaction_admission_root.py` 提供两种宿主档案格式的隔离 MySQL HELD 根原子性、服务端拒绝和客户端丢弃已提交回复用例；`test_execution_configurations.py` 增加真实只读规划、匹配绑定及 pointer 冲突用例。候选80805fb的两档MySQL完整CI各3242项零失败/跳过，已下载核对八份分片覆盖；这是原根/配置与历史回归的证据。后续真实只读START、并发赢家、原业务+witness及显式Replan旧证据验证用例已加入，待新候选CI。它们仍不计为Broker、网络故障或完整业务链路验收。
 
 ## 当前服务怎样装配这条链路
 
@@ -210,6 +210,17 @@ apply 是逐条提交，不是整批一个事务。第一条已提交而第二�
 
 T16 新原生 START 验收曾发现配额预览间接取得权威行锁；预览现在显式使用无锁配额读取，原提交仍保持锁。原生测试清理中误用 SDK `Request.key_digest` 属性也已修正。失败报告保留于 infra 总表；修复候选384a440的完整CI12项与消息兼容2项均通过；八份下载分片各档3339项零失败/跳过，无遗漏或重复，测试合并SHA f907af2c 的父提交已核对。每档包含8项HELD根、2项只读START及3项完整START原根证明。新CHANGE批次不沿用这次成功结论。CHANGE 已新增只读规则规划、完整首次 receipt/state、冻结身份与有界目标授权，以及原根执行器。规划使用原 answer/cancel 规则；原根锁定当前 Session 再核验主体与授权目标，不调用远程客户端。授权 Unknown 不构造允许/拒绝证明；60秒或跨预算日的过期观察中止，需宿主显式重建计划。缺少 Session 或当前主体不符，按原确定性拒绝生成实际结果，冻结结果不同时整根回滚。START 严格入口保留，通用解释状态转录共用第一历史记录核验；不创建新 messaging_outbox 发布责任。候选62f5053已通过完整12检查与消息兼容2检查，两档MySQL各3381项零失败/跳过，八份分片覆盖已核对，含新增4项真实CHANGE原根证明，也尚未接入实际 receiver/Broker。
 
-PARTICIPANT_RETRY 已复用原风险确认、blocked Run/CAS、首次模型请求和业务重试授权，新增只读规划与原根冻结资源。完整冻结计划包含首次 receipt/state、当前原参与者授权观察及原重试档案摘要；原事务重新核验原主体、目标和档案，再共同提交业务/witness，不在消息回查或故障恢复时授权模型重做。新增3项原生数据库证明等待新候选CI；只读/原根组件的定向通过不替代实际SDK/Broker验收。CHANGE与RETRY共用有明确类型版本的解释变更上下文，CHANGE既有bytes有固定摘要向量保护；SDK codec/schema和历史archive/v1未改动。
+PARTICIPANT_RETRY 已复用原风险确认、blocked Run/CAS、首次模型请求和业务重试授权，新增只读规划与原根冻结资源。完整冻结计划包含首次 receipt/state、当前原参与者授权观察及原重试档案摘要；原事务重新核验原主体、目标和档案，再共同提交业务/witness，不在消息回查或故障恢复时授权模型重做。候选8264093的完整12检查及消息兼容2检查成功，两档MySQL各3408项零失败/跳过，包含新增3项原生重试证明；只读/原根组件的定向通过不替代实际SDK/Broker验收。CHANGE与RETRY共用有明确类型版本的解释变更上下文，CHANGE既有bytes有固定摘要向量保护；SDK codec/schema和历史archive/v1未改动。
 
-重试批次 b210b84 本地完整纯单元2527通过（881项integration/interop按标记未选，不当作真实依赖验收），mypy374源文件、Ruff和文档门禁通过。新候选CI将重新覆盖原入口回归、共享上下文和三项原生重试证明；T16仍不勾选，实际receiver、两类评测命令与Broker验证待完成。
+重试批次 b210b84 本地完整纯单元2527通过（881项integration/interop按标记未选，不当作真实依赖验收），mypy374源文件、Ruff和文档门禁通过。8264093的完整CI已覆盖原入口回归、共享上下文和三项原生重试证明；T16仍不勾选，实际receiver、两类评测命令原生复验与Broker验证待完成。
+
+
+### 评测启动与取消的冻结原根（本地实现，原生复验待完成）
+
+`EvaluationAdmissionProjection` 组合原 requested 转移、容量估算、审计视图与取消规则，SELECT 规划不取得行锁、不预占预算。`EvaluationAdmissionPlanner` 在独立一致性读取中保存原 Run/checkpoint 摘要、原事件序号和完整业务结果；关闭读取后才签名、加密 receipt/state。取消中的未知或已 dispatch 工作仍保留原 checkpoint，生成 `cancel_requested`，不会伪造终态或再次调用模型。
+
+`EvaluationPlanFacts` 是有界宿主上下文，精确绑定原命令、UTC 时间、Inbox 身份、源摘要和前序序号；拒绝重复字段、非规范编码、错类型与错关联。状态身份沿用原 `uuid5(run_id, state:version)`，新事务事件的时间是这次已冻结操作时间；历史 wire 不改写。
+
+`make_evaluation_root` 在首条 guard SQL 前显式设置本事务 READ COMMITTED；普通入口及其他三类 command 默认隔离不变。START 随后先取得原组织准入锁，再锁定 checkpoint/Run 并重新验证冻结摘要，避免 guard 的早期读取固定旧容量快照。这个顺序依据 [SQLAlchemy 单事务隔离设置](https://docs.sqlalchemy.org/en/20/orm/session_transaction.html#setting-isolation-for-individual-transactions)及 [MySQL 一致性读取规则](https://dev.mysql.com/doc/refman/8.4/en/innodb-consistent-read.html)。数据库连接池和连接生命周期仍由宿主拥有。
+
+原服务只借用根事务；`FrozenEvaluationEvents` 对照计划核验业务投影，以原序号 CAS 转录，再显式写档案/witness，由宿主提交。序号或业务条件变化时整根中止，不能更换消息 ID、重新签名或自动执行业务。没有新的 messaging_outbox/Relay 发布责任。新增9项实际MySQL用例覆盖两类提交、源/序号竞争、服务端拒绝、客户端丢弃提交回复、组织容量竞争与 dispatch 取消 drain；仅收集待CI，不称为网络故障或Broker验收。
