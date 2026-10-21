@@ -3,6 +3,8 @@
 from uuid import UUID
 
 from qs_ai.application.evaluation.management import ManagementScope
+from qs_ai.application.execution.retry import ParticipantRetry
+from qs_ai.application.governance.prompt_drafts import DraftScope
 from qs_ai.application.interpretation.commands import AnswerCommand, CancelCommand
 from qs_ai.application.interpretation.ports import Receipt
 from qs_ai.contracts.workflow import workflow_pb2 as pb
@@ -57,6 +59,23 @@ def change_arguments(
         request.session_id,
         command,
         request.command_id,
+    )
+
+
+def participant_retry_command(request: pb.ParticipantRetryCommand) -> ParticipantRetry:
+    """Copy original explicit retry authority; transport redelivery grants none."""
+    if request.ByteSize() > 8192:
+        raise ValueError("Retry command exceeds limit")
+    return ParticipantRetry(
+        DraftScope(request.scope.organization_id, request.scope.operator_user_id),
+        request.session_id,
+        request.command_id,
+        request.expected_run_id,
+        request.expected_version,
+        request.reason,
+        request.confirm,
+        request.expected_provider_invocations,
+        request.accept_result_unknown_risk,
     )
 
 

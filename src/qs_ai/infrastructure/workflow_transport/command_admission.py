@@ -12,8 +12,7 @@ from qs_ai.application.evaluation.capacity import CapacityExceeded, EvaluationCa
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict
 from qs_ai.application.evaluation.execution_mode import EvaluationRuntimeLimits
 from qs_ai.application.execution.capacity import ParticipantCapacityPolicy
-from qs_ai.application.execution.retry import ParticipantRetry, RetryParticipant
-from qs_ai.application.governance.prompt_drafts import DraftScope
+from qs_ai.application.execution.retry import ParticipantRetryStore, RetryParticipant
 from qs_ai.application.governance.quotas import QuotaBaseline
 from qs_ai.application.governance.solution_models import EditableModelPolicy
 from qs_ai.application.interpretation.commands import AnswerCommand
@@ -23,6 +22,7 @@ from qs_ai.contracts.workflow import messaging_pb2 as pb
 from qs_ai.contracts.workflow import workflow_pb2 as workflow
 from qs_ai.contracts.workflow.command_mapping import (
     change_arguments,
+    participant_retry_command,
     receipt_message,
     scope_from,
     start_arguments,
@@ -70,6 +70,7 @@ class WorkflowCommandAdmission:
         runtime_limits: EvaluationRuntimeLimits,
         *,
         interpretation_factory: Callable[[Transactions], InterpretationService] | None = None,
+        retry_factory: Callable[[Transactions], ParticipantRetryStore] | None = None,
     ) -> None:
         self.source = source
         self.participant_capacity, self.evaluation_capacity = (
@@ -79,6 +80,7 @@ class WorkflowCommandAdmission:
         self.models, self.quota_baseline = models, quota_baseline
         self.runtime_limits = runtime_limits
         self._interpretation_factory = interpretation_factory
+        self._retry_factory = retry_factory
 
     async def admit(
         self, db: AsyncSession, envelope: pb.MessagingEnvelope, body: pb.MessagingBody
@@ -142,24 +144,13 @@ class WorkflowCommandAdmission:
             else:
                 receipt = await service.cancel(actor, session_id, change, key)
         elif envelope.kind == pb.PARTICIPANT_RETRY:
-            request = body.participant_retry
-            if request.ByteSize() > 8192:
-                raise ValueError("Retry command exceeds limit")
-            command = ParticipantRetry(
-                DraftScope(request.scope.organization_id, request.scope.operator_user_id),
-                request.session_id,
-                request.command_id,
-                request.expected_run_id,
-                request.expected_version,
-                request.reason,
-                request.confirm,
-                request.expected_provider_invocations,
-                request.accept_result_unknown_risk,
+            command = participant_retry_command(body.participant_retry)
+            retry_store = (
+                MySQLParticipantRetries(tx, self.participant_capacity, self.quota_baseline)
+                if self._retry_factory is None
+                else self._retry_factory(tx)
             )
-            receipt = await RetryParticipant(
-                MySQLParticipantRetries(tx, self.participant_capacity, self.quota_baseline),
-                self.source,
-            ).execute(command)
+            receipt = await RetryParticipant(retry_store, self.source).execute(command)
         elif envelope.kind in (pb.EVALUATION_START, pb.EVALUATION_CANCEL):
             request = (
                 body.evaluation_start
