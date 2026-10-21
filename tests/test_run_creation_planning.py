@@ -115,3 +115,52 @@ async def test_invalid_creation_is_rejected_before_any_registry_or_business_io(c
     f.read_contracts.assert_not_called()
     f.db.execute.assert_not_called()
     f.freeze.assert_not_called()
+
+
+@pytest.mark.parametrize("mode", ["serial_v1", "candidate_v2"])
+async def test_pure_creation_freeze_uses_original_suite_contract_bytes_without_registry_io(
+    context, mode
+):
+    f = context
+    plan = runs.freeze_run_creation(
+        f.run_id,
+        f.release,
+        1,
+        "user:42",
+        "原创建意图",
+        f.at,
+        suite=f.suite,
+        contracts=f.contracts,
+        execution_mode=mode,
+    )
+    assert hashlib.sha256(plan.definition_json.encode()).hexdigest() == (
+        "93d94137c095ce997761763c5e180d127bc22145060dde86ab71d5aa1a277708"
+    )
+    assert plan.execution_mode == mode and plan.policy is f.contracts.execution
+    f.read_suite.assert_not_called()
+    f.read_contracts.assert_not_called()
+    f.db.execute.assert_not_called()
+    f.db.commit.assert_not_called()
+
+
+async def test_pure_freeze_refuses_suite_substitution_without_registry_reads(context):
+    from dataclasses import replace
+
+    f = context
+    changed = replace(
+        f.suite, reference=replace(f.suite.reference, fingerprint="sha256:" + "f" * 64)
+    )
+    with pytest.raises(ValueError):
+        runs.freeze_run_creation(
+            f.run_id,
+            f.release,
+            1,
+            "user:42",
+            "原创建意图",
+            f.at,
+            suite=changed,
+            contracts=f.contracts,
+        )
+    f.read_suite.assert_not_called()
+    f.read_contracts.assert_not_called()
+    f.db.execute.assert_not_called()

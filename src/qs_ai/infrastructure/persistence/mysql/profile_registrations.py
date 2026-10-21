@@ -2,7 +2,7 @@
 
 import hashlib
 import json
-from dataclasses import asdict
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from typing import Any
 from uuid import UUID
@@ -34,7 +34,10 @@ from qs_ai.infrastructure.persistence.mysql.asset_records import (
     route_assets,
     schema_assets,
 )
-from qs_ai.infrastructure.persistence.mysql.asset_snapshot import AssetSnapshotReader
+from qs_ai.infrastructure.persistence.mysql.asset_snapshot import (
+    AssetSnapshotReader,
+    PlannedAssetReader,
+)
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
 from qs_ai.infrastructure.persistence.mysql.governance_records import insert
 from qs_ai.infrastructure.persistence.mysql.schema import (
@@ -99,12 +102,29 @@ async def validate_source(db: AsyncSession, command: RegisterProfile) -> None:
 
 
 async def manifest_for(
-    db: AsyncSession, command: RegisterProfile, profile: ProfileAsset
+    db: AsyncSession,
+    command: RegisterProfile,
+    profile: ProfileAsset,
+    *,
+    planned_profile: ProfileAsset | None = None,
+    planned_prompt: PromptAsset | None = None,
+    planned_route: RouteAsset | None = None,
 ) -> GenerationManifest:
-    manifest = await build_generation_manifest(
+    profiles = PlannedAssetReader(
         AssetSnapshotReader(db, profile_assets, ProfileAsset),
+        (planned_profile,) if planned_profile else (),
+    )
+    prompts = PlannedAssetReader(
         AssetSnapshotReader(db, prompt_assets, PromptAsset),
-        AssetSnapshotReader(db, route_assets, RouteAsset),
+        (planned_prompt,) if planned_prompt else (),
+    )
+    routes = PlannedAssetReader(
+        AssetSnapshotReader(db, route_assets, RouteAsset), (planned_route,) if planned_route else ()
+    )
+    manifest = await build_generation_manifest(
+        profiles,
+        prompts,
+        routes,
         AssetSnapshotReader(db, schema_assets, SchemaAsset),
         profile_id=profile.profile_id,
         profile_version=profile.version,
@@ -112,12 +132,8 @@ async def manifest_for(
     )
     if manifest.prompt != command.prompt or manifest.generation_route != command.generation_route:
         raise ValueError("Profile references differ from confirmed assets")
-    prompt = await AssetSnapshotReader(db, prompt_assets, PromptAsset).get(
-        command.prompt.identity, command.prompt.version
-    )
-    route = await AssetSnapshotReader(db, route_assets, RouteAsset).get(
-        command.generation_route.identity, command.generation_route.version
-    )
+    prompt = await prompts.get(command.prompt.identity, command.prompt.version)
+    route = await routes.get(command.generation_route.identity, command.generation_route.version)
     if prompt is None or route is None:
         raise ValueError("Executable assets unavailable")
     executable_route(route)
@@ -200,6 +216,53 @@ async def load_receipt(
     if receipt.manifest != await manifest_for(db, receipt.command, profile):
         raise ValueError("Registered executable assets changed")
     return receipt
+
+
+@dataclass(frozen=True)
+class ProfileRegistrationPlan:
+    profile: ProfileAsset = field(repr=False)
+    receipt: ProfileRegistrationReceipt = field(repr=False)
+    existing: bool
+
+
+async def plan_registration(
+    db: AsyncSession,
+    scope: DraftScope,
+    command: RegisterProfile,
+    at: datetime,
+    *,
+    planned_prompt: PromptAsset | None = None,
+    planned_route: RouteAsset | None = None,
+) -> ProfileRegistrationPlan:
+    """Validate the original registration without writing a target or a receipt."""
+    prior = await load_receipt(db, scope, command.command_id)
+    if prior is not None:
+        if prior.command != command:
+            raise AssetConflict("Profile command already used")
+        return ProfileRegistrationPlan(profile_from(command), prior, True)
+    if at.tzinfo is None or at.utcoffset() is None:
+        raise ValueError("Registration time requires a timezone")
+    await validate_source(db, command)
+    profile = profile_from(command)
+    if (
+        await AssetSnapshotReader(db, profile_assets, ProfileAsset).get(
+            profile.profile_id, profile.version
+        )
+        is not None
+    ):
+        raise AssetConflict("Target Profile version is already immutable")
+    manifest = await manifest_for(
+        db,
+        command,
+        profile,
+        planned_profile=profile,
+        planned_prompt=planned_prompt,
+        planned_route=planned_route,
+    )
+    receipt = ProfileRegistrationReceipt(scope, command, manifest, at)
+    if len(RECEIPT.dump_json(receipt)) > 524288:
+        raise ValueError("Profile receipt exceeds limit")
+    return ProfileRegistrationPlan(profile, receipt, False)
 
 
 async def apply_registration(

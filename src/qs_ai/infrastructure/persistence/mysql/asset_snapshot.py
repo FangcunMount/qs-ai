@@ -61,3 +61,33 @@ async def generation_snapshot(
     if profile is None:
         raise ValueError("Profile disappeared from asset snapshot")
     return profile, manifest
+
+
+class PlannedAssetReader(Generic[Asset]):
+    """Read explicitly planned immutable assets before falling back to this snapshot.
+
+    Only a host planner uses this overlay. It does not prove persistence, authorize
+    publication, create rows or change the original reader/session's ownership.
+    """
+
+    def __init__(self, original: AssetSnapshotReader[Asset], planned: tuple[Asset, ...]) -> None:
+        if type(planned) is not tuple or any(
+            not isinstance(v, original.asset_type) for v in planned
+        ):
+            raise ValueError("Explicit immutable assets of the original closed kind required")
+        names = {
+            ProfileAsset: ("profile_id", "version"),
+            PromptAsset: ("template_id", "version"),
+            RouteAsset: ("route", "revision"),
+            SchemaAsset: ("schema_id", "version"),
+        }[original.asset_type]
+        self._planned: dict[tuple[str, str], Asset] = {
+            (getattr(v, names[0]), getattr(v, names[1])): v for v in planned
+        }
+        if len(self._planned) != len(planned):
+            raise ValueError("Duplicate planned immutable asset identity")
+        self._original: AssetSnapshotReader[Asset] = original
+
+    async def get(self, identity: str, version: str, /) -> Asset | None:
+        value = self._planned.get((identity, version))
+        return value if value is not None else await self._original.get(identity, version)
