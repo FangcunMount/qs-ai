@@ -540,3 +540,8 @@ semantic终态先抽取原有未知计数、固定预算及blocked转换为纯 `
 `load_serial_semantic_state` 复用原checkpoint→Run来源读取及精确取消版本校验；RO模式不加锁、不写入、不提交，原受理器使用加锁模式保持相同SQL顺序。返回值只是组织内来源数据，允许checkpoint为None；接受generation候选、精确candidate/dispatch/历史、冻结资产、业务CAS等权威校验继续由原complete_semantic负责，不能把读取成功当作模型或完成授权。新来源数据的repr不包含Run或checkpoint正文。
 
 14项原终态表征、16项来源边界及其余回归共77目标、3558完整本地单元（1216 integration/interop明确排除）、421源类型通过。4项真实MySQL来源/取消/共同回滚用例仅收集；全量本地、真实依赖门禁、完整semantic事务Sender和默认装配仍待后续，不复用父候选验收。
+
+
+`read_semantic_acceptance` 将原候选、dispatch、顺序、冻结策略/路由、obligation及判定解析/证据构造从首次SQL写入前抽出。RO模式复用原校验而不加锁/写入/提交，原complete_semantic使用同样原锁重读后保留原insert、候选更新、计数/候审投影、CAS与根提交。路由接口只需get-only Reader，语义准备可借用同session资产快照。返回值是确定性证据，不是提交、witness或模型授权。
+
+原14种路径分别覆盖原写入、RO验收、加锁验收三个模式（42项），连同来源/领域回归共105目标、3586完整本地单元（1216 integration/interop排除）、421源类型通过；RO不得修改候选或数据库，原提交归属保持。4项真实MySQL用例还核对RO证据/候选投影与原根提交/回滚结果，但目前仅收集。实际依赖CI、完整semantic事务Sender及默认装配仍未完成。
