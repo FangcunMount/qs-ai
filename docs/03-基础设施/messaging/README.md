@@ -496,3 +496,8 @@ ClaimStage 仅描述 miss/deferred/exhausted/claimed 的暂存结果。returned 
 此入口不授予模型重试，也不替代T18对持久化响应、恢复调度和provider调用次数的证明。已通过原74项表征、扩展后81目标和3434完整本地单元（1186 integration/interop排除、非执行通过）、418源类型、lint/format；7新增真实MySQL仅收集，源代码29b9a72，CI及生产状态回链总表。默认装配与生产保持原配置。
 
 显式完成重试的Broker档在6f42998新增question/持久化Artifact两项入口：旧Aborted保持可回查、首次plan/wire与问题ID复用、新半消息提交前不可见、原根提交后首结果可重复读取，禁止再次调用DurableGeneration。新档28宿主用例/68证据；本地仅收集，实际执行和完整清理必须由对应新infra档核验，旧26/64报告不复用。
+
+
+评测终态规划先复用原 [`generation_completion_progress`](../../../src/qs_ai/infrastructure/persistence/mysql/evaluation_completion_progress.py)：成功、未知结果、自动恢复许可和预算耗尽的原进度规则从SQL写入口抽出，串行路径保留blocked转换，candidate路径继续交给原complete_claim负责聚合。原complete_generation仍在同一根内校验来源、写完成证据、执行原checkpoint CAS和Run进度更新，提交归属不变；只读函数不访问DB、MQ或模型，也不授权重试。
+
+抽取前42既有目标及10新增原入口表征通过，抽取后52目标、3444完整本地非integration/noninterop（1186排除，不算通过）、419源类型和lint/format通过，代码7d32da5。真实MySQL门禁仍须针对新候选重验；此处仅是规划计算基础，未完成评测终态Sender、candidate/recovery/取消drain全链路，也未启用默认装配或生产切换。
