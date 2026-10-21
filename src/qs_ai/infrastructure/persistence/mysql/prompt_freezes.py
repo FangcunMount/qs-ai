@@ -1,7 +1,7 @@
 """Native asset and freeze audit commit together under the draft head lock."""
 
 import hashlib
-from dataclasses import asdict
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from uuid import UUID
 
@@ -100,21 +100,33 @@ async def load_receipt(
     return receipt
 
 
-async def apply_freeze(
-    db: AsyncSession, scope: DraftScope, command: FreezePromptDraft, at: datetime
-) -> FrozenPromptReceipt:
-    """Caller owns READ COMMITTED transaction. Replays return the original receipt."""
+@dataclass(frozen=True)
+class PromptFreezePlan:
+    receipt: FrozenPromptReceipt = field(repr=False)
+    asset: PromptAsset | None = field(repr=False)
+
+
+async def plan_freeze(
+    db: AsyncSession,
+    scope: DraftScope,
+    command: FreezePromptDraft,
+    at: datetime,
+    *,
+    lock: bool = False,
+) -> PromptFreezePlan:
+    """Read original freeze rules without writes; only the original apply path locks."""
     prior = await load_receipt(db, scope, command.command_id)
     if prior is not None:
         if prior.command != command:
             raise DraftConflict("Freeze command already used")
-        return prior
-    draft = await read_draft(db, scope, command.draft_id, lock=True)
-    prior = await load_receipt(db, scope, command.command_id)
-    if prior is not None:
-        if prior.command != command:
-            raise DraftConflict("Freeze command already used")
-        return prior
+        return PromptFreezePlan(prior, None)
+    draft = await read_draft(db, scope, command.draft_id, lock=lock)
+    if lock:
+        prior = await load_receipt(db, scope, command.command_id)
+        if prior is not None:
+            if prior.command != command:
+                raise DraftConflict("Freeze command already used")
+            return PromptFreezePlan(prior, None)
     if (
         draft.revision != command.expected_revision
         or (
@@ -154,6 +166,17 @@ async def apply_freeze(
         SYNTAX_VERSION,
         at,
     )
+    return PromptFreezePlan(receipt, asset)
+
+
+async def apply_freeze(
+    db: AsyncSession, scope: DraftScope, command: FreezePromptDraft, at: datetime
+) -> FrozenPromptReceipt:
+    """Caller owns READ COMMITTED transaction. Replays return the original receipt."""
+    plan = await plan_freeze(db, scope, command, at, lock=True)
+    receipt, asset = plan.receipt, plan.asset
+    if asset is None:
+        return receipt
     await db.execute(
         insert(prompt_assets).values(
             **asdict(asset), source_ref=source_ref(receipt), imported_by=actor(receipt)
