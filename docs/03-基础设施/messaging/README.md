@@ -375,3 +375,12 @@ ResolveUnknown 的显式事务入口由 [`ResolutionStateOperation`](../../../sr
 原串行及candidate共用的 [`DispatchRecordPlan/plan_dispatch_record`](../../../src/qs_ai/infrastructure/persistence/mysql/evaluation_dispatches.py) 只读冻结原dispatch记录：沿用冻结策略、generation/semantic阶段预算、精确slot/candidate目标预算、下一execution ordinal及原checkpoint JSON。预览不加写锁或插入，不表示已取得dispatch或模型执行资格；返回记录为不可变JSON，每次读取均为独立副本。原record_dispatch仍在调用者原根内按原顺序读取冻结策略、锁定最新dispatch账本，再执行一次原不可变插入；原prepare+dispatch共同提交、两次checkpoint CAS及PreparedStep.cp快照语义不变。
 
 抽取前6项原实现表征、抽取后19项目标和3125项非集成/非interop回归通过，405源文件类型与lint/format通过。新增4项真实MySQL用例仅收集，覆盖generation/semantic只读预览与原reserve_dispatch共同提交/回滚、不可变账本及原模型调用计数；不是worker SDK/Broker验收。ModelCapacity、外部模型调用、candidate claim及默认DI仍按原路径运行，真实CI与进度回链infra。
+
+
+串行worker提供显式 [`WorkerDispatchPlanner/Write`](../../../src/qs_ai/infrastructure/workflow_transport/worker_dispatch_state.py) 和 [`WorkerDispatchSender`](../../../src/qs_ai/infrastructure/workflow_transport/worker_dispatch_sender.py)。原模型输入读取/渲染抽为load_step_inputs，旧路径保留原容量准入位置和原提交；新路径只在原主库快照读取资产（包括schema），关闭源会话后才生成首wire。首次prepared CP的ID、时间、lease、原模式/策略/源摘要、完整模型输入和不可变dispatch记录摘要持久化；过程lease owner是赢家事实，不改变同Run/version请求的稳定输入。事件仍沿用原最后业务transition时间，不用准备时间伪造新的业务transition。
+
+全部半消息准备成功后，SDK guard先进入同一个原RR根；原prepare_execution和reserve_dispatch依次执行两次CP CAS，原策略/账本预算、模型输入、源摘要和完整最终投影重新核验，首次档案、sequence和witness与业务共同提交。PreparedStep.cp仍是原prepared快照，state.checkpoint是dispatching，version一次可见地增加2。根内不生成ID、Seal、取得模型permit或调用provider；schema同原session读取，不另开宿主连接。
+
+发送器在新执行前申请原ModelCapacity，未决、拒绝、取消、并发败者或证明不足释放本次permit。只有明确LocalCommitted且精确新读取witness/首次档案吻合时，才向原graph移交一次permit；FinalUnknown不误报回滚。已有调用即使已提交也不返回新的模型执行资格；原恢复治理承担后续责任。实际graph在调用模型前验证Run、owner、两次CAS版本、checkpoint及invocation，finally释放permit；不将串行入口用于candidate claim。
+
+本批29项原行为门禁、65项目标与3157项非集成/非interop回归零失败跳过，407源类型及lint/format通过。新增15项真实MySQL用例仅收集：generation/semantic原双CAS共同提交/回滚、archive/witness拒绝、客户端丢弃已完成提交回复、竞争取消、半消息门禁模拟、FinalUnknown及容量交接、只读单快照和源关闭后Seal。模拟sender不是实际Broker证明；真实Broker、进程和网络故障另验。本入口尚未接通默认装配；终态/响应持久化、candidate及恢复入口仍待完成，原finish路径不因此宣称已退出commit hook。
