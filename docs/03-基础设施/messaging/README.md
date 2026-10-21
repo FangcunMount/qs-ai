@@ -416,3 +416,10 @@ interpretation首业务历史的keyless校验现由 [`InterpretationStateTranscr
 
 
 [`ArtifactIdentity`](../../../src/qs_ai/application/execution/artifact.py) 在进入执行器前验证原Artifact ID与Run/invocation的原UUID5关系。原build_artifact默认行为和v1/v2结果不变；显式适配器可传入已验证身份，原内容、来源、配置及安全校验仍完整执行，校验期间不重新调用UUID生成。finish_in同时核对该身份与原claim/candidate，不能借用另一执行的身份。它只为完整冻结计划提供已有身份基础，不新增模型重试授权或替代witness；当前验收和完整Sender接入状态回链infra总表。
+
+
+非command的interpretation状态由 [`InterpretationStateIntent/Facts`](../../../src/qs_ai/infrastructure/workflow_transport/interpretation_state_plan.py) 独立冻结：原组织、Session、request、业务输入/操作、预期version、首次时间及受限业务context绑定TRANSACTION/ai.mysql/m3-1路由；branch保留首次Event ID、原body/wire及version序号。不同候选的消息ID、时间或密文不改变稳定业务请求，读取赢家后才使用首事实。解码拒绝错scope/owner/type/route/正文、歧义字段和非规范context；不制造command或Inbox。
+
+[`InterpretationStateRoot`](../../../src/qs_ai/infrastructure/workflow_transport/interpretation_state_root.py) 只接受一次owned执行，在原RR根先绑定SDK guard，再交由宿主业务暂存；同根检查后转录精确首历史，将档案和全部witness与业务共同提交。确认丢失通过新权威读取收敛，不以业务返回值、取消或lease到期猜测回滚。构造不打开连接或启动客户端，回查和关闭仍归宿主SDK生命周期。
+
+这些通用基础不授权业务或模型；具体finish/claim/candidate/recovery的首源读取、执行资格及完整Sender仍须接通并独立验证。原根故障用例直接调用存储/执行器，不能当作半消息、真实Broker、成对QS或system验收；当前源码/CI/合并/运行状态仅维护在infra总表。
