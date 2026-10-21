@@ -206,6 +206,9 @@ class TransactionCommandReceiver:
                     asyncio.timeout(self._database_seconds),
                     self._boundary.transactions.open() as db,
                 ):
+                    # This is the existing technical ledger's own short read
+                    # transaction, not the guarded business execution.
+                    await db.begin()
                     attempts = await self._boundary.store.logical_attempts(db, envelope)
                 candidate = (
                     freeze_technical_hold(

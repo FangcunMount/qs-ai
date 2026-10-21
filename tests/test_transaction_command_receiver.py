@@ -227,3 +227,25 @@ async def test_physical_failure_only_archives_and_never_authorizes_business_or_h
     f.runtime.reserve.assert_not_called()
     f.runtime.execute.assert_not_called()
     f.store.logical_attempts.assert_not_called()
+
+
+async def test_local_technical_budget_read_begins_its_original_transaction_before_binding():
+    f = fixture()
+    started = False
+
+    async def begin():
+        nonlocal started
+        started = True
+
+    async def logical_attempts(db, envelope):
+        assert started, "local ledger requires its own original active transaction"
+        assert db is f.db and envelope == f.incoming.envelope()
+        return 0
+
+    f.db.begin.side_effect = begin
+    f.store.logical_attempts.side_effect = logical_attempts
+    f.receiver._root = Mock(return_value=AsyncMock())
+    f.receiver._committed = AsyncMock()
+    await f.receiver.receive_command(f.received)
+    f.db.begin.assert_awaited_once()
+    f.db.commit.assert_not_called()
