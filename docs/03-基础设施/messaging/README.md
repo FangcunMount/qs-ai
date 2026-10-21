@@ -389,3 +389,6 @@ ResolveUnknown 的显式事务入口由 [`ResolutionStateOperation`](../../../sr
 发送器在新执行前申请原ModelCapacity，未决、拒绝、取消、并发败者或证明不足释放本次permit。只有明确LocalCommitted且精确新读取witness/首次档案吻合时，才向原graph移交一次permit；FinalUnknown不误报回滚。已有调用即使已提交也不返回新的模型执行资格；原恢复治理承担后续责任。实际graph在调用模型前验证Run、owner、两次CAS版本、checkpoint及invocation，finally释放permit；不将串行入口用于candidate claim。
 
 本批29项原行为门禁、65项目标与3157项非集成/非interop回归零失败跳过，407源类型及lint/format通过。新增15项真实MySQL用例仅收集：generation/semantic原双CAS共同提交/回滚、archive/witness拒绝、客户端丢弃已完成提交回复、竞争取消、半消息门禁模拟、FinalUnknown及容量交接、只读单快照和源关闭后Seal。模拟sender不是实际Broker证明；真实Broker、进程和网络故障另验。本入口尚未接通默认装配；终态/响应持久化、candidate及恢复入口仍待完成，原finish路径不因此宣称已退出commit hook。
+
+
+真实Broker隔离profile新增串行generation/semantic发送器与并发原取消三项用例，总计15项宿主/42项精确证据。直接调用显式WorkerDispatchSender，真实SDK先准备半消息；observer确认不可见后才放行原根，客户端丢弃已完成二次确认回复，核对首次模型输入、两次CAS、原不可变dispatch账本、witness及首次wire，并验证permit只移交一次、重复调用不再发送或调用模型。并发原取消获胜时只能回滚已准备半消息。本批仅完成用例收集，真实六档执行仍由infra报告给出；profile不调用真实provider，不代表完整graph终态、成对QS、进程退出或数据库断网验收。
