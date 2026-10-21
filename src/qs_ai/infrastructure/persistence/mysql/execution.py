@@ -3,8 +3,10 @@ import json
 from dataclasses import asdict, replace
 from datetime import UTC, datetime
 from typing import Any
-from uuid import uuid4
+from uuid import UUID, uuid4
 
+from reliable_messaging.sqlalchemy import bind
+from reliable_messaging.transaction import BindingError
 from sqlalchemy import and_, func, insert, literal_column, or_, select, update
 from sqlalchemy.dialects.mysql import insert as mysql_insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -435,7 +437,8 @@ class MySQLExecutionStore:
             await self._guard(db, claim)
             return await self._evidence(db, claim.session.id)
 
-    async def finish(self, claim: Claim, result: WorkflowResult) -> None:
+    @staticmethod
+    def _validate_finish(result: WorkflowResult) -> None:
         if result.artifact is not None and (result.question is not None or result.failure_code):
             raise ValueError("Artifact cannot accompany a question or failure")
         if result.question is not None and (
@@ -444,94 +447,129 @@ class MySQLExecutionStore:
             or result.failure_code is not None
         ):
             raise ValueError("Question must have a durable checkpoint and no failure")
+
+    async def finish(self, claim: Claim, result: WorkflowResult) -> None:
+        self._validate_finish(result)
         async with self.transactions.open() as db:
             await db.connection(execution_options={"isolation_level": "REPEATABLE READ"})
-            session = await self._guard(db, claim)
-            if result.artifact is not None:
-                candidate = result.artifact
-                evidence = await self._evidence(db, session.id)
-                call = (
-                    (
-                        await db.execute(
-                            select(model_calls).where(model_calls.c.run_id == claim.run_id)
-                        )
-                    )
-                    .mappings()
-                    .one()
-                )
-                if (
-                    candidate.session_id != session.id
-                    or candidate.run_id != claim.run_id
-                    or evidence is None
-                    or candidate.evidence_set_id != evidence.id
-                    or candidate.evidence_fingerprint != evidence.fingerprint
-                    or call["status"] != "response_received"
-                    or candidate.invocation_id != call["invocation_id"]
-                    or candidate.provider_request_id
-                    != json.loads(call["response_json"])["request_id"]
-                    or candidate.content_fingerprint
-                    != "sha256:" + hashlib.sha256(candidate.content_json.encode()).hexdigest()
-                ):
-                    raise ValueError("Artifact does not match the durable execution")
-                if session.uses_published_snapshot:
-                    config, frozen = await validate_generation(
-                        db, session, evidence, call["request_json"]
-                    )
-                    response = JSONModelCallCodec().decode_response(call["response_json"])
-                    expected = build_artifact(
-                        replace(claim, session=session),
-                        evidence,
-                        GeneratedExplanation(frozen, response),
-                        config.parser,
-                    )
-                    if candidate != expected:
-                        raise ValueError("Artifact differs from accepted publication and response")
-                payload = asdict(candidate)
-                if len(json.dumps(payload, ensure_ascii=False).encode()) > 131072:
-                    raise ValueError("Artifact exceeds delivery limit")
-                await db.execute(
-                    insert(artifacts).values(
-                        id=candidate.id, session_id=session.id, run_id=claim.run_id, payload=payload
-                    )
-                )
-                session.complete()
-            elif result.question is not None:
-                question_id = str(uuid4())
-                seq = (
-                    await db.scalar(
-                        select(func.count())
-                        .select_from(questions)
-                        .where(questions.c.session_id == session.id)
-                    )
-                    or 0
-                ) + 1
-                await db.execute(
-                    insert(questions).values(
-                        id=question_id,
-                        session_id=session.id,
-                        question_seq=seq,
-                        text=result.question,
-                        can_skip=result.can_skip,
-                        skipped=False,
-                    )
-                )
-                session.await_answer(question_id)
-            else:
-                # P1 cannot manufacture a completed interpretation without an Artifact.
-                session.block(result.failure_code or "model_not_connected")
-            await MySQLUnitOfWork(db).save(session)
-            await db.execute(
-                update(runs)
-                .where(runs.c.id == claim.run_id)
-                .values(status=session.status, checkpoint_ref=result.checkpoint_ref)
-            )
-            await db.execute(update(jobs).where(jobs.c.id == claim.job_id).values(status="done"))
-            await self._check_active(db, claim)
-            await db.execute(
-                update(execution_leases)
-                .where(execution_leases.c.thread_id == session.id)
-                .values(expires_at=func.utc_timestamp(6))
-            )
-            if session.uses_qs_snapshot:
-                await release_capacity(db, session, datetime.now(UTC))
+            await self.finish_in(db, claim, result)
             await db.commit()
+
+    async def finish_in(
+        self,
+        db: AsyncSession,
+        claim: Claim,
+        result: WorkflowResult,
+        *,
+        question_id: str | None = None,
+        state_event_id: str | None = None,
+        at: datetime | None = None,
+    ) -> None:
+        """Stage only on the caller's root; captured return is not commit proof.
+
+        The transaction sender supplies first identities/time before entering its
+        executor. The original owned-root path retains its existing defaults.
+        """
+        self._validate_finish(result)
+        if any(
+            value is not None and (not isinstance(value, str) or str(UUID(value)) != value)
+            for value in (question_id, state_event_id)
+        ):
+            raise ValueError("Canonical frozen finish identities required")
+        if question_id is not None and result.question is None:
+            raise ValueError("Frozen question identity requires an original question result")
+        if at is not None and (not isinstance(at, datetime) or at.utcoffset() is None):
+            raise ValueError("Aware frozen finish clock required")
+        if not isinstance(db, AsyncSession) or db.in_nested_transaction():
+            raise BindingError("Original root session required for interpretation finish")
+        original = db.get_transaction()
+        if original is None or not original.is_active:
+            raise BindingError("Active original interpretation finish root required")
+        guard = bind(db)
+        await guard.validate()
+        session = await self._guard(db, claim)
+        if result.artifact is not None:
+            candidate = result.artifact
+            evidence = await self._evidence(db, session.id)
+            call = (
+                (await db.execute(select(model_calls).where(model_calls.c.run_id == claim.run_id)))
+                .mappings()
+                .one()
+            )
+            if (
+                candidate.session_id != session.id
+                or candidate.run_id != claim.run_id
+                or evidence is None
+                or candidate.evidence_set_id != evidence.id
+                or candidate.evidence_fingerprint != evidence.fingerprint
+                or call["status"] != "response_received"
+                or candidate.invocation_id != call["invocation_id"]
+                or candidate.provider_request_id != json.loads(call["response_json"])["request_id"]
+                or candidate.content_fingerprint
+                != "sha256:" + hashlib.sha256(candidate.content_json.encode()).hexdigest()
+            ):
+                raise ValueError("Artifact does not match the durable execution")
+            if session.uses_published_snapshot:
+                config, frozen = await validate_generation(
+                    db, session, evidence, call["request_json"]
+                )
+                response = JSONModelCallCodec().decode_response(call["response_json"])
+                expected = build_artifact(
+                    replace(claim, session=session),
+                    evidence,
+                    GeneratedExplanation(frozen, response),
+                    config.parser,
+                )
+                if candidate != expected:
+                    raise ValueError("Artifact differs from accepted publication and response")
+            payload = asdict(candidate)
+            if len(json.dumps(payload, ensure_ascii=False).encode()) > 131072:
+                raise ValueError("Artifact exceeds delivery limit")
+            await db.execute(
+                insert(artifacts).values(
+                    id=candidate.id, session_id=session.id, run_id=claim.run_id, payload=payload
+                )
+            )
+            session.complete()
+        elif result.question is not None:
+            question_id = str(uuid4()) if question_id is None else question_id
+            seq = (
+                await db.scalar(
+                    select(func.count())
+                    .select_from(questions)
+                    .where(questions.c.session_id == session.id)
+                )
+                or 0
+            ) + 1
+            await db.execute(
+                insert(questions).values(
+                    id=question_id,
+                    session_id=session.id,
+                    question_seq=seq,
+                    text=result.question,
+                    can_skip=result.can_skip,
+                    skipped=False,
+                )
+            )
+            session.await_answer(question_id)
+        else:
+            # P1 cannot manufacture a completed interpretation without an Artifact.
+            session.block(result.failure_code or "model_not_connected")
+        await MySQLUnitOfWork(db, state_event_id=state_event_id).save(session)
+        await db.execute(
+            update(runs)
+            .where(runs.c.id == claim.run_id)
+            .values(status=session.status, checkpoint_ref=result.checkpoint_ref)
+        )
+        await db.execute(update(jobs).where(jobs.c.id == claim.job_id).values(status="done"))
+        await self._check_active(db, claim)
+        await db.execute(
+            update(execution_leases)
+            .where(execution_leases.c.thread_id == session.id)
+            .values(expires_at=func.utc_timestamp(6))
+        )
+        if session.uses_qs_snapshot:
+            await release_capacity(db, session, datetime.now(UTC) if at is None else at)
+        if db.get_transaction() is not original or not original.is_active:
+            raise BindingError("Original interpretation finish root was replaced")
+        await guard.validate()
