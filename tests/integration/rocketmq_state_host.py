@@ -33,7 +33,7 @@ from reliable_messaging.transaction import (
     execution_key,
 )
 from reliable_messaging.transport import RouteBinding, consumer_group_v2, physical_topic_v2
-from sqlalchemy import delete, event, select, text
+from sqlalchemy import delete, event, select, text, update
 
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict
 from qs_ai.application.evaluation.management import EvaluationManagementStore
@@ -1365,3 +1365,239 @@ async def test_actual_serial_dispatch_source_conflict_rolls_back_without_model_c
         b.runtime.release.set()
         await asyncio.gather(task, return_exceptions=True)
         await clean_governance_sequence(b.host, run_id)
+
+
+async def _seed_original_interpretation_finish(b, kind):
+    from qs_ai.application.interpretation.ports import WorkflowResult
+    from qs_ai.infrastructure.persistence.mysql.schema import model_calls, sessions
+    from qs_ai.infrastructure.workflow_transport.interpretation_finish_state import (
+        InterpretationFinishInput,
+    )
+    from tests.integration.test_artifact_acceptance import ready as ready_artifact
+    from tests.integration.test_interpretation_finish_root import snapshot
+
+    # Explicit legacy fixture seeding happens before the operation under test.
+    # The real SDK path must override the failing old recorder on its own root.
+    previous = b.host.tx.database.state_events
+    b.host.tx.database.state_events = None
+    try:
+        if kind == "artifact":
+            claim, candidate = await ready_artifact(b.host.kit)
+            result = WorkflowResult("", artifact=candidate)
+        else:
+            await b.host.kit.queued()
+            claim = await b.host.kit.store.claim(120)
+            assert claim is not None
+            result = WorkflowResult(
+                "checkpoint:broker-first",
+                question="original frozen question" if kind == "question" else None,
+                can_skip=False,
+                failure_code=None if kind == "question" else "model_not_connected",
+            )
+        await b.host.kit.store.renew(claim, 120)
+        request_id = str(uuid4())
+        async with b.host.tx.open() as db:
+            await db.execute(
+                update(sessions)
+                .where(sessions.c.id == claim.session.id)
+                .values(request_id=request_id)
+            )
+            await db.commit()
+            call = (
+                (await db.execute(select(model_calls).where(model_calls.c.run_id == claim.run_id)))
+                .mappings()
+                .one_or_none()
+            )
+    finally:
+        b.host.tx.database.state_events = previous
+    incoming = InterpretationFinishInput(claim, result)
+    return SimpleNamespace(
+        incoming=incoming,
+        intent=incoming.intent(request_id),
+        call=call,
+        before=await snapshot(b.host.kit, claim),
+    )
+
+
+async def _actual_interpretation_finish(b, kind, monkeypatch):
+    from qs_ai.application.execution.generation import DurableGeneration
+    from qs_ai.infrastructure.persistence.mysql.schema import model_calls
+    from qs_ai.infrastructure.workflow_transport.interpretation_finish_sender import (
+        InterpretationFinishSender,
+    )
+    from qs_ai.infrastructure.workflow_transport.interpretation_finish_state import read_finish_plan
+    from tests.integration.test_interpretation_finish_root import snapshot
+
+    p = await _seed_original_interpretation_finish(b, kind)
+    finish = InterpretationFinishSender(
+        b.host.kit.store,
+        b.host.archives,
+        b.runtime,
+        signing_key=b.host.keys["ai.sign"],
+        recipient_key=b.host.keys["qs.encrypt"],
+    )
+    no_generation = AsyncMock(
+        side_effect=AssertionError("Finalization must reuse durable response")
+    )
+    monkeypatch.setattr(DurableGeneration, "execute", no_generation)
+    b.runtime.pause = True
+    task = asyncio.create_task(finish(p.incoming.claim, p.incoming.result))
+    try:
+        await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
+        owned = b.host.executions[-1]
+        facts, first, question_id = read_finish_plan(p.incoming, p.intent, owned.plan)
+        message_id = first.envelope().message_id
+        b.empty_poll.clear()
+        await asyncio.wait_for(b.empty_poll.wait(), timeout=20)
+        assert message_id not in b.messages
+        assert await snapshot(b.host.kit, p.incoming.claim) == p.before
+        passed("interpretation_finish_half_invisible_" + kind)
+        actual_end = b.sender._client.end_transaction
+
+        def discard(*args, **kwargs):
+            actual_end(*args, **kwargs)
+            raise TimeoutError("client discarded completed interpretation finish final reply")
+
+        with monkeypatch.context() as patch:
+            patch.setattr(b.sender._client, "end_transaction", discard)
+            b.runtime.release.set()
+            assert await task is None
+        result = b.runtime.results[-1]
+        assert result.local == LocalOutcome.COMMITTED
+        assert all(branch.final == FinalOutcome.UNKNOWN for branch in result.branches)
+        passed("interpretation_finish_final_unknown_keeps_commit")
+        async with asyncio.timeout(60):
+            while message_id not in b.messages:
+                assert not b.failures
+                await asyncio.sleep(0.05)
+        assert b.messages[message_id] == hashlib.sha256(first.wire).hexdigest()
+        assert await b.host.archives.read_committed(message_id) == first
+        assert await StoreChecker(b.host.store).check(owned.references[0]) == Decision.COMMIT
+        after = await snapshot(b.host.kit, p.incoming.claim)
+        assert after[0][0]["version"] == p.incoming.claim.session.version + 1
+        assert after[2][0]["status"] == "done"
+        history = next(row for row in after[5] if row["event_id"] == message_id)
+        assert history["mq_owned"] and not history["delivered"] and history["attempts"] == 0
+        async with b.host.tx.open() as db:
+            assert (
+                await db.scalar(
+                    select(outbox.c.message_id).where(outbox.c.message_id == message_id)
+                )
+                is None
+            )
+            current_call = (
+                (
+                    await db.execute(
+                        select(model_calls).where(model_calls.c.run_id == p.incoming.claim.run_id)
+                    )
+                )
+                .mappings()
+                .one_or_none()
+            )
+        passed("interpretation_finish_original_business_archive_witness")
+        if kind == "question":
+            assert after[4][0]["id"] == question_id
+            assert (
+                after[4][0]["question_seq"]
+                == json.loads(facts.business_context)["question_sequence"]
+            )
+            passed("interpretation_finish_first_question_sequence")
+        if kind == "artifact":
+            assert p.call == current_call and current_call["status"] == "response_received"
+            value = parse_body(first.envelope(), first.body).interpretation_state
+            assert json.loads(value.artifact_json)["id"] == p.incoming.result.artifact.id
+            passed("interpretation_finish_durable_artifact_no_new_invocation")
+
+        async def no_plan(*args):
+            raise AssertionError("Committed finish must not replan or seal")
+
+        monkeypatch.setattr(finish._planner, "candidate", no_plan)
+        assert await finish(p.incoming.claim, p.incoming.result) is None
+        assert await snapshot(b.host.kit, p.incoming.claim) == after
+        assert b.runtime.calls == len(b.host.executions) == 1
+        assert await b.host.archives.read_committed(message_id) == first
+        no_generation.assert_not_called()
+        b.recorder.flush.assert_not_called()
+        passed("interpretation_finish_repeat_no_replan_or_send")
+    finally:
+        b.runtime.release.set()
+        await asyncio.gather(task, return_exceptions=True)
+
+
+async def test_actual_interpretation_finish_question_half_gate_first_wire_and_final_unknown(
+    governance_broker, monkeypatch
+):
+    await _actual_interpretation_finish(governance_broker, "question", monkeypatch)
+
+
+async def test_actual_interpretation_finish_failure_half_gate_first_wire_and_final_unknown(
+    governance_broker, monkeypatch
+):
+    await _actual_interpretation_finish(governance_broker, "failure", monkeypatch)
+
+
+@pytest.mark.usefixtures("published_configuration")
+async def test_actual_interpretation_finish_artifact_half_gate_first_wire_and_final_unknown(
+    governance_broker, monkeypatch
+):
+    await _actual_interpretation_finish(governance_broker, "artifact", monkeypatch)
+
+
+async def test_actual_interpretation_finish_source_conflict_rolls_back_without_new_send(
+    governance_broker,
+):
+    from sqlalchemy import update
+
+    from qs_ai.infrastructure.persistence.mysql.schema import sessions
+    from qs_ai.infrastructure.workflow_transport.interpretation_finish_sender import (
+        InterpretationFinishPending,
+        InterpretationFinishSender,
+    )
+    from qs_ai.infrastructure.workflow_transport.interpretation_finish_state import read_finish_plan
+    from tests.integration.test_interpretation_finish_root import snapshot
+
+    b = governance_broker
+    p = await _seed_original_interpretation_finish(b, "failure")
+    finish = InterpretationFinishSender(
+        b.host.kit.store,
+        b.host.archives,
+        b.runtime,
+        signing_key=b.host.keys["ai.sign"],
+        recipient_key=b.host.keys["qs.encrypt"],
+    )
+    b.runtime.pause = True
+    task = asyncio.create_task(finish(p.incoming.claim, p.incoming.result))
+    try:
+        await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
+        owned = b.host.executions[-1]
+        _, first, _ = read_finish_plan(p.incoming, p.intent, owned.plan)
+        previous = b.host.tx.database.state_events
+        b.host.tx.database.state_events = None
+        try:
+            async with b.host.tx.open() as db:
+                await db.execute(
+                    update(sessions)
+                    .where(sessions.c.id == p.incoming.claim.session.id)
+                    .values(goal="competing original business input")
+                )
+                await db.commit()
+        finally:
+            b.host.tx.database.state_events = previous
+        competing = await snapshot(b.host.kit, p.incoming.claim)
+        b.runtime.release.set()
+        with pytest.raises((InterpretationFinishPending, TransactionSendError)):
+            await task
+        result = b.runtime.results[-1]
+        assert result.local == LocalOutcome.ABORTED
+        assert all(branch.final == FinalOutcome.ROLLBACK_CONFIRMED for branch in result.branches)
+        assert await StoreChecker(b.host.store).check(owned.references[0]) == Decision.ROLLBACK
+        assert await snapshot(b.host.kit, p.incoming.claim) == competing
+        assert await b.host.archives.read_committed(first.envelope().message_id) is None
+        b.empty_poll.clear()
+        await asyncio.wait_for(b.empty_poll.wait(), timeout=20)
+        assert first.envelope().message_id not in b.messages
+        b.recorder.flush.assert_not_called()
+        passed("interpretation_finish_source_conflict_rollback")
+    finally:
+        b.runtime.release.set()
+        await asyncio.gather(task, return_exceptions=True)
