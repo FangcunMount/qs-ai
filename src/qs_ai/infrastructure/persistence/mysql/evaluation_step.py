@@ -4,11 +4,13 @@ import asyncio
 import hashlib
 import json
 from collections.abc import Callable
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID, uuid4
 
+from reliable_messaging.sqlalchemy import bind
+from reliable_messaging.transaction import BindingError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -328,21 +330,23 @@ async def load_step_inputs(
     )
 
 
-async def finish_step(
-    transactions: Transactions,
-    run_id: UUID,
-    organization_id: int,
-    owner: str,
-    routes: RouteAssets,
-    schemas: SchemaAssets,
+@dataclass(frozen=True)
+class StepCompletion:
+    """Prepared deterministic evidence, not persisted SDK plan or commit proof."""
+
+    prepared: PreparedStep = field(repr=False)
+    completion: GenerationCompletion | SemanticCompletion = field(repr=False)
+    candidate_id: str
+
+
+async def prepare_step_completion(
     prepared: PreparedStep,
     response: ModelResponse | None,
     failure: ClassifiedFailure | None,
+    routes: RouteAssets,
     *,
     clock: Callable[[], datetime] = lambda: datetime.now(UTC),
-    recovery_at: datetime | None = None,
-) -> CheckpointState:
-    state = prepared.state
+) -> StepCompletion:
     cp = prepared.cp
     at = prepared.at
     invocation_id = prepared.invocation_id
@@ -410,91 +414,155 @@ async def finish_step(
     status = (
         "succeeded" if failure is None else "result_unknown" if failure.result_unknown else "failed"
     )
+    if cp.kind == "generation":
+        completed = GenerationCompletion(
+            execution_id,
+            cp.case_id,
+            cp.slot_ordinal,
+            cp.execution_ordinal,
+            invocation_id,
+            status,
+            at,
+            finished,
+            1,
+            receipt,
+            raw,
+            normalized,
+            "sha256:" + hashlib.sha256(normalized).hexdigest() if normalized else "",
+            failure,
+        )
+        return StepCompletion(prepared, completed, str(uuid4()) if status == "succeeded" else "")
+    judged = SemanticCompletion(
+        execution_id,
+        cp.candidate_id,
+        candidate_fingerprint,
+        cp.execution_ordinal,
+        invocation_id,
+        status,
+        at,
+        finished,
+        1,
+        receipt,
+        raw,
+        normalized,
+        failure,
+    )
+    return StepCompletion(prepared, judged, "")
+
+
+async def finish_step_in(
+    db: AsyncSession,
+    run_id: UUID,
+    organization_id: int,
+    owner: str,
+    routes: RouteAssets,
+    schemas: SchemaAssets,
+    value: StepCompletion,
+    *,
+    recovery_at: datetime | None = None,
+) -> tuple[CheckpointState, bool]:
+    """Stage on the caller's root; the bool reports a write, never a commit."""
+    if not isinstance(db, AsyncSession) or db.in_nested_transaction():
+        raise BindingError("Original evaluation completion root required")
+    original = db.get_transaction()
+    if original is None or not original.is_active:
+        raise BindingError("Active original evaluation completion root required")
+    binding = bind(db)
+    await binding.validate()
+    prepared, completed = value.prepared, value.completion
+    state = prepared.state
+    if state.run_id != run_id:
+        raise CheckpointConflict("Original completion Run differs")
+    if prepared.claim is not None:
+        from qs_ai.infrastructure.persistence.mysql.evaluation_candidate_completion import (
+            completed_claim_state,
+        )
+        from qs_ai.infrastructure.persistence.mysql.evaluation_slot_claims import (
+            lock_run,
+            require_claim,
+        )
+
+        completed_state = await completed_claim_state(db, organization_id, prepared.claim)
+        if completed_state is not None:
+            await binding.validate()
+            return completed_state, False
+        await lock_run(db, run_id, organization_id)
+        current = await require_claim(db, prepared.claim)
+        if recovery_at is not None and (
+            current.checkpoint.lease_expires_at != prepared.claim.checkpoint.lease_expires_at
+            or recovery_at < current.checkpoint.lease_expires_at
+        ):
+            raise CheckpointConflict("Recovery ownership was renewed")
+    if isinstance(completed, GenerationCompletion) and prepared.cp.kind == "generation":
+        state = await complete_evaluated_generation(
+            db,
+            run_id,
+            state.version,
+            organization_id,
+            owner,
+            completed,
+            routes,
+            schemas,
+            candidate_id=value.candidate_id,
+            claim=prepared.claim,
+        )
+    elif isinstance(completed, SemanticCompletion) and prepared.cp.kind == "semantic":
+        if value.candidate_id:
+            raise ValueError("Semantic completion cannot create a generation candidate")
+        state = await complete_semantic(
+            db,
+            run_id,
+            state.version,
+            organization_id,
+            owner,
+            completed,
+            routes,
+            claim=prepared.claim,
+        )
+    else:
+        raise ValueError("Original completion kind differs from preparation")
+    if db.get_transaction() is not original or not original.is_active:
+        raise BindingError("Original evaluation completion root was replaced")
+    await binding.validate()
+    return state, True
+
+
+async def finish_step(
+    transactions: Transactions,
+    run_id: UUID,
+    organization_id: int,
+    owner: str,
+    routes: RouteAssets,
+    schemas: SchemaAssets,
+    prepared: PreparedStep,
+    response: ModelResponse | None,
+    failure: ClassifiedFailure | None,
+    *,
+    clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+    recovery_at: datetime | None = None,
+) -> CheckpointState:
+    value = await prepare_step_completion(prepared, response, failure, routes, clock=clock)
     async with transactions.open() as db:
         await db.connection(execution_options={"isolation_level": "REPEATABLE READ"})
-        if prepared.claim is not None:
-            from qs_ai.infrastructure.persistence.mysql.evaluation_candidate_completion import (
-                completed_claim_state,
-            )
-            from qs_ai.infrastructure.persistence.mysql.evaluation_slot_claims import (
-                lock_run,
-                require_claim,
-            )
-
-            completed_state = await completed_claim_state(db, organization_id, prepared.claim)
-            if completed_state is not None:
-                return completed_state
-            await lock_run(db, run_id, organization_id)
-            current = await require_claim(db, prepared.claim)
-            if recovery_at is not None and (
-                current.checkpoint.lease_expires_at != prepared.claim.checkpoint.lease_expires_at
-                or recovery_at < current.checkpoint.lease_expires_at
-            ):
-                from qs_ai.application.evaluation.checkpoints import CheckpointConflict
-
-                raise CheckpointConflict("Recovery ownership was renewed")
-        if cp.kind == "generation":
-            completed = GenerationCompletion(
-                execution_id,
-                cp.case_id,
-                cp.slot_ordinal,
-                cp.execution_ordinal,
-                invocation_id,
-                status,
-                at,
-                finished,
-                1,
-                receipt,
-                raw,
-                normalized,
-                "sha256:" + hashlib.sha256(normalized).hexdigest() if normalized else "",
-                failure,
-            )
-            state = await complete_evaluated_generation(
-                db,
-                run_id,
-                state.version,
-                organization_id,
-                owner,
-                completed,
-                routes,
-                schemas,
-                candidate_id=str(uuid4()) if status == "succeeded" else "",
-                claim=prepared.claim,
-            )
-        else:
-            judged = SemanticCompletion(
-                execution_id,
-                cp.candidate_id,
-                candidate_fingerprint,
-                cp.execution_ordinal,
-                invocation_id,
-                status,
-                at,
-                finished,
-                1,
-                receipt,
-                raw,
-                normalized,
-                failure,
-            )
-            state = await complete_semantic(
-                db,
-                run_id,
-                state.version,
-                organization_id,
-                owner,
-                judged,
-                routes,
-                claim=prepared.claim,
-            )
+        state, applied = await finish_step_in(
+            db,
+            run_id,
+            organization_id,
+            owner,
+            routes,
+            schemas,
+            value,
+            recovery_at=recovery_at,
+        )
+        if not applied:
+            return state
         await db.commit()
     emit(
         "evaluation.receipt_committed",
         "evaluation",
         run_id=str(run_id),
-        invocation_id=invocation_id,
-        status=status,
-        stage=cp.kind,
+        invocation_id=prepared.invocation_id,
+        status=value.completion.status,
+        stage=prepared.cp.kind,
     )
     return state
