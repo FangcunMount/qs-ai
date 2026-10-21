@@ -9,6 +9,7 @@ import math
 from typing import Any, Protocol
 
 from reliable_messaging.durable import MessageConflict
+from reliable_messaging.rocketmq_transaction import TransactionSendError
 from reliable_messaging.transaction import (
     Execution,
     FrozenPlan,
@@ -227,7 +228,15 @@ class TransactionCommandReceiver:
                 )
             # Always build from the durable winner, never a losing candidate.
             local = self._root(incoming, existing.execution.plan)
-            result = await self._runtime.execute(existing.execution, local)
+            try:
+                result = await self._runtime.execute(existing.execution, local)
+            except TransactionSendError as error:
+                # The fixed SDK carries terminal local proof even when the
+                # final RPC or callback reported an error. Do not mislabel a
+                # committed business transaction as a new technical failure.
+                result = error.result
+                if result.local != LocalOutcome.COMMITTED:
+                    raise
             if result.local != LocalOutcome.COMMITTED:
                 raise CommandTransactionPending(
                     "Command local transaction is not confirmed committed"

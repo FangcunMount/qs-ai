@@ -249,3 +249,49 @@ async def test_local_technical_budget_read_begins_its_original_transaction_befor
     await f.receiver.receive_command(f.received)
     f.db.begin.assert_awaited_once()
     f.db.commit.assert_not_called()
+
+
+async def test_sdk_final_unknown_error_keeps_committed_business_after_exact_authority_check():
+    from reliable_messaging.rocketmq_transaction import TransactionSendError
+
+    f = fixture()
+    f.receiver._root = Mock(return_value=AsyncMock())
+    f.receiver._committed = AsyncMock()
+    f.runtime.execute.side_effect = TransactionSendError(
+        "final_outcome_unknown", Result(LocalOutcome.COMMITTED, ())
+    )
+    await f.receiver.receive_command(f.received)
+    f.receiver._committed.assert_awaited_once_with(f.incoming, f.execution)
+    f.store.technical_failure.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "outcome", [LocalOutcome.UNKNOWN, LocalOutcome.ABORTED, LocalOutcome.NOT_STARTED]
+)
+async def test_sdk_error_without_committed_business_never_acknowledges_or_restarts(outcome):
+    from reliable_messaging.rocketmq_transaction import TransactionSendError
+
+    f = fixture()
+    f.receiver._root = Mock(return_value=AsyncMock())
+    f.receiver._committed = AsyncMock()
+    error = TransactionSendError("unresolved", Result(outcome, ()))
+    f.runtime.execute.side_effect = error
+    with pytest.raises(TransactionSendError) as caught:
+        await f.receiver.receive_command(f.received)
+    assert caught.value is error
+    f.receiver._committed.assert_not_called()
+    f.runtime.execute.assert_awaited_once()
+
+
+async def test_even_sdk_committed_error_cannot_ack_when_application_evidence_is_missing():
+    from reliable_messaging.rocketmq_transaction import TransactionSendError
+
+    f = fixture()
+    f.receiver._root = Mock(return_value=AsyncMock())
+    f.receiver._committed = AsyncMock(side_effect=CommandTransactionPending("exact proof missing"))
+    f.runtime.execute.side_effect = TransactionSendError(
+        "final_outcome_unknown", Result(LocalOutcome.COMMITTED, ())
+    )
+    with pytest.raises(CommandTransactionPending):
+        await f.receiver.receive_command(f.received)
+    f.store.technical_failure.assert_awaited_once()

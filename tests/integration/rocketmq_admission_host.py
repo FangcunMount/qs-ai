@@ -25,6 +25,7 @@ from reliable_messaging.rocketmq_transaction import (
     TransactionalSender,
     TransactionConfig,
     TransactionRoute,
+    TransactionSendError,
 )
 from reliable_messaging.transaction import (
     Binding,
@@ -188,7 +189,12 @@ class ObservedRuntime(TransactionRuntime):
             return await local(exact)
 
         self.executions.append(owned)
-        result = await super().execute(owned, original_root)
+        try:
+            result = await super().execute(owned, original_root)
+        except TransactionSendError as error:
+            self.results.append(error.result)
+            self.completed.set()
+            raise  # The real receiver, not this observer, decides whether to ACK.
         self.results.append(result)
         self.completed.set()
         return result
