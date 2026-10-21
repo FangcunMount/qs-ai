@@ -8,7 +8,7 @@ import asyncio
 import hashlib
 import json
 import sys
-from contextlib import AsyncExitStack, asynccontextmanager
+from contextlib import AsyncExitStack, aclosing, asynccontextmanager
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
@@ -51,6 +51,7 @@ from qs_ai.infrastructure.workflow_transport.correction_state import read_correc
 from qs_ai.infrastructure.workflow_transport.correction_state_plan import CorrectionStateOperation
 from qs_ai.infrastructure.workflow_transport.evaluation_governance_dispatch import (
     GovernanceStateDispatcher,
+    GovernanceTransactionPending,
 )
 from qs_ai.infrastructure.workflow_transport.evaluation_governance_state import (
     GovernanceStateOperation,
@@ -65,6 +66,8 @@ from qs_ai.infrastructure.workflow_transport.evaluation_preflight_state import (
 )
 from qs_ai.infrastructure.workflow_transport.evaluation_state_plan import read_evaluation_state_plan
 from qs_ai.infrastructure.workflow_transport.messaging import EVENTS, authenticate, parse_body
+from qs_ai.infrastructure.workflow_transport.resolution_state import read_resolution_plan
+from qs_ai.infrastructure.workflow_transport.resolution_state_plan import ResolutionStateOperation
 from qs_ai.infrastructure.workflow_transport.review_state_plan import (
     ReviewStateInput,
     read_review_state_plan,
@@ -89,10 +92,12 @@ from tests.integration.test_evaluation_creation_interop import persisted_assets 
 from tests.integration.test_evaluation_finalization import passing_semantics as passing_semantics
 from tests.integration.test_evaluation_finalization import reviewed
 from tests.integration.test_evaluation_reopening import eligible_semantics as eligible_semantics
+from tests.integration.test_evaluation_resolution import decision as resolution_decision
 from tests.integration.test_evaluation_review_corrections import intent as correction_intent
 from tests.integration.test_evaluation_review_corrections import signatures as signatures
 from tests.integration.test_evaluation_reviews import reviewable as reviewable
 from tests.integration.test_evaluation_runs import rows as evaluation_rows
+from tests.integration.test_evaluation_step import ready as resolution_readiness
 from tests.integration.test_semantic_completions import judge as judge
 from tests.integration.test_solutions import workspace as workspace
 from tests.integration.test_transaction_evaluation_admission import (
@@ -116,6 +121,7 @@ from tests.integration.test_transaction_evaluation_admission import (
 from tests.integration.test_transaction_evaluation_admission import (
     setup_run as setup_run,
 )
+from tests.integration.test_transaction_resolution_state import unknown as resolution_seed
 from tests.integration.test_transaction_solution_dispatch import service_request
 from tests.test_generation_manifest import assets as assets
 from tests.test_generation_manifest import complete_release as complete_release
@@ -1029,3 +1035,333 @@ async def test_actual_solution_source_conflict_rolls_back_prepared_half(
         b.runtime.release.set()
         await asyncio.gather(task, return_exceptions=True)
         await clean_governance_sequence(b.host, incoming.identities.run_id)
+
+
+@pytest.fixture
+async def resolution_ready(setup_run, persisted_assets):
+    # Do not replace the legacy profile's ready fixture; each original graph
+    # retains its own expected fixture shape and complete teardown.
+    async with aclosing(resolution_readiness.__wrapped__(setup_run, persisted_assets)) as values:
+        async for value in values:
+            yield value
+
+
+@pytest.fixture
+async def resolution_unknown(host, resolution_ready):
+    async with aclosing(resolution_seed.__wrapped__(host, resolution_ready)) as values:
+        async for value in values:
+            yield value
+
+
+async def test_actual_resolution_rpc_half_gate_first_audit_and_final_unknown(
+    governance_broker, resolution_unknown, monkeypatch
+):
+    b, p = governance_broker, resolution_unknown
+    operation_id = uuid4()
+    dispatcher = GovernanceStateDispatcher(
+        b.host.tx,
+        b.host.archives,
+        b.runtime,
+        signing_key=b.host.keys["ai.sign"],
+        recipient_key=b.host.keys["qs.encrypt"],
+        resolution_management=p.original,
+    )
+    sender = TransactionalEvaluationManagement(p.original, dispatcher, new_id=lambda: operation_id)
+
+    @asynccontextmanager
+    async def container():
+        class Scope:
+            async def get(self, dependency):
+                assert dependency is EvaluationManagementStore
+                return sender
+
+        yield Scope()
+
+    request = workflow.UnknownResolutionCommand(
+        scope=workflow.EvaluationQuery(
+            run_id=str(p.run_id),
+            organization_id=p.scope.organization_id,
+            operator_user_id=p.scope.operator_user_id,
+        ),
+        expected_version=p.state.version,
+        execution_id="execution:dead",
+        decision="authorize_replacement",
+        reason="真实SDK原人工裁决",
+        acknowledged_duplicate_call_and_cost_risk=True,
+        confirm=True,
+    )
+    operation = ResolutionStateOperation(
+        p.scope,
+        operation_id,
+        p.state.version,
+        replace(resolution_decision(), actor=p.scope.actor, reason=request.reason),
+        True,
+    )
+    b.runtime.pause = True
+    task = asyncio.create_task(EvaluationManagement(container).ResolveUnknown(request, Context()))
+    try:
+        await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
+        owned = b.host.executions[-1]
+        facts, first = read_resolution_plan(operation, owned.plan)
+        frozen, _ = ResolutionStateOperation.from_facts(facts)
+        b.empty_poll.clear()
+        await asyncio.wait_for(b.empty_poll.wait(), timeout=20)
+        assert first.envelope().message_id not in b.messages
+        assert await evaluation_rows(p.tx, p.run_id) == p.before[0]
+        passed("resolution_half_invisible")
+        actual_end = b.sender._client.end_transaction
+
+        def discard(*args, **kwargs):
+            actual_end(*args, **kwargs)
+            raise TimeoutError("client discarded completed resolution final reply")
+
+        with monkeypatch.context() as patch:
+            patch.setattr(b.sender._client, "end_transaction", discard)
+            b.runtime.release.set()
+            response = await task
+        assert response.status == "collecting" and response.version == p.state.version + 1
+        result = b.runtime.results[-1]
+        assert result.local == LocalOutcome.COMMITTED
+        assert all(branch.final == FinalOutcome.UNKNOWN for branch in result.branches)
+        passed("resolution_final_unknown_keeps_commit")
+        await b.consumed(operation)
+        run = (await evaluation_rows(p.tx, p.run_id))[0]
+        audit = run["progress_json"]["result_unknown_resolutions"][-1]
+        assert audit["resolved_at"] == frozen.value.resolved_at.isoformat()
+        assert audit["actor"] == p.scope.actor and audit["execution_id"] == request.execution_id
+        assert await b.host.archives.read_committed(first.envelope().message_id) == first
+        assert p.gateway.calls == p.provider_calls
+        passed("resolution_original_audit_wire_and_witness")
+        before = await evaluation_rows(p.tx, p.run_id)
+        with pytest.raises(GovernanceTransactionPending):
+            await dispatcher(operation, frozen.value.resolved_at + timedelta(seconds=5))
+        assert await evaluation_rows(p.tx, p.run_id) == before
+        assert p.gateway.calls == p.provider_calls
+        assert b.runtime.calls == len(b.host.executions) == 1
+        b.recorder.flush.assert_not_called()
+        passed("resolution_repeated_invocation_no_new_send_or_model")
+    finally:
+        b.runtime.release.set()
+        await asyncio.gather(task, return_exceptions=True)
+
+
+async def test_actual_resolution_source_conflict_rolls_back_prepared_half(
+    governance_broker, resolution_unknown
+):
+    b, p = governance_broker, resolution_unknown
+    value = replace(resolution_decision(), actor=p.scope.actor)
+    operation = ResolutionStateOperation(p.scope, uuid4(), p.state.version, value, True)
+    dispatcher = GovernanceStateDispatcher(
+        b.host.tx,
+        b.host.archives,
+        b.runtime,
+        signing_key=b.host.keys["ai.sign"],
+        recipient_key=b.host.keys["qs.encrypt"],
+        resolution_management=p.original,
+    )
+    b.runtime.pause = True
+    task = asyncio.create_task(dispatcher(operation, value.resolved_at))
+    try:
+        await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
+        owned = b.host.executions[-1]
+        _, first = read_resolution_plan(operation, owned.plan)
+        await MySQLEvaluationManagement(p.tx).resolve(
+            p.scope, p.state.version, replace(value, decision="cancel_run"), confirm=True
+        )
+        competing = await evaluation_rows(p.tx, p.run_id)
+        b.runtime.release.set()
+        with pytest.raises(CheckpointConflict):
+            await task
+        result = b.runtime.results[-1]
+        assert result.local == LocalOutcome.ABORTED
+        assert all(branch.final == FinalOutcome.ROLLBACK_CONFIRMED for branch in result.branches)
+        assert await StoreChecker(b.host.store).check(owned.references[0]) == Decision.ROLLBACK
+        assert await evaluation_rows(p.tx, p.run_id) == competing
+        assert await b.host.archives.read_committed(first.envelope().message_id) is None
+        assert p.gateway.calls == p.provider_calls
+        b.empty_poll.clear()
+        await asyncio.wait_for(b.empty_poll.wait(), timeout=20)
+        assert first.envelope().message_id not in b.messages
+        b.recorder.flush.assert_not_called()
+        passed("resolution_source_conflict_rollback")
+    finally:
+        b.runtime.release.set()
+        await asyncio.gather(task, return_exceptions=True)
+
+
+async def _actual_serial_dispatch(b, ready, monkeypatch, *, semantic):
+    from qs_ai.application.execution.model_capacity import ModelCapacity, ProviderCapacity
+    from qs_ai.infrastructure.workflow_transport.worker_dispatch_sender import (
+        WorkerDispatchPending,
+        WorkerDispatchSender,
+    )
+    from qs_ai.infrastructure.workflow_transport.worker_dispatch_state import (
+        WorkerDispatchPlanner,
+        inputs_digest,
+        read_worker_dispatch_plan,
+        worker_dispatch_intent,
+    )
+    from tests.integration.test_evaluation_step import AT, Gateway, step
+    from tests.integration.test_evaluation_unknowns import snapshot
+
+    tx, run_id, _, _, schemas = ready
+    gateway = Gateway(ready)
+    version = (await step(ready, gateway)).version if semantic else 3
+    before, calls = await snapshot(tx, run_id), gateway.calls
+    planner = WorkerDispatchPlanner(
+        b.host.tx,
+        schemas,
+        signing_key=b.host.keys["ai.sign"],
+        recipient_key=b.host.keys["qs.encrypt"],
+        clock=lambda: AT + timedelta(seconds=1),
+    )
+    _, expected = await planner.candidate(run_id, version, 1, "worker:real-serial")
+    pool = ModelCapacity({expected.route.provider: ProviderCapacity(2, 1)}, 1)
+    dispatch = WorkerDispatchSender(
+        b.host.tx, b.host.archives, b.runtime, schemas, "worker:real-serial", planner, capacity=pool
+    )
+    intent = worker_dispatch_intent(run_id, version, 1, "worker:real-serial")
+    b.runtime.pause = True
+    task = asyncio.create_task(dispatch(run_id, version, 1))
+    value = None
+    try:
+        await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
+        owned = b.host.executions[-1]
+        _, operation, first = read_worker_dispatch_plan(intent, owned.plan)
+        b.empty_poll.clear()
+        await asyncio.wait_for(b.empty_poll.wait(), timeout=20)
+        assert first.envelope().message_id not in b.messages
+        assert await snapshot(tx, run_id) == before and gateway.calls == calls
+        assert pool.try_acquire(expected.route.provider, evaluation=True) is None
+        passed(
+            "serial_dispatch_half_invisible_semantic"
+            if semantic
+            else "serial_dispatch_half_invisible_generation"
+        )
+        actual_end = b.sender._client.end_transaction
+
+        def discard(*args, **kwargs):
+            actual_end(*args, **kwargs)
+            raise TimeoutError("client discarded completed serial dispatch final reply")
+
+        with monkeypatch.context() as patch:
+            patch.setattr(b.sender._client, "end_transaction", discard)
+            b.runtime.release.set()
+            value = await task
+        result = b.runtime.results[-1]
+        assert result.local == LocalOutcome.COMMITTED
+        assert all(branch.final == FinalOutcome.UNKNOWN for branch in result.branches)
+        passed("serial_dispatch_final_unknown_handoff")
+        assert value.cp == operation.checkpoint and value.cp.phase == "prepared"
+        assert value.state.checkpoint.phase == "dispatching" and value.state.version == version + 2
+        assert operation.model_inputs_digest == inputs_digest(expected)
+        assert (value.messages, value.route, value.schema) == (
+            expected.messages,
+            expected.route,
+            expected.schema,
+        )
+        await b.consumed(SimpleNamespace(intent=intent))
+        after = await snapshot(tx, run_id)
+        assert after[0][2]["version"] == version + 2
+        assert after[1][1:] == before[1][1:]
+        assert len(after[1][0]) == len(before[1][0]) + 1
+        ledger = next(row for row in after[1][0] if row["execution_id"] == value.execution_id)
+        assert ledger["invocation_id"] == value.invocation_id
+        assert ledger["checkpoint_json"]["phase"] == "dispatching"
+        assert ledger["checkpoint_json"]["claimed_at"] == value.cp.claimed_at.isoformat()
+        assert gateway.calls == calls
+        passed("serial_dispatch_two_cas_first_inputs_and_witness")
+        assert value.capacity_token is not None
+        assert pool.try_acquire(expected.route.provider, evaluation=True) is None
+        value.capacity_token.release()
+        token = pool.try_acquire(expected.route.provider, evaluation=True)
+        assert token is not None
+        token.release()
+        passed("serial_dispatch_original_permit_transfer")
+        with pytest.raises(WorkerDispatchPending):
+            await dispatch(run_id, version, 1)
+        assert await snapshot(tx, run_id) == after and gateway.calls == calls
+        assert b.runtime.calls == len(b.host.executions) == 1
+        passed("serial_dispatch_repeat_no_new_model_or_send")
+    finally:
+        b.runtime.release.set()
+        await asyncio.gather(task, return_exceptions=True)
+        if value is not None and value.capacity_token is not None:
+            value.capacity_token.release()
+        await clean_governance_sequence(b.host, run_id)
+
+
+async def test_actual_serial_generation_dispatch_half_gate_first_inputs_and_final_unknown(
+    governance_broker, resolution_ready, monkeypatch
+):
+    await _actual_serial_dispatch(governance_broker, resolution_ready, monkeypatch, semantic=False)
+
+
+async def test_actual_serial_semantic_dispatch_half_gate_first_inputs_and_final_unknown(
+    governance_broker, resolution_ready, monkeypatch
+):
+    await _actual_serial_dispatch(governance_broker, resolution_ready, monkeypatch, semantic=True)
+
+
+async def test_actual_serial_dispatch_source_conflict_rolls_back_without_model_call(
+    governance_broker, resolution_ready
+):
+    from qs_ai.application.evaluation.management import ManagementScope
+    from qs_ai.infrastructure.workflow_transport.worker_dispatch_sender import (
+        WorkerDispatchPending,
+        WorkerDispatchSender,
+    )
+    from qs_ai.infrastructure.workflow_transport.worker_dispatch_state import (
+        WorkerDispatchPlanner,
+        read_worker_dispatch_plan,
+        worker_dispatch_intent,
+    )
+    from tests.integration.test_evaluation_step import AT
+    from tests.integration.test_evaluation_unknowns import snapshot
+
+    b, ready = governance_broker, resolution_ready
+    tx, run_id, _, _, schemas = ready
+    planner = WorkerDispatchPlanner(
+        b.host.tx,
+        schemas,
+        signing_key=b.host.keys["ai.sign"],
+        recipient_key=b.host.keys["qs.encrypt"],
+        clock=lambda: AT + timedelta(seconds=1),
+    )
+    dispatch = WorkerDispatchSender(
+        b.host.tx, b.host.archives, b.runtime, schemas, "worker:real-serial", planner
+    )
+    intent = worker_dispatch_intent(run_id, 3, 1, "worker:real-serial")
+    b.runtime.pause = True
+    task = asyncio.create_task(dispatch(run_id, 3, 1))
+    try:
+        await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
+        owned = b.host.executions[-1]
+        _, _, first = read_worker_dispatch_plan(intent, owned.plan)
+        await MySQLEvaluationManagement(tx).cancel(
+            ManagementScope(run_id, 1, 42),
+            3,
+            "original cancellation wins before serial dispatch",
+            AT + timedelta(seconds=2),
+            discard=False,
+            confirm=True,
+        )
+        competing = await snapshot(tx, run_id)
+        b.runtime.release.set()
+        with pytest.raises((WorkerDispatchPending, TransactionSendError)):
+            await task
+        result = b.runtime.results[-1]
+        assert result.local == LocalOutcome.ABORTED
+        assert all(branch.final == FinalOutcome.ROLLBACK_CONFIRMED for branch in result.branches)
+        assert await StoreChecker(b.host.store).check(owned.references[0]) == Decision.ROLLBACK
+        assert await snapshot(tx, run_id) == competing
+        assert await b.host.archives.read_committed(first.envelope().message_id) is None
+        b.empty_poll.clear()
+        await asyncio.wait_for(b.empty_poll.wait(), timeout=20)
+        assert first.envelope().message_id not in b.messages
+        b.recorder.flush.assert_not_called()
+        passed("serial_dispatch_source_conflict_rollback")
+    finally:
+        b.runtime.release.set()
+        await asyncio.gather(task, return_exceptions=True)
+        await clean_governance_sequence(b.host, run_id)
