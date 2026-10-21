@@ -473,4 +473,7 @@ ClaimStage 仅描述 miss/deferred/exhausted/claimed 的暂存结果。returned 
 
 [`InterpretationClaimDeferral`](../../../src/qs_ai/infrastructure/workflow_transport/interpretation_claim_deferral.py) 明确分开无状态的配额延后。显式宿主提供同一个冻结候选及旧执行，必须先从新权威边界读到全部精确Aborted witness且不存在Committed首档案，再开启独立的job维护根；它不再次调用SDK本地执行器。原Session/job/lease来源在原锁下重新核对，沿用原容量与daily reservation检查，仍被拒绝时只将job延后1秒；不创建模型租约、不增加attempt、不生成状态事件或消息、不改写旧协议终态。
 
-容量恢复时，新根回滚所有暂存slot并返回False，不能借维护操作授予执行资格。新job维护根的提交回复丢失保留Pending，不声称回滚或消息提交，调用方只能核对现有job；这与旧事务已确认Aborted是两个独立事实。新操作不创建空的fence0租约占位；原claim默认实现和配额/租约权属保留。scanner责任交接、显式新执行授权及默认装配仍待完成。85组合目标/3397完整本地非集成回归零失败跳过，417源类型与lint/format通过；5真实MySQL仅收集，完整进度与CI回链infra总表。
+容量恢复时，新根回滚所有暂存slot并返回False，不能借维护操作授予执行资格。新job维护根的提交回复丢失保留Pending，不声称回滚或消息提交，调用方只能核对现有job；这与旧事务已确认Aborted是两个独立事实。新操作不创建空的fence0租约占位；原claim默认实现和配额/租约权属保留。scanner责任交接、显式新执行授权及默认装配仍待完成。89组合目标/3401完整本地非集成回归零失败跳过，417源类型与lint/format通过；6真实MySQL仅收集，完整进度与CI回链infra总表。
+
+
+无事件维护根在任何job或配额写入前，同根锁定并核对已安装的ai.mysql owner、store_id、writer epoch及schema版本，同时拒绝旧epoch的执行引用。协议证据存在于另一配置或旧writer，不构成当前业务库的维护授权；此保护不绑定新消息或改写旧Aborted状态。绑定不符必须拒绝而非降级，新增真实epoch变化拒绝用例与其余矩阵一并验收。
