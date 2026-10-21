@@ -25,6 +25,7 @@ from tests.integration.test_interpretation import kit as kit
 from tests.integration.test_mq_admission import admission, start_message
 from tests.integration.test_mq_storage import keys as keys
 from tests.integration.test_mq_storage import received, receiver
+from tests.integration.test_transaction_start_admission import host as host
 from tests.integration.test_transaction_start_admission import incoming, planner, reserve, rows
 from tests.integration.test_transaction_start_admission import (
     required_disposable_primary as required_disposable_primary,
