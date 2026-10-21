@@ -1,6 +1,6 @@
 {
   "schema_version": "qs-ai-document-closure/v1",
-  "source_commit": "61c1cda5673c5f021b7c755055e214c137f0fbcf",
+  "source_commit": "f528e63db17c8085199de1f69b86f76d622b8636",
   "reviewed_on": "2026-10-19",
   "authority": "runtime composition > code > machine contracts/config/migrations > scoped tests > maintained prose > dated evidence/plans/archive",
   "source_catalog": {
@@ -544,7 +544,7 @@
     "tests/test_read_only_start_admission.py": "84d1f1a51ffe65e9e1b84ae11d55071473ad0cd65ddc0fea984fda80b7383619",
     "tests/test_transaction_admission_decision.py": "9adbe03061483ef78ce3428e3595ba62b3b5925d9e9cbbb017c4fa8e8c695251",
     "tests/test_transaction_command.py": "5b00febff93bd70c36e8901c1363b2153e06089d2db1d3c5fcda4cbaa50731e7",
-    "docs/03-基础设施/messaging/README.md": "1925c21f5556fbf7b13d0e4ad293d3d30588d43ad18a35fe7b332c37cd2bdcbd",
+    "docs/03-基础设施/messaging/README.md": "03014105130b11125d95d594284220ce56a360dc01909c8d893137f70e541442",
     "src/qs_ai/infrastructure/workflow_transport/change_planner.py": "4eb6bc873363c4612d8b28c16453b3104a907616c319edb81b518b6974403b6f",
     "src/qs_ai/infrastructure/workflow_transport/frozen_change_admission.py": "e252f16bf36ccf4149a24ae9e5b59a73684a0438b9124cadeb22fc666135e886",
     "tests/integration/test_transaction_change_admission.py": "369fe567640c881f9fe9371368f1454ebb021447d84bc9a02f83e6ea8c684934",
@@ -582,10 +582,11 @@
     "tests/test_frozen_evaluation_admission.py": "9ee61059895f9657079f764861c303a5317041945c130233cdbe87d5a4e284b8",
     "tests/test_frozen_evaluation_events.py": "e4de5d95e0e68dadf9bd70b7cb7ae54482f76b8f463aa46f4a8d291c9fa4a259",
     "src/qs_ai/infrastructure/workflow_transport/hold_plan.py": "f36ee7ff63d96172d6f80e3c9617886f2b18eebd0372f1f082a1b26f045afa31",
-    "src/qs_ai/infrastructure/workflow_transport/transaction_receiver.py": "6858d6adc56b0d0f93ba3cf9d8877e2c025fba39115d86e8243abde170a2bfce",
-    "tests/integration/test_transaction_command_receiver.py": "561d369adbe938a6529ad08706d8a63b75481f306cfe6a8cdd00cf77d94e1792",
+    "src/qs_ai/infrastructure/workflow_transport/transaction_receiver.py": "bc16ffe34707d6a8333fbe770c175c27e5e5d50ff5da412ed9657d9bf0162335",
+    "tests/integration/test_transaction_command_receiver.py": "fb341613ef87c2e659dd4bddb9dfeb6d2e7c11472ce6cfda38387ac633c4ba99",
     "tests/test_messaging_read_command.py": "19860422c7fc9b19d929f60810fa38574ae2d563ddedeedb544d9793659dc427",
-    "tests/test_transaction_command_receiver.py": "4352b4656ee73a0f9ddc93e57bf01fcd1650e571fb18835a268a1633b4788b4a"
+    "tests/test_transaction_command_receiver.py": "1c13e98d9bcf8c29c7e5b1a4f8fa245b8ba08f645e9e887ff55d91a14741ee04",
+    "tests/integration/rocketmq_admission_host.py": "aea00f618d90ddcdc85e9f10c981e9e77b5ebf0059fdd56156405b5102d26c00"
   },
   "documents": [
     {
@@ -1679,6 +1680,7 @@
         "src/qs_ai/maintenance/messaging_audit.py",
         "src/qs_ai/maintenance/messaging_preflight.py",
         "src/qs_ai/maintenance/schema_layout.py",
+        "tests/integration/rocketmq_admission_host.py",
         "tests/integration/test_execution_configurations.py",
         "tests/integration/test_m7_delivery.py",
         "tests/integration/test_mq_admission.py",
@@ -1745,7 +1747,7 @@
         "4 legacy retirement unit tests passed; full MQ/NSQ/JOSE/MySQL tests not run due missing existing extras; no installs or live transport actions",
         "pytest -q tests/test_transaction_messaging.py"
       ],
-      "review_scope": "2026-10-06 source-grounded rewrite on unchanged 766b2aa business code, QS 2ccc2de and reliable-messaging Python 0.2.0a2 8633ba5; inbox/root/savepoint, first body/wire, source vs transport outbox, Relay budgets, stored ACK condition scope, protected payloads and one-record handoff; independent source review; legacy gRPC loop retired. 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained. 2026-10-19 M3 fixed prerelease and owner-bound inert transaction foundation reviewed; current business remains on original Relay and root transactions. Transaction-enabled legacy assembly fails closed; production remains independently unverified. 2026-10-19 explicit M3 protocol schema and manual current-head validation entry reviewed; original freeze/restore layouts retained and no production DDL. 2026-10-19 runtime0041 read-only validator explicitly composes frozen0040 base checks and exact four-table protocol checks. Legacy conversion validator/layouts remain strict; no DDL, resource ownership or model behavior changed. Added actual missing-index refusal proof; native CI pending. 2026-10-19 original-root immutable archive and explicit legacy reader reviewed; runtime validator adds host archive beside four unchanged SDK tables. Scoped retained-table handoff/inventory supports0041; old full conversion/backup whitelist unchanged. Local45 source cases and type/lint pass; new native archive proof pending. Native handoff fault tests use separate disposable administrator DDL connection; application DB user remains unchanged. Required schema server supplied at job scope so new maintenance regression cannot silently skip. 2026-10-21 frozen evaluation planning/source/sequence and original root reviewed; original cancellation drain/capacity rules reused; per-root READ COMMITTED precedes guard and organization mutex; receiver/Broker/native acceptance pending; no runtime enablement. 2026-10-21 inert transaction receiver and exact committed authority before inbound ACK reviewed; legacy Inbox remains compatibility-only; local budget holds get keyless empty transcription; physical failure wrappers remain audit-only. Native trigger DDL uses isolated administrator on exact same loopback primary; application pool/account unchanged; native and actual Broker proof pending."
+      "review_scope": "2026-10-06 source-grounded rewrite on unchanged 766b2aa business code, QS 2ccc2de and reliable-messaging Python 0.2.0a2 8633ba5; inbox/root/savepoint, first body/wire, source vs transport outbox, Relay budgets, stored ACK condition scope, protected payloads and one-record handoff; independent source review; legacy gRPC loop retired. 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained. 2026-10-19 M3 fixed prerelease and owner-bound inert transaction foundation reviewed; current business remains on original Relay and root transactions. Transaction-enabled legacy assembly fails closed; production remains independently unverified. 2026-10-19 explicit M3 protocol schema and manual current-head validation entry reviewed; original freeze/restore layouts retained and no production DDL. 2026-10-19 runtime0041 read-only validator explicitly composes frozen0040 base checks and exact four-table protocol checks. Legacy conversion validator/layouts remain strict; no DDL, resource ownership or model behavior changed. Added actual missing-index refusal proof; native CI pending. 2026-10-19 original-root immutable archive and explicit legacy reader reviewed; runtime validator adds host archive beside four unchanged SDK tables. Scoped retained-table handoff/inventory supports0041; old full conversion/backup whitelist unchanged. Local45 source cases and type/lint pass; new native archive proof pending. Native handoff fault tests use separate disposable administrator DDL connection; application DB user remains unchanged. Required schema server supplied at job scope so new maintenance regression cannot silently skip. 2026-10-21 frozen evaluation planning/source/sequence and original root reviewed; original cancellation drain/capacity rules reused; per-root READ COMMITTED precedes guard and organization mutex; receiver/Broker/native acceptance pending; no runtime enablement. 2026-10-21 inert transaction receiver and exact committed authority before inbound ACK reviewed; legacy Inbox remains compatibility-only; local budget holds get keyless empty transcription; physical failure wrappers remain audit-only. Native trigger DDL uses isolated administrator on exact same loopback primary; application pool/account unchanged; native and actual Broker proof pending. 2026-10-21 technical-budget read owns an explicit short transaction; original business still waits for all halves. Test fixture teardown preserves publication references. Explicit actual SDK/Broker profile is separate from automatic collection, fixed released SDK only, private process log sink and zero-skip receipt; native retry and Broker proof pending."
     },
     {
       "path": "docs/03-基础设施/model-gateway/README.md",

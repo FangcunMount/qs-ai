@@ -237,3 +237,10 @@ PARTICIPANT_RETRY 已复用原风险确认、blocked Run/CAS、首次模型请�
 评测候选fbb1bbd的两档原生CI各3485通过/2失败/0跳过；失败为新故障测试使用应用账号安装触发器而触发MySQL1419。98f4bf9改用现有显式隔离管理员连接，并验证相同回环host/port/database；应用事务仍用原账号/池，不新增权限或修改服务器参数。失败报告保留，等待修复候选复验，不将其他通过用例或M7成功视为完整门禁通过。
 
 Receiver候选f7fbc89本地完整2624通过，381源文件类型检查通过；61c1cda的HELD转录补充后完整2624通过（895项integration/interop未选择），mypy381通过。新增4项数据库接收器用例显式使用database-only runtime，只验证原接收/SQL语义，不能冒充SDK半消息或真实Broker验收。
+
+
+30b3d32的两档评测原生9项全部通过，故障管理员修复有效；整轮CI仍失败。新增receiver在读取技术失败预算之前遗漏原事务，现6597f45补齐短技术读取事务并保留故意red回归；这不是MQ准备前的业务执行。接收器夹具的自动清理还提前创建participant，导致publication早于执行配置清理，现改为显式receiver_host依赖并保留原publication→participant的建立/逆序释放，未关闭外键或放宽业务校验。f528e63本地完整2625通过、381源文件类型检查通过，新原生复验待完成。
+
+真实SDK/Broker使用显式文件 `tests/integration/rocketmq_admission_host.py`，不进入普通依赖作业的自动收集。infra以 `make rocketmq-ai-admission-test` 新建隔离Docker项目、回环端口、账号和临时schema，显式安装本候选迁移，再运行8项具名宿主用例/15项检查。Source与固定0.4.0a1 wheel分开验证，Python client固定5.1.2；缺依赖失败、不得跳过。该文件目前只完成收集与静态检查，尚未验证通过。
+
+该隔离profile通过实际Broker投递控制QS输入，调用真实AI接收器和发布SDK，以已完成的空poll响应验证半消息不可见，并核对原事务、首次wire、旧重复输入与技术HELD。QS输入witness及接收observer属于测试夹具，不表示成对QS业务、外部模型或system验收；最终回复丢失为客户端丢弃真实完成回复，不冒充网络故障。SDK客户端日志、JUnit、正文与凭据均留在本次私有目录，只导出摘要/具名结果并清理本次资源。
