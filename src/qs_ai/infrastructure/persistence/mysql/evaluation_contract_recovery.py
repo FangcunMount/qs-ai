@@ -2,7 +2,7 @@
 
 import asyncio
 import json
-from dataclasses import asdict
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from uuid import UUID
 
@@ -28,7 +28,16 @@ from qs_ai.infrastructure.persistence.mysql.evaluation_resolution_evidence impor
 from qs_ai.infrastructure.persistence.mysql.schema import evaluation_checkpoints, evaluation_runs
 
 
-async def authorize_contract_recovery(
+@dataclass(frozen=True)
+class ContractRecoveryPlan:
+    state: CheckpointState
+    progress_json: str = field(repr=False)
+
+    def progress(self) -> dict:
+        return json.loads(self.progress_json)
+
+
+async def plan_contract_recovery(
     db: AsyncSession,
     run_id: UUID,
     expected_version: int,
@@ -37,37 +46,26 @@ async def authorize_contract_recovery(
     value: ContractRecovery,
     *,
     confirm: bool,
-) -> CheckpointState:
-    """Authorized operator supplies audit; caller commits. All original evidence is immutable."""
+    lock: bool = False,
+) -> ContractRecoveryPlan:
+    """Read the original exception rules; only the original writer requests row locks."""
     if confirm is not True:
         raise ValueError("Explicit policy exception confirmation required")
-    cp = (
-        (
-            await db.execute(
-                select(evaluation_checkpoints)
-                .where(evaluation_checkpoints.c.run_id == str(run_id))
-                .with_for_update()
-            )
-        )
-        .mappings()
-        .one_or_none()
+    checkpoint_query = select(evaluation_checkpoints).where(
+        evaluation_checkpoints.c.run_id == str(run_id)
     )
+    if lock:
+        checkpoint_query = checkpoint_query.with_for_update()
+    cp = (await db.execute(checkpoint_query)).mappings().one_or_none()
     if cp is None or cp["version"] != expected_version or cp["checkpoint_json"] is not None:
         raise CheckpointConflict("Run version changed or execution is active")
-    run = (
-        (
-            await db.execute(
-                select(evaluation_runs)
-                .where(
-                    evaluation_runs.c.run_id == str(run_id),
-                    evaluation_runs.c.organization_id == organization_id,
-                )
-                .with_for_update()
-            )
-        )
-        .mappings()
-        .one_or_none()
+    run_query = select(evaluation_runs).where(
+        evaluation_runs.c.run_id == str(run_id),
+        evaluation_runs.c.organization_id == organization_id,
     )
+    if lock:
+        run_query = run_query.with_for_update()
+    run = (await db.execute(run_query)).mappings().one_or_none()
     if run is None or run["progress_json"] is None:
         raise CheckpointConflict("Run unavailable in organization")
     creation, progress = json.loads(run["definition_json"]), run["progress_json"]
@@ -147,10 +145,34 @@ async def authorize_contract_recovery(
         ],
     }
     state = CheckpointState(run_id, expected_version + 1, None)
-    await save_checkpoint(db, state, expected_version)
+    return ContractRecoveryPlan(state, json.dumps(updated, ensure_ascii=False, allow_nan=False))
+
+
+async def authorize_contract_recovery(
+    db: AsyncSession,
+    run_id: UUID,
+    expected_version: int,
+    organization_id: int,
+    expected_release_fingerprint: str,
+    value: ContractRecovery,
+    *,
+    confirm: bool,
+) -> CheckpointState:
+    """Original checkpoint/Run locks and CAS; the trusted caller retains root ownership."""
+    plan = await plan_contract_recovery(
+        db,
+        run_id,
+        expected_version,
+        organization_id,
+        expected_release_fingerprint,
+        value,
+        confirm=confirm,
+        lock=True,
+    )
+    await save_checkpoint(db, plan.state, expected_version)
     await db.execute(
         update(evaluation_runs)
         .where(evaluation_runs.c.run_id == str(run_id))
-        .values(progress_json=updated)
+        .values(progress_json=plan.progress())
     )
-    return state
+    return plan.state
