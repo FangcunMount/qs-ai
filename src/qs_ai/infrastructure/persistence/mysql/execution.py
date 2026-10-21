@@ -353,26 +353,20 @@ class MySQLExecutionStore:
         return None
 
     async def _guard(self, db: AsyncSession, claim: Claim) -> Session:
-        session = await MySQLUnitOfWork(db).get(claim.session.id, lock=True)
-        job = (
-            (await db.execute(select(jobs).where(jobs.c.id == claim.job_id).with_for_update()))
-            .mappings()
-            .one()
-        )
-        guard = (
-            (
-                await db.execute(
-                    select(
-                        execution_leases,
-                        (execution_leases.c.expires_at > func.utc_timestamp(6)).label("active"),
-                    )
-                    .where(execution_leases.c.thread_id == session.id)
-                    .with_for_update()
-                )
-            )
-            .mappings()
-            .one()
-        )
+        return await self.read_claim(db, claim, lock=True)
+
+    async def read_claim(self, db: AsyncSession, claim: Claim, *, lock: bool = False) -> Session:
+        """Read original live ownership; a readonly snapshot does not authorize a write."""
+        session = await MySQLUnitOfWork(db).get(claim.session.id, lock=lock)
+        job_query = select(jobs).where(jobs.c.id == claim.job_id)
+        lease_query = select(
+            execution_leases,
+            (execution_leases.c.expires_at > func.utc_timestamp(6)).label("active"),
+        ).where(execution_leases.c.thread_id == session.id)
+        if lock:
+            job_query, lease_query = job_query.with_for_update(), lease_query.with_for_update()
+        job = (await db.execute(job_query)).mappings().one()
+        guard = (await db.execute(lease_query)).mappings().one()
         if (
             session.status != Status.RUNNING
             or session.active_run_id != claim.run_id
