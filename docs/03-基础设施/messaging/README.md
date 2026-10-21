@@ -300,3 +300,5 @@ Broker第二轮39539009218暴露最后确认的适配缺口：固定SDK在最终
 [`input_conflicts`](../../../src/qs_ai/infrastructure/persistence/mysql/transaction_input.py) 只在SDK拒绝键复用时，以固定宿主主库中的绑定、schema、原字节身份及输入摘要证明冲突，保留原更正CAS错误语义；不依赖异常文本，不把解析或绑定失败冒充业务冲突，也不据此确认Commit/Rollback。协议读预算沿用显式2秒。新增14项真实MySQL用例覆盖原子提交、审核时间、档案拒绝、客户端丢弃提交回复、版本竞争、历史重放、实际RPC准备门禁及精确输入冲突；这些不是Broker/网络或生产证明，执行状态以infra总表为准。默认生产装配仍关闭。
 
 隔离的 [`rocketmq_state_host.py`](../../../tests/integration/rocketmq_state_host.py) 扩展为6项实际SDK/Broker验收：原worker预检3项继续保留，新增定稿后重开、35项评审RPC处理函数和评审源冲突回滚。新增路径使用固定发布wheel及真实半消息，暂停在本地根前观察不可消费，提交后核对原审核事实、首次时间/wire、精确witness与实际消费；源冲突必须回滚且不可消费。二次确认回复丢失仍是客户端丢弃真实RPC回复，不冒充网络级提交故障或进程退出。该文件按infra显式profile执行，普通pytest收集不会替代真实Broker验收；执行结果与20项必需证据以infra总表为准。
+
+创建入口的原 [`create_run/plan_run_creation/apply_run_creation`](../../../src/qs_ai/infrastructure/persistence/mysql/evaluation_runs.py) 分离只读计划与原事务写入。不可变计划持有原始definition JSON、原执行模式和冻结策略，隐藏大正文repr；原创建包装保持相同参数、SQL顺序和调用者提交归属。独立RPC与Solution Prepare均继续借用原会话，后者的资产注册和Run创建不拆成多个提交。原定义字节、时区时间格式、两种执行模式和重复创建行为由基线与原生测试保护；这一步尚未接通创建事务Sender，也不改变默认装配。
