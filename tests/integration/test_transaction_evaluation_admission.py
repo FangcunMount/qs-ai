@@ -2,6 +2,7 @@
 
 import asyncio
 import hashlib
+import os
 from dataclasses import replace
 from datetime import UTC, datetime
 from uuid import uuid4
@@ -10,6 +11,8 @@ import pytest
 from reliable_messaging.protected import TrustedSigner
 from reliable_messaging.transaction import Decision, LocalOutcome, StoreChecker
 from sqlalchemy import delete, insert, text
+from sqlalchemy.engine import make_url
+from sqlalchemy.ext.asyncio import create_async_engine
 
 from qs_ai.contracts.workflow import messaging_pb2 as pb
 from qs_ai.contracts.workflow import workflow_pb2 as workflow
@@ -58,6 +61,29 @@ async def original(host, requested):
                 )
             )
             await db.commit()
+
+
+@pytest.fixture
+async def trigger_admin(host):
+    # Fault installation is isolated administrative DDL; business retains the
+    # original application account and original pool throughout the test.
+    configured = os.environ.get("QS_MQ_FAULT_DDL_MYSQL_URL")
+    if not configured:
+        pytest.fail("Required isolated fault DDL administrator missing")
+    url = make_url(configured)
+    primary = host.tx.database.engine.url
+    if (
+        url.drivername != "mysql+asyncmy"
+        or url.host not in {"127.0.0.1", "localhost", "::1"}
+        or (url.host, url.port or 3306, url.database)
+        != (primary.host, primary.port or 3306, primary.database)
+    ):
+        pytest.fail("Fault administrator must target the same disposable primary")
+    engine = create_async_engine(url, hide_parameters=True)
+    try:
+        yield engine
+    finally:
+        await engine.dispose()
 
 
 def incoming(host, scope, kind=pb.EVALUATION_START, version=1):
@@ -175,7 +201,9 @@ async def test_changed_event_sequence_aborts_business_and_every_archive(original
 
 
 @pytest.mark.parametrize("fault", ["archive", "witness", "client_discarded_reply"])
-async def test_evaluation_root_failure_keeps_original_commit_truth(original, monkeypatch, fault):
+async def test_evaluation_root_failure_keeps_original_commit_truth(
+    original, trigger_admin, monkeypatch, fault
+):
     host, scope, store = original
     message = incoming(host, scope)
     owned = (await reserve(host, message, await planner(host).candidate(message))).execution
@@ -184,7 +212,7 @@ async def test_evaluation_root_failure_keeps_original_commit_truth(original, mon
 
     try:
         if fault != "client_discarded_reply":
-            async with host.tx.open() as db:
+            async with trigger_admin.begin() as db:
                 statement = (
                     f"CREATE TRIGGER {trigger} BEFORE INSERT ON {archive.name} "
                     "FOR EACH ROW SIGNAL SQLSTATE '45000' "
@@ -228,7 +256,7 @@ async def test_evaluation_root_failure_keeps_original_commit_truth(original, mon
     finally:
         monkeypatch.undo()
         if fault != "client_discarded_reply":
-            async with host.tx.open() as db:
+            async with trigger_admin.begin() as db:
                 await db.execute(text(f"DROP TRIGGER IF EXISTS {trigger}"))
                 await db.commit()
 
