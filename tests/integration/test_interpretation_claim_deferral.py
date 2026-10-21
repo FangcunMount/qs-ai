@@ -154,3 +154,51 @@ async def test_new_writer_epoch_cannot_use_old_abort_to_write_original_job(host)
                 )
             )
             await db.commit()
+
+
+async def test_job_only_commit_replaces_only_its_root_recorder_and_never_calls_legacy(host):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    source, before, execution, deferred = await prior(host)
+    old = host.tx.database.state_events
+    legacy = SimpleNamespace(flush=AsyncMock(side_effect=AssertionError("Legacy flush prohibited")))
+    host.tx.database.state_events = legacy
+    try:
+        assert await deferred(source, 60, execution) is True
+        assert host.tx.database.state_events is legacy
+        legacy.flush.assert_not_called()
+    finally:
+        host.tx.database.state_events = old
+    after = await rows(host.kit, source.session.id)
+    assert after[0] == before[0] and after[2:] == before[2:]
+    assert after[1][0]["available_at"] > before[1][0]["available_at"]
+    assert await StoreChecker(host.store).check(execution.references[0]) == Decision.ROLLBACK
+
+
+@pytest.mark.parametrize("damage", ["interpretation", "evaluation"])
+async def test_operational_root_rolls_back_any_accidental_state_mutation(host, monkeypatch, damage):
+    from dataclasses import replace
+
+    from reliable_messaging.transaction import BindingError
+
+    from qs_ai.infrastructure.persistence.mysql.database import changed_evaluation
+    from qs_ai.infrastructure.persistence.mysql.interpretation import MySQLUnitOfWork
+    from qs_ai.infrastructure.workflow_transport import interpretation_claim_deferral as module
+
+    source, before, execution, deferred = await prior(host)
+
+    async def invalid(db, *_):
+        if damage == "interpretation":
+            value = replace(source.session)
+            value.running()
+            await MySQLUnitOfWork(db).save(value)
+        else:
+            changed_evaluation(db, "unexpected-evaluation-write")
+        return False
+
+    monkeypatch.setattr(module, "acquire", invalid)
+    with pytest.raises(BindingError):
+        await deferred(source, 60, execution)
+    assert await rows(host.kit, source.session.id) == before
+    assert await StoreChecker(host.store).check(execution.references[0]) == Decision.ROLLBACK

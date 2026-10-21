@@ -40,6 +40,7 @@ async def original(monkeypatch):
     )
     events, root = [], SimpleNamespace(is_active=True)
     db = SimpleNamespace(
+        info={},
         connection=AsyncMock(),
         get_transaction=Mock(return_value=root),
         execute=AsyncMock(),
@@ -197,3 +198,54 @@ async def test_previous_writer_epoch_cannot_authorize_current_job_maintenance(or
         await p.deferred(p.source, 60, replace(p.execution, writer_epoch="old-epoch"))
     assert not p.events
     p.store.evidence.assert_not_called()
+
+
+async def test_job_only_root_does_not_use_the_legacy_commit_recorder(original):
+    p = original
+    legacy = SimpleNamespace(flush=AsyncMock(), record_interpretation=AsyncMock())
+    database = SimpleNamespace(state_events=legacy)
+    p.business.transactions.database = database
+    p.db.info["state_events"] = legacy
+
+    async def commit():
+        await p.db.info["state_events"].flush(p.db)
+
+    p.db.commit.side_effect = commit
+    assert await p.deferred(p.source, 60, p.execution) is True
+    legacy.flush.assert_not_called()
+    assert database.state_events is legacy
+
+
+@pytest.mark.parametrize(
+    "damage", ["interpretation_write", "evaluation_write", "recorder_replaced"]
+)
+async def test_job_only_root_refuses_state_writes_or_recorder_replacement_before_commit(
+    original, damage
+):
+    p = original
+    legacy = SimpleNamespace(flush=AsyncMock(), record_interpretation=AsyncMock())
+    p.db.info["state_events"] = legacy
+
+    async def changed(*args):
+        if damage == "interpretation_write":
+            await p.db.info["state_events"].record_interpretation(p.db, {})
+        elif damage == "evaluation_write":
+            p.db.info["evaluation_events"] = {"unexpected-state-change"}
+        else:
+            p.db.info["state_events"] = legacy
+        return False
+
+    p.acquire.side_effect = changed
+    with pytest.raises(BindingError):
+        await p.deferred(p.source, 60, p.execution)
+    p.db.commit.assert_not_called()
+    legacy.flush.assert_not_called()
+
+
+def test_independent_operational_action_refuses_a_borrowed_business_transaction(original):
+    from qs_ai.infrastructure.persistence.mysql.database import BorrowedTransactions
+
+    p = original
+    p.business.transactions = BorrowedTransactions(p.db)
+    with pytest.raises(BindingError):
+        module.InterpretationClaimDeferral(p.business, p.store, p.archives)
