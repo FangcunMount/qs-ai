@@ -79,10 +79,6 @@ class FrozenChangeAdmission:
             or events.plan_digest != self._plan_digest
         ):
             raise BindingError("Exact original CHANGE transcription required")
-        now = await db.scalar(select(func.utc_timestamp(6)))
-        if not isinstance(now, datetime):
-            raise ConfigurationPlanConflict("Authoritative CHANGE clock unavailable")
-        self._facts.validate_observation(now.replace(tzinfo=UTC) if now.tzinfo is None else now)
         try:
             actor, session_id, _, _ = change_arguments(body.change)
         except ValueError:
@@ -105,6 +101,10 @@ class FrozenChangeAdmission:
         current = session_from(row)
         if current.actor != actor:
             return refusal_decision(pb.CHANGE, self._incoming.organization_id, AccessDenied())
+        now = await db.scalar(select(func.utc_timestamp(6)))
+        if not isinstance(now, datetime):
+            raise ConfigurationPlanConflict("Authoritative CHANGE clock unavailable")
+        self._facts.validate_observation(now.replace(tzinfo=UTC) if now.tzinfo is None else now)
         if not current.uses_qs_snapshot:
             try:
                 await self._source.authorize(actor, current.testee_id, current.assessment_ids)

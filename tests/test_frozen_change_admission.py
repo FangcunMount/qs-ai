@@ -82,3 +82,17 @@ async def test_current_locked_ownership_or_absence_cannot_use_a_former_read_snap
     result = await f.action(f.db, f.f.incoming.envelope(), f.f.incoming.body_message())
     assert result.grpc_status_code == (7 if change == "owner" else 5)
     f.action._admission.admit.assert_not_called()
+
+
+async def test_authorization_age_is_checked_after_waiting_for_current_session_lock(monkeypatch):
+    f = await fixture(monkeypatch)
+    previous = f.db.scalar.side_effect
+
+    async def observed_after_lock(statement):
+        assert f.db.execute.await_args.args[0]._for_update_arg is not None
+        return f.f.at.replace(tzinfo=None)
+
+    f.db.execute.reset_mock()
+    f.db.scalar.side_effect = observed_after_lock
+    await f.action(f.db, f.f.incoming.envelope(), f.f.incoming.body_message())
+    f.db.scalar.side_effect = previous
