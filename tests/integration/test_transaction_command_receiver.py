@@ -136,3 +136,31 @@ async def test_committed_legacy_inbox_is_not_resealed_or_adopted_as_sdk_witness(
                 await db.execute(delete(outbox).where(outbox.c.message_id == stored["receipt_id"]))
             await db.execute(delete(inbox).where(inbox.c.message_id == message.envelope.message_id))
             await db.commit()
+
+
+async def test_local_budget_hold_uses_own_empty_state_transcription_without_legacy_commit_hook(
+    host,
+):
+    from unittest.mock import AsyncMock
+
+    value = incoming(host)
+    async with host.tx.open() as db:
+        await db.begin()
+        for _ in range(8):
+            await MessagingStore().technical_failure(db, value.envelope(), value.body, value.wire)
+        await db.commit()
+    legacy = SimpleNamespace(
+        flush=AsyncMock(side_effect=AssertionError("legacy commit hook forbidden"))
+    )
+    handler, _, runtime = transport(host)
+    host.tx.database.state_events = legacy
+    try:
+        await handler.receive_command(delivered(SimpleNamespace(wire=value.wire)))
+        observed = await host.store.lookup(value.request)
+        assert observed.state == State.COMMITTED and len(observed.execution.plan.branches) == 1
+        assert runtime.execute_count == 1
+        legacy.flush.assert_not_called()
+        stored = (await rows(host, inbox, inbox.c.message_id == value.envelope().message_id))[0]
+        assert stored["decision"] == "held"
+    finally:
+        host.tx.database.state_events = None

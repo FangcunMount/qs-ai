@@ -11,6 +11,7 @@ from collections.abc import Awaitable, Callable
 from typing import Literal, Protocol
 
 from reliable_messaging.durable import MessageConflict
+from reliable_messaging.sqlalchemy import bind
 from reliable_messaging.transaction import (
     BindingError,
     Execution,
@@ -41,6 +42,7 @@ from qs_ai.infrastructure.workflow_transport.frozen_start_events import (
     FrozenInterpretationEvents,
     FrozenStartEvents,
 )
+from qs_ai.infrastructure.workflow_transport.hold_plan import read_hold_token
 from qs_ai.infrastructure.workflow_transport.messaging import valid_id
 from qs_ai.infrastructure.workflow_transport.transaction_command import (
     FrozenCommandInput,
@@ -165,6 +167,47 @@ def make_evaluation_root(
         events=FrozenEvaluationEvents(incoming, winner),
         database_seconds=database_seconds,
         isolation_level="READ COMMITTED",
+    )
+
+
+class _HoldEvents:
+    def __init__(self, digest: bytes) -> None:
+        self.plan_digest = digest
+
+    async def record_interpretation(self, db: AsyncSession, row: object) -> None:
+        raise BindingError("Technical hold cannot transcribe business state")
+
+    async def flush(self, db: AsyncSession) -> None:
+        if db.info.get("evaluation_events"):
+            raise BindingError("Technical hold cannot transcribe evaluation state")
+        await bind(db).validate()
+
+
+def make_hold_root(
+    transactions: Transactions,
+    archives: TransactionArchive,
+    store: MySQLTransactionStore,
+    inbox: MessagingStore,
+    incoming: FrozenCommandInput,
+    winner: FrozenPlan,
+    *,
+    database_seconds: float = 2,
+) -> "AdmissionRoot":
+    async def no_business(
+        db: AsyncSession, envelope: pb.MessagingEnvelope, body: pb.MessagingBody
+    ) -> AdmissionDecision:
+        raise BindingError("Technical hold cannot execute business")
+
+    return AdmissionRoot(
+        transactions,
+        archives,
+        store,
+        inbox,
+        incoming,
+        reservation_token=read_hold_token(incoming, winner),
+        business=no_business,
+        events=_HoldEvents(winner.digest),
+        database_seconds=database_seconds,
     )
 
 

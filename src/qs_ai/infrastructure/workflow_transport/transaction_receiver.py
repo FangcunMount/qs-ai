@@ -22,15 +22,13 @@ from reliable_messaging.transaction import (
 )
 from reliable_messaging.transaction_mysql import MySQLTransactionStore
 from reliable_messaging.transport import Received, physical_topic_v2
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from qs_ai.contracts.workflow import messaging_pb2 as pb
 from qs_ai.infrastructure.persistence.mysql.transaction_archive import TransactionArchive
-from qs_ai.infrastructure.workflow_transport.admission_receipts import AdmissionDecision
 from qs_ai.infrastructure.workflow_transport.change_planner import ChangeAdmissionPlanner
 from qs_ai.infrastructure.workflow_transport.command_admission import WorkflowCommandAdmission
 from qs_ai.infrastructure.workflow_transport.evaluation_planner import EvaluationAdmissionPlanner
-from qs_ai.infrastructure.workflow_transport.hold_plan import freeze_technical_hold, read_hold_token
+from qs_ai.infrastructure.workflow_transport.hold_plan import freeze_technical_hold
 from qs_ai.infrastructure.workflow_transport.messaging import COMMANDS
 from qs_ai.infrastructure.workflow_transport.mq_failure import failed_original
 from qs_ai.infrastructure.workflow_transport.mq_receiver import CommandReceiver
@@ -40,6 +38,7 @@ from qs_ai.infrastructure.workflow_transport.transaction_admission import (
     AdmissionRoot,
     make_change_root,
     make_evaluation_root,
+    make_hold_root,
     make_retry_root,
     make_start_root,
 )
@@ -62,12 +61,6 @@ class CommandTransactions(Protocol):
 
 class CommandTransactionPending(RuntimeError):
     """Transport must not ACK; the existing execution requires evidence or explicit recovery."""
-
-
-async def _no_business(
-    db: AsyncSession, envelope: pb.MessagingEnvelope, body: pb.MessagingBody
-) -> AdmissionDecision:
-    raise RuntimeError("Technical hold cannot execute business")
 
 
 class TransactionCommandReceiver:
@@ -178,12 +171,7 @@ class TransactionCommandReceiver:
         archives = read_admission_plan(incoming, winner)
         receipt = next(a for a in archives if a.envelope().kind == pb.COMMAND_RECEIPT)
         if pb.MessagingBody.FromString(receipt.body).command_receipt.decision == pb.HELD:
-            return AdmissionRoot(
-                *args[:5],
-                reservation_token=read_hold_token(incoming, winner),
-                business=_no_business,
-                database_seconds=self._database_seconds,
-            )
+            return make_hold_root(*args[:6], database_seconds=self._database_seconds)
         factories = {
             pb.START: make_start_root,
             pb.CHANGE: make_change_root,
