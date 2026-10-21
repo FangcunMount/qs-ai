@@ -257,11 +257,11 @@ class InterpretationFinishPlanner:
         self.store, self.signing_key, self.recipient_key = store, signing_key, recipient_key
         self.database_seconds = database_seconds
 
-    async def candidate(
+    async def _source_facts(
         self,
         incoming: InterpretationFinishInput,
         intent: InterpretationStateIntent,
-    ) -> FrozenPlan:
+    ) -> tuple[str, int]:
         async with asyncio.timeout(self.database_seconds):
             async with self.store.transactions.open() as db:
                 await db.connection(execution_options={"isolation_level": "REPEATABLE READ"})
@@ -271,6 +271,29 @@ class InterpretationFinishPlanner:
                 )
                 if request_id != intent.request_id:
                     raise ValueError("Original interpretation request changed")
+        return source_hash, sequence
+
+    async def verify(
+        self,
+        incoming: InterpretationFinishInput,
+        intent: InterpretationStateIntent,
+        winner: FrozenPlan,
+    ) -> None:
+        """Fresh original source check without identity generation or signing."""
+        facts, _, _ = read_finish_plan(incoming, intent, winner)
+        source_hash, sequence = await self._source_facts(incoming, intent)
+        context = json.loads(facts.business_context)
+        if source_hash != context["source_hash"] or (
+            incoming.result.question is not None and sequence != context["question_sequence"]
+        ):
+            raise LeaseLost("Original finish retry source differs from its frozen plan")
+
+    async def candidate(
+        self,
+        incoming: InterpretationFinishInput,
+        intent: InterpretationStateIntent,
+    ) -> FrozenPlan:
+        source_hash, sequence = await self._source_facts(incoming, intent)
         # No connection, locks, identity generation or Seal in the later DB callback.
         event_id, operation_id = str(uuid4()), str(uuid4())
         question_id = str(uuid4()) if incoming.result.question is not None else None
