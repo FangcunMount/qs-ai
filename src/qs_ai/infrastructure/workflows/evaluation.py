@@ -1,7 +1,7 @@
 """A graph per durable evaluation attempt; existing CAS owns recovery."""
 
 import asyncio
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from contextlib import suppress
 from datetime import UTC, datetime, timedelta
 from typing import TypedDict
@@ -10,7 +10,7 @@ from uuid import UUID
 from langgraph.graph import END, START, StateGraph
 from langsmith import tracing_context
 
-from qs_ai.application.evaluation.checkpoints import CheckpointState
+from qs_ai.application.evaluation.checkpoints import CheckpointConflict, CheckpointState
 from qs_ai.application.evaluation.provider_failure import classify_provider_failure
 from qs_ai.application.execution.model_capacity import CapacityToken, ModelCapacity
 from qs_ai.application.interpretation.provider import (
@@ -55,7 +55,10 @@ async def execute_step(
     clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     candidate_limit: int | None = None,
     capacity: ModelCapacity | None = None,
+    prepare_dispatch: Callable[[UUID, int, int], Awaitable[PreparedStep]] | None = None,
 ) -> CheckpointState:
+    if prepare_dispatch is not None and candidate_limit is not None:
+        raise ValueError("Serial transaction dispatcher cannot own candidate claims")
     heartbeat: asyncio.Task[None] | None = None
     token: CapacityToken | None = None
 
@@ -72,19 +75,33 @@ async def execute_step(
     async def prepare(state: EvaluationState) -> EvaluationState:
         nonlocal heartbeat, token
         with operation("graph.evaluation.prepare", "evaluation"):
-            value = await prepare_step(
-                transactions,
-                run_id,
-                expected_version,
-                organization_id,
-                owner,
-                routes,
-                schemas,
-                clock=clock,
-                candidate_limit=candidate_limit,
-                capacity=capacity,
-            )
+            if prepare_dispatch is None:
+                value = await prepare_step(
+                    transactions,
+                    run_id,
+                    expected_version,
+                    organization_id,
+                    owner,
+                    routes,
+                    schemas,
+                    clock=clock,
+                    candidate_limit=candidate_limit,
+                    capacity=capacity,
+                )
+            else:
+                value = await prepare_dispatch(run_id, expected_version, organization_id)
             token = value.capacity_token
+            if prepare_dispatch is not None and (
+                value.state.run_id != run_id
+                or value.state.version != expected_version + 2
+                or value.claim is not None
+                or value.cp.owner != owner
+                or value.cp.phase != "prepared"
+                or value.state.checkpoint != value.cp.mark_dispatching(owner, value.at)
+                or (value.execution_id, value.invocation_id)
+                != (value.cp.execution_id, value.cp.invocation_id)
+            ):
+                raise CheckpointConflict("Original serial dispatch handoff differs from worker")
             if value.claim is not None:
                 heartbeat = asyncio.create_task(renew(value))
             return {"prepared": value}

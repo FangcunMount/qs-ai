@@ -10,6 +10,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict, CheckpointState
 from qs_ai.application.evaluation.model_response import response_evidence
@@ -17,7 +18,7 @@ from qs_ai.application.execution.model_capacity import CapacityToken, ModelCapac
 from qs_ai.application.interpretation.prompts import PromptMessages
 from qs_ai.application.interpretation.provider import ModelResponse, ModelRoute
 from qs_ai.application.interpretation.route_assets import RouteAssets
-from qs_ai.application.interpretation.schema_assets import SchemaAssets
+from qs_ai.application.interpretation.schema_assets import SchemaAssets, SchemaReader
 from qs_ai.application.operations.diagnostics import emit
 from qs_ai.domain.evaluation.checkpoint import ExecutionCheckpoint
 from qs_ai.domain.evaluation.completion import GenerationCompletion
@@ -136,9 +137,6 @@ async def _prepare_step(
     """Run must already be collecting with passed preflight; caller supplies authorized scope."""
     at = clock()
     invocation_id, execution_id = str(uuid4()), str(uuid4())
-    semantic: SemanticAssets | None = None
-    candidate_fingerprint = ""
-    assertions: tuple[AssertionReceipt, ...] = ()
     async with transactions.open() as db:
         await db.connection(execution_options={"isolation_level": "REPEATABLE READ"})
         claim = resume_claim
@@ -178,73 +176,15 @@ async def _prepare_step(
             )
         cp = state.checkpoint
         assert cp is not None
-        creation = json.loads(
-            (
-                await db.execute(
-                    select(evaluation_runs.c.definition_json).where(
-                        evaluation_runs.c.run_id == str(run_id)
-                    )
-                )
-            ).scalar_one()
-        )
-        release = EvidenceReleaseIdentity(
-            **{k: FrozenContractRef(**v) for k, v in creation["release"].items()}
-        )
-        suite = await stored_run_suite(db, creation)
-        prepared = await prepare_run_case(db, creation, cp.case_id)
-        route = await run_model_route(db, creation, semantic=cp.kind == "semantic")
-        if capacity is not None and resume_claim is None:
-            token = capacity.try_acquire(route.provider, evaluation=True)
-            if token is None:
-                raise CheckpointConflict("Model capacity unavailable; defer without dispatch")
-            tokens.append(token)
-        if cp.kind == "generation":
-            messages = prepared.messages
-            schema = await frozen_output_schema(release, schemas)
-        else:
-            semantic = await semantic_contract(db, release, organization_id, frozen=creation)
-            row = (
-                (
-                    await db.execute(
-                        evaluation_generation_completions.select().where(
-                            evaluation_generation_completions.c.run_id == str(run_id),
-                            evaluation_generation_completions.c.candidate_id == cp.candidate_id,
-                        )
-                    )
-                )
-                .mappings()
-                .one()
-            )
-            generation = decode_completion(row)
-            candidate_fingerprint = generation.normalized_fingerprint
-            assertions = tuple(AssertionReceipt(**a) for a in row["candidate_json"]["assertions"])
-            messages = await asyncio.to_thread(
-                prepare_semantic_messages,
-                release,
-                generation,
-                assertions,
-                prepared=prepared,
-                frozen_suite=suite,
-                assets=semantic,
-                output_schema=await frozen_output_schema(release, schemas),
-            )
-            progress = (
-                await db.execute(
-                    select(evaluation_runs.c.progress_json).where(
-                        evaluation_runs.c.run_id == str(run_id)
-                    )
-                )
-            ).scalar_one()
-            recoveries = decode_recoveries(progress.get("semantic_contract_recoveries", []))
-            # Preparation validated the ledger and exact next attempt under CAS.
-            # Keep frozen prompt bytes intact; the separate v1 authorization owns this supplement.
-            if cp.execution_ordinal == 2 and any(
-                r.candidate_id == cp.candidate_id for r in recoveries
-            ):
-                messages = replace(
-                    messages, task_message=messages.task_message + "\n" + RECOVERY_INSTRUCTION
-                )
-            schema = json.loads(semantic.output_schema_json)
+
+        def admit(route: ModelRoute) -> None:
+            if capacity is not None and resume_claim is None:
+                token = capacity.try_acquire(route.provider, evaluation=True)
+                if token is None:
+                    raise CheckpointConflict("Model capacity unavailable; defer without dispatch")
+                tokens.append(token)
+
+        inputs = await load_step_inputs(db, run_id, organization_id, cp, schemas, admit=admit)
         if claim is not None:
             if resume_claim is None:
                 claim = await dispatch_claim(db, organization_id, claim, clock())
@@ -269,6 +209,113 @@ async def _prepare_step(
         at,
         invocation_id,
         execution_id,
+        inputs.candidate_fingerprint,
+        inputs.assertions,
+        inputs.release,
+        inputs.suite,
+        inputs.route,
+        inputs.messages,
+        inputs.schema,
+        inputs.max_output_characters,
+        inputs.semantic,
+        claim,
+        tokens[0] if tokens else None,
+    )
+
+
+@dataclass(frozen=True)
+class StepInputs:
+    candidate_fingerprint: str
+    assertions: tuple[AssertionReceipt, ...]
+    release: EvidenceReleaseIdentity
+    suite: FrozenSuite
+    route: ModelRoute
+    messages: PromptMessages
+    schema: dict[str, Any]
+    max_output_characters: int
+    semantic: SemanticAssets | None
+
+
+async def load_step_inputs(
+    db: AsyncSession,
+    run_id: UUID,
+    organization_id: int,
+    cp: ExecutionCheckpoint,
+    schemas: SchemaReader,
+    *,
+    admit: Callable[[ModelRoute], None] | None = None,
+) -> StepInputs:
+    """Original frozen asset/render reads; no dispatch write, commit or model call.
+
+    Only the legacy owned-root writer supplies its original capacity admission.
+    Transactional planning and verification never acquire a permit in this helper.
+    """
+    semantic: SemanticAssets | None = None
+    candidate_fingerprint = ""
+    assertions: tuple[AssertionReceipt, ...] = ()
+    creation = json.loads(
+        (
+            await db.execute(
+                select(evaluation_runs.c.definition_json).where(
+                    evaluation_runs.c.run_id == str(run_id)
+                )
+            )
+        ).scalar_one()
+    )
+    release = EvidenceReleaseIdentity(
+        **{k: FrozenContractRef(**v) for k, v in creation["release"].items()}
+    )
+    suite = await stored_run_suite(db, creation)
+    prepared = await prepare_run_case(db, creation, cp.case_id)
+    route = await run_model_route(db, creation, semantic=cp.kind == "semantic")
+    if admit is not None:
+        admit(route)
+    if cp.kind == "generation":
+        messages = prepared.messages
+        schema = await frozen_output_schema(release, schemas)
+    else:
+        semantic = await semantic_contract(db, release, organization_id, frozen=creation)
+        row = (
+            (
+                await db.execute(
+                    evaluation_generation_completions.select().where(
+                        evaluation_generation_completions.c.run_id == str(run_id),
+                        evaluation_generation_completions.c.candidate_id == cp.candidate_id,
+                    )
+                )
+            )
+            .mappings()
+            .one()
+        )
+        generation = decode_completion(row)
+        candidate_fingerprint = generation.normalized_fingerprint
+        assertions = tuple(AssertionReceipt(**a) for a in row["candidate_json"]["assertions"])
+        messages = await asyncio.to_thread(
+            prepare_semantic_messages,
+            release,
+            generation,
+            assertions,
+            prepared=prepared,
+            frozen_suite=suite,
+            assets=semantic,
+            output_schema=await frozen_output_schema(release, schemas),
+        )
+        progress = (
+            await db.execute(
+                select(evaluation_runs.c.progress_json).where(
+                    evaluation_runs.c.run_id == str(run_id)
+                )
+            )
+        ).scalar_one()
+        recoveries = decode_recoveries(progress.get("semantic_contract_recoveries", []))
+        # Preparation validated the ledger and exact next attempt under CAS.
+        # Keep frozen prompt bytes intact; the separate v1 authorization owns this supplement.
+        if cp.execution_ordinal == 2 and any(r.candidate_id == cp.candidate_id for r in recoveries):
+            messages = replace(
+                messages, task_message=messages.task_message + "\n" + RECOVERY_INSTRUCTION
+            )
+        schema = json.loads(semantic.output_schema_json)
+    return StepInputs(
         candidate_fingerprint,
         assertions,
         release,
@@ -278,8 +325,6 @@ async def _prepare_step(
         schema,
         prepared.release.render_policy.max_output_characters,
         semantic,
-        claim,
-        tokens[0] if tokens else None,
     )
 
 
