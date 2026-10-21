@@ -83,32 +83,16 @@ async def plan_review_correction(
         raise ValueError("Trusted original reviewer and explicit version required")
     version = run["version"]
     progress = run["progress_json"]
-    archives = [
+    if correction_replayed(
+        scope,
+        expected_version,
+        command_id,
+        previous_review_fingerprint,
+        candidate_output_fingerprint,
+        value,
         progress,
-        *(
-            {"review_corrections": r.get("previous_review_corrections", [])}
-            for r in progress.get("review_reopenings", [])
-        ),
-    ]
-    for archive in archives:
-        for prior in decode_corrections(archive):
-            if prior.command_id != command_id:
-                continue
-            if (
-                prior.source_version != expected_version
-                or prior.previous_review_fingerprint != previous_review_fingerprint
-                or prior.candidate_output_fingerprint != candidate_output_fingerprint
-                or (
-                    prior.review.candidate_id,
-                    prior.review.role,
-                    prior.review.reviewer,
-                    prior.review.decision,
-                    prior.review.reason,
-                )
-                != (value.candidate_id, value.role, scope.actor, value.decision, value.reason)
-            ):
-                raise CheckpointConflict("Correction command ID reused with different intent")
-            return None
+    ):
+        return None
     if version != expected_version or progress["status"] != "awaiting_review":
         raise CheckpointConflict("Review correction requires current awaiting-review version")
     snapshot = await load_snapshot(db, scope, run, version, value.reviewed_at)
@@ -144,3 +128,42 @@ async def plan_review_correction(
             encode_correction(entry),
         ],
     }
+
+
+def correction_replayed(
+    scope: ManagementScope,
+    expected_version: int,
+    command_id: str,
+    previous_review_fingerprint: str,
+    candidate_output_fingerprint: str,
+    value: CandidateHumanReview,
+    progress: dict,
+) -> bool:
+    """Exact original business receipt only, independent of today's version CAS."""
+    archives = [
+        progress,
+        *(
+            {"review_corrections": r.get("previous_review_corrections", [])}
+            for r in progress.get("review_reopenings", [])
+        ),
+    ]
+    for archive in archives:
+        for prior in decode_corrections(archive):
+            if prior.command_id != command_id:
+                continue
+            if (
+                prior.source_version != expected_version
+                or prior.previous_review_fingerprint != previous_review_fingerprint
+                or prior.candidate_output_fingerprint != candidate_output_fingerprint
+                or (
+                    prior.review.candidate_id,
+                    prior.review.role,
+                    prior.review.reviewer,
+                    prior.review.decision,
+                    prior.review.reason,
+                )
+                != (value.candidate_id, value.role, scope.actor, value.decision, value.reason)
+            ):
+                raise CheckpointConflict("Correction command ID reused with different intent")
+            return True
+    return False
