@@ -10,7 +10,7 @@ import json
 import sys
 from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 from uuid import uuid4
@@ -45,6 +45,8 @@ from qs_ai.infrastructure.persistence.mysql.evaluation_worker import EvaluationW
 from qs_ai.infrastructure.persistence.mysql.messaging import outbox
 from qs_ai.infrastructure.persistence.mysql.schema import evaluation_checkpoints, evaluation_runs
 from qs_ai.infrastructure.persistence.mysql.transaction_schema import witness
+from qs_ai.infrastructure.workflow_transport.correction_state import read_correction_plan
+from qs_ai.infrastructure.workflow_transport.correction_state_plan import CorrectionStateOperation
 from qs_ai.infrastructure.workflow_transport.evaluation_governance_dispatch import (
     GovernanceStateDispatcher,
 )
@@ -72,8 +74,11 @@ from qs_ai.infrastructure.workflow_transport.transactional_evaluation_management
 from qs_ai.transport.grpc.evaluation import EvaluationManagement
 from tests.integration.rocketmq_admission_host import required_broker as required_broker
 from tests.integration.test_evaluation_completions import dispatched as dispatched
+from tests.integration.test_evaluation_finalization import passing_semantics as passing_semantics
 from tests.integration.test_evaluation_finalization import reviewed
 from tests.integration.test_evaluation_reopening import eligible_semantics as eligible_semantics
+from tests.integration.test_evaluation_review_corrections import intent as correction_intent
+from tests.integration.test_evaluation_review_corrections import signatures as signatures
 from tests.integration.test_evaluation_reviews import reviewable as reviewable
 from tests.integration.test_evaluation_runs import rows as evaluation_rows
 from tests.integration.test_semantic_completions import judge as judge
@@ -771,6 +776,106 @@ async def test_actual_review_source_conflict_rolls_back_prepared_half(
         assert first.envelope().message_id not in b.messages
         b.recorder.flush.assert_not_called()
         passed("review_source_conflict_rollback")
+    finally:
+        b.runtime.release.set()
+        await asyncio.gather(task, return_exceptions=True)
+        await clean_governance_sequence(b.host, scope.run_id)
+
+
+async def test_actual_correction_first_wire_final_unknown_and_replay_after_finalization(
+    governance_broker, signatures, monkeypatch
+):
+    b = governance_broker
+    tx, scope, version, _, _, _ = signatures
+    operation = CorrectionStateOperation(**correction_intent(signatures))
+    b.runtime.pause = True
+    task = asyncio.create_task(b.dispatcher(operation, operation.value.reviewed_at))
+    try:
+        await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
+        owned = b.host.executions[-1]
+        facts, first = read_correction_plan(operation, owned.plan)
+        b.empty_poll.clear()
+        await asyncio.wait_for(b.empty_poll.wait(), timeout=20)
+        assert first.envelope().message_id not in b.messages
+        assert (await evaluation_rows(tx, scope.run_id))[2]["version"] == version
+        passed("correction_half_invisible")
+        actual_end = b.sender._client.end_transaction
+
+        def discard(*args, **kwargs):
+            actual_end(*args, **kwargs)
+            raise TimeoutError("client discarded completed correction final reply")
+
+        with monkeypatch.context() as patch:
+            patch.setattr(b.sender._client, "end_transaction", discard)
+            b.runtime.release.set()
+            response = await task
+        assert response.version == version + 1
+        result = b.runtime.results[-1]
+        assert result.local == LocalOutcome.COMMITTED
+        assert all(branch.final == FinalOutcome.UNKNOWN for branch in result.branches)
+        passed("correction_final_unknown_keeps_commit")
+        await b.consumed(operation)
+        frozen, _ = CorrectionStateOperation.from_facts(facts)
+        current = await evaluation_rows(tx, scope.run_id)
+        record = current[0]["progress_json"]["review_corrections"][0]
+        assert record["review"]["reviewed_at"] == frozen.value.reviewed_at.isoformat()
+        assert record["command_id"] == operation.command_id
+        assert await b.host.archives.read_committed(first.envelope().message_id) == first
+        passed("correction_first_clock_wire_and_witness")
+        b.runtime.pause = False
+        final = GovernanceStateOperation(
+            "finalize", scope, uuid4(), response.version, "真实SDK更正后定稿", True, True
+        )
+        finalized = await b.dispatcher(final, operation.value.reviewed_at + timedelta(seconds=2))
+        assert finalized.status == "approved"
+        await b.consumed(final)
+        later = replace(
+            operation,
+            value=replace(
+                operation.value, reviewed_at=operation.value.reviewed_at + timedelta(seconds=5)
+            ),
+        )
+        assert await b.dispatcher(later, later.value.reviewed_at) == finalized
+        assert b.runtime.calls == 2 and len(b.host.executions) == 2
+        previous = await b.host.store.lookup(operation.intent.request)
+        assert previous.execution.plan.digest == owned.plan.digest
+        assert await b.host.archives.read_committed(first.envelope().message_id) == first
+        passed("correction_replay_after_finalization_no_new_send")
+    finally:
+        b.runtime.release.set()
+        await asyncio.gather(task, return_exceptions=True)
+        await clean_governance_sequence(b.host, scope.run_id)
+
+
+async def test_actual_correction_source_conflict_rolls_back_prepared_half(
+    governance_broker, signatures
+):
+    b = governance_broker
+    tx, scope, _, _, _, original = signatures
+    args = correction_intent(signatures)
+    operation = CorrectionStateOperation(**args)
+    b.runtime.pause = True
+    task = asyncio.create_task(b.dispatcher(operation, operation.value.reviewed_at))
+    try:
+        await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
+        owned = b.host.executions[-1]
+        _, first = read_correction_plan(operation, owned.plan)
+        await original.correct_review(**{**args, "command_id": str(uuid4())})
+        competing = await evaluation_rows(tx, scope.run_id)
+        b.runtime.release.set()
+        with pytest.raises(CheckpointConflict):
+            await task
+        result = b.runtime.results[-1]
+        assert result.local == LocalOutcome.ABORTED
+        assert all(branch.final == FinalOutcome.ROLLBACK_CONFIRMED for branch in result.branches)
+        assert await StoreChecker(b.host.store).check(owned.references[0]) == Decision.ROLLBACK
+        assert await evaluation_rows(tx, scope.run_id) == competing
+        assert await b.host.archives.read_committed(first.envelope().message_id) is None
+        b.empty_poll.clear()
+        await asyncio.wait_for(b.empty_poll.wait(), timeout=20)
+        assert first.envelope().message_id not in b.messages
+        b.recorder.flush.assert_not_called()
+        passed("correction_source_conflict_rollback")
     finally:
         b.runtime.release.set()
         await asyncio.gather(task, return_exceptions=True)
