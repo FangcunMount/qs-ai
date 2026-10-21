@@ -1,7 +1,7 @@
 """Accept an already authorized manual decision under the shared Run version."""
 
 import json
-from dataclasses import asdict
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from uuid import UUID
 
@@ -23,7 +23,16 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
 )
 
 
-async def accept_resolution(
+@dataclass(frozen=True)
+class ResolutionPlan:
+    state: CheckpointState
+    progress_json: str = field(repr=False)
+
+    def progress(self) -> dict:
+        return json.loads(self.progress_json)
+
+
+async def plan_resolution(
     db: AsyncSession,
     run_id: UUID,
     expected_version: int,
@@ -31,37 +40,26 @@ async def accept_resolution(
     value: ResultUnknownResolution,
     *,
     confirm: bool,
-) -> CheckpointState:
-    """Caller supplies authorized organization/actor and owns commit; never edits executions."""
+    lock: bool = False,
+) -> ResolutionPlan:
+    """Read original rules/evidence; optional locks belong only to the original writer."""
     if confirm is not True:
         raise ValueError("Explicit confirmation required")
-    cp = (
-        (
-            await db.execute(
-                select(evaluation_checkpoints)
-                .where(evaluation_checkpoints.c.run_id == str(run_id))
-                .with_for_update()
-            )
-        )
-        .mappings()
-        .one_or_none()
+    checkpoint_query = select(evaluation_checkpoints).where(
+        evaluation_checkpoints.c.run_id == str(run_id)
     )
+    if lock:
+        checkpoint_query = checkpoint_query.with_for_update()
+    cp = (await db.execute(checkpoint_query)).mappings().one_or_none()
     if cp is None or cp["version"] != expected_version or cp["checkpoint_json"] is not None:
         raise CheckpointConflict("Run version changed or execution is active")
-    run = (
-        (
-            await db.execute(
-                select(evaluation_runs)
-                .where(
-                    evaluation_runs.c.run_id == str(run_id),
-                    evaluation_runs.c.organization_id == organization_id,
-                )
-                .with_for_update()
-            )
-        )
-        .mappings()
-        .one_or_none()
+    run_query = select(evaluation_runs).where(
+        evaluation_runs.c.run_id == str(run_id),
+        evaluation_runs.c.organization_id == organization_id,
     )
+    if lock:
+        run_query = run_query.with_for_update()
+    run = (await db.execute(run_query)).mappings().one_or_none()
     if run is None or run["progress_json"] is None:
         raise CheckpointConflict("Run unavailable in organization")
     from qs_ai.infrastructure.persistence.mysql.evaluation_slot_claims import active_claims
@@ -102,10 +100,26 @@ async def accept_resolution(
     if result.status == "canceled":
         updated["canceled_at"] = value.resolved_at.isoformat()
     state = CheckpointState(run_id, expected_version + 1, None)
-    await save_checkpoint(db, state, expected_version)
+    return ResolutionPlan(state, json.dumps(updated, ensure_ascii=False, allow_nan=False))
+
+
+async def accept_resolution(
+    db: AsyncSession,
+    run_id: UUID,
+    expected_version: int,
+    organization_id: int,
+    value: ResultUnknownResolution,
+    *,
+    confirm: bool,
+) -> CheckpointState:
+    """Original checkpoint/Run locks, CAS and caller commit; never edits executions."""
+    plan = await plan_resolution(
+        db, run_id, expected_version, organization_id, value, confirm=confirm, lock=True
+    )
+    await save_checkpoint(db, plan.state, expected_version)
     await db.execute(
         update(evaluation_runs)
         .where(evaluation_runs.c.run_id == str(run_id))
-        .values(progress_json=updated)
+        .values(progress_json=plan.progress())
     )
-    return state
+    return plan.state
