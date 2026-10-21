@@ -49,37 +49,30 @@ def checked(raw: str, checksum: str) -> Any:
     return json.loads(raw)
 
 
-async def configuration(db: AsyncSession, organization_id: int) -> tuple[QuotaValues | None, int]:
-    # Locking/current read: admission may already have established a repeatable-read snapshot.
-    revision = (
-        await db.execute(
-            select(pointers.c.revision)
-            .where(pointers.c.organization_id == organization_id)
-            .with_for_update()
-        )
-    ).scalar_one_or_none()
+async def configuration(
+    db: AsyncSession, organization_id: int, *, lock: bool = True
+) -> tuple[QuotaValues | None, int]:
+    # Original admissions use current locking reads. Read planning explicitly
+    # opts out all the way through this dependency and never reserves quota.
+    statement = select(pointers.c.revision).where(pointers.c.organization_id == organization_id)
+    if lock:
+        statement = statement.with_for_update()
+    revision = (await db.execute(statement)).scalar_one_or_none()
     if revision is None:
         return None, 0
-    row = (
-        (
-            await db.execute(
-                select(versions)
-                .where(
-                    versions.c.organization_id == organization_id, versions.c.revision == revision
-                )
-                .with_for_update()
-            )
-        )
-        .mappings()
-        .one()
+    statement = select(versions).where(
+        versions.c.organization_id == organization_id, versions.c.revision == revision
     )
+    if lock:
+        statement = statement.with_for_update()
+    row = (await db.execute(statement)).mappings().one()
     return QuotaValues.parse(checked(row["definition_json"], row["definition_sha256"])), revision
 
 
 async def effective(
-    db: AsyncSession, organization_id: int, baseline: QuotaBaseline
+    db: AsyncSession, organization_id: int, baseline: QuotaBaseline, *, lock: bool = True
 ) -> dict[str, Any]:
-    configured, revision = await configuration(db, organization_id)
+    configured, revision = await configuration(db, organization_id, lock=lock)
     return baseline.resolve(configured, revision)
 
 
@@ -263,11 +256,13 @@ async def participant_policy(
     organization_id: int,
     defaults: ParticipantCapacityPolicy,
     baseline: QuotaBaseline | None = None,
+    *,
+    lock: bool = True,
 ) -> tuple[ParticipantCapacityPolicy, dict[str, Any]]:
     if baseline is None:
         values = QuotaValues(defaults, EvaluationCapacityPolicy())
         baseline = QuotaBaseline(values, values)
-    snapshot = await effective(db, organization_id, baseline)
+    snapshot = await effective(db, organization_id, baseline, lock=lock)
     return ParticipantCapacityPolicy(**snapshot["effective"]["participant"]), snapshot
 
 

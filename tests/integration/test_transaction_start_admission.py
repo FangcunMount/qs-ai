@@ -117,7 +117,7 @@ async def host(kit, keys):
 
             for owner, scope, key, input_hash in request_keys:
                 value = Request(owner, scope, key, input_hash)
-                await db.execute(delete(request).where(request.c.request_key == value.key_digest()))
+                await db.execute(delete(request).where(request.c.request_key == value.key_digest))
             for message in messages:
                 await db.execute(
                     delete(inbox).where(

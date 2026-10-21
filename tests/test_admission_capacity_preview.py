@@ -87,3 +87,20 @@ async def test_existing_authoritative_prior_read_keeps_its_original_lock(monkeyp
     session, db, _ = fixture(monkeypatch)
     assert await capacity.prior(db, session) is None
     assert db.execute.await_args.args[0]._for_update_arg is not None
+
+
+async def test_preview_reads_actual_quota_dependency_without_its_authoritative_row_locks():
+    # Do not mock participant_policy: its nested quota lookup must also be read only.
+    session = Session(str(uuid4()), Actor("7", "9"), "19", ("42",), "goal")
+    session.queue(str(uuid4()))
+    prior, pointer, reservations = Mock(), Mock(), Mock()
+    prior.mappings.return_value.one_or_none.return_value = None
+    pointer.scalar_one_or_none.return_value = None
+    reservations.mappings.return_value.all.return_value = []
+    db = SimpleNamespace(execute=AsyncMock(side_effect=[prior, pointer, reservations]))
+    await capacity.preview(db, session, ParticipantCapacityPolicy(), datetime.now(UTC))
+    assert db.execute.await_count == 3
+    assert all(
+        call.args[0].is_select and call.args[0]._for_update_arg is None
+        for call in db.execute.await_args_list
+    )

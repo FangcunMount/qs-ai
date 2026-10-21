@@ -68,7 +68,9 @@ async def preview(
         raise ValueError("Participant preview requires UTC time and Run")
     if await prior(db, session, lock=False) is not None:
         return
-    policy, _ = await participant_policy(db, int(session.actor.org_id), policy, quota_baseline)
+    policy, _ = await participant_policy(
+        db, int(session.actor.org_id), policy, quota_baseline, lock=False
+    )
     rows = (
         (
             await db.execute(
