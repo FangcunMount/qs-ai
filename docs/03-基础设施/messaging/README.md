@@ -408,3 +408,8 @@ interpretation原 [`MySQLExecutionStore.finish_in`](../../../src/qs_ai/infrastru
 这是原业务事务基础，bind仅验证原SQLAlchemy边界，不是事务witness；返回None不证明业务提交。原Artifact校验/计算仍保留，完整只读计划、首次模型结果/ID冻结、keyless消息转录、SDK Sender以及claim/recovery入口尚未完成，不以本次抽取宣称完成interpretation迁移或模型恢复。
 
 抽取前4项原行为表征、抽取后11目标与3200项非集成/非interop回归零失败跳过，409源类型、lint/format通过。6项真实MySQL用例仅收集，覆盖原Session/Question/Run/job/租约/首业务历史共同提交/回滚和真实失效/嵌套根拒绝；历史行本身不是MQ发布或witness证明。完整CI与进度仍由infra总表记录，未修改默认装配或生产。
+
+
+interpretation首业务历史的keyless校验现由 [`InterpretationStateTranscription`](../../../src/qs_ai/infrastructure/workflow_transport/frozen_start_events.py) 复用；原FrozenInterpretationEvents/FrozenStartEvents仍负责Start/Change/Retry的完整command计划校验，实例类型和首次状态规则保留。独立原根适配器以后可在验证完整冻结计划后传入精确digest/状态，不伪造command或Inbox；primitive复制外部protobuf，调用方后续变更不影响首投影。
+
+原history精确身份/正文/版本、零旧投递责任、同根检查和mq_owned CAS保持不变；primitive只暂存原业务历史归属，不生成首wire、发布消息、写witness、授权模型或确认消费者完成。独立state计划/Sender尚未接通。抽取前30项旧Start/Change/Retry门禁、抽取后35目标与3205项非集成/非interop回归零失败跳过、409源类型及lint/format通过。4项真实MySQL用例仅收集，验证同根归属共同提交/回滚和拒绝旧投递责任；不是SDK/Broker验收，默认装配与生产仍未变更。
