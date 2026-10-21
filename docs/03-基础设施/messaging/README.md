@@ -360,6 +360,11 @@ ResolveUnknown 的显式事务入口由 [`ResolutionStateOperation`](../../../sr
 本批27项协议/原根目标测试、3098项非集成/非interop回归、405源文件类型及lint/format通过。新增12项真实MySQL用例仅收集，包括原人工裁决与witness共同提交/回滚、档案/witness拒绝、客户端丢弃已完成提交回复、实际ResolveUnknown处理入口的准备门禁、并发裁决和真实第二个Run竞争原宿主容量；保留原未知执行账本并检查无新增模型调用。完整CI、真实Broker、成对QS及生产验收分别记入infra；默认DI继续关闭。
 
 
+显式真实Broker验收档扩展原ResolveUnknown处理器：半消息后暂停原根，证明旧业务仍为blocked且事件不可消费；按首份人工审核时间放行原resolver并在客户端丢弃已完成最终确认回复后，核对原审核、首次wire、witness和未改动的未知执行账本。相同内部调用再次出现保持未决，不重发、不重做裁决或模型；另一场景由原写者先提交取消裁决，新执行须回滚半消息并保留竞争事实。额外fixture使用独立名字和显式关闭，保留旧worker/治理/Solution的原fixture形态。
+
+扩展档总计12个宿主用例、35项必需证据，本地仅收集；实际运行由固定源码的infra矩阵验收。客户端丢弃已完成回复、直接处理器与事件观察者分别界定，不能代替网络故障、真实QS业务、system登录或真实模型验收；默认DI保持关闭。
+
+
 可信主机上的语义契约恢复仍是活动维护写入口。其 [`ContractRecoveryPlan/plan_contract_recovery`](../../../src/qs_ai/infrastructure/persistence/mysql/evaluation_contract_recovery.py) 现可只读冻结原恢复结果：精确 release、当前 block、失败执行及输出摘要、策略例外确认、首次审核时间、原恢复次数/预算和下一步精确候选均沿用原规则。结果正文为不可变 JSON，读取返回独立副本，不写业务或消息，不授予新的模型调用。原 authorize_contract_recovery 显式请求原 checkpoint→Run 锁，再执行原 CAS 和进度更新，可信调用者仍拥有根提交；维护CLI的旧预览回滚及 apply 调用尚未改接 SDK。
 
 原实现7项表征先通过，抽取后25项目标、3106项非集成/非interop回归、405源类型及lint/format通过；新增2项真实MySQL用例仅收集，验证原失败账本的只读SELECT与原根共同提交/回滚。维护命令的事务发送、原witness、默认装配及生产操作仍须分别验收，不以提供计划函数计作迁移完成。

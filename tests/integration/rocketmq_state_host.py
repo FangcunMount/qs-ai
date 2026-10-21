@@ -8,7 +8,7 @@ import asyncio
 import hashlib
 import json
 import sys
-from contextlib import AsyncExitStack, asynccontextmanager
+from contextlib import AsyncExitStack, aclosing, asynccontextmanager
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
@@ -51,6 +51,7 @@ from qs_ai.infrastructure.workflow_transport.correction_state import read_correc
 from qs_ai.infrastructure.workflow_transport.correction_state_plan import CorrectionStateOperation
 from qs_ai.infrastructure.workflow_transport.evaluation_governance_dispatch import (
     GovernanceStateDispatcher,
+    GovernanceTransactionPending,
 )
 from qs_ai.infrastructure.workflow_transport.evaluation_governance_state import (
     GovernanceStateOperation,
@@ -65,6 +66,8 @@ from qs_ai.infrastructure.workflow_transport.evaluation_preflight_state import (
 )
 from qs_ai.infrastructure.workflow_transport.evaluation_state_plan import read_evaluation_state_plan
 from qs_ai.infrastructure.workflow_transport.messaging import EVENTS, authenticate, parse_body
+from qs_ai.infrastructure.workflow_transport.resolution_state import read_resolution_plan
+from qs_ai.infrastructure.workflow_transport.resolution_state_plan import ResolutionStateOperation
 from qs_ai.infrastructure.workflow_transport.review_state_plan import (
     ReviewStateInput,
     read_review_state_plan,
@@ -89,10 +92,12 @@ from tests.integration.test_evaluation_creation_interop import persisted_assets 
 from tests.integration.test_evaluation_finalization import passing_semantics as passing_semantics
 from tests.integration.test_evaluation_finalization import reviewed
 from tests.integration.test_evaluation_reopening import eligible_semantics as eligible_semantics
+from tests.integration.test_evaluation_resolution import decision as resolution_decision
 from tests.integration.test_evaluation_review_corrections import intent as correction_intent
 from tests.integration.test_evaluation_review_corrections import signatures as signatures
 from tests.integration.test_evaluation_reviews import reviewable as reviewable
 from tests.integration.test_evaluation_runs import rows as evaluation_rows
+from tests.integration.test_evaluation_step import ready as resolution_readiness
 from tests.integration.test_semantic_completions import judge as judge
 from tests.integration.test_solutions import workspace as workspace
 from tests.integration.test_transaction_evaluation_admission import (
@@ -116,6 +121,7 @@ from tests.integration.test_transaction_evaluation_admission import (
 from tests.integration.test_transaction_evaluation_admission import (
     setup_run as setup_run,
 )
+from tests.integration.test_transaction_resolution_state import unknown as resolution_seed
 from tests.integration.test_transaction_solution_dispatch import service_request
 from tests.test_generation_manifest import assets as assets
 from tests.test_generation_manifest import complete_release as complete_release
@@ -1029,3 +1035,155 @@ async def test_actual_solution_source_conflict_rolls_back_prepared_half(
         b.runtime.release.set()
         await asyncio.gather(task, return_exceptions=True)
         await clean_governance_sequence(b.host, incoming.identities.run_id)
+
+
+@pytest.fixture
+async def resolution_ready(setup_run, persisted_assets):
+    # Do not replace the legacy profile's ready fixture; each original graph
+    # retains its own expected fixture shape and complete teardown.
+    async with aclosing(resolution_readiness.__wrapped__(setup_run, persisted_assets)) as values:
+        async for value in values:
+            yield value
+
+
+@pytest.fixture
+async def resolution_unknown(host, resolution_ready):
+    async with aclosing(resolution_seed.__wrapped__(host, resolution_ready)) as values:
+        async for value in values:
+            yield value
+
+
+async def test_actual_resolution_rpc_half_gate_first_audit_and_final_unknown(
+    governance_broker, resolution_unknown, monkeypatch
+):
+    b, p = governance_broker, resolution_unknown
+    operation_id = uuid4()
+    dispatcher = GovernanceStateDispatcher(
+        b.host.tx,
+        b.host.archives,
+        b.runtime,
+        signing_key=b.host.keys["ai.sign"],
+        recipient_key=b.host.keys["qs.encrypt"],
+        resolution_management=p.original,
+    )
+    sender = TransactionalEvaluationManagement(p.original, dispatcher, new_id=lambda: operation_id)
+
+    @asynccontextmanager
+    async def container():
+        class Scope:
+            async def get(self, dependency):
+                assert dependency is EvaluationManagementStore
+                return sender
+
+        yield Scope()
+
+    request = workflow.UnknownResolutionCommand(
+        scope=workflow.EvaluationQuery(
+            run_id=str(p.run_id),
+            organization_id=p.scope.organization_id,
+            operator_user_id=p.scope.operator_user_id,
+        ),
+        expected_version=p.state.version,
+        execution_id="execution:dead",
+        decision="authorize_replacement",
+        reason="真实SDK原人工裁决",
+        acknowledged_duplicate_call_and_cost_risk=True,
+        confirm=True,
+    )
+    operation = ResolutionStateOperation(
+        p.scope,
+        operation_id,
+        p.state.version,
+        replace(resolution_decision(), actor=p.scope.actor, reason=request.reason),
+        True,
+    )
+    b.runtime.pause = True
+    task = asyncio.create_task(EvaluationManagement(container).ResolveUnknown(request, Context()))
+    try:
+        await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
+        owned = b.host.executions[-1]
+        facts, first = read_resolution_plan(operation, owned.plan)
+        frozen, _ = ResolutionStateOperation.from_facts(facts)
+        b.empty_poll.clear()
+        await asyncio.wait_for(b.empty_poll.wait(), timeout=20)
+        assert first.envelope().message_id not in b.messages
+        assert await evaluation_rows(p.tx, p.run_id) == p.before[0]
+        passed("resolution_half_invisible")
+        actual_end = b.sender._client.end_transaction
+
+        def discard(*args, **kwargs):
+            actual_end(*args, **kwargs)
+            raise TimeoutError("client discarded completed resolution final reply")
+
+        with monkeypatch.context() as patch:
+            patch.setattr(b.sender._client, "end_transaction", discard)
+            b.runtime.release.set()
+            response = await task
+        assert response.status == "collecting" and response.version == p.state.version + 1
+        result = b.runtime.results[-1]
+        assert result.local == LocalOutcome.COMMITTED
+        assert all(branch.final == FinalOutcome.UNKNOWN for branch in result.branches)
+        passed("resolution_final_unknown_keeps_commit")
+        await b.consumed(operation)
+        run = (await evaluation_rows(p.tx, p.run_id))[0]
+        audit = run["progress_json"]["result_unknown_resolutions"][-1]
+        assert audit["resolved_at"] == frozen.value.resolved_at.isoformat()
+        assert audit["actor"] == p.scope.actor and audit["execution_id"] == request.execution_id
+        assert await b.host.archives.read_committed(first.envelope().message_id) == first
+        assert p.gateway.calls == p.provider_calls
+        passed("resolution_original_audit_wire_and_witness")
+        before = await evaluation_rows(p.tx, p.run_id)
+        with pytest.raises(GovernanceTransactionPending):
+            await dispatcher(operation, frozen.value.resolved_at + timedelta(seconds=5))
+        assert await evaluation_rows(p.tx, p.run_id) == before
+        assert p.gateway.calls == p.provider_calls
+        assert b.runtime.calls == len(b.host.executions) == 1
+        b.recorder.flush.assert_not_called()
+        passed("resolution_repeated_invocation_no_new_send_or_model")
+    finally:
+        b.runtime.release.set()
+        await asyncio.gather(task, return_exceptions=True)
+
+
+async def test_actual_resolution_source_conflict_rolls_back_prepared_half(
+    governance_broker, resolution_unknown
+):
+    b, p = governance_broker, resolution_unknown
+    value = replace(resolution_decision(), actor=p.scope.actor)
+    operation = ResolutionStateOperation(p.scope, uuid4(), p.state.version, value, True)
+    dispatcher = GovernanceStateDispatcher(
+        b.host.tx,
+        b.host.archives,
+        b.runtime,
+        signing_key=b.host.keys["ai.sign"],
+        recipient_key=b.host.keys["qs.encrypt"],
+        resolution_management=p.original,
+    )
+    b.runtime.pause = True
+    task = asyncio.create_task(dispatcher(operation, value.resolved_at))
+    try:
+        await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
+        owned = b.host.executions[-1]
+        _, first = read_resolution_plan(operation, owned.plan)
+        await MySQLEvaluationManagement(p.tx).resolve(
+            p.scope, p.state.version, replace(value, decision="cancel_run"), confirm=True
+        )
+        competing = await evaluation_rows(p.tx, p.run_id)
+        b.runtime.release.set()
+        with pytest.raises(CheckpointConflict):
+            await task
+        result = b.runtime.results[-1]
+        assert result.local == LocalOutcome.ABORTED
+        assert all(branch.final == FinalOutcome.ROLLBACK_CONFIRMED for branch in result.branches)
+        assert await StoreChecker(b.host.store).check(owned.references[0]) == Decision.ROLLBACK
+        assert await evaluation_rows(p.tx, p.run_id) == competing
+        assert await b.host.archives.read_committed(first.envelope().message_id) is None
+        assert p.gateway.calls == p.provider_calls
+        b.empty_poll.clear()
+        await asyncio.wait_for(b.empty_poll.wait(), timeout=20)
+        assert first.envelope().message_id not in b.messages
+        b.recorder.flush.assert_not_called()
+        passed("resolution_source_conflict_rollback")
+    finally:
+        b.runtime.release.set()
+        await asyncio.gather(task, return_exceptions=True)
