@@ -37,6 +37,7 @@ from sqlalchemy import delete, event, select, text
 
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict
 from qs_ai.application.evaluation.management import EvaluationManagementStore
+from qs_ai.application.governance.solutions import PrepareSolution
 from qs_ai.bootstrap.transaction_messaging import TransactionRuntime
 from qs_ai.contracts.workflow import workflow_pb2 as workflow
 from qs_ai.infrastructure.persistence.mysql.evaluation_management import MySQLEvaluationManagement
@@ -44,6 +45,7 @@ from qs_ai.infrastructure.persistence.mysql.evaluation_reviews import accept_rev
 from qs_ai.infrastructure.persistence.mysql.evaluation_worker import EvaluationWorker
 from qs_ai.infrastructure.persistence.mysql.messaging import outbox
 from qs_ai.infrastructure.persistence.mysql.schema import evaluation_checkpoints, evaluation_runs
+from qs_ai.infrastructure.persistence.mysql.solutions import MySQLSolutions
 from qs_ai.infrastructure.persistence.mysql.transaction_schema import witness
 from qs_ai.infrastructure.workflow_transport.correction_state import read_correction_plan
 from qs_ai.infrastructure.workflow_transport.correction_state_plan import CorrectionStateOperation
@@ -67,13 +69,22 @@ from qs_ai.infrastructure.workflow_transport.review_state_plan import (
     ReviewStateInput,
     read_review_state_plan,
 )
+from qs_ai.infrastructure.workflow_transport.solution_preparation_dispatch import (
+    SolutionPreparationDispatcher,
+)
+from qs_ai.infrastructure.workflow_transport.solution_preparation_plan import (
+    SolutionPreparationInput,
+    read_preparation_plan,
+)
 from qs_ai.infrastructure.workflow_transport.state_events import evaluation_sequences
 from qs_ai.infrastructure.workflow_transport.transactional_evaluation_management import (
     TransactionalEvaluationManagement,
 )
+from qs_ai.infrastructure.workflow_transport.transactional_solutions import TransactionalSolutions
 from qs_ai.transport.grpc.evaluation import EvaluationManagement
 from tests.integration.rocketmq_admission_host import required_broker as required_broker
 from tests.integration.test_evaluation_completions import dispatched as dispatched
+from tests.integration.test_evaluation_creation_interop import persisted_assets as persisted_assets
 from tests.integration.test_evaluation_finalization import passing_semantics as passing_semantics
 from tests.integration.test_evaluation_finalization import reviewed
 from tests.integration.test_evaluation_reopening import eligible_semantics as eligible_semantics
@@ -82,6 +93,7 @@ from tests.integration.test_evaluation_review_corrections import signatures as s
 from tests.integration.test_evaluation_reviews import reviewable as reviewable
 from tests.integration.test_evaluation_runs import rows as evaluation_rows
 from tests.integration.test_semantic_completions import judge as judge
+from tests.integration.test_solutions import workspace as workspace
 from tests.integration.test_transaction_evaluation_admission import (
     host as host,
 )
@@ -103,6 +115,10 @@ from tests.integration.test_transaction_evaluation_admission import (
 from tests.integration.test_transaction_evaluation_admission import (
     setup_run as setup_run,
 )
+from tests.integration.test_transaction_solution_dispatch import service_request
+from tests.test_generation_manifest import assets as assets
+from tests.test_generation_manifest import complete_release as complete_release
+from tests.test_generation_manifest import evaluation_release as evaluation_release
 from tests.test_grpc_commands import Context
 
 pytestmark = pytest.mark.integration
@@ -880,3 +896,135 @@ async def test_actual_correction_source_conflict_rolls_back_prepared_half(
         b.runtime.release.set()
         await asyncio.gather(task, return_exceptions=True)
         await clean_governance_sequence(b.host, scope.run_id)
+
+
+async def test_actual_solution_prepare_rpc_half_gate_first_receipt_and_final_unknown(
+    governance_broker, workspace, monkeypatch
+):
+    b = governance_broker
+    _, previous, scope, solution_id, create, at = workspace
+    # The old fixture writes through its own session before the new SDK owner;
+    # the new owner's commit recorder stays poisoned for the complete test.
+    initial = await previous.apply(scope, solution_id, create, at)
+    settings = previous.settings.model_copy(
+        update={
+            "evaluation": previous.settings.evaluation.model_copy(
+                update={"candidate_mode_enabled": True}
+            )
+        }
+    )
+    original = MySQLSolutions(b.host.tx, settings)
+    sender = TransactionalSolutions(
+        original,
+        SolutionPreparationDispatcher(
+            original,
+            b.host.archives,
+            b.runtime,
+            signing_key=b.host.keys["ai.sign"],
+            recipient_key=b.host.keys["qs.encrypt"],
+        ),
+    )
+    command = PrepareSolution(
+        command_id=uuid4(), expected_revision=initial["revision"], reason="真实SDK方案准备"
+    )
+    incoming = SolutionPreparationInput(scope, solution_id, command)
+    service, request = service_request(SimpleNamespace(**locals()))
+    b.runtime.pause = True
+    task = asyncio.create_task(service.Prepare(request, Context()))
+    try:
+        await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
+        owned = b.host.executions[-1]
+        _, facts, first = read_preparation_plan(incoming, owned.plan)
+        b.empty_poll.clear()
+        await asyncio.wait_for(b.empty_poll.wait(), timeout=20)
+        assert first.envelope().message_id not in b.messages
+        assert await original.get(scope, solution_id) == initial
+        assert await evaluation_rows(b.host.tx, incoming.identities.run_id) == [None, None, None]
+        passed("solution_half_invisible")
+        actual_end = b.sender._client.end_transaction
+
+        def discard(*args, **kwargs):
+            actual_end(*args, **kwargs)
+            raise TimeoutError("client discarded completed Solution final reply")
+
+        with monkeypatch.context() as patch:
+            patch.setattr(b.sender._client, "end_transaction", discard)
+            b.runtime.release.set()
+            response = await task
+        value = json.loads(response.data_json)
+        assert value["revision"] == initial["revision"] + 1
+        result = b.runtime.results[-1]
+        assert result.local == LocalOutcome.COMMITTED
+        assert all(branch.final == FinalOutcome.UNKNOWN for branch in result.branches)
+        passed("solution_final_unknown_keeps_commit")
+        await b.consumed(incoming)
+        actual = await evaluation_rows(b.host.tx, incoming.identities.run_id)
+        assert actual[0]["execution_mode"] == facts.execution_mode == "candidate_v2"
+        assert await original.receipt(scope, command.command_id) == value
+        assert await b.host.archives.read_committed(first.envelope().message_id) == first
+        passed("solution_original_assets_receipt_wire_and_witness")
+        original.settings = previous.settings
+        replay = await sender.apply(scope, solution_id, command, at + timedelta(hours=1))
+        assert replay == value
+        assert await evaluation_rows(b.host.tx, incoming.identities.run_id) == actual
+        assert b.runtime.calls == len(b.host.executions) == 1
+        b.recorder.flush.assert_not_called()
+        passed("solution_first_receipt_replay_no_new_send")
+    finally:
+        b.runtime.release.set()
+        await asyncio.gather(task, return_exceptions=True)
+        await clean_governance_sequence(b.host, incoming.identities.run_id)
+
+
+async def test_actual_solution_source_conflict_rolls_back_prepared_half(
+    governance_broker, workspace
+):
+    b = governance_broker
+    _, previous, scope, solution_id, create, at = workspace
+    initial = await previous.apply(scope, solution_id, create, at)
+    original = MySQLSolutions(b.host.tx, previous.settings)
+    sender = TransactionalSolutions(
+        original,
+        SolutionPreparationDispatcher(
+            original,
+            b.host.archives,
+            b.runtime,
+            signing_key=b.host.keys["ai.sign"],
+            recipient_key=b.host.keys["qs.encrypt"],
+        ),
+    )
+    command = PrepareSolution(
+        command_id=uuid4(), expected_revision=initial["revision"], reason="真实SDK冲突方案"
+    )
+    incoming = SolutionPreparationInput(scope, solution_id, command)
+    b.runtime.pause = True
+    task = asyncio.create_task(sender.apply(scope, solution_id, command, at))
+    try:
+        await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
+        owned = b.host.executions[-1]
+        _, _, first = read_preparation_plan(incoming, owned.plan)
+        competing = await previous.apply(
+            scope, solution_id, replace(command, command_id=uuid4(), reason="并发旧准备"), at
+        )
+        current = await evaluation_rows(b.host.tx, incoming.identities.run_id)
+        b.runtime.release.set()
+        from qs_ai.domain.governance.prompt_draft import DraftConflict
+
+        with pytest.raises(DraftConflict):
+            await task
+        result = b.runtime.results[-1]
+        assert result.local == LocalOutcome.ABORTED
+        assert all(branch.final == FinalOutcome.ROLLBACK_CONFIRMED for branch in result.branches)
+        assert await StoreChecker(b.host.store).check(owned.references[0]) == Decision.ROLLBACK
+        assert await original.get(scope, solution_id) == competing
+        assert await evaluation_rows(b.host.tx, incoming.identities.run_id) == current
+        assert await b.host.archives.read_committed(first.envelope().message_id) is None
+        b.empty_poll.clear()
+        await asyncio.wait_for(b.empty_poll.wait(), timeout=20)
+        assert first.envelope().message_id not in b.messages
+        b.recorder.flush.assert_not_called()
+        passed("solution_source_conflict_rollback")
+    finally:
+        b.runtime.release.set()
+        await asyncio.gather(task, return_exceptions=True)
+        await clean_governance_sequence(b.host, incoming.identities.run_id)
