@@ -2,7 +2,7 @@
 
 import hashlib
 import json
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 from uuid import NAMESPACE_URL, uuid5
 
 from qs_ai.application.execution.generation import GeneratedExplanation
@@ -15,11 +15,33 @@ from qs_ai.domain.interpretation.artifact import ArtifactCandidate, MBTIArtifact
 from qs_ai.domain.interpretation.model import EvidenceSet, RuleViolation
 
 
+@dataclass(frozen=True)
+class ArtifactIdentity:
+    """Validate an existing deterministic identity before entering a DB executor."""
+
+    run_id: str
+    invocation_id: str
+    artifact_id: str
+
+    def __post_init__(self) -> None:
+        if any(
+            not isinstance(v, str) or not v or len(v.encode()) > 128
+            for v in (self.run_id, self.invocation_id)
+        ) or (
+            not isinstance(self.artifact_id, str)
+            or self.artifact_id
+            != str(uuid5(NAMESPACE_URL, f"qs-ai:artifact:{self.run_id}:{self.invocation_id}"))
+        ):
+            raise ValueError("Exact original artifact identity required")
+
+
 def build_artifact(
     claim: Claim,
     evidence: EvidenceSet,
     generated: GeneratedExplanation,
     parser: OutputParser,
+    *,
+    identity: ArtifactIdentity | None = None,
 ) -> ArtifactCandidate:
     frozen, response = generated.request, generated.response
     prepared = frozen.prepared
@@ -44,9 +66,19 @@ def build_artifact(
     content_hash = "sha256:" + hashlib.sha256(checked.content_json.encode()).hexdigest()
     policy = prepared.release.input_policy
     # Replay of the same accepted invocation has the same artifact identity.
-    identity = str(uuid5(NAMESPACE_URL, f"qs-ai:artifact:{claim.run_id}:{response.invocation_id}"))
+    if identity is None:
+        artifact_id = str(
+            uuid5(NAMESPACE_URL, f"qs-ai:artifact:{claim.run_id}:{response.invocation_id}")
+        )
+    else:
+        if not isinstance(identity, ArtifactIdentity) or (
+            identity.run_id,
+            identity.invocation_id,
+        ) != (claim.run_id, response.invocation_id):
+            raise InvalidOutput("artifact_response_identity_invalid")
+        artifact_id = identity.artifact_id
     candidate = ArtifactCandidate(
-        identity,
+        artifact_id,
         claim.session.id,
         claim.run_id,
         evidence.id,

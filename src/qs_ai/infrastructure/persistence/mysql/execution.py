@@ -12,7 +12,7 @@ from sqlalchemy.dialects.mysql import insert as mysql_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.functions import Function
 
-from qs_ai.application.execution.artifact import build_artifact
+from qs_ai.application.execution.artifact import ArtifactIdentity, build_artifact
 from qs_ai.application.execution.capacity import (
     DEFAULT_PARTICIPANT_CAPACITY,
     ParticipantCapacityPolicy,
@@ -464,6 +464,7 @@ class MySQLExecutionStore:
         question_id: str | None = None,
         state_event_id: str | None = None,
         at: datetime | None = None,
+        artifact_identity: ArtifactIdentity | None = None,
     ) -> None:
         """Stage only on the caller's root; captured return is not commit proof.
 
@@ -480,6 +481,17 @@ class MySQLExecutionStore:
             raise ValueError("Frozen question identity requires an original question result")
         if at is not None and (not isinstance(at, datetime) or at.utcoffset() is None):
             raise ValueError("Aware frozen finish clock required")
+        if artifact_identity is not None and (
+            not isinstance(artifact_identity, ArtifactIdentity)
+            or result.artifact is None
+            or (
+                artifact_identity.run_id,
+                artifact_identity.invocation_id,
+                artifact_identity.artifact_id,
+            )
+            != (claim.run_id, result.artifact.invocation_id, result.artifact.id)
+        ):
+            raise ValueError("Artifact identity must match the original frozen finish")
         if not isinstance(db, AsyncSession) or db.in_nested_transaction():
             raise BindingError("Original root session required for interpretation finish")
         original = db.get_transaction()
@@ -519,6 +531,7 @@ class MySQLExecutionStore:
                     evidence,
                     GeneratedExplanation(frozen, response),
                     config.parser,
+                    identity=artifact_identity,
                 )
                 if candidate != expected:
                     raise ValueError("Artifact differs from accepted publication and response")
