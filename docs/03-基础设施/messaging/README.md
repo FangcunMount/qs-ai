@@ -501,3 +501,7 @@ ClaimStage 仅描述 miss/deferred/exhausted/claimed 的暂存结果。returned 
 评测终态规划先复用原 [`generation_completion_progress`](../../../src/qs_ai/infrastructure/persistence/mysql/evaluation_completion_progress.py)：成功、未知结果、自动恢复许可和预算耗尽的原进度规则从SQL写入口抽出，串行路径保留blocked转换，candidate路径继续交给原complete_claim负责聚合。原complete_generation仍在同一根内校验来源、写完成证据、执行原checkpoint CAS和Run进度更新，提交归属不变；只读函数不访问DB、MQ或模型，也不授权重试。
 
 抽取前42既有目标及10新增原入口表征通过，抽取后52目标、3444完整本地非integration/noninterop（1186排除，不算通过）、419源类型和lint/format通过，代码7d32da5。真实MySQL门禁仍须针对新候选重验；此处仅是规划计算基础，未完成评测终态Sender、candidate/recovery/取消drain全链路，也未启用默认装配或生产切换。
+
+无事件配额维护根使用局部JobOnlyEvents保护：新根继承的旧提交钩子只在该session中替换，拒绝interpretation状态写入、非空evaluation事件集、原根或记录器替换；提交前和EventSession提交钩子均校验该边界。独立维护拒绝BorrowedTransactions，不能替宿主提交已有业务事务。全局Database.state_events保留，正常业务记录器不受该局部session影响。
+
+该修订由真实Broker scanner配额用例发现：原fd141候选在已返回的Python3.11档中63/64证据通过，job-only根调用了被禁止的旧flush，隔离清理完整；失败报告保留在infra总表。54007b0修复候选通过127目标、3432完整本地单元（1182 integration/interop排除）、418源类型及lint/format；9项原生配额维护用例（新增3）仅收集，须按新源码重跑真实MySQL和26/64 Broker门禁，不能复用旧fd141通过项替代验收。生产和默认装配未变。
