@@ -324,3 +324,10 @@ Solution Prepare同时写资产和Run，仍须在同一原根接入事务消息�
 [`SuiteRegistrationPlan/plan_registration`](../../../src/qs_ai/infrastructure/persistence/mysql/evaluation_suites.py) 继续把原Suite注册的所有只读校验放在DML之前，保存原案例、schema、manifest和不可变SuiteContracts；原apply仍只在同一根插入一份资产/回执，重放读取首次回执。显式未来资产只供预览，默认注册仍验证实际持久化资产。原 [`freeze_run_creation`](../../../src/qs_ai/infrastructure/persistence/mysql/evaluation_runs.py) 从已核验suite/contracts冻结创建定义，不发起数据库、模型或网络调用；注册表规划仍先验证请求，再读取原库并调用同一冻结函数，原定义字节和SQL提交归属不变。
 
 Prompt/Profile/Suite只读规划共有6项新真实MySQL用例，分别证明仅SELECT以及原根共同提交/回滚；本地仅收集，required CI结果另行记录。完整Solution Prepare的身份冻结、整批计划、发送器及原根仍待完成，不能把这些基础函数计作业务已迁移。
+
+
+[`plan_prepare_assets/PreparedAssetPlan`](../../../src/qs_ai/infrastructure/persistence/mysql/solution_preparation.py) 把原Solution Prepare的整个资产图只读规划为不可变值：首次Prompt、两条Route、Profile、Suite、原Run创建定义及准备结果。各阶段复用原来源、模型选择、渲染、案例/schema和回执校验；既有冻结/注册不能被收养为新执行。资产正文和首次审核/配置事实纳入完整摘要，未写入也不构成提交证明。准备结果读取返回独立副本，原结果结构和创建定义字节保持不变。
+
+原 [`PreparationIDs/prepare_assets`](../../../src/qs_ai/infrastructure/persistence/mysql/solution_assets.py) 可显式接收在事务前冻结的确定性身份，默认旧路径保持原派生规则；新执行传入完整身份后不在业务阶段生成UUID。原 [`contracts_from_binding`](../../../src/qs_ai/infrastructure/persistence/mysql/evaluation_contracts.py) 允许规划器验证未来Suite的精确绑定，保留组织所有权与四项原ref校验，仍从同一原库读取固定policy/semantic字节，不能选择其他数据库或绕过源Suite规则。
+
+新增4项真实MySQL用例覆盖两种首次模式、规划阶段仅SELECT、原资产与Run共同提交/回滚、定义/回执一致和执行阶段禁止新UUID；本地仅收集，实际结果以infra总表为准。完整Solution命令的SDK发送器、冻结源状态、原revision/命令回执与witness共同提交及真实Broker仍待接入，此批不改变默认DI。

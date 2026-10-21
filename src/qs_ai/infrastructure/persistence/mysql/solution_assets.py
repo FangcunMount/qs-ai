@@ -2,7 +2,7 @@
 
 import hashlib
 import json
-from dataclasses import asdict, replace
+from dataclasses import asdict, dataclass, replace
 from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid5
@@ -12,13 +12,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from qs_ai.application.evaluation.management import ManagementScope
 from qs_ai.application.governance.profile_registration import RegisterProfile
 from qs_ai.application.governance.prompt_drafts import DraftScope
-from qs_ai.application.governance.prompt_freeze import FreezePromptDraft
+from qs_ai.application.governance.prompt_freeze import FreezePromptDraft, FrozenPromptReceipt
 from qs_ai.application.governance.solution_models import edited_route, selection
 from qs_ai.application.governance.solutions import CreateSolution, ModelSelection, SaveSolution
-from qs_ai.application.governance.suite_registration import RegisterSuite
+from qs_ai.application.governance.suite_registration import RegisterSuite, SuiteRegistrationReceipt
 from qs_ai.application.interpretation.route_assets import executable_route
 from qs_ai.domain.evaluation.identity import EvidenceReleaseIdentity, FrozenContractRef
-from qs_ai.domain.governance.manifest import AssetReference
+from qs_ai.domain.evaluation.policy import ExecutionPolicy
+from qs_ai.domain.governance.manifest import AssetReference, GenerationManifest
 from qs_ai.domain.governance.profile import ProfileAsset
 from qs_ai.domain.governance.prompt import PromptAsset
 from qs_ai.domain.governance.route import RouteAsset
@@ -53,6 +54,75 @@ from qs_ai.infrastructure.persistence.mysql.publication_records import load_publ
 from qs_ai.infrastructure.persistence.mysql.suite_contracts import read as read_suite_contracts
 from qs_ai.infrastructure.qs_server.evaluation_release import validate_release_assets
 from qs_ai.model_configuration import ModelConfiguration
+
+
+@dataclass(frozen=True)
+class PreparationIDs:
+    solution_id: UUID
+    command_id: UUID
+    prompt_command_id: UUID
+    profile_command_id: UUID
+    suite_command_id: UUID
+    run_id: UUID
+
+    def __post_init__(self) -> None:
+        values = (
+            self.solution_id,
+            self.command_id,
+            self.prompt_command_id,
+            self.profile_command_id,
+            self.suite_command_id,
+            self.run_id,
+        )
+        if any(not isinstance(value, UUID) or not value.int for value in values):
+            raise ValueError("Original nonzero solution preparation identities required")
+        if values[2:] != (
+            uuid5(self.command_id, "freeze"),
+            uuid5(self.command_id, "profile"),
+            uuid5(self.command_id, "suite"),
+            uuid5(self.solution_id, "evaluation"),
+        ):
+            raise ValueError("Solution preparation identities differ from original derivation")
+
+    @classmethod
+    def freeze(cls, solution_id: UUID, command_id: UUID) -> "PreparationIDs":
+        return cls(
+            solution_id,
+            command_id,
+            uuid5(command_id, "freeze"),
+            uuid5(command_id, "profile"),
+            uuid5(command_id, "suite"),
+            uuid5(solution_id, "evaluation"),
+        )
+
+
+def freeze_route(
+    source: RouteAsset,
+    solution_id: UUID,
+    purpose: str,
+    values: dict[str, Any],
+    models: tuple[str, ...],
+    configuration: ModelConfiguration | None = None,
+) -> RouteAsset:
+    """Build the original immutable edited route without reading or writing storage."""
+    route = edited_route(
+        executable_route(source),
+        ModelSelection(**values),
+        f"solution-{solution_id}-{purpose}",
+        models,
+        configuration,
+        purpose,
+    )
+    return RouteAsset(route.route, route.revision, route.fingerprint(), route.definition_json())
+
+
+def route_reference(asset: RouteAsset) -> AssetReference:
+    return AssetReference(
+        asset.route,
+        asset.revision,
+        asset.fingerprint,
+        hashlib.sha256(asset.definition_json.encode()).hexdigest(),
+    )
 
 
 def release_from(raw: dict[str, Any]) -> EvidenceReleaseIdentity:
@@ -179,16 +249,14 @@ async def register_route(
     models: tuple[str, ...],
     configuration: ModelConfiguration | None = None,
 ) -> AssetReference:
-    source = executable_route(await route_for(db, getattr(release, purpose + "_route")))
-    route = edited_route(
-        source,
-        ModelSelection(**values),
-        f"solution-{solution_id}-{purpose}",
+    asset = freeze_route(
+        await route_for(db, getattr(release, purpose + "_route")),
+        solution_id,
+        purpose,
+        values,
         models,
         configuration,
-        purpose,
     )
-    asset = RouteAsset(route.route, route.revision, route.fingerprint(), route.definition_json())
     await db.execute(
         insert(route_assets).values(
             **asdict(asset),
@@ -196,12 +264,62 @@ async def register_route(
             imported_by=f"qs:org/{scope.organization_id}/user/{scope.operator_user_id}",
         )
     )
-    return AssetReference(
-        asset.route,
-        asset.revision,
-        asset.fingerprint,
-        hashlib.sha256(asset.definition_json.encode()).hexdigest(),
+    return route_reference(asset)
+
+
+def prepared_release(
+    release: EvidenceReleaseIdentity,
+    suite: SuiteRegistrationReceipt,
+    prompt: FrozenPromptReceipt,
+    generation: AssetReference,
+    semantic: AssetReference,
+) -> EvidenceReleaseIdentity:
+    return replace(
+        release,
+        suite=suite.suite,
+        profile=FrozenContractRef(
+            suite.manifest.profile.identity,
+            suite.manifest.profile.version,
+            suite.manifest.profile.fingerprint,
+        ),
+        prompt=FrozenContractRef(
+            prompt.asset.identity, prompt.asset.version, prompt.asset.fingerprint
+        ),
+        generation_route=FrozenContractRef(
+            generation.identity, generation.version, generation.fingerprint
+        ),
+        semantic_route=FrozenContractRef(semantic.identity, semantic.version, semantic.fingerprint),
     )
+
+
+def prepared_result(
+    run_id: UUID,
+    target: EvidenceReleaseIdentity,
+    manifest: GenerationManifest,
+    at: datetime,
+    policy: ExecutionPolicy,
+) -> dict[str, Any]:
+    return {
+        "plan": {
+            "generation_case_count": policy.generation_cases,
+            "candidates_per_case": policy.candidates_per_case,
+            "candidate_count": policy.generation_cases * policy.candidates_per_case,
+            "preflight_case_count": policy.preflight_cases,
+            "max_generation_invocations": policy.generation_per_run,
+            "max_semantic_invocations": policy.semantic_per_run,
+        },
+        "run_id": str(run_id),
+        "release": asdict(target),
+        "manifest": asdict(manifest),
+        "prepared_at": at.isoformat(),
+        "steps": [
+            "prompt_frozen",
+            "models_registered",
+            "profile_registered",
+            "suite_registered",
+            "evaluation_requested",
+        ],
+    }
 
 
 async def prepare_assets(
@@ -213,9 +331,16 @@ async def prepare_assets(
     models: tuple[str, ...],
     configuration: ModelConfiguration | None = None,
     execution_mode: str = "serial_v1",
+    identities: PreparationIDs | None = None,
 ) -> dict[str, Any]:
     """All writes share one transaction. No model invocation or publication happens here."""
     solution_id = UUID(state["solution_id"])
+    ids = identities if identities is not None else PreparationIDs.freeze(solution_id, command_id)
+    if not isinstance(ids, PreparationIDs) or (ids.solution_id, ids.command_id) != (
+        solution_id,
+        command_id,
+    ):
+        raise ValueError("Exact original preparation identities required")
     release = selected_release(state)
     profile, manifest = await generation_snapshot(db, release)
     prompt = await apply_freeze(
@@ -223,7 +348,7 @@ async def prepare_assets(
         scope,
         FreezePromptDraft(
             UUID(state["draft_id"]),
-            uuid5(command_id, "freeze"),
+            ids.prompt_command_id,
             state["draft_revision"],
             state["reason"],
         ),
@@ -260,7 +385,7 @@ async def prepare_assets(
         db,
         scope,
         RegisterProfile(
-            uuid5(command_id, "profile"),
+            ids.profile_command_id,
             manifest.profile,
             json.dumps(definition, ensure_ascii=False),
             prompt.asset,
@@ -273,7 +398,7 @@ async def prepare_assets(
         db,
         scope,
         RegisterSuite(
-            uuid5(command_id, "suite"),
+            ids.suite_command_id,
             release.suite,
             release.suite.id,
             state["target_version"],
@@ -288,22 +413,7 @@ async def prepare_assets(
         ),
         at,
     )
-    target = replace(
-        release,
-        suite=suite.suite,
-        profile=FrozenContractRef(
-            suite.manifest.profile.identity,
-            suite.manifest.profile.version,
-            suite.manifest.profile.fingerprint,
-        ),
-        prompt=FrozenContractRef(
-            prompt.asset.identity, prompt.asset.version, prompt.asset.fingerprint
-        ),
-        generation_route=FrozenContractRef(
-            generation.identity, generation.version, generation.fingerprint
-        ),
-        semantic_route=FrozenContractRef(semantic.identity, semantic.version, semantic.fingerprint),
-    )
+    target = prepared_release(release, suite, prompt, generation, semantic)
     contracts = await evaluation_contracts(db, target, scope.organization_id)
     await validate_release_assets(
         target,
@@ -318,7 +428,7 @@ async def prepare_assets(
         gate_policy_json=contracts.gate.definition_json,
         semantic=contracts.semantic,
     )
-    run_id = uuid5(solution_id, "evaluation")
+    run_id = ids.run_id
     await create_run(
         db,
         run_id,
@@ -330,25 +440,4 @@ async def prepare_assets(
         generation_manifest=suite.manifest,
         execution_mode=execution_mode,
     )
-    policy = contracts.execution
-    return {
-        "plan": {
-            "generation_case_count": policy.generation_cases,
-            "candidates_per_case": policy.candidates_per_case,
-            "candidate_count": policy.generation_cases * policy.candidates_per_case,
-            "preflight_case_count": policy.preflight_cases,
-            "max_generation_invocations": policy.generation_per_run,
-            "max_semantic_invocations": policy.semantic_per_run,
-        },
-        "run_id": str(run_id),
-        "release": asdict(target),
-        "manifest": asdict(suite.manifest),
-        "prepared_at": at.isoformat(),
-        "steps": [
-            "prompt_frozen",
-            "models_registered",
-            "profile_registered",
-            "suite_registered",
-            "evaluation_requested",
-        ],
-    }
+    return prepared_result(run_id, target, suite.manifest, at, contracts.execution)
