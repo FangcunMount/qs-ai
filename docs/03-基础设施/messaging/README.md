@@ -497,6 +497,16 @@ ClaimStage 仅描述 miss/deferred/exhausted/claimed 的暂存结果。returned 
 
 显式完成重试的Broker档在6f42998新增question/持久化Artifact两项入口：旧Aborted保持可回查、首次plan/wire与问题ID复用、新半消息提交前不可见、原根提交后首结果可重复读取，禁止再次调用DurableGeneration。新档28宿主用例/68证据；本地仅收集，实际执行和完整清理必须由对应新infra档核验，旧26/64报告不复用。
 
+
+评测终态规划先复用原 [`generation_completion_progress`](../../../src/qs_ai/infrastructure/persistence/mysql/evaluation_completion_progress.py)：成功、未知结果、自动恢复许可和预算耗尽的原进度规则从SQL写入口抽出，串行路径保留blocked转换，candidate路径继续交给原complete_claim负责聚合。原complete_generation仍在同一根内校验来源、写完成证据、执行原checkpoint CAS和Run进度更新，提交归属不变；只读函数不访问DB、MQ或模型，也不授权重试。
+
+抽取前42既有目标及10新增原入口表征通过，抽取后52目标、3444完整本地非integration/noninterop（1186排除，不算通过）、419源类型和lint/format通过，代码7d32da5。真实MySQL门禁仍须针对新候选重验；此处仅是规划计算基础，未完成评测终态Sender、candidate/recovery/取消drain全链路，也未启用默认装配或生产切换。
+
 无事件配额维护根使用局部JobOnlyEvents保护：新根继承的旧提交钩子只在该session中替换，拒绝interpretation状态写入、非空evaluation事件集、原根或记录器替换；提交前和EventSession提交钩子均校验该边界。独立维护拒绝BorrowedTransactions，不能替宿主提交已有业务事务。全局Database.state_events保留，正常业务记录器不受该局部session影响。
 
 该修订由真实Broker scanner配额用例发现：原fd141候选在已返回的Python3.11档中63/64证据通过，job-only根调用了被禁止的旧flush，隔离清理完整；失败报告保留在infra总表。54007b0修复候选通过127目标、3432完整本地单元（1182 integration/interop排除）、418源类型及lint/format；9项原生配额维护用例（新增3）仅收集，须按新源码重跑真实MySQL和26/64 Broker门禁，不能复用旧fd141通过项替代验收。生产和默认装配未变。
+
+
+`EvaluationStateFacts.source_version` 显式冻结较稳定operation版本更晚的权威来源版本，使用v3 context；缺省None保持既有v1/v2编码字节。来源须为有符号范围内的整数且不小于原operation版本，旧序号版本不得晚于来源，冻结消息最终版本必须晚于来源。一次原根中多次checkpoint推进仍只形成一份最终状态事件；实际业务适配器继续校验精确来源、权限、目标投影和原CAS，字段本身不授权版本提升、重试或模型调用。
+
+这样可以保留首次稳定request/input hash，同时为后续取消drain等来源推进冻结新的只读事实；新计划或执行仍须宿主显式授权，旧未决/Committed不能被覆盖。V3不修改SDK codec、wire、数据库schema或默认装配。22新单元覆盖跨版本/歧义字段、整数边界、来源/最终版本及多次推进；v1摘要f28022c5、v2摘要ecb9989a保持精确。74组合目标、3471完整本地单元（1194 integration/interop排除）、419源类型及lint/format通过。5项真实MySQL原根用例仅收集，包含原CAS、共同回滚、提交后客户端丢回复和单根两次推进；它们是协议/原根基础，不能替代完整评测终态Sender、真实Broker或T18模型恢复。代码d935f50，CI/合并和生产状态回链infra总表。
