@@ -171,3 +171,24 @@ async def test_completion_read_does_not_turn_lease_expiry_into_model_retry_autho
     assert read.checkpoint == expired
     assert read.version == 5
     p.db.commit.assert_not_called()
+
+
+@pytest.mark.parametrize("lock", [False, True])
+async def test_internally_valid_foreign_provider_receipt_cannot_authorize_original_dispatch(
+    source, lock
+):
+    p = source
+    assert p.value.receipt is not None
+    foreign = replace(
+        p.value,
+        invocation_id="foreign:invocation",
+        receipt=replace(p.value.receipt, invocation_id="foreign:invocation"),
+    )
+    # This is valid terminal evidence in isolation, but it is not the original dispatch.
+    with pytest.raises(CheckpointConflict):
+        await original.load_serial_generation_source(
+            p.db, p.run_id, 5, 1, "worker:first", foreign, lock=lock
+        )
+    assert p.db.execute.await_count == 1
+    p.save.assert_not_called()
+    p.db.commit.assert_not_called()
