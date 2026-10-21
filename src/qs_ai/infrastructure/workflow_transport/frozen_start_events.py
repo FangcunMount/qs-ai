@@ -23,18 +23,22 @@ from qs_ai.infrastructure.workflow_transport.transaction_command import (
 )
 
 
-class FrozenInterpretationEvents:
-    def __init__(self, incoming: FrozenCommandInput, plan: FrozenPlan) -> None:
-        archives = read_admission_plan(incoming, plan)
-        if incoming.envelope().kind not in (pb.START, pb.CHANGE, pb.PARTICIPANT_RETRY):
-            raise ValueError("Original interpretation or CHANGE state transcription required")
-        states = [a for a in archives if a.envelope().kind == pb.INTERPRETATION_STATE]
-        if len(states) > 1:
-            raise ValueError("One original interpretation state per command required")
+class InterpretationStateTranscription:
+    """Keyless row transcription; its root adapter must validate the frozen plan."""
+
+    def __init__(self, plan_digest: bytes, expected: workflow.StateEvent | None) -> None:
+        if (
+            type(plan_digest) is not bytes
+            or len(plan_digest) != 32
+            or (expected is not None and not isinstance(expected, workflow.StateEvent))
+        ):
+            raise MessageConflict("Exact frozen interpretation plan digest/state required")
         self._expected = (
-            pb.MessagingBody.FromString(states[0].body).interpretation_state if states else None
+            workflow.StateEvent.FromString(expected.SerializeToString())
+            if expected is not None
+            else None
         )
-        self._plan_digest = plan.digest
+        self._plan_digest = plan_digest
         self._seen = False
         self._db: AsyncSession | None = None
         self._root: AsyncSessionTransaction | None = None
@@ -116,6 +120,20 @@ class FrozenInterpretationEvents:
         if (self._expected is not None and not self._seen) or db.info.get("evaluation_events"):
             raise MessageConflict("Complete original interpretation transcription required")
         await self._validate_root(db)
+
+
+class FrozenInterpretationEvents(InterpretationStateTranscription):
+    def __init__(self, incoming: FrozenCommandInput, plan: FrozenPlan) -> None:
+        archives = read_admission_plan(incoming, plan)
+        if incoming.envelope().kind not in (pb.START, pb.CHANGE, pb.PARTICIPANT_RETRY):
+            raise ValueError("Original interpretation or CHANGE state transcription required")
+        states = [a for a in archives if a.envelope().kind == pb.INTERPRETATION_STATE]
+        if len(states) > 1:
+            raise ValueError("One original interpretation state per command required")
+        expected = (
+            pb.MessagingBody.FromString(states[0].body).interpretation_state if states else None
+        )
+        super().__init__(plan.digest, expected)
 
 
 class FrozenStartEvents(FrozenInterpretationEvents):
