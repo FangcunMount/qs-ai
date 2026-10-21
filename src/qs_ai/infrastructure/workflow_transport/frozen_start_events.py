@@ -1,4 +1,4 @@
-"""Transcribe one original START state against its already frozen first event.
+"""Transcribe one original interpretation state against its already frozen first event.
 
 The result row remains business/refusal history. This adapter never signs,
 sends, scans, stages a messaging Outbox row, or confirms business delivery.
@@ -23,14 +23,14 @@ from qs_ai.infrastructure.workflow_transport.transaction_command import (
 )
 
 
-class FrozenStartEvents:
+class FrozenInterpretationEvents:
     def __init__(self, incoming: FrozenCommandInput, plan: FrozenPlan) -> None:
         archives = read_admission_plan(incoming, plan)
-        if incoming.envelope().kind != pb.START:
-            raise ValueError("Only original START state transcription supported")
+        if incoming.envelope().kind not in (pb.START, pb.CHANGE):
+            raise ValueError("Original interpretation or CHANGE state transcription required")
         states = [a for a in archives if a.envelope().kind == pb.INTERPRETATION_STATE]
         if len(states) > 1:
-            raise ValueError("One original START state per command required")
+            raise ValueError("One original interpretation state per command required")
         self._expected = (
             pb.MessagingBody.FromString(states[0].body).interpretation_state if states else None
         )
@@ -46,7 +46,7 @@ class FrozenStartEvents:
     def _check_row(self, row: Mapping[Any, Any]) -> None:
         expected = self._expected
         if expected is None:
-            raise MessageConflict("Unplanned START state cannot be recorded")
+            raise MessageConflict("Unplanned interpretation state cannot be recorded")
         try:
             actual = workflow.StateEvent(**row["payload"])
             valid = (
@@ -61,18 +61,20 @@ class FrozenStartEvents:
                 and (self._seen or row["mq_owned"] is False)
             )
         except (KeyError, TypeError, ValueError):
-            raise MessageConflict("Original START state evidence invalid") from None
+            raise MessageConflict("Original interpretation state evidence invalid") from None
         if not valid:
-            raise MessageConflict("Original START state differs or has old delivery responsibility")
+            raise MessageConflict(
+                "Original interpretation state differs or has old delivery responsibility"
+            )
 
     async def _validate_root(self, db: AsyncSession) -> None:
         root = db.get_transaction()
         if root is None or not root.is_active:
-            raise MessageConflict("Original active START root required")
+            raise MessageConflict("Original active interpretation root required")
         if self._db is None:
             self._db, self._root = db, root
         if self._db is not db or self._root is not root:
-            raise MessageConflict("Frozen START transcription cannot cross roots")
+            raise MessageConflict("Frozen interpretation transcription cannot cross roots")
         await bind(db).validate()
 
     async def record_interpretation(self, db: AsyncSession, row: Mapping[Any, Any]) -> None:
@@ -90,7 +92,7 @@ class FrozenStartEvents:
             .one_or_none()
         )
         if current is None:
-            raise MessageConflict("Original START history missing")
+            raise MessageConflict("Original interpretation history missing")
         self._check_row(current)
         if self._seen:
             return
@@ -107,10 +109,19 @@ class FrozenStartEvents:
             .values(mq_owned=True)
         )
         if cast(CursorResult[Any], result).rowcount != 1:
-            raise MessageConflict("Original START history claim changed")
+            raise MessageConflict("Original interpretation history claim changed")
         self._seen = True
 
     async def flush(self, db: AsyncSession) -> None:
         if (self._expected is not None and not self._seen) or db.info.get("evaluation_events"):
-            raise MessageConflict("Complete original START transcription required")
+            raise MessageConflict("Complete original interpretation transcription required")
         await self._validate_root(db)
+
+
+class FrozenStartEvents(FrozenInterpretationEvents):
+    """Keep the original START-only public boundary and its test seam."""
+
+    def __init__(self, incoming: FrozenCommandInput, plan: FrozenPlan) -> None:
+        if incoming.envelope().kind != pb.START:
+            raise ValueError("Only original START state transcription supported")
+        super().__init__(incoming, plan)

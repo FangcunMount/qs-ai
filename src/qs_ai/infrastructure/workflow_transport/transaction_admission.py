@@ -30,7 +30,10 @@ from qs_ai.infrastructure.workflow_transport.admission_receipts import (
 )
 from qs_ai.infrastructure.workflow_transport.command_admission import WorkflowCommandAdmission
 from qs_ai.infrastructure.workflow_transport.frozen_start_admission import FrozenStartAdmission
-from qs_ai.infrastructure.workflow_transport.frozen_start_events import FrozenStartEvents
+from qs_ai.infrastructure.workflow_transport.frozen_start_events import (
+    FrozenInterpretationEvents,
+    FrozenStartEvents,
+)
 from qs_ai.infrastructure.workflow_transport.messaging import valid_id
 from qs_ai.infrastructure.workflow_transport.transaction_command import (
     FrozenCommandInput,
@@ -83,7 +86,7 @@ class AdmissionRoot:
         *,
         reservation_token: str,
         business: AdmissionAction,
-        events: FrozenStartEvents | None = None,
+        events: FrozenInterpretationEvents | None = None,
         database_seconds: float = 2,
     ) -> None:
         if not valid_id(reservation_token):
