@@ -21,10 +21,14 @@ from qs_ai.domain.evaluation.identity import EvidenceReleaseIdentity
 from qs_ai.domain.evaluation.policy import ExecutionPolicy
 from qs_ai.domain.governance.manifest import GenerationManifest
 from qs_ai.infrastructure.persistence.mysql.database import Transactions, changed_evaluation
-from qs_ai.infrastructure.persistence.mysql.evaluation_contracts import evaluation_contracts
+from qs_ai.infrastructure.persistence.mysql.evaluation_contracts import (
+    EvaluationContracts,
+    evaluation_contracts,
+)
 from qs_ai.infrastructure.persistence.mysql.evaluation_dispatches import freeze_policy
 from qs_ai.infrastructure.persistence.mysql.evaluation_suites import load_registered_suite
 from qs_ai.infrastructure.persistence.mysql.schema import evaluation_checkpoints, evaluation_runs
+from qs_ai.infrastructure.qs_server.evaluation_suite import FrozenSuite
 
 
 @dataclass(frozen=True)
@@ -37,19 +41,14 @@ class RunCreationPlan:
     policy: ExecutionPolicy = field(repr=False)
 
 
-async def plan_run_creation(
-    db: AsyncSession,
+def _validate_creation(
     run_id: UUID,
-    release: EvidenceReleaseIdentity,
     organization_id: int,
     requested_by: str,
     request_reason: str,
     created_at: datetime,
-    *,
-    generation_manifest: GenerationManifest | None = None,
-    execution_mode: str = "serial_v1",
-) -> RunCreationPlan:
-    """Read original contract bytes; caller owns the snapshot and all subsequent writes."""
+    execution_mode: str,
+) -> None:
     if execution_mode not in ("serial_v1", "candidate_v2"):
         raise ValueError("Invalid evaluation execution mode")
     if not isinstance(run_id, UUID) or run_id.int == 0:
@@ -66,8 +65,59 @@ async def plan_run_creation(
         raise ValueError("Invalid request reason")
     if created_at.tzinfo is None or created_at.utcoffset() is None:
         raise ValueError("Creation time must have a time zone")
+
+
+async def plan_run_creation(
+    db: AsyncSession,
+    run_id: UUID,
+    release: EvidenceReleaseIdentity,
+    organization_id: int,
+    requested_by: str,
+    request_reason: str,
+    created_at: datetime,
+    *,
+    generation_manifest: GenerationManifest | None = None,
+    execution_mode: str = "serial_v1",
+) -> RunCreationPlan:
+    """Read original contract bytes; caller owns the snapshot and all subsequent writes."""
+    _validate_creation(
+        run_id, organization_id, requested_by, request_reason, created_at, execution_mode
+    )
     suite = await load_registered_suite(db, release.suite, organization_id=organization_id)
     contracts = await evaluation_contracts(db, release, organization_id)
+    return freeze_run_creation(
+        run_id,
+        release,
+        organization_id,
+        requested_by,
+        request_reason,
+        created_at,
+        suite=suite,
+        contracts=contracts,
+        generation_manifest=generation_manifest,
+        execution_mode=execution_mode,
+    )
+
+
+def freeze_run_creation(
+    run_id: UUID,
+    release: EvidenceReleaseIdentity,
+    organization_id: int,
+    requested_by: str,
+    request_reason: str,
+    created_at: datetime,
+    *,
+    suite: FrozenSuite,
+    contracts: EvaluationContracts,
+    generation_manifest: GenerationManifest | None = None,
+    execution_mode: str = "serial_v1",
+) -> RunCreationPlan:
+    """Freeze already resolved original suite/contracts without database or external I/O."""
+    _validate_creation(
+        run_id, organization_id, requested_by, request_reason, created_at, execution_mode
+    )
+    if suite.reference != release.suite:
+        raise ValueError("Exact original creation suite required")
     policy, gate, semantic = contracts.execution, contracts.gate, contracts.semantic
     if suite.manifest is not None and generation_manifest != suite.manifest:
         raise ValueError("Native suite requires its registered generation manifest")

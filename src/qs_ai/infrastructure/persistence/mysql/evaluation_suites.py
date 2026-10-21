@@ -3,7 +3,7 @@
 import asyncio
 import hashlib
 import json
-from dataclasses import asdict, replace
+from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime
 from uuid import UUID
 
@@ -17,6 +17,7 @@ from qs_ai.application.governance.suite_registration import RegisterSuite, Suite
 from qs_ai.application.interpretation.manifest import build_generation_manifest
 from qs_ai.application.interpretation.ports import NotFound
 from qs_ai.domain.evaluation.identity import FrozenContractRef
+from qs_ai.domain.evaluation.suite_contracts import SuiteContracts
 from qs_ai.domain.governance.profile import AssetConflict, ProfileAsset
 from qs_ai.domain.governance.prompt import PromptAsset
 from qs_ai.domain.governance.prompt_draft import nonzero_uuid
@@ -28,7 +29,10 @@ from qs_ai.infrastructure.persistence.mysql.asset_records import (
     route_assets,
     schema_assets,
 )
-from qs_ai.infrastructure.persistence.mysql.asset_snapshot import AssetSnapshotReader
+from qs_ai.infrastructure.persistence.mysql.asset_snapshot import (
+    AssetSnapshotReader,
+    PlannedAssetReader,
+)
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
 from qs_ai.infrastructure.persistence.mysql.governance_records import insert
 from qs_ai.infrastructure.persistence.mysql.schema import evaluation_suites as table
@@ -159,19 +163,49 @@ async def prior_receipt(
     return (await asyncio.to_thread(decode_record, row, source))[1]
 
 
-async def apply_registration(
-    db: AsyncSession, scope: DraftScope, command: RegisterSuite, at: datetime
-) -> SuiteRegistrationReceipt:
+@dataclass(frozen=True)
+class SuiteRegistrationPlan:
+    receipt: SuiteRegistrationReceipt = field(repr=False)
+    suite: FrozenSuite | None = field(repr=False)
+    contracts: SuiteContracts | None = field(repr=False)
+
+    @property
+    def existing(self) -> bool:
+        return self.suite is None
+
+
+async def plan_registration(
+    db: AsyncSession,
+    scope: DraftScope,
+    command: RegisterSuite,
+    at: datetime,
+    *,
+    planned_profile: ProfileAsset | None = None,
+    planned_prompt: PromptAsset | None = None,
+    planned_route: RouteAsset | None = None,
+) -> SuiteRegistrationPlan:
+    """Resolve original suite rules over explicit future assets without any DML."""
     prior = await prior_receipt(db, scope, command.command_id)
     if prior is not None:
         if prior.command != command:
             raise AssetConflict("Suite command already used")
-        return prior
+        return SuiteRegistrationPlan(prior, None, None)
     source = await load_registered_suite(db, command.source, organization_id=scope.organization_id)
-    manifest = await build_generation_manifest(
+    profiles = PlannedAssetReader(
         AssetSnapshotReader(db, profile_assets, ProfileAsset),
+        (planned_profile,) if planned_profile else (),
+    )
+    prompts = PlannedAssetReader(
         AssetSnapshotReader(db, prompt_assets, PromptAsset),
-        AssetSnapshotReader(db, route_assets, RouteAsset),
+        (planned_prompt,) if planned_prompt else (),
+    )
+    routes = PlannedAssetReader(
+        AssetSnapshotReader(db, route_assets, RouteAsset), (planned_route,) if planned_route else ()
+    )
+    manifest = await build_generation_manifest(
+        profiles,
+        prompts,
+        routes,
         AssetSnapshotReader(db, schema_assets, SchemaAsset),
         profile_id=command.profile.identity,
         profile_version=command.profile.version,
@@ -183,9 +217,7 @@ async def apply_registration(
         command.generation_route,
     ):
         raise ValueError("Confirmed suite assets changed")
-    profile = await AssetSnapshotReader(db, profile_assets, ProfileAsset).get(
-        command.profile.identity, command.profile.version
-    )
+    profile = await profiles.get(command.profile.identity, command.profile.version)
     if profile is None:
         raise ValueError("Profile unavailable")
     suite = await asyncio.to_thread(
@@ -206,7 +238,7 @@ async def apply_registration(
     raw = RECEIPT.dump_json(receipt, exclude_defaults=True).decode()
     if len(raw.encode()) > 32768:
         raise ValueError("Suite receipt exceeds limit")
-    from qs_ai.infrastructure.persistence.mysql.suite_contracts import encode, read
+    from qs_ai.infrastructure.persistence.mysql.suite_contracts import read
 
     bindings = await read(db, command.source, scope.organization_id)
     if command.semantic_prompt is not None:
@@ -237,6 +269,23 @@ async def apply_registration(
             semantic_prompt=asset.reference,
             semantic_owner_organization_id=command.semantic_owner_organization_id,
         )
+    return SuiteRegistrationPlan(receipt, suite, bindings)
+
+
+async def apply_registration(
+    db: AsyncSession, scope: DraftScope, command: RegisterSuite, at: datetime
+) -> SuiteRegistrationReceipt:
+    plan = await plan_registration(db, scope, command, at)
+    if plan.suite is None:
+        if plan.contracts is not None:
+            raise ValueError("Contradictory original suite registration plan")
+        return plan.receipt
+    if plan.contracts is None:
+        raise ValueError("Original suite contracts required")
+    suite, receipt, bindings = plan.suite, plan.receipt, plan.contracts
+    raw = RECEIPT.dump_json(receipt, exclude_defaults=True).decode()
+    from qs_ai.infrastructure.persistence.mysql.suite_contracts import encode
+
     contracts, contracts_sha = encode(bindings)
     await db.execute(
         insert(table).values(
