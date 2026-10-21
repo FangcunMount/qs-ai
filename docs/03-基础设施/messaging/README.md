@@ -525,3 +525,5 @@ ClaimStage 仅描述 miss/deferred/exhausted/claimed 的暂存结果。returned 
 
 
 真实Broker档新增串行终态成功/未知两项及取消后显式replan一项入口，要求31宿主/76证据：半消息不可见、LocalCommitted+FinalUnknown、首次response/candidate/wire与精确witness、重复不重发，以及旧半消息回滚、新计划保留原candidate并在取消drain的原版本上提交。现阶段仅收集，不计实际Broker或T18真实provider/网络/进程故障验收。工具/source pin、安装SDK与清理报告须由infra另验，旧28/68不能复用。
+
+原来源校验候选0ef23e8的实际MySQL8.4分片失败：foreign invocation测试只替换完成对象的invocation，未同步原provider receipt，被领域构造校验提前拒绝，未进入目标SQL冲突路径。修订使两者均为同一foreign身份，构造有效但仍必须被原dispatch校验拒绝；补两项只读/加锁负例，本地43组合目标、3488完整单元（1199 integration/interop排除）通过。保留失败报告，原领域校验与SQL条件不变，5项原生仍须按新源码完整重验。

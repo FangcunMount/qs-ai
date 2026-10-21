@@ -65,9 +65,13 @@ async def test_readonly_source_is_not_a_permit_to_commit_changed_dispatch(dispat
         )
     async with tx.open() as db:
         with pytest.raises(CheckpointConflict):
-            await accept(
-                db, dispatched, completion=replace(value, invocation_id="foreign:invocation")
+            assert value.receipt is not None
+            foreign = replace(
+                value,
+                invocation_id="foreign:invocation",
+                receipt=replace(value.receipt, invocation_id="foreign:invocation"),
             )
+            await accept(db, dispatched, completion=foreign)
     assert await stored(tx, run_id) == []
     async with tx.open() as db:
         state = await accept(db, dispatched)
