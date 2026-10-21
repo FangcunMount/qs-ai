@@ -21,6 +21,8 @@ from qs_ai.infrastructure.workflow_transport.evaluation_governance_state import 
     GovernanceStateRoot,
 )
 from qs_ai.infrastructure.workflow_transport.evaluation_state_plan import read_evaluation_state_plan
+from qs_ai.infrastructure.workflow_transport.review_state import ReviewStatePlanner, ReviewStateRoot
+from qs_ai.infrastructure.workflow_transport.review_state_plan import ReviewStateInput
 from qs_ai.infrastructure.workflow_transport.transaction_root import StateTransactions
 
 
@@ -50,8 +52,17 @@ class GovernanceStateDispatcher:
             recipient_key=recipient_key,
             database_seconds=database_seconds,
         )
+        self._review_planner = ReviewStatePlanner(
+            transactions,
+            signing_key=signing_key,
+            recipient_key=recipient_key,
+            database_seconds=database_seconds,
+            runtime_limits=runtime_limits,
+        )
 
-    async def __call__(self, operation: GovernanceStateOperation, at: datetime) -> EvaluationView:
+    async def __call__(
+        self, operation: GovernanceStateOperation | ReviewStateInput, at: datetime
+    ) -> EvaluationView:
         request = operation.intent.request
         async with asyncio.timeout(self._database_seconds):
             existing = await self._runtime.store.lookup(request)
@@ -59,19 +70,35 @@ class GovernanceStateDispatcher:
             # This interface has no durable public operation-result reader.
             # Returning today's Run view would substitute a different response.
             raise GovernanceTransactionPending("Original governance invocation already exists")
-        candidate = await self._planner.candidate(operation, at)
+        candidate = (
+            await self._review_planner.candidate(operation, at)
+            if isinstance(operation, ReviewStateInput)
+            else await self._planner.candidate(operation, at)
+        )
         reservation = await self._runtime.reserve(request, candidate)
         if not reservation.acquired:
             raise GovernanceTransactionPending("Original governance invocation is already owned")
-        local = GovernanceStateRoot(
-            self._transactions,
-            self._archives,
-            self._runtime.store,
-            operation,
-            reservation.execution.plan,
-            database_seconds=self._database_seconds,
-            runtime_limits=self._runtime_limits,
-        )
+        local: ReviewStateRoot | GovernanceStateRoot
+        if isinstance(operation, ReviewStateInput):
+            local = ReviewStateRoot(
+                self._transactions,
+                self._archives,
+                self._runtime.store,
+                operation,
+                reservation.execution.plan,
+                database_seconds=self._database_seconds,
+                runtime_limits=self._runtime_limits,
+            )
+        else:
+            local = GovernanceStateRoot(
+                self._transactions,
+                self._archives,
+                self._runtime.store,
+                operation,
+                reservation.execution.plan,
+                database_seconds=self._database_seconds,
+                runtime_limits=self._runtime_limits,
+            )
         try:
             result = await self._runtime.execute(reservation.execution, local)
         except TransactionSendError as error:
