@@ -459,3 +459,10 @@ InterpretationStateFacts的expected_version表示真实源版本，target_versio
 原 [`MySQLExecutionStore.claim_in`](../../../src/qs_ai/infrastructure/persistence/mysql/execution.py) 允许显式宿主在活跃 AsyncSession 根中暂存一次原候选领取。它保留 Session→Job→Lease 锁序、配额、fence、attempt、运行诊断及耗尽后的两次版本推进，并拒绝嵌套、结束或替换的根；不自行提交、回滚、开连接或关闭资源。首次事件 ID 和容量时钟可由事务外冻结。原 claim 仍扫描最多20个候选，在同一宿主 session 内提交延后后继续下一候选，提交和执行移交仍由原入口负责。
 
 ClaimStage 仅描述 miss/deferred/exhausted/claimed 的暂存结果。returned Claim 不是根提交、witness 或模型执行授权；配额延后无状态事件，不能转录为 running。完整领取 Sender、半消息、精确提交后移交及恢复调度须分别接通。15项原行为表征、24目标、对齐main后的3336非集成/非interop单元零失败跳过；8项真实MySQL仅收集，CI结果与合并/运行进度回链infra总表。默认装配和生产未改。
+
+
+[`InterpretationClaimPlanner / InterpretationClaimSender`](../../../src/qs_ai/infrastructure/workflow_transport/interpretation_claim_sender.py) 为显式原候选提供独立事务入口。只读来源核对精确Session/job/Run、到期资格及原lease/fence，关闭来源连接后冻结首次事件ID、时间和wire。正常领取仅推进一次版本，attempt耗尽保留原running→blocked两次推进和单份最终历史；原业务根先绑定SDK guard，再重新竞争原锁和来源，执行claim_in、转录、档案及witness共同提交。来源变化或配额延后不能提交预备的running事件。
+
+只有首次取得执行资格的调用，在LocalCommitted且新权威读取精确witness/首档案之后，继续检查新边界的原活跃lease和原job输入，才返回Claim。FinalUnknown不推翻已证实本地提交；重复Committed只读首证明并返回None，不再次授权模型。Prepared/Aborted/未知保持未决，不自动生成新执行或模型重试。这里只接通显式单候选入口；无状态延后的调度责任、scanner交接、完整恢复及默认运行装配仍需独立门禁。
+
+本地73组合目标和3385非集成/非interop回归零失败跳过，416源类型及lint/format通过；18项真实MySQL仅收集，覆盖原业务/租约/attempt/首历史/档案/witness共同提交、原数据库拒绝、客户端丢提交回复、来源竞争、真实配额拒绝、半消息模拟拒绝及首次/重复/失效租约移交。模拟运输和主动丢回复不算真实Broker或网络故障；CI、合并、部署和业务验收状态仅维护于infra总表。
