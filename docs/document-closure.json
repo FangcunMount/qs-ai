@@ -1,6 +1,6 @@
 {
   "schema_version": "qs-ai-document-closure/v1",
-  "source_commit": "ee7f9e8f423a04e02c2db209a1c1c65fbf189e07",
+  "source_commit": "61c1cda5673c5f021b7c755055e214c137f0fbcf",
   "reviewed_on": "2026-10-19",
   "authority": "runtime composition > code > machine contracts/config/migrations > scoped tests > maintained prose > dated evidence/plans/archive",
   "source_catalog": {
@@ -197,7 +197,7 @@
     "src/qs_ai/infrastructure/persistence/mysql/execution_configurations.py": "ddf86be657c054f7239dbf68b6b97522ab76aa916afd0c74ee6046e5158ac87c",
     "src/qs_ai/infrastructure/persistence/mysql/governance_records.py": "0cd20ff2cfa446c108e8d8cba98f8f33b16066c5409a4c9479fe4d0431b94761",
     "src/qs_ai/infrastructure/persistence/mysql/interpretation.py": "9be5fffdfd01872a9212ffc5822da0ddf85eee38636cc16b4425018cb451f7d6",
-    "src/qs_ai/infrastructure/persistence/mysql/messaging.py": "bbc19d6dd0185636da383dbc2c28a5396abd1cf8c36c3c9162a401192d711cf6",
+    "src/qs_ai/infrastructure/persistence/mysql/messaging.py": "40f58f094ecfdebf9c542f9e0630dad628e8f439f43a04ab5b335893a87a6633",
     "src/qs_ai/infrastructure/persistence/mysql/messaging_observability.py": "0237bc7078ddd8027da919384b0f74280d8bad69568025d786875d5f86de2d4f",
     "src/qs_ai/infrastructure/persistence/mysql/messaging_observations.py": "1a6aec8f9865bd18b65a273d29ff9b6e341d7b09f51610f39fe8face1b5e7bd5",
     "src/qs_ai/infrastructure/persistence/mysql/metrics.py": "ae7864fcead4118678940571ee0adf51c4048b5d90b862789bff61d8fa0e2606",
@@ -231,8 +231,8 @@
     "src/qs_ai/infrastructure/qs_server/responses.py": "1986e00da62f9bef7871a7a6961eca1cc3ca4cad0c29aa0390d5324a3eece480",
     "src/qs_ai/infrastructure/workflow_transport/command_admission.py": "e124b91454e53e37640b93d600e3275a5797f19f5119d4c71cb031cbe5ca2e1a",
     "src/qs_ai/infrastructure/workflow_transport/messaging.py": "e5e0a567bd1df79dd68a166ef9d0f6aee992e9d0b6e7510a2d669185aacb3d02",
-    "src/qs_ai/infrastructure/workflow_transport/mq_failure.py": "85a0b4d25ad3e42455a1b6070a97eb340312adcdb4e7e51dd5b04939cb3ba360",
-    "src/qs_ai/infrastructure/workflow_transport/mq_receiver.py": "4175b3907b988406bfb080a11630b1fab5679b44543b6f7241e9bc74c325736b",
+    "src/qs_ai/infrastructure/workflow_transport/mq_failure.py": "52a49bbea1c3f6109dce26ca28730760b3a223293a71f95ccc7919541f191a01",
+    "src/qs_ai/infrastructure/workflow_transport/mq_receiver.py": "3da556f98df2a3c912fcca6abd00740b8e3c3cb47a12cf71ede63789f1a226f5",
     "src/qs_ai/infrastructure/workflow_transport/mq_relay.py": "33272bbdb4448a66507e881b13b55569c1dfdd7b00fea440242cae1a2c7f6577",
     "src/qs_ai/infrastructure/workflow_transport/payloads.py": "b53f2af97ac75210c2ad92e4f16fdb8b407f626f0b123f42e3c345e17f203fbf",
     "src/qs_ai/infrastructure/workflow_transport/state_events.py": "819d544ebb056b2e39b966d78ebace26d2c370afb97641f4526ca3414568fc4e",
@@ -513,7 +513,7 @@
     "tests/integration/test_mq_inventory.py": "ae1ccacfc9391058aeb0b77ee6e04d243f072c3b030ce2d73ab9d52306309aef",
     "src/qs_ai/infrastructure/workflow_transport/admission_receipts.py": "48220d326dc3e0e4f84c585c421d66c2e2c7f35a1c4a233cb553c14824abd1b8",
     "src/qs_ai/infrastructure/workflow_transport/transaction_command.py": "93dd74e8ce6b9cc3b449ddeacfd6a76b078b5a558fc823025c55c5c9a5db8787",
-    "src/qs_ai/infrastructure/workflow_transport/transaction_admission.py": "4cf74f7e4293d135f0f483fd24e4e6b06d311f34b62f109550cec3fb9311ea0a",
+    "src/qs_ai/infrastructure/workflow_transport/transaction_admission.py": "7567593223172ab6ad4d6e730ba0a4c9c692e4860da4a0dceddb66b9367f93fc",
     "tests/test_transaction_admission_root.py": "a7ca85ea4214fe8096bc3dc3aa448f830eb5f3eff7762cd22bbf9db5f3f87945",
     "tests/integration/test_transaction_admission_root.py": "640a27d46aa355dcf8973d088b82d10279db2531f090e7a1b3ff492968eb197d",
     "src/qs_ai/infrastructure/workflow_transport/start_plan.py": "bb247776eea5b08b217e78774db9e697badabbd0c53ae033b4657f1137921eee",
@@ -544,7 +544,7 @@
     "tests/test_read_only_start_admission.py": "84d1f1a51ffe65e9e1b84ae11d55071473ad0cd65ddc0fea984fda80b7383619",
     "tests/test_transaction_admission_decision.py": "9adbe03061483ef78ce3428e3595ba62b3b5925d9e9cbbb017c4fa8e8c695251",
     "tests/test_transaction_command.py": "5b00febff93bd70c36e8901c1363b2153e06089d2db1d3c5fcda4cbaa50731e7",
-    "docs/03-基础设施/messaging/README.md": "7627d6c01cb559124b81313d58cd0f36602619b6ace8575b4f17b9abefe3285e",
+    "docs/03-基础设施/messaging/README.md": "1925c21f5556fbf7b13d0e4ad293d3d30588d43ad18a35fe7b332c37cd2bdcbd",
     "src/qs_ai/infrastructure/workflow_transport/change_planner.py": "4eb6bc873363c4612d8b28c16453b3104a907616c319edb81b518b6974403b6f",
     "src/qs_ai/infrastructure/workflow_transport/frozen_change_admission.py": "e252f16bf36ccf4149a24ae9e5b59a73684a0438b9124cadeb22fc666135e886",
     "tests/integration/test_transaction_change_admission.py": "369fe567640c881f9fe9371368f1454ebb021447d84bc9a02f83e6ea8c684934",
@@ -571,7 +571,7 @@
     "src/qs_ai/infrastructure/workflow_transport/evaluation_planner.py": "e45bc2f3adb08b94156c3dd8e9b1531652642faedabfcaa8c463522bc7ce75d6",
     "src/qs_ai/infrastructure/workflow_transport/frozen_evaluation_admission.py": "fe667e432229edc22b3af07152011a5132d0549c46237df201140ea227c25a62",
     "src/qs_ai/infrastructure/workflow_transport/frozen_evaluation_events.py": "fdb70e6df84de00c330f2d6409f89a7475eea9d19ba4e2f93a38e08de5efd577",
-    "tests/integration/test_transaction_evaluation_admission.py": "a78756744a51f13c6b20ac522868e4408aacfe90e2426cc0d628454d440d989e",
+    "tests/integration/test_transaction_evaluation_admission.py": "5ad26f82d57864c20eab2d6cdaeb0984807aa54408615c2646c54d7f6d870083",
     "tests/test_evaluation_admission_planner.py": "4af3323663d16320c49c24e6068986ed8f6a65c8c478edb43cb724d804dc8ddd",
     "tests/test_evaluation_admission_projection.py": "5beb48922ca8b640ab40ec914e2cdf000c3329e6337e289e0ed7ab49d47c3d43",
     "tests/test_evaluation_cancellation_plan.py": "11ecbde0949b96190554141351af843cbea2eba5c2d34304a32f2e586aa055ef",
@@ -580,7 +580,12 @@
     "tests/test_evaluation_start_plan.py": "c6bae55f1c3a86c090f59c7dce23e9ce4a2d2e49cc0e333f6b4990a6bcc85617",
     "tests/test_evaluation_view_projection.py": "599d1017ae5b0089902bde626ec98d480514f8800a0be32bcd3598ecd229c273",
     "tests/test_frozen_evaluation_admission.py": "9ee61059895f9657079f764861c303a5317041945c130233cdbe87d5a4e284b8",
-    "tests/test_frozen_evaluation_events.py": "e4de5d95e0e68dadf9bd70b7cb7ae54482f76b8f463aa46f4a8d291c9fa4a259"
+    "tests/test_frozen_evaluation_events.py": "e4de5d95e0e68dadf9bd70b7cb7ae54482f76b8f463aa46f4a8d291c9fa4a259",
+    "src/qs_ai/infrastructure/workflow_transport/hold_plan.py": "f36ee7ff63d96172d6f80e3c9617886f2b18eebd0372f1f082a1b26f045afa31",
+    "src/qs_ai/infrastructure/workflow_transport/transaction_receiver.py": "6858d6adc56b0d0f93ba3cf9d8877e2c025fba39115d86e8243abde170a2bfce",
+    "tests/integration/test_transaction_command_receiver.py": "561d369adbe938a6529ad08706d8a63b75481f306cfe6a8cdd00cf77d94e1792",
+    "tests/test_messaging_read_command.py": "19860422c7fc9b19d929f60810fa38574ae2d563ddedeedb544d9793659dc427",
+    "tests/test_transaction_command_receiver.py": "4352b4656ee73a0f9ddc93e57bf01fcd1650e571fb18835a268a1633b4788b4a"
   },
   "documents": [
     {
@@ -1655,8 +1660,10 @@
         "src/qs_ai/infrastructure/workflow_transport/frozen_retry_admission.py",
         "src/qs_ai/infrastructure/workflow_transport/frozen_start_admission.py",
         "src/qs_ai/infrastructure/workflow_transport/frozen_start_events.py",
+        "src/qs_ai/infrastructure/workflow_transport/hold_plan.py",
         "src/qs_ai/infrastructure/workflow_transport/interpretation_plan.py",
         "src/qs_ai/infrastructure/workflow_transport/messaging.py",
+        "src/qs_ai/infrastructure/workflow_transport/mq_failure.py",
         "src/qs_ai/infrastructure/workflow_transport/mq_receiver.py",
         "src/qs_ai/infrastructure/workflow_transport/mq_relay.py",
         "src/qs_ai/infrastructure/workflow_transport/payloads.py",
@@ -1667,6 +1674,7 @@
         "src/qs_ai/infrastructure/workflow_transport/transaction_admission.py",
         "src/qs_ai/infrastructure/workflow_transport/transaction_archive.py",
         "src/qs_ai/infrastructure/workflow_transport/transaction_command.py",
+        "src/qs_ai/infrastructure/workflow_transport/transaction_receiver.py",
         "src/qs_ai/maintenance/legacy_results.py",
         "src/qs_ai/maintenance/messaging_audit.py",
         "src/qs_ai/maintenance/messaging_preflight.py",
@@ -1683,6 +1691,7 @@
         "tests/integration/test_start_admission_planning.py",
         "tests/integration/test_transaction_admission_root.py",
         "tests/integration/test_transaction_change_admission.py",
+        "tests/integration/test_transaction_command_receiver.py",
         "tests/integration/test_transaction_evaluation_admission.py",
         "tests/integration/test_transaction_retry_admission.py",
         "tests/integration/test_transaction_schema.py",
@@ -1711,6 +1720,7 @@
         "tests/test_frozen_start_resources.py",
         "tests/test_legacy_delivery_retirement.py",
         "tests/test_m3_legacy_layout.py",
+        "tests/test_messaging_read_command.py",
         "tests/test_messaging_reservation_identity.py",
         "tests/test_messaging_runtime.py",
         "tests/test_mq_contract.py",
@@ -1726,7 +1736,8 @@
         "tests/test_start_decision_evidence.py",
         "tests/test_start_plan_facts.py",
         "tests/test_transaction_admission_root.py",
-        "tests/test_transaction_archive.py"
+        "tests/test_transaction_archive.py",
+        "tests/test_transaction_command_receiver.py"
       ],
       "verify": [
         "python scripts/check_docs.py",
@@ -1734,7 +1745,7 @@
         "4 legacy retirement unit tests passed; full MQ/NSQ/JOSE/MySQL tests not run due missing existing extras; no installs or live transport actions",
         "pytest -q tests/test_transaction_messaging.py"
       ],
-      "review_scope": "2026-10-06 source-grounded rewrite on unchanged 766b2aa business code, QS 2ccc2de and reliable-messaging Python 0.2.0a2 8633ba5; inbox/root/savepoint, first body/wire, source vs transport outbox, Relay budgets, stored ACK condition scope, protected payloads and one-record handoff; independent source review; legacy gRPC loop retired. 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained. 2026-10-19 M3 fixed prerelease and owner-bound inert transaction foundation reviewed; current business remains on original Relay and root transactions. Transaction-enabled legacy assembly fails closed; production remains independently unverified. 2026-10-19 explicit M3 protocol schema and manual current-head validation entry reviewed; original freeze/restore layouts retained and no production DDL. 2026-10-19 runtime0041 read-only validator explicitly composes frozen0040 base checks and exact four-table protocol checks. Legacy conversion validator/layouts remain strict; no DDL, resource ownership or model behavior changed. Added actual missing-index refusal proof; native CI pending. 2026-10-19 original-root immutable archive and explicit legacy reader reviewed; runtime validator adds host archive beside four unchanged SDK tables. Scoped retained-table handoff/inventory supports0041; old full conversion/backup whitelist unchanged. Local45 source cases and type/lint pass; new native archive proof pending. Native handoff fault tests use separate disposable administrator DDL connection; application DB user remains unchanged. Required schema server supplied at job scope so new maintenance regression cannot silently skip. 2026-10-21 frozen evaluation planning/source/sequence and original root reviewed; original cancellation drain/capacity rules reused; per-root READ COMMITTED precedes guard and organization mutex; receiver/Broker/native acceptance pending; no runtime enablement."
+      "review_scope": "2026-10-06 source-grounded rewrite on unchanged 766b2aa business code, QS 2ccc2de and reliable-messaging Python 0.2.0a2 8633ba5; inbox/root/savepoint, first body/wire, source vs transport outbox, Relay budgets, stored ACK condition scope, protected payloads and one-record handoff; independent source review; legacy gRPC loop retired. 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained. 2026-10-19 M3 fixed prerelease and owner-bound inert transaction foundation reviewed; current business remains on original Relay and root transactions. Transaction-enabled legacy assembly fails closed; production remains independently unverified. 2026-10-19 explicit M3 protocol schema and manual current-head validation entry reviewed; original freeze/restore layouts retained and no production DDL. 2026-10-19 runtime0041 read-only validator explicitly composes frozen0040 base checks and exact four-table protocol checks. Legacy conversion validator/layouts remain strict; no DDL, resource ownership or model behavior changed. Added actual missing-index refusal proof; native CI pending. 2026-10-19 original-root immutable archive and explicit legacy reader reviewed; runtime validator adds host archive beside four unchanged SDK tables. Scoped retained-table handoff/inventory supports0041; old full conversion/backup whitelist unchanged. Local45 source cases and type/lint pass; new native archive proof pending. Native handoff fault tests use separate disposable administrator DDL connection; application DB user remains unchanged. Required schema server supplied at job scope so new maintenance regression cannot silently skip. 2026-10-21 frozen evaluation planning/source/sequence and original root reviewed; original cancellation drain/capacity rules reused; per-root READ COMMITTED precedes guard and organization mutex; receiver/Broker/native acceptance pending; no runtime enablement. 2026-10-21 inert transaction receiver and exact committed authority before inbound ACK reviewed; legacy Inbox remains compatibility-only; local budget holds get keyless empty transcription; physical failure wrappers remain audit-only. Native trigger DDL uses isolated administrator on exact same loopback primary; application pool/account unchanged; native and actual Broker proof pending."
     },
     {
       "path": "docs/03-基础设施/model-gateway/README.md",

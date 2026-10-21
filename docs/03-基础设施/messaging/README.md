@@ -224,3 +224,16 @@ PARTICIPANT_RETRY 已复用原风险确认、blocked Run/CAS、首次模型请�
 `make_evaluation_root` 在首条 guard SQL 前显式设置本事务 READ COMMITTED；普通入口及其他三类 command 默认隔离不变。START 随后先取得原组织准入锁，再锁定 checkpoint/Run 并重新验证冻结摘要，避免 guard 的早期读取固定旧容量快照。这个顺序依据 [SQLAlchemy 单事务隔离设置](https://docs.sqlalchemy.org/en/20/orm/session_transaction.html#setting-isolation-for-individual-transactions)及 [MySQL 一致性读取规则](https://dev.mysql.com/doc/refman/8.4/en/innodb-consistent-read.html)。数据库连接池和连接生命周期仍由宿主拥有。
 
 原服务只借用根事务；`FrozenEvaluationEvents` 对照计划核验业务投影，以原序号 CAS 转录，再显式写档案/witness，由宿主提交。序号或业务条件变化时整根中止，不能更换消息 ID、重新签名或自动执行业务。没有新的 messaging_outbox/Relay 发布责任。新增9项实际MySQL用例覆盖两类提交、源/序号竞争、服务端拒绝、客户端丢弃提交回复、组织容量竞争与 dispatch 取消 drain；仅收集待CI，不称为网络故障或Broker验收。
+
+
+### 独立事务 command receiver（原生与Broker复验待完成）
+
+`TransactionCommandReceiver` 复用原 `CommandReceiver.resolve_command` 的 JOSE 认证、受限载荷读取及拒绝隔离；先检查实际 provider、逻辑 Topic 和 `qs.mysql/m3-1` TRANSACTION 物理 Topic，再查 SDK 请求。同请求已提交时逐项核验权威 witness、首次档案与 Inbox 决策；未决或中止状态不自动创建新执行、重建计划或调用业务。首次请求先只读兼容旧 Inbox，旧决策不成为新事务 witness。
+
+没有已有计划时才构建完整候选并 reserve，执行器只从持久化赢家组装。仅本地已提交且精确证据齐全才允许入站确认，`LocalCommitted + FinalUnknown` 保留 Checker 的 Broker 确认责任。取消不制造回滚证明。新组件不修改普通运行入口、连接池或全局事件循环，尚未启用生产装配。
+
+原本地技术失败预算仍单独持久化。达到8次且没有已有事务计划时，只冻结一条原技术HELD receipt；原根以独立空状态转录替换 commit hook，不执行业务。物理失败包装只归档，不使用其 attempts 授予业务执行、重试或HELD。新 v2 失败读取由宿主显式绑定物理 Topic，旧 NSQ/普通消息默认读取不变。
+
+评测候选fbb1bbd的两档原生CI各3485通过/2失败/0跳过；失败为新故障测试使用应用账号安装触发器而触发MySQL1419。98f4bf9改用现有显式隔离管理员连接，并验证相同回环host/port/database；应用事务仍用原账号/池，不新增权限或修改服务器参数。失败报告保留，等待修复候选复验，不将其他通过用例或M7成功视为完整门禁通过。
+
+Receiver候选f7fbc89本地完整2624通过，381源文件类型检查通过；61c1cda的HELD转录补充后完整2624通过（895项integration/interop未选择），mypy381通过。新增4项数据库接收器用例显式使用database-only runtime，只验证原接收/SQL语义，不能冒充SDK半消息或真实Broker验收。
