@@ -32,6 +32,7 @@ from qs_ai.infrastructure.workflow_transport.transaction_archive import (
 )
 
 _MAGIC = b"qs-ai-interpretation-state/v1\0"
+_MAGIC_V2 = b"qs-ai-interpretation-state/v2\0"
 
 
 def _json(value: Any) -> bytes:
@@ -100,6 +101,7 @@ class InterpretationStateFacts:
     intent: InterpretationStateIntent
     at: datetime
     business_context: bytes = field(default=b"", repr=False)
+    version_delta: int = 1
 
     def __post_init__(self) -> None:
         if (
@@ -108,29 +110,43 @@ class InterpretationStateFacts:
             or self.at.utcoffset() is None
             or type(self.business_context) is not bytes
             or len(self.business_context) > 8192
+            or type(self.version_delta) is not int
+            or self.version_delta not in (1, 2)
+            or self.intent.expected_version + self.version_delta > 2**63 - 1
         ):
             raise ValueError("Exact original interpretation state clock/context required")
         object.__setattr__(self, "at", self.at.astimezone(UTC))
 
+    @property
+    def target_version(self) -> int:
+        return self.intent.expected_version + self.version_delta
+
     def encode(self) -> bytes:
-        raw = _MAGIC + _json(
-            {
-                **self.intent.fields(),
-                "at": self.at.isoformat(timespec="microseconds"),
-                "business_context": base64.b64encode(self.business_context).decode("ascii"),
-            }
-        )
+        value = {
+            **self.intent.fields(),
+            "at": self.at.isoformat(timespec="microseconds"),
+            "business_context": base64.b64encode(self.business_context).decode("ascii"),
+        }
+        if self.version_delta != 1:
+            value["version_delta"] = self.version_delta
+        raw = (_MAGIC if self.version_delta == 1 else _MAGIC_V2) + _json(value)
         if len(raw) > MAX_CONTEXT:
             raise ValueError("Original interpretation facts exceed bounds")
         return raw
 
     @classmethod
     def decode(cls, raw: bytes) -> "InterpretationStateFacts":
-        if type(raw) is not bytes or len(raw) > MAX_CONTEXT or not raw.startswith(_MAGIC):
+        if type(raw) is not bytes or len(raw) > MAX_CONTEXT:
             raise ValueError("Explicit bounded original interpretation state facts required")
+        if raw.startswith(_MAGIC):
+            extended = False
+        elif raw.startswith(_MAGIC_V2):
+            extended = True
+        else:
+            raise ValueError("Explicit original interpretation state codec required")
         try:
             value = json.loads(raw[len(_MAGIC) :], object_pairs_hook=_unique)
-            if not isinstance(value, dict) or set(value) != {
+            fields = {
                 "organization_id",
                 "session_id",
                 "request_id",
@@ -139,7 +155,10 @@ class InterpretationStateFacts:
                 "input_hash",
                 "at",
                 "business_context",
-            }:
+            }
+            if extended:
+                fields.add("version_delta")
+            if not isinstance(value, dict) or set(value) != fields:
                 raise ValueError
             result = cls(
                 InterpretationStateIntent(
@@ -152,6 +171,7 @@ class InterpretationStateFacts:
                 ),
                 datetime.fromisoformat(value["at"]),
                 base64.b64decode(value["business_context"], validate=True),
+                value["version_delta"] if extended else 1,
             )
             if result.encode() != raw:
                 raise ValueError
@@ -168,7 +188,7 @@ def freeze_interpretation_state_plan(
     branch = freeze_branch(
         prepared,
         facts.intent.organization_id,
-        facts.intent.expected_version + 1,
+        facts.target_version,
         False,
         True,
         prepared.envelope.message_id,
@@ -205,7 +225,7 @@ def read_interpretation_state_plan(
         or header.correlation_command_id
         or header.original_occurred_at != facts.at.isoformat(timespec="microseconds")
         or str(archive.organization_id) != intent.organization_id
-        or archive.sequence != intent.expected_version + 1
+        or archive.sequence != facts.target_version
         or archive.ordered
         or not archive.requires_receipt
     ):
@@ -219,7 +239,7 @@ def read_interpretation_state_plan(
         or state.actor.org_id != intent.organization_id
         or not state.actor.subject_id
         or not valid_number(state.testee_id)
-        or state.version != intent.expected_version + 1
+        or state.version != facts.target_version
         or state.status not in {s.value for s in Status}
     ):
         raise MessagingContractError("Frozen original interpretation projection differs")
