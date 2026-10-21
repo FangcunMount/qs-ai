@@ -346,3 +346,8 @@ Solution Prepare 的显式事务适配现由 [`SolutionPreparationInput/Facts`](
 
 
 显式真实 SDK/Broker 验收档新增 Solution Prepare 实际处理器：全部半消息准备后暂停原根，验证不可消费且资产/Run尚未提交；放行原根并在客户端丢弃已完成最终确认回复后，核对首次资产、业务回执、wire 与精确 witness，再用原命令重放证明没有新发送。另一用例在半消息后由原旧写者改变源状态，验证新执行回滚、无新档案/可消费消息且竞争事实保留。扩展后总计10个宿主用例、30项必需证据，本地仅收集；客户端丢弃回复不等同网络级提交故障，事件观察者也不等同 QS 成对业务或 system 验收。
+
+
+剩余 ResolveUnknown 写入口先提供 [`ResolutionPlan/plan_resolution`](../../../src/qs_ai/infrastructure/persistence/mysql/evaluation_resolution.py) 只读规划，复用原 checkpoint/Run 版本、组织、candidate drain、不可变未知执行证据、恢复预算和首次人工裁决时间规则。规划不加写锁，不写业务或消息，不调用模型；结果正文冻结为不可变 JSON，读取返回独立副本。原 accept_resolution 仍在同一个调用者根内按 checkpoint、Run 的原顺序取锁，重新规划后先执行原 checkpoint CAS 再更新进度；原容量准入及根提交仍归 management 所有。规划本身不表示新的执行或模型重试已获准。
+
+7项原实现表征在抽取前通过，抽取后36项目标及3071项非集成/非interop回归通过。新增4项真实 MySQL 用例仅收集，覆盖 generation/semantic 未知证据的只读 SELECT、原裁决共同提交/回滚和不可变执行记录；本批尚未接通 ResolveUnknown 的半消息、SDK原根或默认DI，实际门禁与进度继续回链 infra。
