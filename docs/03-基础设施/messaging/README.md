@@ -466,3 +466,6 @@ ClaimStage 仅描述 miss/deferred/exhausted/claimed 的暂存结果。returned 
 只有首次取得执行资格的调用，在LocalCommitted且新权威读取精确witness/首档案之后，继续检查新边界的原活跃lease和原job输入，才返回Claim。FinalUnknown不推翻已证实本地提交；重复Committed只读首证明并返回None，不再次授权模型。Prepared/Aborted/未知保持未决，不自动生成新执行或模型重试。这里只接通显式单候选入口；无状态延后的调度责任、scanner交接、完整恢复及默认运行装配仍需独立门禁。
 
 本地73组合目标和3385非集成/非interop回归零失败跳过，416源类型及lint/format通过；18项真实MySQL仅收集，覆盖原业务/租约/attempt/首历史/档案/witness共同提交、原数据库拒绝、客户端丢提交回复、来源竞争、真实配额拒绝、半消息模拟拒绝及首次/重复/失效租约移交。模拟运输和主动丢回复不算真实Broker或网络故障；CI、合并、部署和业务验收状态仅维护于infra总表。
+
+
+隔离Broker档扩展原领取Sender的normal、耗尽、源冲突与真实配额拒绝四种输入：半消息不可见、原业务/租约/attempt/首档案/witness、最终确认客户端丢回复、首次移交和重复不再移交，以及无事件配额拒绝时精确回滚。该档要求23宿主用例/59项证据，保留固定SDK/Broker矩阵和完整清理；本地仅收集，实际结果回链infra总表。Observer不执行QS投影或provider，不能代替完整模型恢复、进程/网络故障及system验收。

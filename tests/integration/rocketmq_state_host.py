@@ -1601,3 +1601,184 @@ async def test_actual_interpretation_finish_source_conflict_rolls_back_without_n
     finally:
         b.runtime.release.set()
         await asyncio.gather(task, return_exceptions=True)
+
+
+async def _seed_original_claim(b, *, exhausted=False, quota=False):
+    from tests.integration.test_transaction_interpretation_claim import candidate
+
+    previous = b.host.tx.database.state_events
+    b.host.tx.database.state_events = None
+    try:
+        if quota:
+            first, _, _ = await candidate(b.host, snapshot=True)
+            prior = await b.host.kit.store.claim(60)
+            assert prior is not None and prior.session.id == first.session.id
+        source, before, _ = await candidate(b.host, exhausted, snapshot=quota)
+        return source, before
+    finally:
+        b.host.tx.database.state_events = previous
+
+
+async def _actual_interpretation_claim(b, exhausted, monkeypatch):
+    from qs_ai.application.execution.generation import DurableGeneration
+    from qs_ai.infrastructure.workflow_transport.interpretation_claim_sender import (
+        InterpretationClaimSender,
+    )
+    from qs_ai.infrastructure.workflow_transport.interpretation_claim_state import read_claim_plan
+    from tests.integration.test_interpretation_claim_root import rows
+
+    source, before = await _seed_original_claim(b, exhausted=exhausted)
+    sender = InterpretationClaimSender(
+        b.host.kit.store,
+        b.host.archives,
+        b.runtime,
+        signing_key=b.host.keys["ai.sign"],
+        recipient_key=b.host.keys["qs.encrypt"],
+    )
+    no_generation = AsyncMock(side_effect=AssertionError("Claim must not invoke provider"))
+    monkeypatch.setattr(DurableGeneration, "execute", no_generation)
+    b.runtime.pause = True
+    task = asyncio.create_task(sender(source, 60))
+    try:
+        await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
+        owned = b.host.executions[-1]
+        facts, first = read_claim_plan(source, 60, owned.plan)
+        message_id = first.envelope().message_id
+        b.empty_poll.clear()
+        await asyncio.wait_for(b.empty_poll.wait(), timeout=20)
+        assert message_id not in b.messages
+        assert await rows(b.host.kit, source.session.id) == before
+        passed("claim_half_invisible_exhausted" if exhausted else "claim_half_invisible_running")
+        actual_end = b.sender._client.end_transaction
+
+        def discard(*args, **kwargs):
+            actual_end(*args, **kwargs)
+            raise TimeoutError("client discarded completed original claim final reply")
+
+        with monkeypatch.context() as patch:
+            patch.setattr(b.sender._client, "end_transaction", discard)
+            b.runtime.release.set()
+            claim = await task
+        assert (claim is None) is exhausted
+        if claim is not None:
+            assert claim.session.id == source.session.id and claim.fence == source.fence + 1
+            passed("claim_first_handoff_once")
+        result = b.runtime.results[-1]
+        assert result.local == LocalOutcome.COMMITTED
+        assert all(branch.final == FinalOutcome.UNKNOWN for branch in result.branches)
+        passed("claim_final_unknown_keeps_commit")
+        async with asyncio.timeout(60):
+            while message_id not in b.messages:
+                assert not b.failures
+                await asyncio.sleep(0.05)
+        assert b.messages[message_id] == hashlib.sha256(first.wire).hexdigest()
+        assert await b.host.archives.read_committed(message_id) == first
+        assert await StoreChecker(b.host.store).check(owned.references[0]) == Decision.COMMIT
+        after = await rows(b.host.kit, source.session.id)
+        assert after[0][0]["version"] == facts.target_version
+        assert after[0][0]["status"] == ("blocked" if exhausted else "running")
+        assert after[1][0]["status"] == ("dead" if exhausted else "leased")
+        assert after[1][0]["attempt"] == (3 if exhausted else 1)
+        assert len(after[4]) == 1 and after[4][0]["event_id"] == message_id
+        assert after[4][0]["mq_owned"] and not after[4][0]["delivered"]
+        passed("claim_original_business_archive_witness")
+
+        async def no_plan(*args):
+            raise AssertionError("Committed claim must not replan or seal")
+
+        monkeypatch.setattr(sender._planner, "candidate", no_plan)
+        assert await sender(source, 60) is None
+        assert await rows(b.host.kit, source.session.id) == after
+        assert b.runtime.calls == len(b.host.executions) == 1
+        no_generation.assert_not_called()
+        b.recorder.flush.assert_not_called()
+        passed("claim_duplicate_no_handoff_or_send")
+    finally:
+        b.runtime.release.set()
+        await asyncio.gather(task, return_exceptions=True)
+
+
+async def test_actual_interpretation_claim_running_half_gate_first_handoff_and_final_unknown(
+    governance_broker,
+    monkeypatch,
+):
+    await _actual_interpretation_claim(governance_broker, False, monkeypatch)
+
+
+async def test_actual_interpretation_claim_exhausted_two_transitions_and_final_unknown(
+    governance_broker,
+    monkeypatch,
+):
+    await _actual_interpretation_claim(governance_broker, True, monkeypatch)
+
+
+async def _actual_claim_rollback(b, *, quota):
+    from qs_ai.infrastructure.persistence.mysql.schema import sessions
+    from qs_ai.infrastructure.workflow_transport.interpretation_claim_sender import (
+        InterpretationClaimPending,
+        InterpretationClaimSender,
+    )
+    from qs_ai.infrastructure.workflow_transport.interpretation_claim_state import read_claim_plan
+    from tests.integration.test_interpretation_claim_root import rows
+
+    source, before = await _seed_original_claim(b, quota=quota)
+    sender = InterpretationClaimSender(
+        b.host.kit.store,
+        b.host.archives,
+        b.runtime,
+        signing_key=b.host.keys["ai.sign"],
+        recipient_key=b.host.keys["qs.encrypt"],
+    )
+    b.runtime.pause = True
+    task = asyncio.create_task(sender(source, 60))
+    try:
+        await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
+        owned = b.host.executions[-1]
+        _, first = read_claim_plan(source, 60, owned.plan)
+        if not quota:
+            previous = b.host.tx.database.state_events
+            b.host.tx.database.state_events = None
+            try:
+                async with b.host.tx.open() as db:
+                    await db.execute(
+                        update(sessions)
+                        .where(sessions.c.id == source.session.id)
+                        .values(
+                            goal="competing original claim source",
+                        )
+                    )
+                    await db.commit()
+            finally:
+                b.host.tx.database.state_events = previous
+            before = await rows(b.host.kit, source.session.id)
+        b.runtime.release.set()
+        with pytest.raises((InterpretationClaimPending, TransactionSendError)):
+            await task
+        result = b.runtime.results[-1]
+        assert result.local == LocalOutcome.ABORTED
+        assert all(branch.final == FinalOutcome.ROLLBACK_CONFIRMED for branch in result.branches)
+        assert await StoreChecker(b.host.store).check(owned.references[0]) == Decision.ROLLBACK
+        assert await rows(b.host.kit, source.session.id) == before
+        assert await b.host.archives.read_committed(first.envelope().message_id) is None
+        b.empty_poll.clear()
+        await asyncio.wait_for(b.empty_poll.wait(), timeout=20)
+        assert first.envelope().message_id not in b.messages
+        b.recorder.flush.assert_not_called()
+        passed(
+            "claim_quota_deferral_no_phantom_event" if quota else "claim_source_conflict_rollback"
+        )
+    finally:
+        b.runtime.release.set()
+        await asyncio.gather(task, return_exceptions=True)
+
+
+async def test_actual_interpretation_claim_source_conflict_rolls_back_without_handoff(
+    governance_broker,
+):
+    await _actual_claim_rollback(governance_broker, quota=False)
+
+
+async def test_actual_interpretation_claim_capacity_denial_cannot_publish_running(
+    governance_broker,
+):
+    await _actual_claim_rollback(governance_broker, quota=True)
