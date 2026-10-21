@@ -30,6 +30,7 @@ from qs_ai.infrastructure.workflow_transport.solution_preparation_plan import (
 from qs_ai.infrastructure.workflow_transport.state_events import evaluation_sequences
 from qs_ai.infrastructure.workflow_transport.transactional_solutions import TransactionalSolutions
 from qs_ai.transport.grpc.solutions import SolutionManagement
+from qs_ai.transport.grpc.solutions import response as solution_response
 from tests.integration import test_transaction_solution_preparation as preparation_tests
 from tests.integration.test_evaluation_runs import rows
 from tests.test_grpc_commands import Aborted, Context
@@ -159,7 +160,9 @@ async def test_actual_prepare_handler_requires_half_preparation_before_original_
     assert await StoreChecker(p.host.store).check(p.host.executions[0].references[0]) == (
         Decision.COMMIT
     )
-    assert await p.original.receipt(p.scope, p.command.command_id) == first
+    # Domain content retains immutable tuples; the existing RPC JSON boundary
+    # deliberately encodes them as arrays. Compare the actual wire contract.
+    assert solution_response(await p.original.receipt(p.scope, p.command.command_id)) == response
 
 
 @pytest.mark.parametrize("legacy", [False, True])
