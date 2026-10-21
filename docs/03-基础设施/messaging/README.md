@@ -545,3 +545,8 @@ semantic终态先抽取原有未知计数、固定预算及blocked转换为纯 `
 `read_semantic_acceptance` 将原候选、dispatch、顺序、冻结策略/路由、obligation及判定解析/证据构造从首次SQL写入前抽出。RO模式复用原校验而不加锁/写入/提交，原complete_semantic使用同样原锁重读后保留原insert、候选更新、计数/候审投影、CAS与根提交。路由接口只需get-only Reader，语义准备可借用同session资产快照。返回值是确定性证据，不是提交、witness或模型授权。
 
 原14种路径分别覆盖原写入、RO验收、加锁验收三个模式（42项），连同来源/领域回归共105目标、3586完整本地单元（1216 integration/interop排除）、421源类型通过；RO不得修改候选或数据库，原提交归属保持。4项真实MySQL用例还核对RO证据/候选投影与原根提交/回滚结果，但目前仅收集。实际依赖CI、完整semantic事务Sender及默认装配仍未完成。
+
+
+语义终态的原insert值与后续候审计算分别复用semantic_terminal_values和project_semantic_progress。原写入口在原insert/候选更新后，用同样原三组锁定读取执行原project_slots与next_action；只读规划使用before_insert模式，仅在内存替换精确generation候选并追加虚拟semantic终态，不写数据库、不发布或授权模型。拒绝缺失/重复generation来源及已有同execution终态。candidate聚合和取消分支继续由原责任处理，虚拟投影不接管。
+
+新增13项锁/RO、虚拟/已写入、继续/候审、缺失/重复来源及candidate/取消边界；118目标、3599完整本地单元（1216 integration/interop排除）、421源类型通过，4项真实MySQL原根用例扩展对比虚拟进度与原提交结果，目前仅收集。完整回归、required实际依赖及完整semantic Sender仍待门禁。

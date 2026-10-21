@@ -3,6 +3,7 @@
 import asyncio
 import json
 from dataclasses import asdict, dataclass, field
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select, update
@@ -247,6 +248,106 @@ async def read_semantic_acceptance(
     return SemanticAcceptance(policy, generated, candidate, result, evidence, creation)
 
 
+def semantic_terminal_values(
+    run_id: UUID, completion: SemanticCompletion, accepted: SemanticAcceptance
+) -> dict[str, Any]:
+    """Exact original insert values for the writer and a readonly virtual projection."""
+    return dict(
+        run_id=str(run_id),
+        execution_id=completion.execution_id,
+        invocation_id=completion.invocation_id,
+        candidate_id=completion.candidate_id,
+        execution_ordinal=completion.execution_ordinal,
+        evidence_json=accepted.evidence,
+        result_json=asdict(accepted.result) if accepted.result is not None else None,
+        raw_output=completion.raw_output,
+        normalized_output=completion.normalized_output,
+    )
+
+
+async def project_semantic_progress(
+    db: AsyncSession,
+    run_id: UUID,
+    completion: SemanticCompletion,
+    owner: str,
+    run: dict | RowMapping,
+    accepted: SemanticAcceptance,
+    *,
+    candidate_claim: bool,
+    lock: bool,
+    before_insert: bool,
+) -> dict[str, Any]:
+    """Original serial review computation, optionally against a readonly virtual insert.
+
+    Candidate aggregation remains complete_claim's responsibility. A virtual row
+    never writes, commits, publishes, retries a model or proves a transaction.
+    """
+    policy, creation = accepted.policy, accepted.creation
+    progress = semantic_completion_progress(
+        run["progress_json"], completion, policy, owner, candidate_claim=candidate_claim
+    )
+    if candidate_claim or accepted.result is None or progress.get("cancel_requested"):
+        return progress
+    queries = (
+        evaluation_generation_completions.select().where(
+            evaluation_generation_completions.c.run_id == str(run_id)
+        ),
+        table.select().where(table.c.run_id == str(run_id)),
+        select(evaluation_dispatches).where(evaluation_dispatches.c.run_id == str(run_id)),
+    )
+    records: list[list[Any]] = [
+        list((await db.execute(query.with_for_update() if lock else query)).mappings().all())
+        for query in queries
+    ]
+    generations, semantics, dispatches = records
+    if before_insert:
+        matching = [r for r in generations if r["execution_id"] == accepted.generated.execution_id]
+        if len(matching) != 1 or any(
+            r["execution_id"] == completion.execution_id for r in semantics
+        ):
+            raise CheckpointConflict("Exact unprojected semantic source required")
+        generations = [
+            {**r, "candidate_json": accepted.candidate}
+            if r["execution_id"] == accepted.generated.execution_id
+            else r
+            for r in generations
+        ]
+        semantics = [*semantics, semantic_terminal_values(run_id, completion, accepted)]
+    slots = await asyncio.to_thread(
+        project_slots,
+        creation["slots"],
+        list(generations),
+        list(dispatches),
+        list(semantics),
+        progress.get("result_unknown_resolutions", []),
+        progress.get("semantic_contract_recoveries", []),
+        policy=policy,
+    )
+    preflight = progress["preflight"]
+    action = next_action(
+        progress["status"],
+        preflight["status"],
+        preflight["case_id"],
+        slots,
+        policy,
+        unresolved_unknown=progress.get("unresolved_result_unknown_count", 0),
+    )
+    if action.kind == "await_review":
+        progress["status"] = "awaiting_review"
+        progress["transitions"] = [
+            *progress["transitions"],
+            {
+                "from": "collecting",
+                "to": "awaiting_review",
+                "actor": owner.strip(),
+                "cause_code": "candidate_evidence_complete",
+                "at": completion.finished_at.isoformat(),
+                "evidence_refs": [completion.execution_id],
+            },
+        ]
+    return progress
+
+
 async def complete_semantic(
     db: AsyncSession,
     run_id: UUID,
@@ -271,25 +372,9 @@ async def complete_semantic(
     accepted = await read_semantic_acceptance(
         db, run_id, organization_id, owner, completion, run, cp, routes, lock=True
     )
-    policy, generated, candidate, result = (
-        accepted.policy,
-        accepted.generated,
-        accepted.candidate,
-        accepted.result,
-    )
-    evidence, creation = accepted.evidence, accepted.creation
+    generated, candidate, result = accepted.generated, accepted.candidate, accepted.result
     await db.execute(
-        table.insert().values(
-            run_id=str(run_id),
-            execution_id=completion.execution_id,
-            invocation_id=completion.invocation_id,
-            candidate_id=completion.candidate_id,
-            execution_ordinal=completion.execution_ordinal,
-            evidence_json=evidence,
-            result_json=asdict(result) if result is not None else None,
-            raw_output=completion.raw_output,
-            normalized_output=completion.normalized_output,
-        )
+        table.insert().values(**semantic_terminal_values(run_id, completion, accepted))
     )
     if result is not None:
         await db.execute(
@@ -300,77 +385,21 @@ async def complete_semantic(
             )
             .values(candidate_json=candidate)
         )
-    progress = semantic_completion_progress(
-        run["progress_json"], completion, policy, owner, candidate_claim=claim is not None
+    progress = await project_semantic_progress(
+        db,
+        run_id,
+        completion,
+        owner,
+        run,
+        accepted,
+        candidate_claim=claim is not None,
+        lock=True,
+        before_insert=False,
     )
     if claim is not None:
         return await complete_claim(
             db, run_id, expected_version, claim, progress, owner, completion.finished_at
         )
-    if result is not None and not progress.get("cancel_requested"):
-        generations = (
-            (
-                await db.execute(
-                    evaluation_generation_completions.select()
-                    .where(evaluation_generation_completions.c.run_id == str(run_id))
-                    .with_for_update()
-                )
-            )
-            .mappings()
-            .all()
-        )
-        semantics = (
-            (
-                await db.execute(
-                    table.select().where(table.c.run_id == str(run_id)).with_for_update()
-                )
-            )
-            .mappings()
-            .all()
-        )
-        dispatches = (
-            (
-                await db.execute(
-                    select(evaluation_dispatches)
-                    .where(evaluation_dispatches.c.run_id == str(run_id))
-                    .with_for_update()
-                )
-            )
-            .mappings()
-            .all()
-        )
-        slots = await asyncio.to_thread(
-            project_slots,
-            creation["slots"],
-            list(generations),
-            list(dispatches),
-            list(semantics),
-            progress.get("result_unknown_resolutions", []),
-            progress.get("semantic_contract_recoveries", []),
-            policy=policy,
-        )
-        preflight = progress["preflight"]
-        action = next_action(
-            progress["status"],
-            preflight["status"],
-            preflight["case_id"],
-            slots,
-            policy,
-            unresolved_unknown=progress.get("unresolved_result_unknown_count", 0),
-        )
-        if action.kind == "await_review":
-            progress["status"] = "awaiting_review"
-            progress["transitions"] = [
-                *progress["transitions"],
-                {
-                    "from": "collecting",
-                    "to": "awaiting_review",
-                    "actor": owner.strip(),
-                    "cause_code": "candidate_evidence_complete",
-                    "at": completion.finished_at.isoformat(),
-                    "evidence_refs": [completion.execution_id],
-                },
-            ]
     state = CheckpointState(run_id, expected_version + 1, None)
     await save_checkpoint(db, state, expected_version)
     await db.execute(
