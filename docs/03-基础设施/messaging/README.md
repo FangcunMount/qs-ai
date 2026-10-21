@@ -351,3 +351,10 @@ Solution Prepare 的显式事务适配现由 [`SolutionPreparationInput/Facts`](
 剩余 ResolveUnknown 写入口先提供 [`ResolutionPlan/plan_resolution`](../../../src/qs_ai/infrastructure/persistence/mysql/evaluation_resolution.py) 只读规划，复用原 checkpoint/Run 版本、组织、candidate drain、不可变未知执行证据、恢复预算和首次人工裁决时间规则。规划不加写锁，不写业务或消息，不调用模型；结果正文冻结为不可变 JSON，读取返回独立副本。原 accept_resolution 仍在同一个调用者根内按 checkpoint、Run 的原顺序取锁，重新规划后先执行原 checkpoint CAS 再更新进度；原容量准入及根提交仍归 management 所有。规划本身不表示新的执行或模型重试已获准。
 
 7项原实现表征在抽取前通过，抽取后36项目标及3071项非集成/非interop回归通过。新增4项真实 MySQL 用例仅收集，覆盖 generation/semantic 未知证据的只读 SELECT、原裁决共同提交/回滚和不可变执行记录；本批尚未接通 ResolveUnknown 的半消息、SDK原根或默认DI，实际门禁与进度继续回链 infra。
+
+
+ResolveUnknown 的显式事务入口由 [`ResolutionStateOperation`](../../../src/qs_ai/infrastructure/workflow_transport/resolution_state_plan.py) 与 [`ResolutionStatePlanner/Root`](../../../src/qs_ai/infrastructure/workflow_transport/resolution_state.py) 提供。首次人工裁决的操作者、目标执行、决策、风险确认、理由和时间连同源快照摘要冻结；同一调用身份的后续时钟不能改写首份审核事实。只读阶段复用原未知证据和恢复预算，并预检原宿主容量，关闭会话后才 Seal。完整半消息准备成功后，原根先取 SDK guard、再取原组织容量锁，核验版本及冻结源快照，借用同一事务调用原 resolver；原 CP/Run 锁、人工裁决、容量重验和响应规则均保留，借用 commit 不提交或关闭外层根。
+
+[`GovernanceStateDispatcher`](../../../src/qs_ai/infrastructure/workflow_transport/evaluation_governance_dispatch.py) 必须显式绑定同一 Transactions 所有者的原 management，才能处理该操作；缺绑定在读取协议或准备消息前拒绝，不复制默认容量来替代宿主配置。[`TransactionalEvaluationManagement.resolve`](../../../src/qs_ai/infrastructure/workflow_transport/transactional_evaluation_management.py) 在事务前生成本次调用身份，保留原权限 scope 与风险确认。此接口不新增跨 RPC 重试幂等约定；已有调用保持未决，不重跑原裁决或用当前视图冒充首次响应。本地提交和首次档案/witness证实后，Broker最终确认Unknown仍返回原业务成功。人工 authorize_replacement 继续只授权原预算内的未来业务，Checker和协议维护不代替人工授权或调用模型。
+
+本批27项协议/原根目标测试、3098项非集成/非interop回归、405源文件类型及lint/format通过。新增12项真实MySQL用例仅收集，包括原人工裁决与witness共同提交/回滚、档案/witness拒绝、客户端丢弃已完成提交回复、实际ResolveUnknown处理入口的准备门禁、并发裁决和真实第二个Run竞争原宿主容量；保留原未知执行账本并检查无新增模型调用。完整CI、真实Broker、成对QS及生产验收分别记入infra；默认DI继续关闭。
