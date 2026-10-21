@@ -58,6 +58,10 @@ worker 预检通过显式 `preflight_dispatch` 借用 [`PreflightStateDispatcher
 
 治理定稿与重开分别复用 [`finalized_progress`](../../../src/qs_ai/infrastructure/persistence/mysql/evaluation_finalization.py) 和 [`reopened_progress`](../../../src/qs_ai/infrastructure/persistence/mysql/evaluation_reopening.py) 的纯进度投影。宿主先取得有作用域的有效门槛快照；原事务继续持锁、重新验证门槛并提交。拒绝历史、首次审核和修正记录保持原规则。抽出投影不表示治理 RPC 已接入事务消息。
 
+[`GovernanceStateOperation`](../../../src/qs_ai/infrastructure/workflow_transport/evaluation_governance_state.py) 冻结宿主已授权的定稿/重开操作、原版本、操作者、理由和明确确认。操作 ID 由宿主在数据库根事务外分配，不新增公共跨 RPC 幂等承诺。稳定业务输入摘要与可变源快照摘要分别保存；两者都绑定首次状态计划。
+
+`GovernanceStatePlanner` 在显式 REPEATABLE READ 只读边界中复用原门槛/拒绝证据和纯投影，读取结束后才第一次 Seal。`GovernanceStateRoot` 在 guard 前设置同一隔离级别，在原根中锁定 Run/checkpoint、重验源快照和业务门槛，再提交状态、原审核历史、sequence、档案和 witness。构造不产生资源或 DDL；两种原治理操作仍不执行模型。8 项原生验收用例已提供，执行状态以 infra 总表为准。治理 RPC 与最终运行装配尚未切换。
+
 本批尚未替换全部 worker、治理和终态入口。MySQL 原状态根、实际 worker 及固定 SDK/Broker profile 分别验证；当前进度和失败记录回链 infra 总表，不据单项通过启用统一 runtime 或标记 T17 完成。
 
 ## 当前服务怎样装配这条链路
