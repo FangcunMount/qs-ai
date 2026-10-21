@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from qs_ai.domain.evaluation.assets import PolicyKind
 from qs_ai.domain.evaluation.identity import EvidenceReleaseIdentity
 from qs_ai.domain.evaluation.policy import ExecutionPolicy
+from qs_ai.domain.evaluation.suite_contracts import SuiteContracts
 from qs_ai.domain.governance.schema import SchemaAsset
 from qs_ai.infrastructure.persistence.mysql.asset_records import schema_assets
 from qs_ai.infrastructure.persistence.mysql.asset_snapshot import AssetSnapshotReader
@@ -79,6 +80,31 @@ async def evaluation_contracts(
     semantic_owner_organization_id: int | None = None,
 ) -> EvaluationContracts:
     refs = await read_suite_contracts(db, release.suite, organization_id)
+    return await contracts_from_binding(
+        db,
+        release,
+        organization_id,
+        refs,
+        semantic_owner_organization_id=semantic_owner_organization_id,
+    )
+
+
+async def contracts_from_binding(
+    db: AsyncSession,
+    release: EvidenceReleaseIdentity,
+    organization_id: int,
+    refs: SuiteContracts,
+    *,
+    semantic_owner_organization_id: int | None = None,
+) -> EvaluationContracts:
+    """Resolve original policies/semantic bytes for an exact current or future suite binding."""
+    if (
+        type(organization_id) is not int
+        or not 0 < organization_id < 2**63
+        or not isinstance(refs, SuiteContracts)
+        or refs.semantic_owner_organization_id not in (0, organization_id)
+    ):
+        raise ValueError("Exact scoped suite contract binding required")
     for field in ("execution_policy", "gate_policy", "semantic_prompt", "semantic_output_schema"):
         if getattr(refs, field) != getattr(release, field):
             raise ValueError("Release differs from fixed suite contracts")
