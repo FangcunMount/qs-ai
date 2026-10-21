@@ -4,6 +4,7 @@ import asyncio
 import json
 import re
 from collections.abc import Mapping
+from dataclasses import asdict
 from datetime import datetime
 from typing import Any
 from uuid import UUID
@@ -28,9 +29,7 @@ def _validate_requested_transition(target: str, actor: str, reason: str, at: dat
         raise ValueError("Transition time must have a time zone")
 
 
-def _validate_requested_checkpoint(
-    checkpoint: Mapping[Any, Any] | None, expected_version: int
-) -> None:
+def _validate_idle_checkpoint(checkpoint: Mapping[Any, Any] | None, expected_version: int) -> None:
     if (
         checkpoint is None
         or checkpoint["version"] != expected_version
@@ -52,7 +51,7 @@ def plan_requested_transition(
 ) -> tuple[CheckpointState, dict[str, Any]]:
     """Apply original requested-state rules to a read snapshot, without mutation or I/O."""
     _validate_requested_transition(target, actor, reason, at)
-    _validate_requested_checkpoint(checkpoint, expected_version)
+    _validate_idle_checkpoint(checkpoint, expected_version)
     if run is None or (run["run_id"] != str(run_id) or run["organization_id"] != organization_id):
         raise CheckpointConflict("Run unavailable in organization")
     creation = json.loads(run["definition_json"])
@@ -113,7 +112,7 @@ async def transition_requested(
         .mappings()
         .one_or_none()
     )
-    _validate_requested_checkpoint(checkpoint, expected_version)
+    _validate_idle_checkpoint(checkpoint, expected_version)
     run = (
         (
             await db.execute(
@@ -140,47 +139,17 @@ async def transition_requested(
     return state
 
 
-async def complete_preflight(
-    db: AsyncSession,
+def plan_preflight_completion(
     run_id: UUID,
     expected_version: int,
     organization_id: int,
-    evidence: "PreflightEvidence",
-) -> CheckpointState:
-    from dataclasses import asdict
-
-    checkpoint = (
-        (
-            await db.execute(
-                select(evaluation_checkpoints)
-                .where(evaluation_checkpoints.c.run_id == str(run_id))
-                .with_for_update()
-            )
-        )
-        .mappings()
-        .one_or_none()
-    )
-    if (
-        checkpoint is None
-        or checkpoint["version"] != expected_version
-        or checkpoint["checkpoint_json"] is not None
-    ):
-        raise CheckpointConflict("Run version changed or execution is active")
-    run = (
-        (
-            await db.execute(
-                select(evaluation_runs)
-                .where(
-                    evaluation_runs.c.run_id == str(run_id),
-                    evaluation_runs.c.organization_id == organization_id,
-                )
-                .with_for_update()
-            )
-        )
-        .mappings()
-        .one_or_none()
-    )
-    if run is None:
+    evidence: PreflightEvidence,
+    checkpoint: Mapping[Any, Any] | None,
+    run: Mapping[Any, Any] | None,
+) -> tuple[CheckpointState, dict[str, Any]]:
+    """Project original preflight acceptance on a read snapshot; no state mutation or I/O."""
+    _validate_idle_checkpoint(checkpoint, expected_version)
+    if run is None or (run["run_id"] != str(run_id) or run["organization_id"] != organization_id):
         raise CheckpointConflict("Run unavailable in organization")
     creation = json.loads(run["definition_json"])
     progress = run["progress_json"]
@@ -207,6 +176,45 @@ async def complete_preflight(
             },
         ]
     state = CheckpointState(run_id, expected_version + 1, None)
+    return state, progress
+
+
+async def complete_preflight(
+    db: AsyncSession,
+    run_id: UUID,
+    expected_version: int,
+    organization_id: int,
+    evidence: "PreflightEvidence",
+) -> CheckpointState:
+    checkpoint = (
+        (
+            await db.execute(
+                select(evaluation_checkpoints)
+                .where(evaluation_checkpoints.c.run_id == str(run_id))
+                .with_for_update()
+            )
+        )
+        .mappings()
+        .one_or_none()
+    )
+    _validate_idle_checkpoint(checkpoint, expected_version)
+    run = (
+        (
+            await db.execute(
+                select(evaluation_runs)
+                .where(
+                    evaluation_runs.c.run_id == str(run_id),
+                    evaluation_runs.c.organization_id == organization_id,
+                )
+                .with_for_update()
+            )
+        )
+        .mappings()
+        .one_or_none()
+    )
+    state, progress = plan_preflight_completion(
+        run_id, expected_version, organization_id, evidence, checkpoint, run
+    )
     await save_checkpoint(db, state, expected_version)
     await db.execute(
         update(evaluation_runs)

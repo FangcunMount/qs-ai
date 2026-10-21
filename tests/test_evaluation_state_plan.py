@@ -146,3 +146,31 @@ def test_missing_regressed_or_overflowing_sequence_evidence_is_refused_before_fr
         freeze_evaluation_state_plan(
             f.facts, str(uuid4()), f.seal(at=f.facts.at + timedelta(seconds=1))
         )
+
+
+def test_empty_operation_context_preserves_first_v1_bytes_and_fingerprint():
+    intent = EvaluationStateIntent(
+        "7",
+        "00000000-0000-0000-0000-000000000001",
+        "preflight/2",
+        2,
+        hashlib.sha256(b"original source").digest(),
+    )
+    facts = EvaluationStateFacts(intent, datetime(2026, 10, 21, tzinfo=UTC), 8, 2)
+    assert (
+        hashlib.sha256(facts.encode()).hexdigest()
+        == "f28022c500e38d60dba25a8996ec5583a18e8a5eee3e24780748abcd66a85585"
+    )
+
+
+def test_frozen_operation_context_is_bounded_owned_and_uses_an_explicit_new_version():
+    f = fixture()
+    facts = replace(f.facts, business_context=b"frozen deterministic operation facts")
+    encoded = facts.encode()
+    assert encoded.startswith(b"qs-ai-evaluation-state/v2\0")
+    assert EvaluationStateFacts.decode(encoded) == facts
+    assert facts.intent.request == f.facts.intent.request
+    assert b"frozen deterministic operation facts" not in repr(facts).encode()
+    for invalid in (b"x" * 8193, bytearray(b"mutable"), "not bytes"):
+        with pytest.raises(ValueError):
+            replace(f.facts, business_context=invalid)

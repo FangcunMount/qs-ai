@@ -4,6 +4,7 @@ The host supplies an authorized stable operation and already sealed first wire.
 These values authorize neither a model call nor an automatic Retry/Replan.
 """
 
+import base64
 import hashlib
 import json
 import re
@@ -34,6 +35,7 @@ from qs_ai.infrastructure.workflow_transport.transaction_archive import (
 )
 
 _MAGIC = b"qs-ai-evaluation-state/v1\0"
+_CONTEXT_MAGIC = b"qs-ai-evaluation-state/v2\0"
 _MAX_VERSION = 2**63 - 1
 
 
@@ -100,6 +102,7 @@ class EvaluationStateFacts:
     at: datetime
     previous_sequence: int
     previous_version: int
+    business_context: bytes = field(default=b"", repr=False)
 
     def __post_init__(self) -> None:
         if (
@@ -112,6 +115,8 @@ class EvaluationStateFacts:
             )
             or bool(self.previous_sequence) != bool(self.previous_version)
             or self.previous_version > self.intent.expected_version
+            or type(self.business_context) is not bytes
+            or len(self.business_context) > 8192
         ):
             raise ValueError("Exact original state clock and sequence evidence required")
         object.__setattr__(self, "at", self.at.astimezone(UTC))
@@ -123,25 +128,31 @@ class EvaluationStateFacts:
         )
 
     def encode(self) -> bytes:
-        raw = _MAGIC + _canonical(
-            {
-                **self.intent._fields(),
-                "at": self.at.isoformat(timespec="microseconds"),
-                "previous_sequence": self.previous_sequence,
-                "previous_version": self.previous_version,
-            }
-        )
+        value = {
+            **self.intent._fields(),
+            "at": self.at.isoformat(timespec="microseconds"),
+            "previous_sequence": self.previous_sequence,
+            "previous_version": self.previous_version,
+        }
+        if self.business_context:
+            value["business_context"] = base64.b64encode(self.business_context).decode("ascii")
+        # Every already-frozen v1 byte remains unchanged when no extension exists.
+        raw = (_CONTEXT_MAGIC if self.business_context else _MAGIC) + _canonical(value)
         if len(raw) > MAX_CONTEXT:
             raise ValueError("State plan context exceeds bounds")
         return raw
 
     @classmethod
     def decode(cls, raw: bytes) -> "EvaluationStateFacts":
-        if type(raw) is not bytes or len(raw) > MAX_CONTEXT or not raw.startswith(_MAGIC):
+        if type(raw) is not bytes or len(raw) > MAX_CONTEXT:
+            raise ValueError("Explicit bounded state plan context required")
+        extended = raw.startswith(_CONTEXT_MAGIC)
+        magic = _CONTEXT_MAGIC if extended else _MAGIC
+        if not raw.startswith(magic):
             raise ValueError("Explicit bounded state plan context required")
         try:
-            value = json.loads(raw[len(_MAGIC) :], object_pairs_hook=_unique)
-            if not isinstance(value, dict) or set(value) != {
+            value = json.loads(raw[len(magic) :], object_pairs_hook=_unique)
+            fields = {
                 "organization_id",
                 "run_id",
                 "operation_key",
@@ -150,7 +161,10 @@ class EvaluationStateFacts:
                 "at",
                 "previous_sequence",
                 "previous_version",
-            }:
+            }
+            if extended:
+                fields.add("business_context")
+            if not isinstance(value, dict) or set(value) != fields:
                 raise ValueError
             result = cls(
                 EvaluationStateIntent(
@@ -163,6 +177,7 @@ class EvaluationStateFacts:
                 datetime.fromisoformat(value["at"]),
                 value["previous_sequence"],
                 value["previous_version"],
+                base64.b64decode(value["business_context"], validate=True) if extended else b"",
             )
             if result.encode() != raw:
                 raise ValueError
