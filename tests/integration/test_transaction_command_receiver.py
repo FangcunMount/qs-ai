@@ -25,7 +25,6 @@ from tests.integration.test_interpretation import kit as kit
 from tests.integration.test_mq_admission import admission, start_message
 from tests.integration.test_mq_storage import keys as keys
 from tests.integration.test_mq_storage import received, receiver
-from tests.integration.test_transaction_start_admission import host as host
 from tests.integration.test_transaction_start_admission import incoming, planner, reserve, rows
 from tests.integration.test_transaction_start_admission import (
     required_disposable_primary as required_disposable_primary,
@@ -34,10 +33,13 @@ from tests.integration.test_transaction_start_admission import (
 pytestmark = pytest.mark.integration
 
 
-@pytest.fixture(autouse=True)
-async def owned_failure_cleanup(host):
+@pytest.fixture
+async def receiver_host(host):
+    # Do not make a database-owning cleanup autouse: that would create the
+    # participant before published_configuration and tear its referenced
+    # publication down before the participant's execution configuration.
     try:
-        yield
+        yield host
     finally:
         async with host.tx.open() as db:
             for message in host.messages:
@@ -80,8 +82,9 @@ def delivered(message):
 
 @pytest.mark.usefixtures("published_configuration")
 async def test_receiver_authenticates_and_reads_persisted_winner_on_duplicate_without_business_redo(
-    host,
+    receiver_host,
 ):
+    host = receiver_host
     handler, _, runtime = transport(host)
     value = incoming(host)
     message = SimpleNamespace(wire=value.wire)
@@ -103,7 +106,8 @@ async def test_receiver_authenticates_and_reads_persisted_winner_on_duplicate_wi
         assert not await rows(host, outbox, outbox.c.message_id == archive.envelope().message_id)
 
 
-async def test_prepared_winner_cannot_be_reacquired_or_reexecuted_by_redelivery(host):
+async def test_prepared_winner_cannot_be_reacquired_or_reexecuted_by_redelivery(receiver_host):
+    host = receiver_host
     value = incoming(host)
     owned = (await reserve(host, value, await planner(host).candidate(value))).execution
     handler, _, runtime = transport(host)
@@ -117,7 +121,8 @@ async def test_prepared_winner_cannot_be_reacquired_or_reexecuted_by_redelivery(
 
 
 @pytest.mark.usefixtures("published_configuration")
-async def test_committed_legacy_inbox_is_not_resealed_or_adopted_as_sdk_witness(host):
+async def test_committed_legacy_inbox_is_not_resealed_or_adopted_as_sdk_witness(receiver_host):
+    host = receiver_host
     handler, boundary, runtime = transport(host)
     message = start_message(host.kit, host.keys)
     try:
@@ -139,8 +144,9 @@ async def test_committed_legacy_inbox_is_not_resealed_or_adopted_as_sdk_witness(
 
 
 async def test_local_budget_hold_uses_own_empty_state_transcription_without_legacy_commit_hook(
-    host,
+    receiver_host,
 ):
+    host = receiver_host
     from unittest.mock import AsyncMock
 
     value = incoming(host)
