@@ -5,7 +5,13 @@ import math
 from typing import Any
 
 from reliable_messaging.rocketmq_transaction import TransactionSendError
-from reliable_messaging.transaction import Execution, LocalOutcome, State, decide_local
+from reliable_messaging.transaction import (
+    Execution,
+    LocalOutcome,
+    RetryAuthorization,
+    State,
+    decide_local,
+)
 
 from qs_ai.application.interpretation.ports import Claim, WorkflowResult
 from qs_ai.infrastructure.persistence.mysql.execution import MySQLExecutionStore
@@ -23,7 +29,7 @@ from qs_ai.infrastructure.workflow_transport.interpretation_state_plan import (
 from qs_ai.infrastructure.workflow_transport.interpretation_state_root import (
     InterpretationStateRoot,
 )
-from qs_ai.infrastructure.workflow_transport.transaction_root import StateTransactions
+from qs_ai.infrastructure.workflow_transport.transaction_root import AuthorizedStateTransactions
 
 
 class InterpretationFinishPending(RuntimeError):
@@ -35,7 +41,7 @@ class InterpretationFinishSender:
         self,
         store: MySQLExecutionStore,
         archives: TransactionArchive,
-        runtime: StateTransactions,
+        runtime: AuthorizedStateTransactions,
         *,
         signing_key: Any,
         recipient_key: Any,
@@ -78,22 +84,41 @@ class InterpretationFinishSender:
             if reserved.state == State.COMMITTED:
                 return await self._committed(incoming, intent, reserved.execution)
             raise InterpretationFinishPending("Original finish is already owned or unresolved")
-        business = InterpretationFinishWrite(self._store, incoming, intent, reserved.execution.plan)
+        return await self._execute_owned(incoming, intent, reserved.execution)
+
+    async def retry(self, claim: Claim, result: WorkflowResult, previous: Execution) -> None:
+        """Explicit host finalization decision; not model or automatic retry authority."""
+        incoming = InterpretationFinishInput(claim, result)
+        async with asyncio.timeout(self._database_seconds):
+            intent = incoming.intent(await finish_request_id(self._store, incoming))
+        await self._planner.verify(incoming, intent, previous.plan)
+        reserved = await self._runtime.retry(RetryAuthorization(previous))
+        if not reserved.acquired:
+            raise InterpretationFinishPending("Explicit finish retry was not acquired")
+        return await self._execute_owned(incoming, intent, reserved.execution)
+
+    async def _execute_owned(
+        self,
+        incoming: InterpretationFinishInput,
+        intent: InterpretationStateIntent,
+        owned: Execution,
+    ) -> None:
+        business = InterpretationFinishWrite(self._store, incoming, intent, owned.plan)
         root = InterpretationStateRoot(
             self._store.transactions,
             self._archives,
             self._runtime.store,
             intent,
-            reserved.execution.plan,
+            owned.plan,
             business,
             database_seconds=self._database_seconds,
         )
         try:
-            outcome = await self._runtime.execute(reserved.execution, root)
+            outcome = await self._runtime.execute(owned, root)
         except TransactionSendError as error:
             outcome = error.result
             if outcome.local != LocalOutcome.COMMITTED:
                 raise
         if outcome.local != LocalOutcome.COMMITTED:
             raise InterpretationFinishPending("Original finish root is not confirmed committed")
-        await self._committed(incoming, intent, reserved.execution)
+        await self._committed(incoming, intent, owned)

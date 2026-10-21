@@ -1897,3 +1897,82 @@ async def test_actual_original_claim_scanner_quota_defers_without_running_event(
     assert first.envelope().message_id not in b.messages
     b.recorder.flush.assert_not_called()
     passed("scanner_quota_deferral_no_running_event")
+
+
+@pytest.mark.usefixtures("published_configuration")
+@pytest.mark.parametrize("kind", ["question", "artifact"])
+async def test_actual_explicit_finalization_retry_preserves_first_wire_and_durable_response(
+    governance_broker,
+    monkeypatch,
+    kind,
+):
+    from qs_ai.application.execution.generation import DurableGeneration
+    from qs_ai.infrastructure.workflow_transport.interpretation_finish_sender import (
+        InterpretationFinishSender,
+    )
+    from qs_ai.infrastructure.workflow_transport.interpretation_finish_state import read_finish_plan
+    from tests.integration.test_interpretation_finish_root import snapshot
+
+    b = governance_broker
+    p = await _seed_original_interpretation_finish(b, kind)
+    finish = InterpretationFinishSender(
+        b.host.kit.store,
+        b.host.archives,
+        b.runtime,
+        signing_key=b.host.keys["ai.sign"],
+        recipient_key=b.host.keys["qs.encrypt"],
+    )
+    first_plan = await finish._planner.candidate(p.incoming, p.intent)
+    previous = await b.runtime.reserve(p.intent.request, first_plan)
+    assert await b.host.store.abort(previous.execution)
+    finish._planner.candidate = AsyncMock(side_effect=AssertionError("Retry cannot replan or Seal"))
+    no_generation = AsyncMock(
+        side_effect=AssertionError("Retry cannot repeat durable provider work")
+    )
+    monkeypatch.setattr(DurableGeneration, "execute", no_generation)
+    b.runtime.pause = True
+    task = asyncio.create_task(
+        finish.retry(p.incoming.claim, p.incoming.result, previous.execution)
+    )
+    try:
+        await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
+        owned = b.host.executions[-1]
+        assert owned.plan == previous.execution.plan and owned.fence == previous.execution.fence + 1
+        _, first, question_id = read_finish_plan(p.incoming, p.intent, owned.plan)
+        message_id = first.envelope().message_id
+        b.empty_poll.clear()
+        await asyncio.wait_for(b.empty_poll.wait(), timeout=20)
+        assert (
+            message_id not in b.messages
+            and await snapshot(b.host.kit, p.incoming.claim) == p.before
+        )
+        passed("finish_retry_half_invisible")
+        b.runtime.release.set()
+        assert await task is None
+        assert (
+            await StoreChecker(b.host.store).check(previous.execution.references[0])
+            == Decision.ROLLBACK
+        )
+        assert await StoreChecker(b.host.store).check(owned.references[0]) == Decision.COMMIT
+        assert await b.host.archives.read_committed(message_id) == first
+        passed("finish_retry_first_plan_and_old_abort")
+        async with asyncio.timeout(60):
+            while message_id not in b.messages:
+                assert not b.failures
+                await asyncio.sleep(0.05)
+        assert b.messages[message_id] == hashlib.sha256(first.wire).hexdigest()
+        after = await snapshot(b.host.kit, p.incoming.claim)
+        assert after[2][0]["status"] == "done"
+        if question_id is not None:
+            assert after[4][0]["id"] == question_id
+        await finish(p.incoming.claim, p.incoming.result)
+        assert await snapshot(b.host.kit, p.incoming.claim) == after
+        assert b.runtime.calls == 1 and len(b.host.executions) == 2
+        finish._planner.candidate.assert_not_called()
+        no_generation.assert_not_called()
+        b.recorder.flush.assert_not_called()
+        passed("finish_retry_duplicate_first_result")
+        passed("finish_retry_no_new_provider")
+    finally:
+        b.runtime.release.set()
+        await asyncio.gather(task, return_exceptions=True)

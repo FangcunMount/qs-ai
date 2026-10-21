@@ -491,6 +491,12 @@ ClaimStage 仅描述 miss/deferred/exhausted/claimed 的暂存结果。returned 
 本批锁定已发布Python `0.4.0a2` URL及wheel摘要`570822f9ed51eee25001624858d30b7433468eb7da59e34348289c50a37cabb2`；其他第三方锁项未变，底层客户端仍5.1.2。替代前述仅开发候选环境后，已重新安装正式发布制品，122组合目标及3427非integration/noninterop回归、418源类型与lint/format通过；6新增scanner原生MySQL及3新增Broker入口仅收集，实际门禁回链infra总表。新的Broker档要求26宿主用例/64精确证据，不能重用旧23/59证明新源。源码009b287，不表示生产、稳定SDK、system或T18模型故障验收完成。
 
 
+完成阶段提供显式 `InterpretationFinishSender.retry(claim, result, previous)`：宿主必须持有原确定性结果和旧执行引用。它复用首次冻结消息、问题ID、时间和wire，不执行规划/签名/模型；新的只读根校验原活跃Claim、业务来源摘要、请求绑定及问题序号后关闭连接，再经SDK公共Retry竞争精确旧Aborted和新fence。原业务执行和根内重新校验、档案/witness共同提交、未知结果处理与首结果重复读取仍走同一实现。普通重复、Checker和维护器不调用这个入口。
+
+此入口不授予模型重试，也不替代T18对持久化响应、恢复调度和provider调用次数的证明。已通过原74项表征、扩展后81目标和3434完整本地单元（1186 integration/interop排除、非执行通过）、418源类型、lint/format；7新增真实MySQL仅收集，源代码29b9a72，CI及生产状态回链总表。默认装配与生产保持原配置。
+
+显式完成重试的Broker档在6f42998新增question/持久化Artifact两项入口：旧Aborted保持可回查、首次plan/wire与问题ID复用、新半消息提交前不可见、原根提交后首结果可重复读取，禁止再次调用DurableGeneration。新档28宿主用例/68证据；本地仅收集，实际执行和完整清理必须由对应新infra档核验，旧26/64报告不复用。
+
 无事件配额维护根使用局部JobOnlyEvents保护：新根继承的旧提交钩子只在该session中替换，拒绝interpretation状态写入、非空evaluation事件集、原根或记录器替换；提交前和EventSession提交钩子均校验该边界。独立维护拒绝BorrowedTransactions，不能替宿主提交已有业务事务。全局Database.state_events保留，正常业务记录器不受该局部session影响。
 
 该修订由真实Broker scanner配额用例发现：原fd141候选在已返回的Python3.11档中63/64证据通过，job-only根调用了被禁止的旧flush，隔离清理完整；失败报告保留在infra总表。54007b0修复候选通过127目标、3432完整本地单元（1182 integration/interop排除）、418源类型及lint/format；9项原生配额维护用例（新增3）仅收集，须按新源码重跑真实MySQL和26/64 Broker门禁，不能复用旧fd141通过项替代验收。生产和默认装配未变。
