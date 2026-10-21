@@ -2,6 +2,7 @@
 
 import math
 from collections.abc import Awaitable, Callable
+from typing import Literal
 
 from reliable_messaging.transaction import BindingError, Execution, FrozenPlan, LocalOutcome
 from reliable_messaging.transaction_mysql import MySQLTransactionStore
@@ -36,9 +37,13 @@ class EvaluationStateRoot:
         business: StateWrite,
         *,
         database_seconds: float = 2,
+        isolation_level: Literal["READ COMMITTED", "REPEATABLE READ"] | None = None,
     ) -> None:
         if not math.isfinite(database_seconds) or database_seconds <= 0:
             raise ValueError("Finite positive state evidence budget required")
+        if isolation_level not in (None, "READ COMMITTED", "REPEATABLE READ"):
+            raise ValueError("Explicit supported root isolation required")
+        self._isolation_level = isolation_level
         self._facts, self._archive = read_evaluation_state_plan(intent, winner)
         self._events = FrozenEvaluationStateEvents(intent, winner)
         self._transactions, self._archives, self._store = transactions, archives, store
@@ -73,4 +78,5 @@ class EvaluationStateRoot:
             execution,
             write,
             database_seconds=self._database_seconds,
+            isolation_level=self._isolation_level,
         )

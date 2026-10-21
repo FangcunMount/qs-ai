@@ -2,9 +2,19 @@
 
 import asyncio
 from collections.abc import Awaitable, Callable
-from typing import Literal
+from typing import Literal, Protocol
 
-from reliable_messaging.transaction import BindingError, Execution, LocalOutcome, decide_local
+from reliable_messaging.transaction import (
+    BindingError,
+    Execution,
+    FrozenPlan,
+    LocalExecutor,
+    LocalOutcome,
+    Request,
+    Reservation,
+    Result,
+    decide_local,
+)
 from reliable_messaging.transaction_mysql import MySQLTransactionStore
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,6 +23,16 @@ from qs_ai.infrastructure.persistence.mysql.transaction_archive import (
     ArchiveGuard,
     TransactionArchive,
 )
+
+
+class StateTransactions(Protocol):
+    @property
+    def store(self) -> MySQLTransactionStore: ...
+
+    async def reserve(self, request: Request, candidate: FrozenPlan) -> Reservation: ...
+
+    async def execute(self, execution: Execution, local: LocalExecutor) -> Result: ...
+
 
 OriginalWrite = Callable[[AsyncSession, ArchiveGuard], Awaitable[None]]
 
@@ -25,7 +45,7 @@ async def commit_original(
     write: OriginalWrite,
     *,
     database_seconds: float,
-    isolation_level: Literal["READ COMMITTED"] | None = None,
+    isolation_level: Literal["READ COMMITTED", "REPEATABLE READ"] | None = None,
 ) -> LocalOutcome:
     """Invoke one already frozen write on the host root, then read fresh proof if needed.
 
