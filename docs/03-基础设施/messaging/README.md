@@ -489,3 +489,8 @@ ClaimStage 仅描述 miss/deferred/exhausted/claimed 的暂存结果。returned 
 只有原执行器实际发生配额拒绝且本地确认为Aborted时，才发出专用QuotaDenied信号。scanner还须重新查询精确中止证明，随后独立无事件job维护根沿用原绑定、锁和容量检查。半消息NotStarted/Unknown、取消或其他异常不能触发这项维护。renew/evidence继续委托原store，finish仍交给独立完成Sender；此组件显式opt-in，默认DI未启用，完整finalization/恢复与T17其他活动写入口仍需后续门禁。
 
 本批锁定已发布Python `0.4.0a2` URL及wheel摘要`570822f9ed51eee25001624858d30b7433468eb7da59e34348289c50a37cabb2`；其他第三方锁项未变，底层客户端仍5.1.2。替代前述仅开发候选环境后，已重新安装正式发布制品，122组合目标及3427非integration/noninterop回归、418源类型与lint/format通过；6新增scanner原生MySQL及3新增Broker入口仅收集，实际门禁回链infra总表。新的Broker档要求26宿主用例/64精确证据，不能重用旧23/59证明新源。源码009b287，不表示生产、稳定SDK、system或T18模型故障验收完成。
+
+
+完成阶段提供显式 `InterpretationFinishSender.retry(claim, result, previous)`：宿主必须持有原确定性结果和旧执行引用。它复用首次冻结消息、问题ID、时间和wire，不执行规划/签名/模型；新的只读根校验原活跃Claim、业务来源摘要、请求绑定及问题序号后关闭连接，再经SDK公共Retry竞争精确旧Aborted和新fence。原业务执行和根内重新校验、档案/witness共同提交、未知结果处理与首结果重复读取仍走同一实现。普通重复、Checker和维护器不调用这个入口。
+
+此入口不授予模型重试，也不替代T18对持久化响应、恢复调度和provider调用次数的证明。已通过原74项表征、扩展后81目标和3434完整本地单元（1186 integration/interop排除、非执行通过）、418源类型、lint/format；7新增真实MySQL仅收集，源代码29b9a72，CI及生产状态回链总表。默认装配与生产保持原配置。
