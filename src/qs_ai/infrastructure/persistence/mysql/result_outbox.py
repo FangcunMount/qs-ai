@@ -1,4 +1,3 @@
-import json
 from dataclasses import asdict
 from uuid import UUID, uuid4
 
@@ -7,7 +6,6 @@ from sqlalchemy import func, select
 from sqlalchemy.dialects.mysql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from qs_ai.application.integration.events import StateEvent
 from qs_ai.domain.interpretation.model import Session, Status
 from qs_ai.infrastructure.persistence.mysql.schema import (
     artifacts,
@@ -15,6 +13,7 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
     result_outbox,
     sessions,
 )
+from qs_ai.infrastructure.workflow_transport.state_projection import interpretation_state
 
 
 async def stage_state(db: AsyncSession, session: Session, *, event_id: str | None = None) -> None:
@@ -34,27 +33,17 @@ async def stage_state(db: AsyncSession, session: Session, *, event_id: str | Non
             .mappings()
             .one()
         )
-    artifact_json = ""
+    payload = None
     if session.status == Status.COMPLETED:
         payload = await db.scalar(
             select(artifacts.c.payload).where(artifacts.c.session_id == session.id)
         )
-        if payload is None:
-            raise ValueError("Completed session requires a durable artifact")
-        artifact_json = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
-    event = StateEvent(
+    event = interpretation_state(
         str(uuid4()) if event_id is None else event_id,
         request_id,
-        session.id,
-        session.actor,
-        session.testee_id,
-        session.version,
-        session.status,
-        question_id=question["id"] if question else "",
-        question=question["text"] if question else "",
-        can_skip=question["can_skip"] if question else False,
-        failure_code=session.failure_code or "",
-        artifact_json=artifact_json,
+        session,
+        question,
+        payload,
     )
     statement = insert(result_outbox).values(
         event_id=event.event_id,

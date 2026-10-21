@@ -1,6 +1,5 @@
 """Keyless evaluation event transcription in the original guarded business root."""
 
-import json
 from collections.abc import Mapping
 from typing import Any, cast
 
@@ -15,6 +14,7 @@ from qs_ai.contracts.workflow import messaging_pb2 as pb
 from qs_ai.infrastructure.persistence.mysql.schema import evaluation_checkpoints, evaluation_runs
 from qs_ai.infrastructure.workflow_transport.evaluation_plan import EvaluationPlanFacts
 from qs_ai.infrastructure.workflow_transport.state_events import evaluation_sequences
+from qs_ai.infrastructure.workflow_transport.state_projection import evaluation_state
 from qs_ai.infrastructure.workflow_transport.transaction_command import (
     FrozenCommandInput,
     read_admission_plan,
@@ -78,16 +78,7 @@ class FrozenEvaluationEvents:
         )
         if row is None:
             raise MessageConflict("Original evaluation state missing")
-        creation = json.loads(row["definition_json"])
-        progress = row["progress_json"] or creation
-        actual = pb.EvaluationRuntimeState(
-            run_id=expected.run_id,
-            organization_id=str(row["organization_id"]),
-            version=row["version"],
-            event_sequence=expected.event_sequence,
-            status=progress["status"],
-            release_fingerprint=creation["release_fingerprint"],
-        )
+        actual = evaluation_state(expected.run_id, row, expected.event_sequence)
         if actual != expected:
             raise MessageConflict("Original evaluation state differs from first frozen message")
         previous = (
