@@ -1,12 +1,17 @@
 """Actual scoped semantic source observation preserves the original terminal root."""
 
+import json
+from dataclasses import asdict
 from datetime import timedelta
 
 import pytest
 
 from qs_ai.application.evaluation.management import ManagementScope
 from qs_ai.infrastructure.persistence.mysql.evaluation_management import MySQLEvaluationManagement
-from qs_ai.infrastructure.persistence.mysql.evaluation_semantic import load_serial_semantic_state
+from qs_ai.infrastructure.persistence.mysql.evaluation_semantic import (
+    load_serial_semantic_state,
+    read_semantic_acceptance,
+)
 from tests.integration.test_evaluation_completions import dispatched as dispatched
 from tests.integration.test_evaluation_completions import stored
 from tests.integration.test_evaluation_runs import rows
@@ -35,6 +40,14 @@ async def test_readonly_semantic_state_and_original_acceptor_keep_cancel_candida
     before, generations = await rows(tx, run_id), await stored(tx, run_id)
     async with tx.open() as db:
         source = await load_serial_semantic_state(db, run_id, 8, 1, lock=False)
+        planned = await read_semantic_acceptance(
+            db, run_id, 1, "worker:2", value, source.run, source.checkpoint, judge[3], lock=False
+        )
+        assert planned.candidate["review_ready"] is True
+        assert (
+            planned.result is not None
+            and planned.result.output_fingerprint == value.output_fingerprint
+        )
     assert source.version == (9 if cancel else 8)
     assert source.checkpoint.invocation_id == value.invocation_id
     assert await rows(tx, run_id) == before and await stored(tx, run_id) == generations
@@ -50,6 +63,9 @@ async def test_readonly_semantic_state_and_original_acceptor_keep_cancel_candida
         (record,) = await evidence(tx, run_id)
         (candidate,) = await stored(tx, run_id)
         assert record["execution_id"] == value.execution_id
+        assert record["evidence_json"] == json.loads(json.dumps(planned.evidence))
+        assert record["result_json"] == json.loads(json.dumps(asdict(planned.result)))
+        assert candidate["candidate_json"] == json.loads(json.dumps(planned.candidate))
         assert record["raw_output"] == value.raw_output
         assert candidate["candidate_json"]["review_ready"] is True
         assert candidate["candidate_json"]["accepted_semantic_execution_id"] == value.execution_id

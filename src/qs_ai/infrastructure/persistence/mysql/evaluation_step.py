@@ -20,7 +20,7 @@ from qs_ai.application.evaluation.model_response import response_evidence
 from qs_ai.application.execution.model_capacity import CapacityToken, ModelCapacity
 from qs_ai.application.interpretation.prompts import PromptMessages
 from qs_ai.application.interpretation.provider import ModelResponse, ModelRoute
-from qs_ai.application.interpretation.route_assets import RouteAssets
+from qs_ai.application.interpretation.route_assets import RouteAssets, RouteReader
 from qs_ai.application.interpretation.schema_assets import SchemaAssets, SchemaReader
 from qs_ai.application.operations.diagnostics import emit
 from qs_ai.domain.evaluation.checkpoint import ExecutionCheckpoint
@@ -344,7 +344,7 @@ async def prepare_step_completion(
     prepared: PreparedStep,
     response: ModelResponse | None,
     failure: ClassifiedFailure | None,
-    routes: RouteAssets,
+    routes: RouteReader,
     *,
     clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     candidate_id: str | None = None,

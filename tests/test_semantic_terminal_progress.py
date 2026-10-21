@@ -24,6 +24,7 @@ class Decisions:
     decisions: tuple = ()
 
 
+@pytest.mark.parametrize("phase", ["original_write", "readonly_acceptance", "locked_acceptance"])
 @pytest.mark.parametrize("candidate_claim", [False, True])
 @pytest.mark.parametrize(
     "outcome",
@@ -38,7 +39,7 @@ class Decisions:
     ],
 )
 async def test_original_semantic_budget_candidate_owner_cancel_and_review_progress(
-    monkeypatch, candidate_claim, outcome
+    monkeypatch, candidate_claim, outcome, phase
 ):
     run_id, generated, first = uuid4(), generation(), semantic()
     success, cancel = (
@@ -169,7 +170,42 @@ async def test_original_semantic_budget_candidate_owner_cancel_and_review_progre
         if success and not cancel:
             responses.extend([many([]), many([]), many([])])
         responses.append(Mock())
+    if phase != "original_write":
+        responses = [one(dict(candidate_json=candidate)), ledger, many(prior)]
     db = SimpleNamespace(execute=AsyncMock(side_effect=responses), commit=AsyncMock())
+    if phase != "original_write":
+        planned = await original.read_semantic_acceptance(
+            db,
+            run_id,
+            1,
+            " worker:first ",
+            completed,
+            run,
+            cp,
+            Mock(),
+            lock=phase == "locked_acceptance",
+        )
+        assert planned.generated == generated and planned.policy is policy
+        assert planned.candidate["id"] == completed.candidate_id
+        assert planned.candidate["review_ready"] == success
+        assert bool(planned.result is not None) == success
+        assert planned.evidence["invocation_id"] == completed.invocation_id
+        assert planned.evidence["output_fingerprint"] == completed.output_fingerprint
+        assert "raw_output" not in planned.evidence and "normalized_output" not in planned.evidence
+        assert candidate["review_ready"] is False
+        assert "accepted_semantic_execution_id" not in candidate
+        assert len(db.execute.await_args_list) == 3
+        assert all(c.args[0].is_select for c in db.execute.await_args_list)
+        assert all(
+            (c.args[0]._for_update_arg is not None) == (phase == "locked_acceptance")
+            for c in db.execute.await_args_list
+        )
+        save.assert_not_called()
+        accepted.assert_not_called()
+        db.commit.assert_not_called()
+        next_action.assert_not_called()
+        policy.allows_automatic_semantic_recovery.assert_not_called()
+        return
     result = await original.complete_semantic(
         db, run_id, 5, 1, " worker:first ", completed, Mock(), claim=claim
     )

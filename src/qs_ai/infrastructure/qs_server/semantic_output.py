@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from jsonschema import Draft202012Validator
 
 from qs_ai.application.evaluation.release import resolve_semantic_route
-from qs_ai.application.interpretation.route_assets import RouteAssets
+from qs_ai.application.interpretation.route_assets import RouteReader
 from qs_ai.domain.evaluation.completion import ProviderReceipt
 from qs_ai.domain.evaluation.identity import EvidenceReleaseIdentity
 from qs_ai.domain.evaluation.preflight import AssertionReceipt
@@ -40,7 +40,7 @@ def _reject_constant(value: str) -> None:
 async def parse_semantic_output(
     raw: bytes,
     release: EvidenceReleaseIdentity,
-    routes: RouteAssets,
+    routes: RouteReader,
     receipt: ProviderReceipt,
     invocation_id: str,
     obligations: tuple[AssertionReceipt, ...],
