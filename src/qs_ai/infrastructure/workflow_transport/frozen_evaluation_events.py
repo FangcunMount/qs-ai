@@ -13,6 +13,10 @@ from sqlalchemy.ext.asyncio import AsyncSession, AsyncSessionTransaction
 from qs_ai.contracts.workflow import messaging_pb2 as pb
 from qs_ai.infrastructure.persistence.mysql.schema import evaluation_checkpoints, evaluation_runs
 from qs_ai.infrastructure.workflow_transport.evaluation_plan import EvaluationPlanFacts
+from qs_ai.infrastructure.workflow_transport.evaluation_state_plan import (
+    EvaluationStateIntent,
+    read_evaluation_state_plan,
+)
 from qs_ai.infrastructure.workflow_transport.state_events import evaluation_sequences
 from qs_ai.infrastructure.workflow_transport.state_projection import evaluation_state
 from qs_ai.infrastructure.workflow_transport.transaction_command import (
@@ -21,18 +25,25 @@ from qs_ai.infrastructure.workflow_transport.transaction_command import (
 )
 
 
-class FrozenEvaluationEvents:
-    def __init__(self, incoming: FrozenCommandInput, plan: FrozenPlan) -> None:
-        self._facts = EvaluationPlanFacts.from_plan(incoming, plan)
-        states = [
-            a
-            for a in read_admission_plan(incoming, plan)
-            if a.envelope().kind == pb.EVALUATION_STATE
-        ]
+class EvaluationStateTranscription:
+    """Transcribe one already frozen visible state on the guarded original root."""
+
+    def __init__(
+        self,
+        plan_digest: bytes,
+        expected: pb.EvaluationRuntimeState | None,
+        previous_sequence: int,
+        previous_version: int,
+    ) -> None:
+        if type(plan_digest) is not bytes or len(plan_digest) != 32:
+            raise MessageConflict("Exact frozen state plan digest required")
         self._expected = (
-            pb.MessagingBody.FromString(states[0].body).evaluation_state if states else None
+            pb.EvaluationRuntimeState.FromString(expected.SerializeToString())
+            if expected is not None
+            else None
         )
-        self._plan_digest = plan.digest
+        self._previous_sequence, self._previous_version = previous_sequence, previous_version
+        self._plan_digest = plan_digest
         self._used = False
         self._db: AsyncSession | None = None
         self._root: AsyncSessionTransaction | None = None
@@ -48,6 +59,8 @@ class FrozenEvaluationEvents:
         root = db.get_transaction()
         if self._used or root is None or not root.is_active:
             raise MessageConflict("One active original evaluation root required")
+        if self._db is not None and (self._db is not db or self._root is not root):
+            raise MessageConflict("Frozen evaluation transcription cannot cross roots")
         await bind(db).validate()
         self._db, self._root = db, root
         expected = self._expected
@@ -92,24 +105,23 @@ class FrozenEvaluationEvents:
             .mappings()
             .one_or_none()
         )
-        facts = self._facts
         if previous is None:
-            if (facts.previous_sequence, facts.previous_version) != (0, 0):
+            if (self._previous_sequence, self._previous_version) != (0, 0):
                 raise MessageConflict("Original evaluation sequence evidence missing")
             await db.execute(
                 insert(evaluation_sequences).values(run_id=expected.run_id, sequence=0, version=0)
             )
         elif (previous["sequence"], previous["version"]) != (
-            facts.previous_sequence,
-            facts.previous_version,
+            self._previous_sequence,
+            self._previous_version,
         ):
             raise MessageConflict("Original evaluation sequence changed")
         result = await db.execute(
             update(evaluation_sequences)
             .where(
                 evaluation_sequences.c.run_id == expected.run_id,
-                evaluation_sequences.c.sequence == facts.previous_sequence,
-                evaluation_sequences.c.version == facts.previous_version,
+                evaluation_sequences.c.sequence == self._previous_sequence,
+                evaluation_sequences.c.version == self._previous_version,
             )
             .values(sequence=expected.event_sequence, version=expected.version)
         )
@@ -120,3 +132,26 @@ class FrozenEvaluationEvents:
         await bind(db).validate()
         db.info.pop("evaluation_events", None)
         self._used = True
+
+
+class FrozenEvaluationEvents(EvaluationStateTranscription):
+    """Original command boundary retains its explicit admission context."""
+
+    def __init__(self, incoming: FrozenCommandInput, plan: FrozenPlan) -> None:
+        facts = EvaluationPlanFacts.from_plan(incoming, plan)
+        states = [
+            a
+            for a in read_admission_plan(incoming, plan)
+            if a.envelope().kind == pb.EVALUATION_STATE
+        ]
+        expected = pb.MessagingBody.FromString(states[0].body).evaluation_state if states else None
+        super().__init__(plan.digest, expected, facts.previous_sequence, facts.previous_version)
+
+
+class FrozenEvaluationStateEvents(EvaluationStateTranscription):
+    """A non-command state uses its own intent, never a fabricated Inbox receipt."""
+
+    def __init__(self, intent: EvaluationStateIntent, plan: FrozenPlan) -> None:
+        facts, value = read_evaluation_state_plan(intent, plan)
+        expected = pb.MessagingBody.FromString(value.body).evaluation_state
+        super().__init__(plan.digest, expected, facts.previous_sequence, facts.previous_version)
