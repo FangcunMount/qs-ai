@@ -515,3 +515,6 @@ ClaimStage 仅描述 miss/deferred/exhausted/claimed 的暂存结果。returned 
 评测串行 generation 的终态来源读取与原写入共用 `load_serial_generation_source`：读取原checkpoint与组织内Run，校验精确dispatch身份，以及原版本或精确cancel_requested来源/目标版本。只读规划不加锁、不写入、不提交；原complete_generation按原checkpoint→Run顺序加锁重验，再执行既有ledger、冻结资产、历史终态与checkpoint CAS。只读结果不是提交证明或模型重试许可；lease到期不替代原证据规则。candidate路径继续由原completion_owner管理。
 
 代码3c6e5ff：新增原入口9项表征先通过，再抽取；抽取后41组合目标、3486完整本地单元（1199 integration/interop明确排除）、419源类型和lint/format通过。5项真实MySQL用例仅收集，覆盖无写读取、取消drain、原根提交/回滚及旧观察不能重复提交；须按精确新源码完成required CI，不计完整terminal Sender、T18模型恢复或生产验收。
+
+
+原来源校验候选0ef23e8的实际MySQL8.4分片失败：foreign invocation测试只替换完成对象的invocation，未同步原provider receipt，被领域构造校验提前拒绝，未进入目标SQL冲突路径。修订使两者均为同一foreign身份，构造有效但仍必须被原dispatch校验拒绝；补两项只读/加锁负例，本地43组合目标、3488完整单元（1199 integration/interop排除）通过。保留失败报告，原领域校验与SQL条件不变，5项原生仍须按新源码完整重验。
