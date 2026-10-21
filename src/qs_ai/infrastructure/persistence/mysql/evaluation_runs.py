@@ -2,7 +2,7 @@
 
 import json
 import re
-from dataclasses import asdict
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from uuid import UUID
 
@@ -18,6 +18,7 @@ from qs_ai.application.interpretation.route_assets import RouteAssets
 from qs_ai.application.interpretation.schema_assets import SchemaAssets
 from qs_ai.domain.evaluation.acceptance import rule_document
 from qs_ai.domain.evaluation.identity import EvidenceReleaseIdentity
+from qs_ai.domain.evaluation.policy import ExecutionPolicy
 from qs_ai.domain.governance.manifest import GenerationManifest
 from qs_ai.infrastructure.persistence.mysql.database import Transactions, changed_evaluation
 from qs_ai.infrastructure.persistence.mysql.evaluation_contracts import evaluation_contracts
@@ -26,7 +27,17 @@ from qs_ai.infrastructure.persistence.mysql.evaluation_suites import load_regist
 from qs_ai.infrastructure.persistence.mysql.schema import evaluation_checkpoints, evaluation_runs
 
 
-async def create_run(
+@dataclass(frozen=True)
+class RunCreationPlan:
+    run_id: UUID
+    organization_id: int
+    requested_by: str
+    execution_mode: str
+    definition_json: str = field(repr=False)
+    policy: ExecutionPolicy = field(repr=False)
+
+
+async def plan_run_creation(
     db: AsyncSession,
     run_id: UUID,
     release: EvidenceReleaseIdentity,
@@ -37,8 +48,8 @@ async def create_run(
     *,
     generation_manifest: GenerationManifest | None = None,
     execution_mode: str = "serial_v1",
-) -> CheckpointState:
-    """Caller must authorize actor and resolve every asset before entering this operation."""
+) -> RunCreationPlan:
+    """Read original contract bytes; caller owns the snapshot and all subsequent writes."""
     if execution_mode not in ("serial_v1", "candidate_v2"):
         raise ValueError("Invalid evaluation execution mode")
     if not isinstance(run_id, UUID) or run_id.int == 0:
@@ -106,20 +117,60 @@ async def create_run(
         validate_generation_manifest(release, generation_manifest)
         definition["generation_manifest_json"] = generation_manifest.canonical_json()
         definition["generation_manifest_fingerprint"] = generation_manifest.fingerprint()
+    return RunCreationPlan(
+        run_id,
+        organization_id,
+        requested_by,
+        execution_mode,
+        json.dumps(definition, ensure_ascii=False, separators=(",", ":")),
+        policy,
+    )
+
+
+async def apply_run_creation(db: AsyncSession, plan: RunCreationPlan) -> CheckpointState:
+    """Apply the frozen creation on this exact caller-owned root, without committing."""
+    definition = json.loads(plan.definition_json)
     await db.execute(
         insert(evaluation_runs).values(
-            run_id=str(run_id),
-            execution_mode=execution_mode,
-            organization_id=organization_id,
-            requested_by=requested_by,
-            definition_json=json.dumps(definition, ensure_ascii=False, separators=(",", ":")),
+            run_id=str(plan.run_id),
+            execution_mode=plan.execution_mode,
+            organization_id=plan.organization_id,
+            requested_by=plan.requested_by,
+            definition_json=plan.definition_json,
             progress_json={"status": "requested", "transitions": definition["transitions"]},
         )
     )
-    await freeze_policy(db, run_id, policy)
-    await db.execute(insert(evaluation_checkpoints).values(run_id=str(run_id), version=1))
-    changed_evaluation(db, str(run_id))
-    return CheckpointState(run_id, 1, None)
+    await freeze_policy(db, plan.run_id, plan.policy)
+    await db.execute(insert(evaluation_checkpoints).values(run_id=str(plan.run_id), version=1))
+    changed_evaluation(db, str(plan.run_id))
+    return CheckpointState(plan.run_id, 1, None)
+
+
+async def create_run(
+    db: AsyncSession,
+    run_id: UUID,
+    release: EvidenceReleaseIdentity,
+    organization_id: int,
+    requested_by: str,
+    request_reason: str,
+    created_at: datetime,
+    *,
+    generation_manifest: GenerationManifest | None = None,
+    execution_mode: str = "serial_v1",
+) -> CheckpointState:
+    """Caller authorizes the request, resolves assets and owns the original commit."""
+    plan = await plan_run_creation(
+        db,
+        run_id,
+        release,
+        organization_id,
+        requested_by,
+        request_reason,
+        created_at,
+        generation_manifest=generation_manifest,
+        execution_mode=execution_mode,
+    )
+    return await apply_run_creation(db, plan)
 
 
 class MySQLRunCreator:
