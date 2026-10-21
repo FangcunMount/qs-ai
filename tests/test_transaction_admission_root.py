@@ -16,7 +16,7 @@ from qs_ai.infrastructure.workflow_transport.transaction_command import freeze_a
 from tests.test_admission_plan import fixture
 
 
-def root_fixture(decision=pb.ACCEPTED, *, with_events=True):
+def root_fixture(decision=pb.ACCEPTED, *, with_events=True, isolation_level=None):
     incoming, receipt, state = fixture(decision)
     publications = ((receipt, 2),) if decision == pb.HELD else ((receipt, 2), (state, 2))
     plan = freeze_admission_plan(incoming, str(uuid4()), publications)
@@ -31,6 +31,7 @@ def root_fixture(decision=pb.ACCEPTED, *, with_events=True):
         get_transaction=Mock(return_value=original_root),
         info={},
         begin=AsyncMock(side_effect=lambda: event("begin")),
+        connection=AsyncMock(side_effect=lambda **_: event("connection")),
         commit=AsyncMock(side_effect=lambda: event("commit")),
         rollback=AsyncMock(side_effect=lambda: event("rollback")),
     )
@@ -84,6 +85,7 @@ def root_fixture(decision=pb.ACCEPTED, *, with_events=True):
         reservation_token=str(uuid4()),
         business=action,
         events=recorder if with_events else None,
+        isolation_level=isolation_level,
     )
     return SimpleNamespace(**locals())
 
@@ -275,3 +277,19 @@ async def test_no_state_plan_cannot_run_legacy_message_commit_hook():
     legacy.flush.assert_not_called()
     f.db.commit.assert_not_called()
     f.action.assert_not_called()
+
+
+async def test_current_read_mode_is_chosen_before_guard_and_preserves_original_root():
+    f = root_fixture(isolation_level="READ COMMITTED")
+    assert await f.local(f.execution) == LocalOutcome.COMMITTED
+    assert f.events[:5] == ["open", "begin", "connection", "guard", "business"]
+    f.db.connection.assert_awaited_once_with(
+        execution_options={"isolation_level": "READ COMMITTED"}
+    )
+    assert f.db.get_transaction() is f.original_root
+
+
+@pytest.mark.parametrize("invalid", ["AUTOCOMMIT", "SERIALIZABLE", True])
+def test_admission_root_cannot_silently_choose_other_transaction_modes(invalid):
+    with pytest.raises(ValueError):
+        root_fixture(isolation_level=invalid)

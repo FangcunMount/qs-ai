@@ -8,6 +8,7 @@ adapters. This module does not assemble or enable the production receiver.
 import asyncio
 import math
 from collections.abc import Awaitable, Callable
+from typing import Literal
 
 from reliable_messaging.durable import MessageConflict
 from reliable_messaging.transaction import (
@@ -142,7 +143,10 @@ class AdmissionRoot:
         business: AdmissionAction,
         events: FrozenInterpretationEvents | None = None,
         database_seconds: float = 2,
+        isolation_level: Literal["READ COMMITTED"] | None = None,
     ) -> None:
+        if isolation_level is not None and isolation_level != "READ COMMITTED":
+            raise ValueError("Only explicit READ COMMITTED admission mode supported")
         if not valid_id(reservation_token):
             raise BindingError("Frozen Inbox reservation identity required")
         if not math.isfinite(database_seconds) or database_seconds <= 0:
@@ -152,6 +156,7 @@ class AdmissionRoot:
         self._reservation_token, self._business = reservation_token, business
         self._events = events
         self._database_seconds = database_seconds
+        self._isolation_level = isolation_level
         self._used = False
 
     async def _proof(self, execution: Execution) -> LocalOutcome:
@@ -182,6 +187,13 @@ class AdmissionRoot:
                 await db.begin()
                 original = db.get_transaction()
                 try:
+                    if self._isolation_level is not None:
+                        # No connection/table read precedes this. Evaluation
+                        # admission locks must gate fresh capacity reads even
+                        # after the protocol guard has inspected its own tables.
+                        await db.connection(
+                            execution_options={"isolation_level": self._isolation_level}
+                        )
                     # First conditional write competes with the same execution's aborter.
                     guard = await self._archives.bind(db, execution)
                     if self._events is not None:
