@@ -2,7 +2,7 @@
 
 import asyncio
 import json
-from dataclasses import asdict
+from dataclasses import asdict, dataclass, field
 from uuid import UUID
 
 from sqlalchemy import select, update
@@ -11,10 +11,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict, CheckpointState
 from qs_ai.application.evaluation.release import resolve_semantic_route
-from qs_ai.application.interpretation.route_assets import RouteAssets
+from qs_ai.application.interpretation.route_assets import RouteReader
 from qs_ai.domain.evaluation.actions import next_action
 from qs_ai.domain.evaluation.checkpoint import ExecutionCheckpoint
+from qs_ai.domain.evaluation.completion import GenerationCompletion
 from qs_ai.domain.evaluation.identity import EvidenceReleaseIdentity, FrozenContractRef
+from qs_ai.domain.evaluation.policy import ExecutionPolicy
 from qs_ai.domain.evaluation.preflight import AssertionReceipt
 from qs_ai.domain.evaluation.semantic_completion import SemanticCompletion
 from qs_ai.infrastructure.persistence.mysql.completion_records import (
@@ -29,6 +31,9 @@ from qs_ai.infrastructure.persistence.mysql.evaluation_candidate_completion impo
     completion_owner,
 )
 from qs_ai.infrastructure.persistence.mysql.evaluation_checkpoints import decode, save_checkpoint
+from qs_ai.infrastructure.persistence.mysql.evaluation_completion_progress import (
+    semantic_completion_progress,
+)
 from qs_ai.infrastructure.persistence.mysql.evaluation_contracts import semantic_contract
 from qs_ai.infrastructure.persistence.mysql.evaluation_frozen_policies import frozen_policies
 from qs_ai.infrastructure.persistence.mysql.evaluation_projection import (
@@ -45,63 +50,51 @@ from qs_ai.infrastructure.qs_server.evaluation_assertions import (
     assertion_inventory,
     semantic_obligations,
 )
-from qs_ai.infrastructure.qs_server.semantic_output import parse_semantic_output
+from qs_ai.infrastructure.qs_server.semantic_output import SemanticResult, parse_semantic_output
 
 
-async def complete_semantic(
+@dataclass(frozen=True)
+class SerialSemanticState:
+    """Scoped source data, not candidate ownership, commit proof or model authority."""
+
+    version: int
+    checkpoint: ExecutionCheckpoint | None = field(repr=False)
+    run: dict | RowMapping = field(repr=False)
+
+
+async def load_serial_semantic_state(
     db: AsyncSession,
     run_id: UUID,
     expected_version: int,
     organization_id: int,
-    owner: str,
-    completion: SemanticCompletion,
-    routes: RouteAssets,
     *,
-    claim: SlotClaim | None = None,
-) -> CheckpointState:
-    run: dict | RowMapping | None
-    cp: ExecutionCheckpoint | None
-    if claim is not None:
-        run, expected_version, claim = await completion_owner(db, run_id, organization_id, claim)
-        cp = claim.checkpoint
-    else:
-        checkpoint = (
-            (
-                await db.execute(
-                    select(evaluation_checkpoints)
-                    .where(evaluation_checkpoints.c.run_id == str(run_id))
-                    .with_for_update()
-                )
-            )
-            .mappings()
-            .one_or_none()
-        )
-        if checkpoint is None:
-            raise CheckpointConflict("Run version changed")
-        cp = decode(checkpoint["checkpoint_json"])
-        run = (
-            (
-                await db.execute(
-                    select(evaluation_runs)
-                    .where(
-                        evaluation_runs.c.run_id == str(run_id),
-                        evaluation_runs.c.organization_id == organization_id,
-                    )
-                    .with_for_update()
-                )
-            )
-            .mappings()
-            .one_or_none()
-        )
-        if (
-            run is None
-            or not run["progress_json"]
-            or run["progress_json"]["status"] != "collecting"
-        ):
-            raise CheckpointConflict("Collecting Run in organization required")
-    if claim is None:
-        assert checkpoint is not None
-    if claim is None and checkpoint is not None and checkpoint["version"] != expected_version:
+    lock: bool,
+) -> SerialSemanticState:
+    """Original serial state/cancellation boundary; candidate validation remains separate.
+
+    The readonly planner must still verify accepted generation, exact candidate,
+    terminal/dispatch history and immutable assets. The original writer repeats
+    these scoped reads with locks and retains all those original validations.
+    """
+    checkpoint_query = select(evaluation_checkpoints).where(
+        evaluation_checkpoints.c.run_id == str(run_id)
+    )
+    if lock:
+        checkpoint_query = checkpoint_query.with_for_update()
+    checkpoint = (await db.execute(checkpoint_query)).mappings().one_or_none()
+    if checkpoint is None:
+        raise CheckpointConflict("Run version changed")
+    cp = decode(checkpoint["checkpoint_json"])
+    run_query = select(evaluation_runs).where(
+        evaluation_runs.c.run_id == str(run_id),
+        evaluation_runs.c.organization_id == organization_id,
+    )
+    if lock:
+        run_query = run_query.with_for_update()
+    run = (await db.execute(run_query)).mappings().one_or_none()
+    if run is None or not run["progress_json"] or run["progress_json"]["status"] != "collecting":
+        raise CheckpointConflict("Collecting Run in organization required")
+    if checkpoint["version"] != expected_version:
         intent = run["progress_json"].get("cancel_requested", {})
         if (
             intent.get("source_version") != expected_version
@@ -109,22 +102,46 @@ async def complete_semantic(
         ):
             raise CheckpointConflict("Run version changed outside cancellation")
         expected_version = checkpoint["version"]
+    return SerialSemanticState(expected_version, cp, run)
+
+
+@dataclass(frozen=True)
+class SemanticAcceptance:
+    """Validated deterministic evidence; still not root commit, witness or model permission."""
+
+    policy: ExecutionPolicy = field(repr=False)
+    generated: GenerationCompletion = field(repr=False)
+    candidate: dict = field(repr=False)
+    result: SemanticResult | None = field(repr=False)
+    evidence: dict = field(repr=False)
+    creation: dict = field(repr=False)
+
+
+async def read_semantic_acceptance(
+    db: AsyncSession,
+    run_id: UUID,
+    organization_id: int,
+    owner: str,
+    completion: SemanticCompletion,
+    run: dict | RowMapping,
+    cp: ExecutionCheckpoint | None,
+    routes: RouteReader,
+    *,
+    lock: bool,
+) -> SemanticAcceptance:
+    """Original accepted candidate/dispatch/history/assets and evidence construction.
+
+    No SQL mutation, provider call, identity generation or commit. Caller owns its
+    source boundary; the original writer repeats all reads with its original locks.
+    """
     # Use the conditional unique key for the original single-candidate lock boundary.
-    row = (
-        (
-            await db.execute(
-                evaluation_generation_completions.select()
-                .where(
-                    evaluation_generation_completions.c.run_id == str(run_id),
-                    evaluation_generation_completions.c.gen_candidate_key
-                    == completion.candidate_id,
-                )
-                .with_for_update()
-            )
-        )
-        .mappings()
-        .one_or_none()
+    candidate_query = evaluation_generation_completions.select().where(
+        evaluation_generation_completions.c.run_id == str(run_id),
+        evaluation_generation_completions.c.gen_candidate_key == completion.candidate_id,
     )
+    if lock:
+        candidate_query = candidate_query.with_for_update()
+    row = (await db.execute(candidate_query)).mappings().one_or_none()
     if row is None or not row["candidate_json"]:
         raise CheckpointConflict("Accepted candidate required")
     generated = decode_completion(row)
@@ -143,16 +160,13 @@ async def complete_semantic(
         candidate["normalized_output_fingerprint"],
     ) != (completion.candidate_id, generated.execution_id, generated.normalized_fingerprint):
         raise CheckpointConflict("Candidate identity or output evidence mismatch")
-    ledger = (
-        await db.execute(
-            select(evaluation_dispatches.c.checkpoint_json)
-            .where(
-                evaluation_dispatches.c.run_id == str(run_id),
-                evaluation_dispatches.c.invocation_id == completion.invocation_id,
-            )
-            .with_for_update()
-        )
-    ).scalar_one_or_none()
+    ledger_query = select(evaluation_dispatches.c.checkpoint_json).where(
+        evaluation_dispatches.c.run_id == str(run_id),
+        evaluation_dispatches.c.invocation_id == completion.invocation_id,
+    )
+    if lock:
+        ledger_query = ledger_query.with_for_update()
+    ledger = (await db.execute(ledger_query)).scalar_one_or_none()
     dispatched = decode(ledger)
     if (
         dispatched is None
@@ -160,21 +174,17 @@ async def complete_semantic(
         or (dispatched.case_id, dispatched.slot_ordinal) != (cp.case_id, cp.slot_ordinal)
     ):
         raise CheckpointConflict("Matching semantic dispatch reservation required")
-    previous = (
-        (
-            await db.execute(
-                table.select()
-                .where(
-                    table.c.run_id == str(run_id),
-                    table.c.sem_candidate_key == completion.candidate_id,
-                )
-                .order_by(table.c.execution_ordinal)
-                .with_for_update()
-            )
+    previous_query = (
+        table.select()
+        .where(
+            table.c.run_id == str(run_id),
+            table.c.sem_candidate_key == completion.candidate_id,
         )
-        .mappings()
-        .all()
+        .order_by(table.c.execution_ordinal)
     )
+    if lock:
+        previous_query = previous_query.with_for_update()
+    previous = (await db.execute(previous_query)).mappings().all()
     if [r["execution_ordinal"] for r in previous] != list(
         range(1, completion.execution_ordinal)
     ) or any(r["result_json"] is not None for r in previous):
@@ -234,6 +244,40 @@ async def complete_semantic(
     for key in ("started_at", "finished_at"):
         evidence[key] = evidence[key].isoformat()
     evidence["output_fingerprint"] = completion.output_fingerprint
+    return SemanticAcceptance(policy, generated, candidate, result, evidence, creation)
+
+
+async def complete_semantic(
+    db: AsyncSession,
+    run_id: UUID,
+    expected_version: int,
+    organization_id: int,
+    owner: str,
+    completion: SemanticCompletion,
+    routes: RouteReader,
+    *,
+    claim: SlotClaim | None = None,
+) -> CheckpointState:
+    run: dict | RowMapping | None
+    cp: ExecutionCheckpoint | None
+    if claim is not None:
+        run, expected_version, claim = await completion_owner(db, run_id, organization_id, claim)
+        cp = claim.checkpoint
+    else:
+        source = await load_serial_semantic_state(
+            db, run_id, expected_version, organization_id, lock=True
+        )
+        run, cp, expected_version = source.run, source.checkpoint, source.version
+    accepted = await read_semantic_acceptance(
+        db, run_id, organization_id, owner, completion, run, cp, routes, lock=True
+    )
+    policy, generated, candidate, result = (
+        accepted.policy,
+        accepted.generated,
+        accepted.candidate,
+        accepted.result,
+    )
+    evidence, creation = accepted.evidence, accepted.creation
     await db.execute(
         table.insert().values(
             run_id=str(run_id),
@@ -256,37 +300,13 @@ async def complete_semantic(
             )
             .values(candidate_json=candidate)
         )
-    progress = dict(run["progress_json"])
-    cause = ""
-    if completion.status == "result_unknown":
-        progress["unresolved_result_unknown_count"] = (
-            progress.get("unresolved_result_unknown_count", 0) + 1
-        )
-        cause = "result_unknown_requires_review"
-    elif completion.status == "failed":
-        if completion.execution_ordinal >= policy.semantic_per_candidate:
-            cause = "semantic_budget_exhausted"
-        elif completion.failure is None or not policy.allows_automatic_semantic_recovery(
-            completion.failure
-        ):
-            cause = "semantic_recovery_not_allowed"
+    progress = semantic_completion_progress(
+        run["progress_json"], completion, policy, owner, candidate_claim=claim is not None
+    )
     if claim is not None:
         return await complete_claim(
             db, run_id, expected_version, claim, progress, owner, completion.finished_at
         )
-    if cause:
-        progress["status"] = "blocked"
-        progress["transitions"] = [
-            *progress["transitions"],
-            {
-                "from": "collecting",
-                "to": "blocked",
-                "actor": owner.strip(),
-                "cause_code": cause,
-                "at": completion.finished_at.isoformat(),
-                "evidence_refs": [completion.execution_id],
-            },
-        ]
     if result is not None and not progress.get("cancel_requested"):
         generations = (
             (
