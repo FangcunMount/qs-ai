@@ -3,7 +3,9 @@
 import asyncio
 import json
 import re
+from collections.abc import Mapping
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select, update
@@ -15,17 +17,7 @@ from qs_ai.infrastructure.persistence.mysql.evaluation_checkpoints import save_c
 from qs_ai.infrastructure.persistence.mysql.schema import evaluation_checkpoints, evaluation_runs
 
 
-async def transition_requested(
-    db: AsyncSession,
-    run_id: UUID,
-    expected_version: int,
-    organization_id: int,
-    target: str,
-    actor: str,
-    reason: str,
-    at: datetime,
-) -> CheckpointState:
-    """Only requested -> collecting/canceled; does not authorize the supplied actor."""
+def _validate_requested_transition(target: str, actor: str, reason: str, at: datetime) -> None:
     if target not in ("collecting", "canceled"):
         raise ValueError("Unsupported initial Run transition")
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9:._/-]{0,127}", actor):
@@ -34,38 +26,28 @@ async def transition_requested(
         raise ValueError("Invalid transition reason")
     if at.tzinfo is None or at.utcoffset() is None:
         raise ValueError("Transition time must have a time zone")
-    checkpoint = (
-        (
-            await db.execute(
-                select(evaluation_checkpoints)
-                .where(evaluation_checkpoints.c.run_id == str(run_id))
-                .with_for_update()
-            )
-        )
-        .mappings()
-        .one_or_none()
-    )
+
+
+def plan_requested_transition(
+    run_id: UUID,
+    expected_version: int,
+    organization_id: int,
+    target: str,
+    actor: str,
+    reason: str,
+    at: datetime,
+    checkpoint: Mapping[Any, Any] | None,
+    run: Mapping[Any, Any] | None,
+) -> tuple[CheckpointState, dict[str, Any]]:
+    """Apply original requested-state rules to a read snapshot, without mutation or I/O."""
+    _validate_requested_transition(target, actor, reason, at)
     if (
         checkpoint is None
         or checkpoint["version"] != expected_version
         or checkpoint["checkpoint_json"] is not None
     ):
         raise CheckpointConflict("Run version changed or execution is active")
-    run = (
-        (
-            await db.execute(
-                select(evaluation_runs)
-                .where(
-                    evaluation_runs.c.run_id == str(run_id),
-                    evaluation_runs.c.organization_id == organization_id,
-                )
-                .with_for_update()
-            )
-        )
-        .mappings()
-        .one_or_none()
-    )
-    if run is None:
+    if run is None or (run["run_id"] != str(run_id) or run["organization_id"] != organization_id):
         raise CheckpointConflict("Run unavailable in organization")
     creation = json.loads(run["definition_json"])
     progress = run["progress_json"]
@@ -97,6 +79,51 @@ async def transition_requested(
     if target == "canceled":
         progress["canceled_at"] = at.isoformat()
     state = CheckpointState(run_id, expected_version + 1, None)
+    return state, progress
+
+
+async def transition_requested(
+    db: AsyncSession,
+    run_id: UUID,
+    expected_version: int,
+    organization_id: int,
+    target: str,
+    actor: str,
+    reason: str,
+    at: datetime,
+) -> CheckpointState:
+    """Only requested -> collecting/canceled; does not authorize the supplied actor."""
+    # Preserve original validation before any database access; the pure helper
+    # also validates its independent planning callers.
+    _validate_requested_transition(target, actor, reason, at)
+    checkpoint = (
+        (
+            await db.execute(
+                select(evaluation_checkpoints)
+                .where(evaluation_checkpoints.c.run_id == str(run_id))
+                .with_for_update()
+            )
+        )
+        .mappings()
+        .one_or_none()
+    )
+    run = (
+        (
+            await db.execute(
+                select(evaluation_runs)
+                .where(
+                    evaluation_runs.c.run_id == str(run_id),
+                    evaluation_runs.c.organization_id == organization_id,
+                )
+                .with_for_update()
+            )
+        )
+        .mappings()
+        .one_or_none()
+    )
+    state, progress = plan_requested_transition(
+        run_id, expected_version, organization_id, target, actor, reason, at, checkpoint, run
+    )
     await save_checkpoint(db, state, expected_version)
     await db.execute(
         update(evaluation_runs)
