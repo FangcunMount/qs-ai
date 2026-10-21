@@ -96,3 +96,27 @@ async def test_original_transition_adapter_keeps_locked_reads_and_caller_commit(
     assert all(call.args[0]._for_update_arg is not None for call in db.execute.await_args_list[:2])
     assert db.execute.await_args.args[0].is_update
     db.commit.assert_not_called()
+
+
+async def test_original_checkpoint_conflict_precedes_loading_run_or_any_write(monkeypatch):
+    f = fixture()
+    f.checkpoint["version"] = 2
+    result = Mock()
+    result.mappings.return_value.one_or_none.return_value = f.checkpoint
+    db = SimpleNamespace(execute=AsyncMock(return_value=result), commit=AsyncMock())
+    save = AsyncMock()
+    monkeypatch.setattr(progress, "save_checkpoint", save)
+    with pytest.raises(CheckpointConflict):
+        await progress.transition_requested(
+            db, f.run_id, 1, 7, "collecting", "user:9", "explicit", f.at
+        )
+    assert db.execute.await_count == 1
+    save.assert_not_called()
+
+
+async def test_original_invalid_audit_is_refused_before_opening_any_database_read():
+    f = fixture()
+    db = SimpleNamespace(execute=AsyncMock())
+    with pytest.raises(ValueError):
+        await progress.transition_requested(db, f.run_id, 1, 7, "collecting", "user:9", " ", f.at)
+    db.execute.assert_not_called()

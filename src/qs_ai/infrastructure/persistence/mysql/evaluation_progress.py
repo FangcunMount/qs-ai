@@ -28,6 +28,17 @@ def _validate_requested_transition(target: str, actor: str, reason: str, at: dat
         raise ValueError("Transition time must have a time zone")
 
 
+def _validate_requested_checkpoint(
+    checkpoint: Mapping[Any, Any] | None, expected_version: int
+) -> None:
+    if (
+        checkpoint is None
+        or checkpoint["version"] != expected_version
+        or checkpoint["checkpoint_json"] is not None
+    ):
+        raise CheckpointConflict("Run version changed or execution is active")
+
+
 def plan_requested_transition(
     run_id: UUID,
     expected_version: int,
@@ -41,12 +52,7 @@ def plan_requested_transition(
 ) -> tuple[CheckpointState, dict[str, Any]]:
     """Apply original requested-state rules to a read snapshot, without mutation or I/O."""
     _validate_requested_transition(target, actor, reason, at)
-    if (
-        checkpoint is None
-        or checkpoint["version"] != expected_version
-        or checkpoint["checkpoint_json"] is not None
-    ):
-        raise CheckpointConflict("Run version changed or execution is active")
+    _validate_requested_checkpoint(checkpoint, expected_version)
     if run is None or (run["run_id"] != str(run_id) or run["organization_id"] != organization_id):
         raise CheckpointConflict("Run unavailable in organization")
     creation = json.loads(run["definition_json"])
@@ -107,6 +113,7 @@ async def transition_requested(
         .mappings()
         .one_or_none()
     )
+    _validate_requested_checkpoint(checkpoint, expected_version)
     run = (
         (
             await db.execute(
