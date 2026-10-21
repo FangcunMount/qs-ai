@@ -336,3 +336,10 @@ Prompt/Profile/Suite只读规划共有6项新真实MySQL用例，分别证明仅
 [`MySQLSolutions.apply_in/SolutionApplyResult`](../../../src/qs_ai/infrastructure/persistence/mysql/solutions.py) 借用调用方已经存在的根事务，不配置连接、不提交/回滚/关闭，拒绝缺失、失效根及savepoint。原公开apply仍自行建立RC边界：新写入在响应校验后只提交一次，首次或加锁后命中的历史回执不写入也不提交。原稳定请求编码抽成solution_request，旧命令/回执字节及唯一冲突恢复不变。
 
 wrote只表示本次在原根中暂存了业务写入，不是提交证明；SDK原根仍须统一写全部witness并提交，提交结果必须另行验证。Prepare可显式借用首次身份和执行模式，原其余写入口保持原语义。新增4项真实MySQL用例覆盖两种模式、原Solution revision/命令回执/全部资产/Run共同提交或回滚；本地仅收集，SDK原根和真实Broker仍待接通。
+
+
+Solution Prepare 的显式事务适配现由 [`SolutionPreparationInput/Facts`](../../../src/qs_ai/infrastructure/workflow_transport/solution_preparation_plan.py)、[`Planner/Root`](../../../src/qs_ai/infrastructure/workflow_transport/solution_preparation_state.py) 和 [`Dispatcher`](../../../src/qs_ai/infrastructure/workflow_transport/solution_preparation_dispatch.py) 组成。稳定输入沿用原组织、操作者、命令及请求编码，首次源状态、草稿、完整资产图、业务回执和执行模式分别冻结摘要。规划仅在原主库短快照读取，关闭会话后才 Seal；取得完整半消息后，单次原 RC 根先取得 SDK guard，再锁原 Solution/草稿并核对冻结来源，借用原 apply_in 暂存全部资产、Run 和首次命令回执。原根核对实际资产、原 Run 定义、三份审核回执及目标状态后，共同提交首次档案、sequence 和 witness，不提前提交资产。
+
+[`TransactionalSolutions`](../../../src/qs_ai/infrastructure/workflow_transport/transactional_solutions.py) 只显式替换 Prepare；Create/Save 继续委托原写入口，连接池和运行生命周期仍由宿主持有。重复 Prepare 先验证原回执的组织、操作者和输入，再读取精确 SDK 记录：没有协议记录的历史回执只读返回，已有 Prepared/Aborted 不自动重建或收养。Committed 必须重新核对精确 witness、首次 wire 档案和原回执摘要；不能用当前视图或内存中的结果证明提交。LocalCommitted + FinalUnknown 保留已证实的业务成功；模型调用、业务重试和自动回退均不在此适配中执行。
+
+本批本地56项目标测试及3061项非集成、非interop回归通过。新增27项真实 MySQL 用例仅在本地收集，覆盖两种首次模式、档案/witness拒绝、客户端丢弃已完成提交回复、源冲突、实际 Prepare 处理器、并发、首次回执与越权保护；DB-only transport 不作为 Broker、mTLS、QS成对业务或网络级故障证明。执行结果及源 SHA 以 infra 总表为准，统一默认装配继续关闭。
