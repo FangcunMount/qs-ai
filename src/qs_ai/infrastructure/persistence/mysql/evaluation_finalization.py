@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict, CheckpointState
 from qs_ai.application.evaluation.finalization import final_record, final_transition
+from qs_ai.application.evaluation.gates import GatePreview
 from qs_ai.application.evaluation.management import ManagementScope
 from qs_ai.application.interpretation.ports import NotFound
 from qs_ai.domain.evaluation.reopening import eligible_candidate_ids
@@ -43,18 +44,30 @@ async def finalize(
         raise ValueError("Explicit version, expected outcome and confirmation required")
     run = await lock_run(db, scope, expected_version)
     preview = await evaluate_snapshot(db, scope, run, expected_version, at)
-    record = final_record(preview, scope.actor, reason)
+    updated = finalized_progress(
+        run["progress_json"], preview, scope.actor, reason, expected_passed
+    )
+    await save_progress(db, scope, expected_version, updated)
+
+
+def finalized_progress(
+    progress: dict,
+    preview: GatePreview,
+    actor: str,
+    reason: str,
+    expected_passed: bool,
+) -> dict:
+    """Project an already scoped and validated gate; no I/O or snapshot mutation."""
+    record = final_record(preview, actor, reason)
     if record["passed"] != expected_passed:
         raise CheckpointConflict("Gate outcome changed; refresh preview")
-    progress = run["progress_json"]
-    updated = {
+    return {
         **progress,
         "status": record["status"],
         "finalized_at": record["finalized_at"],
         "gate_result": record,
         "transitions": [*progress["transitions"], final_transition(record)],
     }
-    await save_progress(db, scope, expected_version, updated)
 
 
 async def lock_run(db: AsyncSession, scope: ManagementScope, expected_version: int) -> dict:
