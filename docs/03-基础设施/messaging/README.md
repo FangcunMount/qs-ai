@@ -550,3 +550,8 @@ semantic终态先抽取原有未知计数、固定预算及blocked转换为纯 `
 语义终态的原insert值与后续候审计算分别复用semantic_terminal_values和project_semantic_progress。原写入口在原insert/候选更新后，用同样原三组锁定读取执行原project_slots与next_action；只读规划使用before_insert模式，仅在内存替换精确generation候选并追加虚拟semantic终态，不写数据库、不发布或授权模型。拒绝缺失/重复generation来源及已有同execution终态。candidate聚合和取消分支继续由原责任处理，虚拟投影不接管。
 
 新增13项锁/RO、虚拟/已写入、继续/候审、缺失/重复来源及candidate/取消边界；118目标、3599完整本地单元（1216 integration/interop排除）、421源类型通过，4项真实MySQL原根用例扩展对比虚拟进度与原提交结果，目前仅收集。完整回归、required实际依赖及完整semantic Sender仍待门禁。
+
+
+SerialSemanticPlanner/Sender/Write使用独立semantic context和原SerialResponseReference，原generation candidate ID不能改变。只读取原持久化响应，并在同session快照中重建原输入、判定和虚拟终态；源连接在Seal/半消息前关闭。全部半消息后，原根重验来源、调用原complete_semantic，将原判定/候选/进度、archive和witness共同提交。重复从精确witness/archive/不可变semantic receipt读取首次结果；未知不重做模型，显式Retry/Replan继续由宿主授权并竞争旧Aborted。没有伪造SlotClaim或新candidate，构造不启动网络/线程，也不接管宿主资源。
+
+150组合目标、3631完整本地单元（1229 integration/interop明确排除）、423源类型通过；13实际MySQL根用例及新Broker档34宿主/84证据仅收集，覆盖成功/未知、取消drain、原根witness拒绝与提交回复丢弃、首结果/旧中止/首响应与candidate保留。尚不计实际依赖门禁、T18真实provider/网络/进程恢复或默认装配。旧31/76不能代替新档验收。
