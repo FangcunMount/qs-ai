@@ -494,3 +494,5 @@ ClaimStage 仅描述 miss/deferred/exhausted/claimed 的暂存结果。returned 
 完成阶段提供显式 `InterpretationFinishSender.retry(claim, result, previous)`：宿主必须持有原确定性结果和旧执行引用。它复用首次冻结消息、问题ID、时间和wire，不执行规划/签名/模型；新的只读根校验原活跃Claim、业务来源摘要、请求绑定及问题序号后关闭连接，再经SDK公共Retry竞争精确旧Aborted和新fence。原业务执行和根内重新校验、档案/witness共同提交、未知结果处理与首结果重复读取仍走同一实现。普通重复、Checker和维护器不调用这个入口。
 
 此入口不授予模型重试，也不替代T18对持久化响应、恢复调度和provider调用次数的证明。已通过原74项表征、扩展后81目标和3434完整本地单元（1186 integration/interop排除、非执行通过）、418源类型、lint/format；7新增真实MySQL仅收集，源代码29b9a72，CI及生产状态回链总表。默认装配与生产保持原配置。
+
+显式完成重试的Broker档在6f42998新增question/持久化Artifact两项入口：旧Aborted保持可回查、首次plan/wire与问题ID复用、新半消息提交前不可见、原根提交后首结果可重复读取，禁止再次调用DurableGeneration。新档28宿主用例/68证据；本地仅收集，实际执行和完整清理必须由对应新infra档核验，旧26/64报告不复用。
