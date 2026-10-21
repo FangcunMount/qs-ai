@@ -8,7 +8,7 @@ adapters. This module does not assemble or enable the production receiver.
 import asyncio
 import math
 from collections.abc import Awaitable, Callable
-from typing import Literal
+from typing import Literal, Protocol
 
 from reliable_messaging.durable import MessageConflict
 from reliable_messaging.transaction import (
@@ -31,6 +31,10 @@ from qs_ai.infrastructure.workflow_transport.admission_receipts import (
 )
 from qs_ai.infrastructure.workflow_transport.command_admission import WorkflowCommandAdmission
 from qs_ai.infrastructure.workflow_transport.frozen_change_admission import FrozenChangeAdmission
+from qs_ai.infrastructure.workflow_transport.frozen_evaluation_admission import (
+    FrozenEvaluationAdmission,
+)
+from qs_ai.infrastructure.workflow_transport.frozen_evaluation_events import FrozenEvaluationEvents
 from qs_ai.infrastructure.workflow_transport.frozen_retry_admission import FrozenRetryAdmission
 from qs_ai.infrastructure.workflow_transport.frozen_start_admission import FrozenStartAdmission
 from qs_ai.infrastructure.workflow_transport.frozen_start_events import (
@@ -130,6 +134,40 @@ def make_retry_root(
     )
 
 
+class AdmissionStateEvents(Protocol):
+    @property
+    def plan_digest(self) -> bytes: ...
+
+    async def flush(self, db: AsyncSession) -> None: ...
+
+
+def make_evaluation_root(
+    transactions: Transactions,
+    archives: TransactionArchive,
+    store: MySQLTransactionStore,
+    inbox: MessagingStore,
+    incoming: FrozenCommandInput,
+    winner: FrozenPlan,
+    admission: WorkflowCommandAdmission,
+    *,
+    database_seconds: float = 2,
+) -> "AdmissionRoot":
+    """Build an inert original evaluation executor from the durable winner."""
+    action = FrozenEvaluationAdmission(incoming, winner, admission)
+    return AdmissionRoot(
+        transactions,
+        archives,
+        store,
+        inbox,
+        incoming,
+        reservation_token=action.facts.reservation_token,
+        business=action,
+        events=FrozenEvaluationEvents(incoming, winner),
+        database_seconds=database_seconds,
+        isolation_level="READ COMMITTED",
+    )
+
+
 class AdmissionRoot:
     def __init__(
         self,
@@ -141,7 +179,7 @@ class AdmissionRoot:
         *,
         reservation_token: str,
         business: AdmissionAction,
-        events: FrozenInterpretationEvents | None = None,
+        events: AdmissionStateEvents | None = None,
         database_seconds: float = 2,
         isolation_level: Literal["READ COMMITTED"] | None = None,
     ) -> None:
