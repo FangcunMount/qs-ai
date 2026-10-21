@@ -72,31 +72,49 @@ def setup(monkeypatch, scenario):
     return SimpleNamespace(**locals())
 
 
+@pytest.mark.parametrize("readonly", [False, True])
 @pytest.mark.parametrize("scenario,status,cause", CASES)
 async def test_original_claim_aggregate_retains_other_dispatch_unknown_cancel_and_failure_time(
-    monkeypatch, scenario, status, cause
+    monkeypatch, scenario, status, cause, readonly
 ):
     p = setup(monkeypatch, scenario)
-    if scenario == "late_failure":
-        with pytest.raises(CheckpointConflict, match="predates"):
-            await original.complete_claim(
+
+    async def execute():
+        if readonly:
+            return await original.candidate_completion_progress(
                 p.db,
                 p.p.p.run_id,
-                10,
                 p.p.claim,
                 p.progress,
                 "worker:first",
                 AT + timedelta(seconds=4),
+                active=p.active,
+                plan=p.plan,
             )
+        return await original.complete_claim(
+            p.db,
+            p.p.p.run_id,
+            10,
+            p.p.claim,
+            p.progress,
+            "worker:first",
+            AT + timedelta(seconds=4),
+        )
+
+    if scenario == "late_failure":
+        with pytest.raises(CheckpointConflict, match="predates"):
+            await execute()
         p.save.assert_not_called()
-        assert len(p.db.execute.await_args_list) == 1
+        assert len(p.db.execute.await_args_list) == (0 if readonly else 1)
         return
-    state = await original.complete_claim(
-        p.db, p.p.p.run_id, 10, p.p.claim, p.progress, "worker:first", AT + timedelta(seconds=4)
-    )
-    assert state.version == 11 and state.checkpoint is None
-    statement = p.db.execute.await_args_list[-1].args[0]
-    actual = statement.compile().params["progress_json"]
+    result = await execute()
+    if readonly:
+        actual = result
+    else:
+        state = result
+        assert state.version == 11 and state.checkpoint is None
+        statement = p.db.execute.await_args_list[-1].args[0]
+        actual = statement.compile().params["progress_json"]
     assert actual["status"] == status
     changed = bool(cause) and scenario != "already_blocked"
     assert len(actual["transitions"]) == 1 + changed
@@ -116,9 +134,15 @@ async def test_original_claim_aggregate_retains_other_dispatch_unknown_cancel_an
             assert event["evidence_at"] == (AT + timedelta(seconds=2)).isoformat()
     assert p.progress["status"] == ("blocked" if scenario == "already_blocked" else "collecting")
     assert len(p.progress["transitions"]) == 1
-    assert len(p.db.execute.await_args_list) == 2
-    p.release.assert_awaited_once_with(p.db, p.p.claim)
-    p.planner.assert_awaited_once()
-    p.save.assert_awaited_once_with(p.db, state, 10)
+    if readonly:
+        p.db.execute.assert_not_called()
+        p.release.assert_not_called()
+        p.planner.assert_not_called()
+        p.save.assert_not_called()
+    else:
+        assert len(p.db.execute.await_args_list) == 2
+        p.release.assert_awaited_once_with(p.db, p.p.claim)
+        p.planner.assert_awaited_once()
+        p.save.assert_awaited_once_with(p.db, state, 10)
     p.db.commit.assert_not_called()
     p.db.rollback.assert_not_called()
