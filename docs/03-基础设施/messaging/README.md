@@ -207,3 +207,5 @@ apply 是逐条提交，不是整批一个事务。第一条已提交而第二�
 `ArchivePayloadReader` 是显式可选 reader，先验证新档案的 owner/store、精确 SDK 指纹、wire hash、组织及 execution/branch 双 committed 证据；Prepared、缺证据、损坏或不匹配直接拒绝。只有新身份不存在才走旧 MessagingStore.payload，原 mTLS workload、组织、hash/length 授权仍有效。没有新扫描器、attempt、due、业务回执结算或证据清理；业务受理及 StateEventRecorder 仍沿原链路，后续任务才接入事务 Sender。
 
 0041保留0040的旧业务/Outbox物理布局，旧消息移交和只读 inventory 可以读取这些保留表；不由此授权旧全库转换/备份工具操作0041。历史转换 CLI 测试显式指向0040，新镜像启动校验测试使用0041。真实数据库档案原子性由隔离 M3 schema 门禁验证，不能把本地 codec 测试当成生产验收。
+
+T16 新原生 START 验收曾发现配额预览间接取得权威行锁；预览现在显式使用无锁配额读取，原提交仍保持锁。原生测试清理中误用 SDK `Request.key_digest` 属性也已修正。失败报告保留于 infra 总表；这些修复必须重新通过真实 MySQL CI，不沿用旧候选的成功结论。CHANGE 的外部授权冻结组件已具备目标绑定及 Unknown 拒绝，但尚未接入实际命令与 Broker。
