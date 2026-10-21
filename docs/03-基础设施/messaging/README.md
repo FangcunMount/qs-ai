@@ -401,3 +401,10 @@ ResolveUnknown 的显式事务入口由 [`ResolutionStateOperation`](../../../sr
 同操作只有精确首次witness/档案证明Committed后才返回首份操作元数据；FinalUnknown保持本地成功，后续Run变化不替换原响应或首审核。Prepared/Aborted/未知只返回未决，不自动重新授权；改变理由、操作者、输出或release不能复用原请求。此操作明确授权原预算内的一次未来业务，发送器本身不调用模型。
 
 改动前25项既有规则与4项原CLI表征通过；本批57项目标、3189项非集成/非interop回归零失败跳过，409源类型与lint/format通过。9项真实MySQL用例仅收集，覆盖原失败证据/审核/witness共同提交回滚、archive/witness拒绝、客户端丢弃完成提交回复、竞争取消、FinalUnknown模拟、后续状态后的首次响应重读及实际CLI的预览/原库根；模拟transport不算真实Broker。默认应用装配、完整故障、成对QS和生产验收仍待完成，以infra总表为准。
+
+
+interpretation原 [`MySQLExecutionStore.finish_in`](../../../src/qs_ai/infrastructure/persistence/mysql/execution.py) 提供借用根的暂存边界。原finish仍拥有同一个RR根和一次提交；finish_in拒绝普通handle、失效根与savepoint，验证根未替换，不提交、回滚或关闭调用者资源。原Artifact来源/持久response/冻结配置校验、Question顺序、失败规则、Run/job更新、最后活跃租约校验及容量释放次序保留。可显式传入首Question/Event ID及容量释放时间，旧入口继续使用原默认行为。
+
+这是原业务事务基础，bind仅验证原SQLAlchemy边界，不是事务witness；返回None不证明业务提交。原Artifact校验/计算仍保留，完整只读计划、首次模型结果/ID冻结、keyless消息转录、SDK Sender以及claim/recovery入口尚未完成，不以本次抽取宣称完成interpretation迁移或模型恢复。
+
+抽取前4项原行为表征、抽取后11目标与3200项非集成/非interop回归零失败跳过，409源类型、lint/format通过。6项真实MySQL用例仅收集，覆盖原Session/Question/Run/job/租约/首业务历史共同提交/回滚和真实失效/嵌套根拒绝；历史行本身不是MQ发布或witness证明。完整CI与进度仍由infra总表记录，未修改默认装配或生产。
