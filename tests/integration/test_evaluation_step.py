@@ -250,3 +250,49 @@ async def create(db, run_id, release):
     return await create_run(
         db, run_id, release, 1, "actor:1", "冻结执行资产", AT, generation_manifest=manifest
     )
+
+
+async def test_atomic_preparation_dispatch_emits_only_final_checkpoint_from_one_root(ready):
+    from sqlalchemy import select
+
+    from qs_ai.infrastructure.persistence.mysql.evaluation_step import prepare_step
+    from qs_ai.infrastructure.persistence.mysql.schema import evaluation_checkpoints
+
+    tx, run_id, _, routes, schemas = ready
+    previous = tx.database.state_events
+    observed = []
+
+    class FinalStateProbe:
+        async def flush(self, db):
+            root = db.get_transaction()
+            assert root is not None and root.is_active
+            assert db.info["evaluation_events"] == {str(run_id)}
+            current = (
+                (
+                    await db.execute(
+                        select(evaluation_checkpoints).where(
+                            evaluation_checkpoints.c.run_id == str(run_id)
+                        )
+                    )
+                )
+                .mappings()
+                .one()
+            )
+            # The other connection cannot see either intermediate CAS before this commit.
+            assert (await rows(tx, run_id))[2]["version"] == 3
+            observed.append((current["version"], current["checkpoint_json"]["phase"]))
+            assert db.get_transaction() is root and root.is_active
+
+    tx.database.state_events = FinalStateProbe()
+    try:
+        prepared = await prepare_step(
+            tx, run_id, 3, 1, "worker:step", routes, schemas, clock=lambda: AT
+        )
+        assert prepared.state.version == 5 and prepared.cp.phase == "prepared"
+        # The return value keeps the preparation snapshot alongside the final state.
+        assert prepared.state.checkpoint is not None
+        assert prepared.state.checkpoint.phase == "dispatching"
+        assert observed == [(5, "dispatching")]
+        assert (await rows(tx, run_id))[2]["version"] == 5
+    finally:
+        tx.database.state_events = previous

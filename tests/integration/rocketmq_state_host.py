@@ -1,0 +1,434 @@
+"""Explicit infra profile: real worker, released SDK/Broker and original state roots.
+
+The event observer is a fixture, not QS business, a real provider, system login
+or packet-level/process-exit fault acceptance. Ordinary collection excludes this file.
+"""
+
+import asyncio
+import hashlib
+import json
+import sys
+from contextlib import AsyncExitStack
+from datetime import UTC, datetime
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, Mock
+
+import pytest
+from reliable_messaging.protected import TrustedSigner
+from reliable_messaging.rocketmq import Config, RocketMQSubscriber
+from reliable_messaging.rocketmq_transaction import (
+    TransactionalSender,
+    TransactionConfig,
+    TransactionRoute,
+    TransactionSendError,
+)
+from reliable_messaging.transaction import (
+    Decision,
+    FinalOutcome,
+    Limits,
+    LocalOutcome,
+    StoreChecker,
+    execution_key,
+)
+from reliable_messaging.transport import RouteBinding, consumer_group_v2, physical_topic_v2
+from sqlalchemy import event, select, text
+
+from qs_ai.bootstrap.transaction_messaging import TransactionRuntime
+from qs_ai.infrastructure.persistence.mysql.evaluation_worker import EvaluationWorker
+from qs_ai.infrastructure.persistence.mysql.messaging import outbox
+from qs_ai.infrastructure.persistence.mysql.schema import evaluation_checkpoints, evaluation_runs
+from qs_ai.infrastructure.persistence.mysql.transaction_schema import witness
+from qs_ai.infrastructure.workflow_transport.evaluation_preflight_dispatch import (
+    PreflightStateDispatcher,
+    PreflightTransactionPending,
+)
+from qs_ai.infrastructure.workflow_transport.evaluation_preflight_state import (
+    PreflightOperation,
+    preflight_intent,
+)
+from qs_ai.infrastructure.workflow_transport.evaluation_state_plan import read_evaluation_state_plan
+from qs_ai.infrastructure.workflow_transport.messaging import EVENTS, authenticate, parse_body
+from tests.integration.rocketmq_admission_host import required_broker as required_broker
+from tests.integration.test_transaction_evaluation_admission import (
+    host as host,
+)
+from tests.integration.test_transaction_evaluation_admission import (
+    keys as keys,
+)
+from tests.integration.test_transaction_evaluation_admission import (
+    kit as kit,
+)
+from tests.integration.test_transaction_evaluation_admission import (
+    original as original,
+)
+from tests.integration.test_transaction_evaluation_admission import (
+    requested as requested,
+)
+from tests.integration.test_transaction_evaluation_admission import (
+    required_disposable_primary as required_disposable_primary,
+)
+from tests.integration.test_transaction_evaluation_admission import (
+    setup_run as setup_run,
+)
+
+pytestmark = pytest.mark.integration
+_CASES = {}
+_OBSERVER = "qs-m3-ai-state-observer"
+
+
+def passed(name):
+    _CASES[name] = True
+
+
+@pytest.fixture(scope="session", autouse=True)
+def state_receipt(required_broker, request):
+    # Reuse the fixed client/CA/private log guards. This profile has its own
+    # required receipt; the older module's empty receipt is never acceptance.
+    yield
+    print(
+        "M3_AI_STATE_RECEIPT "
+        + json.dumps(
+            {
+                "cases": _CASES,
+                "passed": len(_CASES),
+                "failed": request.session.testsfailed,
+                "skipped": len(
+                    request.config.pluginmanager.get_plugin("terminalreporter").stats.get(
+                        "skipped", []
+                    )
+                ),
+                "root": "original_mysql_sqlalchemy",
+                "sdk": "0.4.0a1",
+                "client": "5.1.2",
+                "python": sys.version.split()[0],
+                "system_login_not_claimed": True,
+                "paired_qs_business_not_claimed": True,
+                "real_provider_not_claimed": True,
+                "process_exit_not_claimed": True,
+                "database_commit_network_fault_not_claimed": True,
+            }
+        ),
+        flush=True,
+    )
+
+
+class WorkerRuntime(TransactionRuntime):
+    def __init__(self, sender, host):
+        super().__init__(sender, admitted=True)
+        self.host, self.results, self.calls, self.pause = host, [], 0, False
+        self.entered, self.release, self.completed = (
+            asyncio.Event(),
+            asyncio.Event(),
+            asyncio.Event(),
+        )
+
+    async def reserve(self, request, candidate):
+        value = await super().reserve(request, candidate)
+        if value.acquired:
+            self.host.executions.append(value.execution)
+        return value
+
+    async def execute(self, owned, local):
+        async def original(exact):
+            key = execution_key(
+                exact.plan.owner, exact.plan.operation_id, exact.writer_epoch, exact.fence
+            )
+            async with self.host.tx.open() as db:
+                halves = (
+                    await db.scalars(
+                        select(witness.c.half_outcome).where(witness.c.execution_key == key)
+                    )
+                ).all()
+            assert len(halves) == len(exact.references) and all(
+                bytes(s) == b"prepared" for s in halves
+            )
+            passed("halves_before_worker_root")
+            self.entered.set()
+            if self.pause:
+                await self.release.wait()
+            self.calls += 1
+            return await local(exact)
+
+        try:
+            result = await super().execute(owned, original)
+        except TransactionSendError as error:
+            self.results.append(error.result)
+            self.completed.set()
+            raise
+        self.results.append(result)
+        self.completed.set()
+        return result
+
+
+@pytest.fixture
+async def broker(original, required_broker):
+    host, scope, management = original
+    await management.start(
+        scope, 1, "explicit isolated worker state seed", datetime.now(UTC), confirm=True
+    )
+    config = required_broker
+    physical = physical_topic_v2(EVENTS, "TRANSACTION", "ai.mysql", "m3-1")
+    credentials, observer_credentials = config["ai"], config["observer"]
+    messages, failures, statements = {}, [], []
+    empty_poll = asyncio.Event()
+    loop = asyncio.get_running_loop()
+    previous = host.tx.database.state_events
+    recorder = SimpleNamespace(
+        flush=AsyncMock(
+            side_effect=AssertionError("New worker state cannot use legacy commit hook")
+        )
+    )
+
+    def count_sql(*_):
+        statements.append(True)
+
+    event.listen(host.tx.database.engine.sync_engine, "before_cursor_execute", count_sql)
+    try:
+        sender = TransactionalSender(
+            TransactionConfig(
+                config["endpoint"],
+                credentials["username"],
+                credentials["password"],
+                "ai.mysql",
+                (TransactionRoute(EVENTS, physical, "m3-1"),),
+                Limits(sends=4, check_workers=1, check_queue=16),
+            ),
+            host.store,
+        )
+        runtime = WorkerRuntime(sender, host)
+        dispatcher = PreflightStateDispatcher(
+            host.tx,
+            host.archives,
+            runtime,
+            signing_key=host.keys["ai.sign"],
+            recipient_key=host.keys["qs.encrypt"],
+        )
+        gateway = SimpleNamespace(
+            generate_messages=AsyncMock(side_effect=AssertionError("Preflight cannot call a model"))
+        )
+        worker = EvaluationWorker(
+            host.tx,
+            gateway,
+            Mock(),
+            Mock(),
+            "worker:real-sdk-state",
+            enabled=True,
+            preflight_dispatch=dispatcher,
+        )
+        assert not statements and sender._client is None
+        passed("constructor_inert")
+    finally:
+        event.remove(host.tx.database.engine.sync_engine, "before_cursor_execute", count_sql)
+
+    async def observe(delivery):
+        header = authenticate(
+            delivery.wire,
+            EVENTS,
+            decrypt_keys={"qs.encrypt": host.keys["qs.encrypt"]},
+            trusted_signers={"ai.sign": TrustedSigner("qs-ai", host.keys["ai.sign"])},
+        )
+        stored = await host.archives.read_committed(header.message_id)
+        assert stored is not None and stored.wire == delivery.wire
+        parse_body(header, stored.body)
+        digest = hashlib.sha256(delivery.wire).hexdigest()
+        assert header.message_id not in messages or messages[header.message_id] == digest
+        messages[header.message_id] = digest
+
+    async def failed(_):
+        failures.append("unexpected_physical_failure")
+        raise RuntimeError("Unexpected isolated observer failure")
+
+    async def invalid(_, code):
+        failures.append("unexpected_invalid_wire")
+        raise RuntimeError("Unexpected isolated observer wire")
+
+    observer = RocketMQSubscriber(
+        Config(
+            config["endpoint"],
+            observer_credentials["username"],
+            observer_credentials["password"],
+            (
+                RouteBinding(
+                    EVENTS,
+                    _OBSERVER,
+                    physical,
+                    consumer_group_v2(EVENTS, _OBSERVER),
+                    "TRANSACTION",
+                    "ai.mysql",
+                    "m3-1",
+                ),
+            ),
+            max_in_flight=1,
+        ),
+        EVENTS,
+        _OBSERVER,
+        handler=observe,
+        failed_handler=failed,
+        invalid_handler=invalid,
+        retry_cap=1,
+    )
+    intent = preflight_intent(scope.run_id, 2, scope.organization_id)
+
+    async def complete():
+        async with asyncio.timeout(60):
+            while True:
+                assert not failures
+                reserved = await host.store.lookup(intent.request)
+                if reserved is not None and reserved.state.value == "committed":
+                    facts, value = read_evaluation_state_plan(intent, reserved.execution.plan)
+                    if value.envelope().message_id in messages:
+                        assert (
+                            await StoreChecker(host.store).check(reserved.execution.references[0])
+                            == Decision.COMMIT
+                        )
+                        operation = PreflightOperation.from_facts(facts)
+                        async with host.tx.open() as db:
+                            row = (
+                                (
+                                    await db.execute(
+                                        select(evaluation_runs).where(
+                                            evaluation_runs.c.run_id == intent.run_id
+                                        )
+                                    )
+                                )
+                                .mappings()
+                                .one()
+                            )
+                            assert (
+                                row["progress_json"]["preflight"]["evaluated_at"]
+                                == operation.evidence.evaluated_at.isoformat()
+                            )
+                            assert not (
+                                await db.scalars(
+                                    select(outbox.c.message_id).where(
+                                        outbox.c.message_id == value.envelope().message_id
+                                    )
+                                )
+                            ).all()
+                        for label in (
+                            "worker_original_root",
+                            "first_preflight_evidence",
+                            "no_new_publish_outbox",
+                            "fresh_checker",
+                            "first_wire",
+                        ):
+                            passed(label)
+                        gateway.generate_messages.assert_not_called()
+                        recorder.flush.assert_not_called()
+                        passed("no_model_call")
+                        return reserved
+                await asyncio.sleep(0.05)
+
+    resources = AsyncExitStack()
+    resources.push_async_callback(observer.stop, grace_seconds=20)
+    resources.push_async_callback(runtime.close, grace_seconds=20)
+    try:
+        host.tx.database.state_events = recorder
+        await observer.start()
+        actual_receive = observer._driver.client.receive
+
+        def receive(*args, **kwargs):
+            values = actual_receive(*args, **kwargs)
+            if not values:
+                loop.call_soon_threadsafe(empty_poll.set)
+            return values
+
+        observer._driver.client.receive = receive
+        await runtime.start()
+        yield SimpleNamespace(**locals())
+    finally:
+        runtime.release.set()
+        try:
+            await resources.aclose()
+            async with host.tx.open() as db:
+                assert await db.scalar(text("SELECT 1")) == 1
+            passed("host_pool_retained")
+        finally:
+            host.tx.database.state_events = previous
+
+
+async def test_actual_worker_preflight_half_gate_and_duplicate_preserve_original_evidence(broker):
+    broker.runtime.pause = True
+    work = asyncio.create_task(broker.worker.once())
+    try:
+        await asyncio.wait_for(broker.runtime.entered.wait(), timeout=30)
+        broker.empty_poll.clear()
+        await asyncio.wait_for(broker.empty_poll.wait(), timeout=20)
+        assert not broker.messages
+        async with broker.host.tx.open() as db:
+            assert (
+                await db.scalar(
+                    select(evaluation_checkpoints.c.version).where(
+                        evaluation_checkpoints.c.run_id == broker.intent.run_id
+                    )
+                )
+                == 2
+            )
+        passed("half_invisible")
+        broker.runtime.release.set()
+        assert await work
+    finally:
+        broker.runtime.release.set()
+        await asyncio.gather(work, return_exceptions=True)
+    await broker.complete()
+    broker.dispatcher._planner.candidate = AsyncMock(
+        side_effect=AssertionError("Committed hint cannot plan again")
+    )
+    await broker.dispatcher(broker.scope.run_id, 2, broker.scope.organization_id)
+    assert broker.runtime.calls == 1
+    broker.dispatcher._planner.candidate.assert_not_called()
+    passed("duplicate_no_replan")
+
+
+async def test_actual_worker_preflight_lost_final_reply_preserves_local_commit(broker, monkeypatch):
+    actual_end = broker.sender._client.end_transaction
+
+    def discard(*args, **kwargs):
+        actual_end(*args, **kwargs)
+        raise TimeoutError("client discarded completed final state reply")
+
+    monkeypatch.setattr(broker.sender._client, "end_transaction", discard)
+    assert await broker.worker.once()
+    await broker.complete()
+    result = broker.runtime.results[-1]
+    assert result.local == LocalOutcome.COMMITTED and all(
+        b.final == FinalOutcome.UNKNOWN for b in result.branches
+    )
+    assert broker.runtime.calls == 1
+    passed("lost_final_reply")
+
+
+async def test_actual_worker_preflight_source_conflict_rolls_back_prepared_half(broker):
+    broker.runtime.pause = True
+    work = asyncio.create_task(broker.worker.once())
+    try:
+        await asyncio.wait_for(broker.runtime.entered.wait(), timeout=30)
+        await broker.management.cancel(
+            broker.scope,
+            2,
+            "explicit isolated competing cancellation",
+            datetime.now(UTC),
+            discard=False,
+            confirm=True,
+        )
+        broker.runtime.release.set()
+        with pytest.raises(PreflightTransactionPending):
+            await work
+        result = broker.runtime.results[-1]
+        assert result.local == LocalOutcome.ABORTED
+        assert all(b.final == FinalOutcome.ROLLBACK_CONFIRMED for b in result.branches)
+    finally:
+        broker.runtime.release.set()
+        await asyncio.gather(work, return_exceptions=True)
+    reserved = await broker.host.store.lookup(broker.intent.request)
+    assert reserved is not None
+    assert (
+        await StoreChecker(broker.host.store).check(reserved.execution.references[0])
+        == Decision.ROLLBACK
+    )
+    broker.empty_poll.clear()
+    await asyncio.wait_for(broker.empty_poll.wait(), timeout=20)
+    assert not broker.messages
+    broker.gateway.generate_messages.assert_not_called()
+    broker.recorder.flush.assert_not_called()
+    passed("source_conflict_rollback")

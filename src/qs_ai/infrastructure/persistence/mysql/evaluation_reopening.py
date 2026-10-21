@@ -13,6 +13,7 @@ from qs_ai.infrastructure.persistence.mysql.evaluation_finalization import (
     save_progress,
     verified_final_snapshot,
 )
+from qs_ai.infrastructure.persistence.mysql.evaluation_gates import GateSnapshot
 from qs_ai.infrastructure.persistence.mysql.evaluation_review_history import (
     canonical,
     opening_record,
@@ -35,7 +36,20 @@ async def reopen(
     if not run["progress_json"] or run["progress_json"]["status"] != "rejected":
         raise CheckpointConflict("Only a finalized rejection can be reopened")
     snapshot = await verified_final_snapshot(db, scope, run)
-    progress = run["progress_json"]
+    updated = reopened_progress(scope, reason, at, run["progress_json"], snapshot)
+    await save_progress(db, scope, expected_version, updated)
+
+
+def reopened_progress(
+    scope: ManagementScope,
+    reason: str,
+    at: datetime,
+    progress: dict,
+    snapshot: GateSnapshot,
+) -> dict:
+    """Project an already verified rejection; retain the original review history."""
+    if not progress or progress["status"] != "rejected":
+        raise CheckpointConflict("Only a finalized rejection can be reopened")
     history = progress.get("review_reopenings", [])
     plan = reopen_review(
         snapshot.candidates,
@@ -56,21 +70,15 @@ async def reopen(
     history = [*history, entry]
     if len(canonical(history).encode()) > 2 * 1024 * 1024:
         raise ValueError("Review history exceeds response bound")
-    await save_progress(
-        db,
-        scope,
-        expected_version,
-        {
-            **progress,
-            "status": "awaiting_review",
-            "gate_result": None,
-            "finalized_at": None,
-            "human_reviews": [
-                {**asdict(r), "reviewed_at": r.reviewed_at.isoformat()}
-                for r in plan.retained_reviews
-            ],
-            "review_reopenings": history,
-            "review_corrections": [],
-            "transitions": [*progress["transitions"], opening_transition(entry)],
-        },
-    )
+    return {
+        **progress,
+        "status": "awaiting_review",
+        "gate_result": None,
+        "finalized_at": None,
+        "human_reviews": [
+            {**asdict(r), "reviewed_at": r.reviewed_at.isoformat()} for r in plan.retained_reviews
+        ],
+        "review_reopenings": history,
+        "review_corrections": [],
+        "transitions": [*progress["transitions"], opening_transition(entry)],
+    }

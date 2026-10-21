@@ -29,6 +29,10 @@ from qs_ai.infrastructure.workflow_transport.messaging import (
     valid_id,
     valid_number,
 )
+from qs_ai.infrastructure.workflow_transport.state_projection import (
+    evaluation_state,
+    next_evaluation_sequence,
+)
 
 # Independent from Run/checkpoint schema: no historical state is synthesized on upgrade.
 evaluation_sequences = sa.Table(
@@ -223,17 +227,8 @@ class StateEventRecorder:
             .mappings()
             .one()
         )
-        if previous["version"] > version:
-            raise RuntimeError("Evaluation event version regressed")
-        sequence = previous["sequence"] + (previous["version"] != version)
-        state = pb.EvaluationRuntimeState(
-            run_id=run_id,
-            organization_id=str(row["organization_id"]),
-            version=version,
-            event_sequence=sequence,
-            status=progress["status"],
-            release_fingerprint=creation["release_fingerprint"],
-        )
+        sequence = next_evaluation_sequence(previous["sequence"], previous["version"], version)
+        state = evaluation_state(run_id, row, sequence)
         transitions = progress.get("transitions", [])
         # Historical records with no original timestamp retain an explicit empty value.
         at = transitions[-1].get("at", "") if transitions else ""

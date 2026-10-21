@@ -1,7 +1,7 @@
 {
   "schema_version": "qs-ai-document-closure/v1",
-  "source_commit": "3e6f178107c351a41b40589afbc0dff040c61129",
-  "reviewed_on": "2026-10-19",
+  "source_commit": "4b32439d6e2be0d4c0e1e0240dcf2f4a1cda406f",
+  "reviewed_on": "2026-10-21",
   "authority": "runtime composition > code > machine contracts/config/migrations > scoped tests > maintained prose > dated evidence/plans/archive",
   "source_catalog": {
     ".github/workflows/ai-messaging.yml": "2dddb3ffeb66a49967fb2019709829065365464b1833a51f72f34331ef38aabe",
@@ -177,7 +177,7 @@
     "src/qs_ai/infrastructure/persistence/mysql/evaluation_contract_recovery.py": "5a22a41d9ac97ec59afd5fd0070a4bd4d8896e0d0bca2d1fe42e477cbfde71ba",
     "src/qs_ai/infrastructure/persistence/mysql/evaluation_contracts.py": "5dcc38b724af4aa2b7cadca985122f3392cc367ece3df02a16f81626c6f0852c",
     "src/qs_ai/infrastructure/persistence/mysql/evaluation_diagnostics.py": "065b9d2c04be2a6f84f4c3102547c8c72c98dc57652f62cfbd9e209ec0687b73",
-    "src/qs_ai/infrastructure/persistence/mysql/evaluation_finalization.py": "3ec94abcdbce1b27e3963910cc522a42acc0165bfe3651e111fe517a5ebd8afb",
+    "src/qs_ai/infrastructure/persistence/mysql/evaluation_finalization.py": "641c07ba0e70d73ed7f02d24cb4d7abfdd1c75b0ad45aabed73d6c858df18104",
     "src/qs_ai/infrastructure/persistence/mysql/evaluation_gates.py": "83eade22cd7867ee669affb60db998c55853bf52232e809d8baf2f3bf77b2b09",
     "src/qs_ai/infrastructure/persistence/mysql/evaluation_management.py": "930fa5ef3d58473e21984ae21da28b099202c8029803ceb1045fd1e1fc7f3e3f",
     "src/qs_ai/infrastructure/persistence/mysql/evaluation_recovery.py": "bbea8f98e14d92c51fa0140dc239c21941cd3e10c6cb853d1076c1249e562bcf",
@@ -192,7 +192,7 @@
     "src/qs_ai/infrastructure/persistence/mysql/evaluation_step.py": "6c21245897184cb3d836195f4d291d9ddfb1fa28a685c6de4db5a0bb4e7ad8cd",
     "src/qs_ai/infrastructure/persistence/mysql/evaluation_suites.py": "3db6a6b863737dd0a50189e68c08c9ba512ba4b5b9cd10774e99b15b01dd2a1c",
     "src/qs_ai/infrastructure/persistence/mysql/evaluation_unknowns.py": "cf6b87dc668238865b1e8a34735d9333d22427bb4a0e3af655b66a5ffffb4a1a",
-    "src/qs_ai/infrastructure/persistence/mysql/evaluation_worker.py": "6f2ecd79497f5c4a88a38e805de954d585360a8a8e259705f3523ff9df64bdd9",
+    "src/qs_ai/infrastructure/persistence/mysql/evaluation_worker.py": "0b7d687010b63072753e31d053e2e4789ea491c05f97857440c3aa098ad3bf73",
     "src/qs_ai/infrastructure/persistence/mysql/execution.py": "eb0bc4c2e6079c21a456933583deef3bb61f56d7d577d59804b5719a91dd67c4",
     "src/qs_ai/infrastructure/persistence/mysql/execution_configurations.py": "ddf86be657c054f7239dbf68b6b97522ab76aa916afd0c74ee6046e5158ac87c",
     "src/qs_ai/infrastructure/persistence/mysql/governance_records.py": "0cd20ff2cfa446c108e8d8cba98f8f33b16066c5409a4c9479fe4d0431b94761",
@@ -211,7 +211,7 @@
     "src/qs_ai/infrastructure/persistence/mysql/publication_records.py": "586434d246621e447cd54a5e5ad23ad1d85157edbc3fc94b9ef2c856ab9c272a",
     "src/qs_ai/infrastructure/persistence/mysql/publications.py": "52dc8f0c9b23bf5468f003b60db620ec569c3ac0df77a1b6ab5b9f0783671ce1",
     "src/qs_ai/infrastructure/persistence/mysql/quotas.py": "9cee4fb1b095a09501c091adb89eaae25df43e8ac126220468c9e3ea98d08ca7",
-    "src/qs_ai/infrastructure/persistence/mysql/result_outbox.py": "0452a07b29ce972c8af03c02870d29f649c612a543f6581f32508c9659776f90",
+    "src/qs_ai/infrastructure/persistence/mysql/result_outbox.py": "ef7adb436a988accf23ab1d0b6b9399361f8b4ea7d9aaf289c7e01b864983381",
     "src/qs_ai/infrastructure/persistence/mysql/run_policy.py": "88e4b3771120921023a4911b9594e7cd6eac7eccec002d05f550b73120a79e0d",
     "src/qs_ai/infrastructure/persistence/mysql/runtime_milestones.py": "2cd943feb8dbf57382e3b1b13429b939c1f62a58ca3ad2cd067435e153f5a52d",
     "src/qs_ai/infrastructure/persistence/mysql/schema.py": "c2468ad8daf2aac6ecc0336d5bc5c697d2f2e1997e709a899556814373fe2685",
@@ -235,7 +235,7 @@
     "src/qs_ai/infrastructure/workflow_transport/mq_receiver.py": "3da556f98df2a3c912fcca6abd00740b8e3c3cb47a12cf71ede63789f1a226f5",
     "src/qs_ai/infrastructure/workflow_transport/mq_relay.py": "33272bbdb4448a66507e881b13b55569c1dfdd7b00fea440242cae1a2c7f6577",
     "src/qs_ai/infrastructure/workflow_transport/payloads.py": "b53f2af97ac75210c2ad92e4f16fdb8b407f626f0b123f42e3c345e17f203fbf",
-    "src/qs_ai/infrastructure/workflow_transport/state_events.py": "819d544ebb056b2e39b966d78ebace26d2c370afb97641f4526ca3414568fc4e",
+    "src/qs_ai/infrastructure/workflow_transport/state_events.py": "a8b926238ba56dc990252fead697b336b10cf51ed298eb3a3ef38004425bd35c",
     "src/qs_ai/infrastructure/workflows/evaluation.py": "c486a1ed56e2399af6065b2113a7c91d25441f79f197555c14edbcea2e7c954a",
     "src/qs_ai/infrastructure/workflows/report.py": "deb23c4e24c4e6feb12a6df0676c5aeebd634240f376c7686f1992096952cc89",
     "src/qs_ai/maintenance/legacy_results.py": "0cd92392392b6e0339c9c4474a199df06403e390dca0df6355af3566690532e2",
@@ -513,7 +513,7 @@
     "tests/integration/test_mq_inventory.py": "ae1ccacfc9391058aeb0b77ee6e04d243f072c3b030ce2d73ab9d52306309aef",
     "src/qs_ai/infrastructure/workflow_transport/admission_receipts.py": "48220d326dc3e0e4f84c585c421d66c2e2c7f35a1c4a233cb553c14824abd1b8",
     "src/qs_ai/infrastructure/workflow_transport/transaction_command.py": "93dd74e8ce6b9cc3b449ddeacfd6a76b078b5a558fc823025c55c5c9a5db8787",
-    "src/qs_ai/infrastructure/workflow_transport/transaction_admission.py": "7567593223172ab6ad4d6e730ba0a4c9c692e4860da4a0dceddb66b9367f93fc",
+    "src/qs_ai/infrastructure/workflow_transport/transaction_admission.py": "3d8ab15c03191839384d207c4dd6c42930cdb5a62312e0d01beabd27b7beb949",
     "tests/test_transaction_admission_root.py": "a7ca85ea4214fe8096bc3dc3aa448f830eb5f3eff7762cd22bbf9db5f3f87945",
     "tests/integration/test_transaction_admission_root.py": "640a27d46aa355dcf8973d088b82d10279db2531f090e7a1b3ff492968eb197d",
     "src/qs_ai/infrastructure/workflow_transport/start_plan.py": "bb247776eea5b08b217e78774db9e697badabbd0c53ae033b4657f1137921eee",
@@ -544,7 +544,7 @@
     "tests/test_read_only_start_admission.py": "84d1f1a51ffe65e9e1b84ae11d55071473ad0cd65ddc0fea984fda80b7383619",
     "tests/test_transaction_admission_decision.py": "9adbe03061483ef78ce3428e3595ba62b3b5925d9e9cbbb017c4fa8e8c695251",
     "tests/test_transaction_command.py": "5b00febff93bd70c36e8901c1363b2153e06089d2db1d3c5fcda4cbaa50731e7",
-    "docs/03-基础设施/messaging/README.md": "36b0c4811a56fd842d171f1996c77558015e21853d4c755a2ce179bec8f18e4c",
+    "docs/03-基础设施/messaging/README.md": "6cedacaee81e4e0c351f9a31a141b6511c9ebdea01ebf2980570aad436107a85",
     "src/qs_ai/infrastructure/workflow_transport/change_planner.py": "4eb6bc873363c4612d8b28c16453b3104a907616c319edb81b518b6974403b6f",
     "src/qs_ai/infrastructure/workflow_transport/frozen_change_admission.py": "e252f16bf36ccf4149a24ae9e5b59a73684a0438b9124cadeb22fc666135e886",
     "tests/integration/test_transaction_change_admission.py": "a8c124f5481e94a56df7e3d1461beb053a02be5b4946c22caed8046dc8310543",
@@ -566,11 +566,11 @@
     "tests/test_participant_retry_transaction_hooks.py": "5493b27f01f5d04b713165c18f145a5bd513b3aebc5b9b68851d3b910af44e2f",
     "src/qs_ai/application/evaluation/management.py": "5133a38c0867f09fef0dcc92e2083426fb616b1b7fac6ca33ca351421e55c42e",
     "src/qs_ai/infrastructure/persistence/mysql/evaluation_admission.py": "c77d2e0250c0c87da72c3d2f42645291b042cb08e88edf09882108ea468d25ca",
-    "src/qs_ai/infrastructure/persistence/mysql/evaluation_progress.py": "ec41f55ef2de77ce6397dee9c18743a829628d7c3f2e1f5b16593b5974c75225",
+    "src/qs_ai/infrastructure/persistence/mysql/evaluation_progress.py": "9511d02fc7a7fc01599cac4ec4e89c4b61bda18020f2f3c7d7e4d408958bca17",
     "src/qs_ai/infrastructure/workflow_transport/evaluation_plan.py": "219641e4fe68bcf4a24b302935d46e17ed52c6233798e8cbdebff8dd38d17e29",
     "src/qs_ai/infrastructure/workflow_transport/evaluation_planner.py": "e45bc2f3adb08b94156c3dd8e9b1531652642faedabfcaa8c463522bc7ce75d6",
     "src/qs_ai/infrastructure/workflow_transport/frozen_evaluation_admission.py": "fe667e432229edc22b3af07152011a5132d0549c46237df201140ea227c25a62",
-    "src/qs_ai/infrastructure/workflow_transport/frozen_evaluation_events.py": "fdb70e6df84de00c330f2d6409f89a7475eea9d19ba4e2f93a38e08de5efd577",
+    "src/qs_ai/infrastructure/workflow_transport/frozen_evaluation_events.py": "438c8bff9fe46cad0118a7788f0ad78e7e143e2eaf253a720e2d1bbce03b1001",
     "tests/integration/test_transaction_evaluation_admission.py": "b121b11dfe45d0caa8860c28b1c5d7d1e6dafd48123fb2a108a18bb89f359926",
     "tests/test_evaluation_admission_planner.py": "4af3323663d16320c49c24e6068986ed8f6a65c8c478edb43cb724d804dc8ddd",
     "tests/test_evaluation_admission_projection.py": "5beb48922ca8b640ab40ec914e2cdf000c3329e6337e289e0ed7ab49d47c3d43",
@@ -587,7 +587,28 @@
     "tests/test_messaging_read_command.py": "19860422c7fc9b19d929f60810fa38574ae2d563ddedeedb544d9793659dc427",
     "tests/test_transaction_command_receiver.py": "92e4ee6af01d0dad30c28d933073f0fbaba9ea9b70e0767592f4696c6cea968f",
     "tests/integration/rocketmq_admission_host.py": "44d410f70a25627427b52cbcd588ea976ca4b00742b05bb61906f609513cbee6",
-    "tests/test_m3_broker_control_input.py": "29b21ca7db75e2eac4ab0ce50f468b70d2b0172f4f9ed1caa76d022fccdae94d"
+    "tests/test_m3_broker_control_input.py": "29b21ca7db75e2eac4ab0ce50f468b70d2b0172f4f9ed1caa76d022fccdae94d",
+    "src/qs_ai/infrastructure/workflow_transport/evaluation_state_plan.py": "310d1ca59407ca9dc65d582fd353d43835ce7705a69ff6bac278fe4009bd9e8d",
+    "src/qs_ai/infrastructure/workflow_transport/evaluation_state_root.py": "aadd1d6988af8e3beb4f7982d3dbdcfdf30c6d1c0c8dc250a9da40fdb967271b",
+    "src/qs_ai/infrastructure/workflow_transport/state_projection.py": "c0b4dea43de9fecbd4feeded8633b44b4ab2bbbbb7170e7270535cdbffcd80a8",
+    "src/qs_ai/infrastructure/workflow_transport/transaction_root.py": "6d4ef96f8e20fac9f519961431597bddc8749e799d72298d1c81c3e70be6273a",
+    "tests/integration/test_transaction_evaluation_state_root.py": "152b394f6d7993d218c51e3ccc4bed1f345493c5003869067de23859d812984a",
+    "tests/test_evaluation_state_plan.py": "e9ed5f7173a7a5019a571b4fcc012b0ef84c07f4f9a20f73307cbd87b797dd34",
+    "tests/test_evaluation_state_root.py": "d9c19342c5791d00bea21a70860a0f5998e7bc48172edf8451ed677835280fa4",
+    "tests/test_evaluation_state_transcription.py": "d48456666fdeb132f38dd91b61b640b3a9a648d86bcd4cca1b42a2e519e92b45",
+    "tests/test_state_projection.py": "5899f3bc4176a4d1cdb146484ab820f43fa707ee7c14e2d47fd6f6542e0403e6",
+    "src/qs_ai/infrastructure/workflow_transport/evaluation_preflight_state.py": "dc8d21c8dce6762f0fcf5bd9613895860a36ce5c58f0763277ad17fb798a0330",
+    "src/qs_ai/infrastructure/workflow_transport/evaluation_preflight_dispatch.py": "49356ba0102ca2c9b902950fb9857ba9ca271687166ca25553202960e3ac8530",
+    "tests/test_evaluation_preflight_plan.py": "9ef88b0dc746db95c3aa8fa6cd40fc945ab80a1d288f3158aa61e532c0b2cea9",
+    "tests/test_preflight_state_facts.py": "0e15bc0ace93c1fab1ca0bbc5e0ab0a9e6235f56a088c6b90e1eb384fb14752d",
+    "tests/test_preflight_state_planner.py": "f6b25298a0392c7d8ddb8bcd4422b5ece96be97a65be0e520f494842e49cd1b3",
+    "tests/test_preflight_state_dispatch.py": "aaf49e0066222ccf36b0908ed9898c7d697845b64f917c68b495c135f9ae0328",
+    "tests/test_evaluation_worker_preflight_dispatch.py": "0d606fa6a27736d383d8058c9e3ba8ef611338ecaad433c77ced80eacb57c820",
+    "tests/integration/test_transaction_worker_preflight.py": "dc9235429518ea981181c2daa7973495b6c59dd0572770856830a1f9003cb75c",
+    "tests/integration/rocketmq_state_host.py": "7637e7dcb949239f9008a2469f8a0db8eb0e249abcf10f22d5d0c43542e4b8f9",
+    "src/qs_ai/infrastructure/persistence/mysql/evaluation_reopening.py": "d8c90e6cb965ad8c6bfa208400bbaf26e86b048ad4cc80bd6ddf69fd8ab33fb9",
+    "tests/integration/test_evaluation_step.py": "374b756dc682de353b1e0325498cc2b1805295cff7508c291c01df2c680334db",
+    "tests/test_evaluation_governance_projection.py": "93c74102c8c4e3af6b0830a88879119b317fe8a30b8b590e16b2682eb7e4818c"
   },
   "documents": [
     {
@@ -794,7 +815,7 @@
         "pytest -q tests/test_evaluation_review.py tests/test_quality_gates.py tests/test_evaluation_closure.py tests/test_candidate_completion_gates.py tests/test_publication.py",
         "Correction-specific unit/gRPC, MySQL 8.0/8.4 transactions and existing review/finalization/reopening regressions; scripts/check_docs.py. Environment and business acceptance separately recorded."
       ],
-      "review_scope": "在 766b2aa 业务源码基线上逐步核对 MBTI 三主题工作区、原子 Prepare、35 槽位与调用预算、双角色审核、五门、终审和全局发布，以及正式接单、冻结配置、两次授权、原调用恢复、Artifact 接受与原事件 STORED；独立复核后收窄 candidate_v2 响应屏障与发布重读五项生成资产的实际范围，区分 serial_v1，明确七案例非全类型质量证明。 2026-10-06 scoped CorrectReview patch review: original signatures remain immutable; effective-review projection, CAS/idempotent audit, archived receipt replay and finalization reads reconciled. Existing MQ execution, participant precheck and other proto fields unchanged. No production correction or publication acceptance claimed. 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained."
+      "review_scope": "在 766b2aa 业务源码基线上逐步核对 MBTI 三主题工作区、原子 Prepare、35 槽位与调用预算、双角色审核、五门、终审和全局发布，以及正式接单、冻结配置、两次授权、原调用恢复、Artifact 接受与原事件 STORED；独立复核后收窄 candidate_v2 响应屏障与发布重读五项生成资产的实际范围，区分 serial_v1，明确七案例非全类型质量证明。 2026-10-06 scoped CorrectReview patch review: original signatures remain immutable; effective-review projection, CAS/idempotent audit, archived receipt replay and finalization reads reconciled. Existing MQ execution, participant precheck and other proto fields unchanged. No production correction or publication acceptance claimed. 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained. 2026-10-21 finalization progress projection extracted without changing gate evaluation, actor/reason audit, CAS or caller root ownership; source and RPC regressions passed; production truth stays independently bound."
     },
     {
       "path": "docs/00-总览/04-代码地图与能力状态.md",
@@ -1104,7 +1125,7 @@
         "164 targeted evaluation unit tests passed; isolated MySQL/provider/human acceptance not run",
         "Correction-specific unit/gRPC, MySQL 8.0/8.4 transactions and existing review/finalization/reopening regressions; scripts/check_docs.py. Environment and business acceptance separately recorded."
       ],
-      "review_scope": "2026-10-06 source-grounded rewrite on d9c3155; frozen Run identity/budgets, serial/candidate response windows, G1-G5 formulas, review/finalization/reopening, and bounded unknown/contract/cancel recovery; independent recovery review; no runtime assertion. 2026-10-06 scoped CorrectReview patch review: original signatures remain immutable; effective-review projection, CAS/idempotent audit, archived receipt replay and finalization reads reconciled. Existing MQ execution, participant precheck and other proto fields unchanged. No production correction or publication acceptance claimed. 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained. 2026-10-12: clarified that receipt/length/JSON/full output schema establish a candidate, while deterministic reference/policy/safety assertion failures remain evidence saved atomically with the candidate; no quality replacement."
+      "review_scope": "2026-10-06 source-grounded rewrite on d9c3155; frozen Run identity/budgets, serial/candidate response windows, G1-G5 formulas, review/finalization/reopening, and bounded unknown/contract/cancel recovery; independent recovery review; no runtime assertion. 2026-10-06 scoped CorrectReview patch review: original signatures remain immutable; effective-review projection, CAS/idempotent audit, archived receipt replay and finalization reads reconciled. Existing MQ execution, participant precheck and other proto fields unchanged. No production correction or publication acceptance claimed. 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained. 2026-10-12: clarified that receipt/length/JSON/full output schema establish a candidate, while deterministic reference/policy/safety assertion failures remain evidence saved atomically with the candidate; no quality replacement. 2026-10-21 finalization progress projection extracted without changing gate evaluation, actor/reason audit, CAS or caller root ownership; source and RPC regressions passed; production truth stays independently bound."
     },
     {
       "path": "docs/02-业务模块/evaluation/README.md",
@@ -1477,7 +1498,7 @@
         "pytest -q tests/integration/test_publications.py tests/integration/test_publication_grpc.py (requires disposable MySQL, Go probes, project dependencies and listener permissions)",
         "Correction-specific unit/gRPC, MySQL 8.0/8.4 transactions and existing review/finalization/reopening regressions; scripts/check_docs.py. Environment and business acceptance separately recorded."
       ],
-      "review_scope": "在 766b2aa 业务源码基线上重写四种持久记录、全局五字段selector与量表宽fallback/MBTI共槽、最终决定原历史重算/五项Manifest原字节/当前模型条件三层核证、Publish和rollback/disable各自锁序与CAS、P1/P2递增指针示例、原Apply Run前置与GetReceipt查询差异、历史审计/私有command scope和原请求绑定；独立复核收窄v1/v2模型准入分支和发布端未测撤销范围，不外推现场上线。 2026-10-06 scoped CorrectReview patch review: original signatures remain immutable; effective-review projection, CAS/idempotent audit, archived receipt replay and finalization reads reconciled. Existing MQ execution, participant precheck and other proto fields unchanged. No production correction or publication acceptance claimed.; 2026-10-07 finite exploration model and separate publication selector reviewed; production acceptance remains unknown 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained."
+      "review_scope": "在 766b2aa 业务源码基线上重写四种持久记录、全局五字段selector与量表宽fallback/MBTI共槽、最终决定原历史重算/五项Manifest原字节/当前模型条件三层核证、Publish和rollback/disable各自锁序与CAS、P1/P2递增指针示例、原Apply Run前置与GetReceipt查询差异、历史审计/私有command scope和原请求绑定；独立复核收窄v1/v2模型准入分支和发布端未测撤销范围，不外推现场上线。 2026-10-06 scoped CorrectReview patch review: original signatures remain immutable; effective-review projection, CAS/idempotent audit, archived receipt replay and finalization reads reconciled. Existing MQ execution, participant precheck and other proto fields unchanged. No production correction or publication acceptance claimed.; 2026-10-07 finite exploration model and separate publication selector reviewed; production acceptance remains unknown 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained. 2026-10-21 finalization progress projection extracted without changing gate evaluation, actor/reason audit, CAS or caller root ownership; source and RPC regressions passed; production truth stays independently bound."
     },
     {
       "path": "docs/02-业务模块/publication/README.md",
@@ -1741,7 +1762,30 @@
         "tests/test_start_plan_facts.py",
         "tests/test_transaction_admission_root.py",
         "tests/test_transaction_archive.py",
-        "tests/test_transaction_command_receiver.py"
+        "tests/test_transaction_command_receiver.py",
+        "src/qs_ai/infrastructure/workflow_transport/evaluation_state_plan.py",
+        "src/qs_ai/infrastructure/workflow_transport/evaluation_state_root.py",
+        "src/qs_ai/infrastructure/workflow_transport/state_projection.py",
+        "src/qs_ai/infrastructure/workflow_transport/transaction_root.py",
+        "tests/integration/test_transaction_evaluation_state_root.py",
+        "tests/test_evaluation_state_plan.py",
+        "tests/test_evaluation_state_root.py",
+        "tests/test_evaluation_state_transcription.py",
+        "tests/test_state_projection.py",
+        "src/qs_ai/infrastructure/workflow_transport/evaluation_preflight_state.py",
+        "src/qs_ai/infrastructure/workflow_transport/evaluation_preflight_dispatch.py",
+        "src/qs_ai/infrastructure/persistence/mysql/evaluation_worker.py",
+        "tests/test_evaluation_preflight_plan.py",
+        "tests/test_preflight_state_facts.py",
+        "tests/test_preflight_state_planner.py",
+        "tests/test_preflight_state_dispatch.py",
+        "tests/test_evaluation_worker_preflight_dispatch.py",
+        "tests/integration/test_transaction_worker_preflight.py",
+        "tests/integration/rocketmq_state_host.py",
+        "src/qs_ai/infrastructure/persistence/mysql/evaluation_finalization.py",
+        "src/qs_ai/infrastructure/persistence/mysql/evaluation_reopening.py",
+        "tests/integration/test_evaluation_step.py",
+        "tests/test_evaluation_governance_projection.py"
       ],
       "verify": [
         "python scripts/check_docs.py",
@@ -1749,7 +1793,7 @@
         "4 legacy retirement unit tests passed; full MQ/NSQ/JOSE/MySQL tests not run due missing existing extras; no installs or live transport actions",
         "pytest -q tests/test_transaction_messaging.py"
       ],
-      "review_scope": "2026-10-06 source-grounded rewrite on unchanged 766b2aa business code, QS 2ccc2de and reliable-messaging Python 0.2.0a2 8633ba5; inbox/root/savepoint, first body/wire, source vs transport outbox, Relay budgets, stored ACK condition scope, protected payloads and one-record handoff; independent source review; legacy gRPC loop retired. 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained. 2026-10-19 M3 fixed prerelease and owner-bound inert transaction foundation reviewed; current business remains on original Relay and root transactions. Transaction-enabled legacy assembly fails closed; production remains independently unverified. 2026-10-19 explicit M3 protocol schema and manual current-head validation entry reviewed; original freeze/restore layouts retained and no production DDL. 2026-10-19 runtime0041 read-only validator explicitly composes frozen0040 base checks and exact four-table protocol checks. Legacy conversion validator/layouts remain strict; no DDL, resource ownership or model behavior changed. Added actual missing-index refusal proof; native CI pending. 2026-10-19 original-root immutable archive and explicit legacy reader reviewed; runtime validator adds host archive beside four unchanged SDK tables. Scoped retained-table handoff/inventory supports0041; old full conversion/backup whitelist unchanged. Local45 source cases and type/lint pass; new native archive proof pending. Native handoff fault tests use separate disposable administrator DDL connection; application DB user remains unchanged. Required schema server supplied at job scope so new maintenance regression cannot silently skip. 2026-10-21 frozen evaluation planning/source/sequence and original root reviewed; original cancellation drain/capacity rules reused; per-root READ COMMITTED precedes guard and organization mutex; receiver/Broker/native acceptance pending; no runtime enablement. 2026-10-21 inert transaction receiver and exact committed authority before inbound ACK reviewed; legacy Inbox remains compatibility-only; local budget holds get keyless empty transcription; physical failure wrappers remain audit-only. Native trigger DDL uses isolated administrator on exact same loopback primary; application pool/account unchanged; native and actual Broker proof pending. 2026-10-21 technical-budget read owns an explicit short transaction; original business still waits for all halves. Test fixture teardown preserves publication references. Explicit actual SDK/Broker profile is separate from automatic collection, fixed released SDK only, private process log sink and zero-skip receipt; native retry and Broker proof pending. 2026-10-21 real Broker control inputs now receive explicit original time before first seal; legacy test default remains empty. SDK field validation retained; no application changes from verified2bfbb65. Six fixture protocol regressions pass; actual Broker rerun pending. 2026-10-21 SDK TransactionSendError carries three-phase result: receiver preserves LocalCommitted only after exact authoritative archive/witness/Inbox verification. Other outcomes propagate, no automatic retry or false Broker confirmation. Probe records/rethrows structured errors without replacing real runtime. Full2636 unit and mypy381 passed; native/Broker revalidation pending."
+      "review_scope": "2026-10-06 source-grounded rewrite on unchanged 766b2aa business code, QS 2ccc2de and reliable-messaging Python 0.2.0a2 8633ba5; inbox/root/savepoint, first body/wire, source vs transport outbox, Relay budgets, stored ACK condition scope, protected payloads and one-record handoff; independent source review; legacy gRPC loop retired. 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained. 2026-10-19 M3 fixed prerelease and owner-bound inert transaction foundation reviewed; current business remains on original Relay and root transactions. Transaction-enabled legacy assembly fails closed; production remains independently unverified. 2026-10-19 explicit M3 protocol schema and manual current-head validation entry reviewed; original freeze/restore layouts retained and no production DDL. 2026-10-19 runtime0041 read-only validator explicitly composes frozen0040 base checks and exact four-table protocol checks. Legacy conversion validator/layouts remain strict; no DDL, resource ownership or model behavior changed. Added actual missing-index refusal proof; native CI pending. 2026-10-19 original-root immutable archive and explicit legacy reader reviewed; runtime validator adds host archive beside four unchanged SDK tables. Scoped retained-table handoff/inventory supports0041; old full conversion/backup whitelist unchanged. Local45 source cases and type/lint pass; new native archive proof pending. Native handoff fault tests use separate disposable administrator DDL connection; application DB user remains unchanged. Required schema server supplied at job scope so new maintenance regression cannot silently skip. 2026-10-21 frozen evaluation planning/source/sequence and original root reviewed; original cancellation drain/capacity rules reused; per-root READ COMMITTED precedes guard and organization mutex; receiver/Broker/native acceptance pending; no runtime enablement. 2026-10-21 inert transaction receiver and exact committed authority before inbound ACK reviewed; legacy Inbox remains compatibility-only; local budget holds get keyless empty transcription; physical failure wrappers remain audit-only. Native trigger DDL uses isolated administrator on exact same loopback primary; application pool/account unchanged; native and actual Broker proof pending. 2026-10-21 technical-budget read owns an explicit short transaction; original business still waits for all halves. Test fixture teardown preserves publication references. Explicit actual SDK/Broker profile is separate from automatic collection, fixed released SDK only, private process log sink and zero-skip receipt; native retry and Broker proof pending. 2026-10-21 real Broker control inputs now receive explicit original time before first seal; legacy test default remains empty. SDK field validation retained; no application changes from verified2bfbb65. Six fixture protocol regressions pass; actual Broker rerun pending. 2026-10-21 SDK TransactionSendError carries three-phase result: receiver preserves LocalCommitted only after exact authoritative archive/witness/Inbox verification. Other outcomes propagate, no automatic retry or false Broker confirmation. Probe records/rethrows structured errors without replacing real runtime. Full2636 unit and mypy381 passed; native/Broker revalidation pending. 2026-10-21 T16 exact source and six-profile published SDK/Broker acceptance completed and merged; operational truth stays in infra. T17 pure state projection, stable state-only intent/first wire/sequence, shared original-root boundary and root-affine keyless transcription reviewed; production assembly stays disabled. New state native cases collected, actual execution pending. 2026-10-21 explicit worker preflight uses stable operation input before mutable source reads, frozen first evidence and original-root source validation. State facts/v1 golden bytes retained; nonempty bounded operation context uses explicit v2. Callback owns no commit, model or lifecycle resources. Source and published-SDK state profiles remain separate required gates; full worker/governance migration still in progress. 2026-10-21 original prepare/dispatch multi-checkpoint root retains one final frozen state and one sequence; signed version bounds and v1 golden unchanged. Finalization/reopening reuse extracted pure progress projections with original locks, gates, review history and root ownership. Full2742 pure tests and mypy387 passed; new atomic-root native proof pending. Governance RPC migration remains incomplete. 2026-10-21 atomic prepare/dispatch characterization distinguishes retained prepared snapshot from final state checkpoint; original business code unchanged. Initial assertion failure retained in infra; native rerun required."
     },
     {
       "path": "docs/03-基础设施/model-gateway/README.md",
@@ -2940,7 +2984,7 @@
         "2026-10-12: configuration/semantic/closure/docs suite above 161 passed; separate nonoverlapping review/publication suites 114 and 45 passed, total 320. check_docs.py passed: 75 Markdown files and 1311 local links, zero errors.",
         "2026-10-12: test_grpc_evaluation_gates.py, test_grpc_evaluation_finalization.py, test_grpc_evaluation_review.py, test_grpc_review_correction.py and test_grpc_publication.py could not collect because the local environment lacks reliable_messaging. Dependencies were not modified. Real provider, disposable MySQL/MQ/mTLS integration, deployment, actual human approval and pointer activation not verified."
       ],
-      "review_scope": "2026-10-12: governance flow reviewed at 7c71d1e95500aa20c3d82f57a7304578c8a794dd. Traced workspace/atomic freeze/requested Run versus protected MQ Start; fixed candidate slots and budgets; structural candidate acceptance versus retained deterministic failures; LLM semantic obligations and original response evidence; G1-G5, versioned acceptance, two-role accountability and Finalize/reopening/correction limits; publication evidence recomputation, global selector, pointer CAS, rollback/disable, receipts and original participant bindings. Source and local rules only; deployed enablement, real model quality, actual human approval and shared pointer activation unknown."
+      "review_scope": "2026-10-12: governance flow reviewed at 7c71d1e95500aa20c3d82f57a7304578c8a794dd. Traced workspace/atomic freeze/requested Run versus protected MQ Start; fixed candidate slots and budgets; structural candidate acceptance versus retained deterministic failures; LLM semantic obligations and original response evidence; G1-G5, versioned acceptance, two-role accountability and Finalize/reopening/correction limits; publication evidence recomputation, global selector, pointer CAS, rollback/disable, receipts and original participant bindings. Source and local rules only; deployed enablement, real model quality, actual human approval and shared pointer activation unknown. 2026-10-21 finalization progress projection extracted without changing gate evaluation, actor/reason audit, CAS or caller root ownership; source and RPC regressions passed; production truth stays independently bound."
     }
   ],
   "working_tree_review": "M3 T03 fixed 0.4.0a1 wheel, v2 route/config and inert host-owned transaction lifecycle reviewed; legacy runtime rejects enabled transaction owners. Business/root commit/receipt/model recovery unchanged; production unknown.; M3 merge with main8fc9c09 preserves verified MySQL TLS factories in both migration and release probe, alongside protocol metadata/runtime0041 validation; host transaction factory ownership retained."

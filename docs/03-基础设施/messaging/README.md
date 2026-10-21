@@ -22,7 +22,7 @@ RocketMQ 终态交接携带 provider、原始 Wire 和实际物理来源，宿�
 
 此入口目前未接入 command admission、状态 finalization 或统一 server。旧 `MessagingRuntime.create()` 遇到非空 transactions 明确拒绝，避免继续由 MQRelay 发送事务 owner 的消息。原根事务、首 wire、业务 receipt 和模型 unknown 恢复仍按下文执行；后续批次逐项替换，不因 SDK 具备事务能力就宣称业务已迁移。全局进度以 [infra M3 总表](https://github.com/FangcunMount/infra/blob/main/docs/server/rocketmq-m3-execution.md) 为准。
 
-## T16 command 冻结与原根执行器（接入进行中）
+## command 冻结与原根执行器（生产装配尚未启用）
 
 `transaction_command.py` 在认证和正文解析之后持有原始 command bytes，以 owner、组织、原 command ID 和稳定 input hash 标识请求。完整计划保存首次 receipt/state 的 ID、正文、wire 和 v2 路由。无本地上下文时 archive/v1 的 bytes 和摘要不变；带上下文时显式采用宿主 archive/v2，最多 16 KiB，上下文计入本地计划与消息指纹，原业务 wire 不变。SDK codec/schema 保持原版本。读取持久化赢家时，逐分支校验原 command、组织、路由以及业务 receipt/state 的版本和关联；同一计划所有分支的上下文必须相同。
 
@@ -35,6 +35,30 @@ RocketMQ 终态交接携带 provider、原始 Wire 和实际物理来源，宿�
 解释业务与 SQL job 的身份、Inbox reservation 可以借用预分配值；历史入口默认分配行为不变。START 已提供只读 `ReadOnlyStartUnitOfWork` 和完整 `StartAdmissionPlanner`：复用原服务规则，预查幂等、配置和容量，读事务关闭后才冻结 receipt/state 首次 wire。执行时 `make_start_root` 从 reservation 赢家读取 `StartPlanFacts`，借用原服务与 SQL 根，重校验配置和 UTC 预算日，明确验证状态后再写 witness/提交；`EventSession.commit` 不再编排这次发送。状态历史仍保留必要拒绝证据并标记 MQ 责任，事务入口不创建 messaging_outbox 发布责任。已完成 Inbox 不能因 token 相同而再次取得业务执行资格。
 
 两类评测命令已增加只读完整规划和原根装配，待新候选原生验证；实际 command receiver 装配和真实 Broker 验收仍待完成，旧 runtime 对 transactions 配置的拒绝继续保留。`tests/integration/test_transaction_admission_root.py` 提供两种宿主档案格式的隔离 MySQL HELD 根原子性、服务端拒绝和客户端丢弃已提交回复用例；`test_execution_configurations.py` 增加真实只读规划、匹配绑定及 pointer 冲突用例。候选80805fb的两档MySQL完整CI各3242项零失败/跳过，已下载核对八份分片覆盖；这是原根/配置与历史回归的证据。后续真实只读START、并发赢家、原业务+witness及显式Replan旧证据验证用例已加入，待新候选CI。它们仍不计为Broker、网络故障或完整业务链路验收。
+
+## T17 独立状态冻结与原根基础（实施中）
+
+T16 command 组件已合并并通过隔离原事务及固定发布 SDK/Broker 验证，统一生产装配仍保持关闭。下文的旧候选记录保留排查经过；当前任务、失败历史和验收状态只以 [infra M3 总表](https://github.com/FangcunMount/infra/blob/main/docs/server/rocketmq-m3-execution.md) 为准。
+
+[`state_projection.py`](../../../src/qs_ai/infrastructure/workflow_transport/state_projection.py) 共享原解释/评测可见状态投影，不读取数据库、不创建 ID 或时间、不签名。原普通消息 recorder 与事务状态核验使用同一投影；同评测版本复用原 sequence，版本回退拒绝。
+
+[`EvaluationStateIntent`](../../../src/qs_ai/infrastructure/workflow_transport/evaluation_state_plan.py) 为非 command 状态提供独立稳定请求。宿主必须提供原授权操作键、原 expected version 和稳定业务输入摘要，不能使用候选时钟、密文或会在提交后变化的当前业务行代替原输入。冻结事实保存首次 UTC 时间、前序 sequence/version；完整计划只接受精确 owner/组织/Run/目标版本/物理路由及原首次 wire。读取持久化赢家不需要密钥，不重新 Seal，也不借用 command Inbox。
+
+[`EvaluationStateRoot`](../../../src/qs_ai/infrastructure/workflow_transport/evaluation_state_root.py) 从赢家组装单次本地执行器。SDK 负责先准备半消息；宿主原根第一条条件写取得 guard，然后原业务适配器重校验授权和业务条件、写业务事实。keyless 状态转录精确核验可见状态、竞争原 sequence CAS，再显式写档案/witness 并提交；`EventSession.commit()` 不编排该新状态。未完成或失败的转录也不得移动到另一个根事务。
+
+command 与独立状态共用 [`commit_original`](../../../src/qs_ai/infrastructure/workflow_transport/transaction_root.py) 的根提交/新读取边界：提交回复不明只查询精确 witness，原根回滚且持久化中止成功才证明 Aborted；取消和连接错误不构成回滚证明。宿主继续持有连接池、业务条件和生命周期。新状态入口不创建旧发布 Outbox，不自动 Retry/Replan 或调用模型。
+
+worker 预检通过显式 `preflight_dispatch` 借用 [`PreflightStateDispatcher`](../../../src/qs_ai/infrastructure/workflow_transport/evaluation_preflight_dispatch.py)。先按原 Run/version/组织及稳定操作键查询 SDK 请求；已提交的旧 hint 只核验首次证据，不因当前 checkpoint 已推进而重新规划。未决或中止记录需要精确证明或显式恢复，不自动创建新执行。
+
+[`PreflightStatePlanner`](../../../src/qs_ai/infrastructure/workflow_transport/evaluation_preflight_state.py) 只读当前 Run/checkpoint、原登记 suite 与序号，关闭读取后再计算原无模型预检、生成身份和第一次 Seal。赢家上下文冻结首 PreflightEvidence、时间及源快照摘要；原执行器锁定并重新核验源，再调用原 preflight 完成规则。稳定请求输入和可变源快照分别保存，避免已提交重投因业务推进而误报输入冲突。
+
+空业务上下文保持已有状态 facts/v1 的每个字节；非空预检上下文采用显式 facts/v2，原始操作上下文最多8 KiB，整个宿主上下文仍最多16 KiB。读取支持两个显式版本，SDK codec/schema及原业务 wire 不变。worker 的新入口只接受精确原根提交证明；`LocalCommitted + FinalUnknown`（含SDK结构化异常）保留Broker确认责任，不授权模型重做。默认装配继续保留原入口，事务运行装配须等待全部状态、ACK和历史责任接入。
+
+原 [`prepare_step`](../../../src/qs_ai/infrastructure/persistence/mysql/evaluation_step.py) 的准备与 dispatch 会在一个根事务内连续推进两个 checkpoint 版本。独立状态计划允许冻结高于原 expected version 的最终版本，仍只递增一次消息 sequence、发布一条最终状态，不拆分原提交或发布中间版本。首次 wire、上下文 v1/v2 和 SDK codec 不变；原根转录仍精确比较最终数据库状态与冻结消息。
+
+治理定稿与重开分别复用 [`finalized_progress`](../../../src/qs_ai/infrastructure/persistence/mysql/evaluation_finalization.py) 和 [`reopened_progress`](../../../src/qs_ai/infrastructure/persistence/mysql/evaluation_reopening.py) 的纯进度投影。宿主先取得有作用域的有效门槛快照；原事务继续持锁、重新验证门槛并提交。拒绝历史、首次审核和修正记录保持原规则。抽出投影不表示治理 RPC 已接入事务消息。
+
+本批尚未替换全部 worker、治理和终态入口。MySQL 原状态根、实际 worker 及固定 SDK/Broker profile 分别验证；当前进度和失败记录回链 infra 总表，不据单项通过启用统一 runtime 或标记 T17 完成。
 
 ## 当前服务怎样装配这条链路
 
@@ -215,7 +239,7 @@ PARTICIPANT_RETRY 已复用原风险确认、blocked Run/CAS、首次模型请�
 重试批次 b210b84 本地完整纯单元2527通过（881项integration/interop按标记未选，不当作真实依赖验收），mypy374源文件、Ruff和文档门禁通过。8264093的完整CI已覆盖原入口回归、共享上下文和三项原生重试证明；T16仍不勾选，实际receiver、两类评测命令原生复验与Broker验证待完成。
 
 
-### 评测启动与取消的冻结原根（本地实现，原生复验待完成）
+### 评测启动与取消的冻结原根（独立组件）
 
 `EvaluationAdmissionProjection` 组合原 requested 转移、容量估算、审计视图与取消规则，SELECT 规划不取得行锁、不预占预算。`EvaluationAdmissionPlanner` 在独立一致性读取中保存原 Run/checkpoint 摘要、原事件序号和完整业务结果；关闭读取后才签名、加密 receipt/state。取消中的未知或已 dispatch 工作仍保留原 checkpoint，生成 `cancel_requested`，不会伪造终态或再次调用模型。
 
@@ -226,7 +250,7 @@ PARTICIPANT_RETRY 已复用原风险确认、blocked Run/CAS、首次模型请�
 原服务只借用根事务；`FrozenEvaluationEvents` 对照计划核验业务投影，以原序号 CAS 转录，再显式写档案/witness，由宿主提交。序号或业务条件变化时整根中止，不能更换消息 ID、重新签名或自动执行业务。没有新的 messaging_outbox/Relay 发布责任。新增9项实际MySQL用例覆盖两类提交、源/序号竞争、服务端拒绝、客户端丢弃提交回复、组织容量竞争与 dispatch 取消 drain；仅收集待CI，不称为网络故障或Broker验收。
 
 
-### 独立事务 command receiver（原生与Broker复验待完成）
+### 独立事务 command receiver（生产装配尚未启用）
 
 `TransactionCommandReceiver` 复用原 `CommandReceiver.resolve_command` 的 JOSE 认证、受限载荷读取及拒绝隔离；先检查实际 provider、逻辑 Topic 和 `qs.mysql/m3-1` TRANSACTION 物理 Topic，再查 SDK 请求。同请求已提交时逐项核验权威 witness、首次档案与 Inbox 决策；未决或中止状态不自动创建新执行、重建计划或调用业务。首次请求先只读兼容旧 Inbox，旧决策不成为新事务 witness。
 
