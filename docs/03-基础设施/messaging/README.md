@@ -292,3 +292,9 @@ Broker第二轮39539009218暴露最后确认的适配缺口：固定SDK在最终
 评审沿用同一显式管理适配器及发送编排：半消息未确认准备成功不执行原事务；只有精确提交证明与首次档案都存在才返回原事务内取得的响应。提交未知保留未决责任，不返回版本冲突、不自动重做评审。原RPC无跨请求幂等键，每次调用保留原版本CAS语义。新增12项原生用例覆盖单项/35项、档案拒绝、客户端丢弃已完成提交回复、并发版本变化及实际RPC处理函数；DB-only runtime与客户端故障注入不冒充真实Broker、网络或进程故障，最终验收以infra总表为准。
 
 评审更正的原 [`correct_review/plan_review_correction`](../../../src/qs_ai/infrastructure/persistence/mysql/evaluation_review_corrections.py) 共享只读业务规划。精确 command ID 和输入的历史重放在版本/状态CAS之前判断，覆盖当前和重开前归档的更正记录；重放不写新状态、不新增事件、不生成或收养witness。原写入口仍配置RR并按checkpoint/Run顺序加锁，仅新更正保存原审核链，根提交归宿主。此抽取不是更正入口已迁移事务SDK，相关真实依赖验证与后续接入仍以infra总表为准。
+
+[`CorrectionStateOperation`](../../../src/qs_ai/infrastructure/workflow_transport/correction_state_plan.py) 冻结原command ID、版本、两项指纹、完整更正输入及首次审核时间；稳定输入摘要不包含后续RPC重新取得的服务器时间。最坏合法单项理由仍可放入有界事实，不收窄原公开输入。原 [`CorrectionStatePlanner/CorrectionStateRoot`](../../../src/qs_ai/infrastructure/workflow_transport/correction_state.py) 先查精确历史重放，再只读规划；全部半消息准备后，在原RR根先取SDK guard、重验源状态及全部原更正规则，共同提交审核链、sequence、首次档案和witness。原提交回复未知时只读新边界恢复，不重做业务。
+
+更正沿用原公开command ID幂等：旧业务回执精确匹配且没有SDK执行记录时，只读返回当前业务视图，不发送半消息或收养witness；已有SDK记录时，只有精确Committed witness、首次档案和同一原业务更正都验证通过，才允许返回原重放结果，包括后续已定稿的当前视图。Prepared/Aborted记录不自动新建执行。只读预查与reservation之间的竞态只做有界证据重读，不补执行业务。新执行成功仍返回其原根内取得的响应。
+
+[`input_conflicts`](../../../src/qs_ai/infrastructure/persistence/mysql/transaction_input.py) 只在SDK拒绝键复用时，以固定宿主主库中的绑定、schema、原字节身份及输入摘要证明冲突，保留原更正CAS错误语义；不依赖异常文本，不把解析或绑定失败冒充业务冲突，也不据此确认Commit/Rollback。协议读预算沿用显式2秒。新增14项真实MySQL用例覆盖原子提交、审核时间、档案拒绝、客户端丢弃提交回复、版本竞争、历史重放、实际RPC准备门禁及精确输入冲突；这些不是Broker/网络或生产证明，执行状态以infra总表为准。默认生产装配仍关闭。
