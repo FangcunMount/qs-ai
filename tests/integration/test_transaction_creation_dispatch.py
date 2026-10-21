@@ -5,11 +5,12 @@ from contextlib import asynccontextmanager
 from dataclasses import asdict, replace
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
+from uuid import uuid4
 
 import pytest
 from reliable_messaging.rocketmq_transaction import TransactionSendError
 from reliable_messaging.transaction import Decision, LocalOutcome, Result, StoreChecker
-from sqlalchemy import delete
+from sqlalchemy import delete, text
 
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict
 from qs_ai.application.evaluation.execution_mode import ExecutionMode
@@ -19,6 +20,7 @@ from qs_ai.contracts.workflow import workflow_pb2 as pb
 from qs_ai.infrastructure.persistence.mysql.evaluation_management import MySQLEvaluationManagement
 from qs_ai.infrastructure.persistence.mysql.evaluation_requests import MySQLEvaluationRequests
 from qs_ai.infrastructure.persistence.mysql.evaluation_runs import MySQLRunCreator
+from qs_ai.infrastructure.persistence.mysql.transaction_schema import archive
 from qs_ai.infrastructure.workflow_transport.state_events import evaluation_sequences
 from qs_ai.infrastructure.workflow_transport.transactional_evaluation_requests import (
     TransactionalEvaluationRequests,
@@ -27,6 +29,7 @@ from tests.integration.test_evaluation_runs import rows
 from tests.integration.test_evaluation_runs import setup_run as setup_run
 from tests.integration.test_interpretation import kit as kit
 from tests.integration.test_mq_storage import keys as keys
+from tests.integration.test_transaction_evaluation_admission import trigger_admin as trigger_admin
 from tests.integration.test_transaction_start_admission import host as host
 from tests.integration.test_transaction_start_admission import (
     required_disposable_primary as required_disposable_primary,
@@ -213,3 +216,43 @@ async def test_concurrent_creation_has_one_executor_and_keeps_durable_first_plan
     )
     assert replay.version == 1 and replay.status == "requested"
     assert await rows(p.host.tx, p.run_id) == first and p.runtime.calls == 1
+
+
+@pytest.mark.parametrize("fault", ["archive_rejected", "witness_rejected"])
+async def test_sender_does_not_return_captured_business_view_after_original_root_rollback(
+    creation, trigger_admin, fault
+):
+    from qs_ai.infrastructure.workflow_transport.creation_state_plan import (
+        CreationStateInput,
+        read_creation_state_plan,
+    )
+    from qs_ai.infrastructure.workflow_transport.transactional_evaluation_requests import (
+        CreationTransactionPending,
+    )
+
+    p = creation
+    trigger = "creation_sender_fault_" + uuid4().hex
+    statement = (
+        f"CREATE TRIGGER {trigger} BEFORE INSERT ON {archive.name} FOR EACH ROW "
+        "SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='isolated sender archive rejection'"
+        if fault == "archive_rejected"
+        else f"CREATE TRIGGER {trigger} BEFORE UPDATE ON rm_tx_witness FOR EACH ROW "
+        "BEGIN IF NEW.state='committed' THEN SIGNAL SQLSTATE '45000' "
+        "SET MESSAGE_TEXT='isolated sender witness rejection'; END IF; END"
+    )
+    async with trigger_admin.begin() as db:
+        await db.execute(text(statement))
+    try:
+        at = datetime(2026, 10, 21, tzinfo=UTC)
+        with pytest.raises(CreationTransactionPending):
+            await p.sender.create(p.scope, p.complete_release, "原创建意图", at, confirm=True)
+        assert p.runtime.calls == len(p.host.executions) == 1
+        owned = p.host.executions[0]
+        assert await StoreChecker(p.host.store).check(owned.references[0]) == Decision.ROLLBACK
+        assert await rows(p.host.tx, p.run_id) == [None, None, None]
+        incoming = CreationStateInput(p.scope, p.complete_release, "原创建意图")
+        _, _, first = read_creation_state_plan(incoming, owned.plan)
+        assert await p.host.archives.read_committed(first.envelope().message_id) is None
+    finally:
+        async with trigger_admin.begin() as db:
+            await db.execute(text(f"DROP TRIGGER {trigger}"))

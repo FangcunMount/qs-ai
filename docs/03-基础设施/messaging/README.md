@@ -313,7 +313,7 @@ Broker第二轮39539009218暴露最后确认的适配缺口：固定SDK在最终
 
 [`TransactionalEvaluationRequests`](../../../src/qs_ai/infrastructure/workflow_transport/transactional_evaluation_requests.py) 提供独立Create-once入口：先查原稳定请求和精确业务回执，再冻结候选；全部半消息成功后才执行单次原创建根。原RPC仍用调用方Run UUID幂等，同键不同输入仅在精确身份/输入证据成立时返回冲突；Prepared/Aborted责任不自动重建。新执行返回原根内捕获的响应；本地Committed而Broker最终确认Unknown时，逐项验证原witness和首次档案后保留业务成功，不重新创建。
 
-重复创建继续返回当前业务视图和首次creation receipt，即使Run已启动或宿主模式配置已改变。legacy回执没有SDK记录时只读返回，不能被收养为新witness；已有SDK记录必须同时核对精确Committed证据、首次档案和原definition/mode，缺一保持未决。预查/回执读取竞态只有一次有界权威重查，不自动重执行业务。新增14项真实MySQL用例覆盖实际Create RPC、本地执行前准备门禁、两种首次模式、原回执、新旧输入冲突和并发赢家；DB-only运行器不证明真实Broker，验收结果与总进度以infra记录为准。统一生产装配及Solution Prepare事务入口仍未启用。
+重复创建继续返回当前业务视图和首次creation receipt，即使Run已启动或宿主模式配置已改变。legacy回执没有SDK记录时只读返回，不能被收养为新witness；已有SDK记录必须同时核对精确Committed证据、首次档案和原definition/mode，缺一保持未决。预查/回执读取竞态只有一次有界权威重查，不自动重执行业务。新增16项真实MySQL用例覆盖实际Create RPC、本地执行前准备门禁、两种首次模式、原回执、新旧输入冲突和并发赢家，以及业务已构造响应后档案/witness失败导致原根回滚时不返回成功；DB-only运行器不证明真实Broker，验收结果与总进度以infra记录为准。统一生产装配及Solution Prepare事务入口仍未启用。
 
 
 Solution Prepare同时写资产和Run，仍须在同一原根接入事务消息，不能把资产提前提交。其前置只读规划现已提供 [`PromptFreezePlan/plan_freeze`](../../../src/qs_ai/infrastructure/persistence/mysql/prompt_freezes.py) 和 [`ProfileRegistrationPlan/plan_registration`](../../../src/qs_ai/infrastructure/persistence/mysql/profile_registrations.py)：复用原草稿、来源、不可变身份、内容、渲染和回执规则，规划不加写锁、不执行DML；原写路径及根提交归属保持不变。原路径仍读取数据库中的真实资产验证，不能用预览覆盖持久化核验。
