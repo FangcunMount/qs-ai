@@ -510,3 +510,11 @@ ClaimStage 仅描述 miss/deferred/exhausted/claimed 的暂存结果。returned 
 `EvaluationStateFacts.source_version` 显式冻结较稳定operation版本更晚的权威来源版本，使用v3 context；缺省None保持既有v1/v2编码字节。来源须为有符号范围内的整数且不小于原operation版本，旧序号版本不得晚于来源，冻结消息最终版本必须晚于来源。一次原根中多次checkpoint推进仍只形成一份最终状态事件；实际业务适配器继续校验精确来源、权限、目标投影和原CAS，字段本身不授权版本提升、重试或模型调用。
 
 这样可以保留首次稳定request/input hash，同时为后续取消drain等来源推进冻结新的只读事实；新计划或执行仍须宿主显式授权，旧未决/Committed不能被覆盖。V3不修改SDK codec、wire、数据库schema或默认装配。22新单元覆盖跨版本/歧义字段、整数边界、来源/最终版本及多次推进；v1摘要f28022c5、v2摘要ecb9989a保持精确。74组合目标、3471完整本地单元（1194 integration/interop排除）、419源类型及lint/format通过。5项真实MySQL原根用例仅收集，包含原CAS、共同回滚、提交后客户端丢回复和单根两次推进；它们是协议/原根基础，不能替代完整评测终态Sender、真实Broker或T18模型恢复。代码d935f50，CI/合并和生产状态回链infra总表。
+
+
+评测串行 generation 的终态来源读取与原写入共用 `load_serial_generation_source`：读取原checkpoint与组织内Run，校验精确dispatch身份，以及原版本或精确cancel_requested来源/目标版本。只读规划不加锁、不写入、不提交；原complete_generation按原checkpoint→Run顺序加锁重验，再执行既有ledger、冻结资产、历史终态与checkpoint CAS。只读结果不是提交证明或模型重试许可；lease到期不替代原证据规则。candidate路径继续由原completion_owner管理。
+
+代码3c6e5ff：新增原入口9项表征先通过，再抽取；抽取后41组合目标、3486完整本地单元（1199 integration/interop明确排除）、419源类型和lint/format通过。5项真实MySQL用例仅收集，覆盖无写读取、取消drain、原根提交/回滚及旧观察不能重复提交；须按精确新源码完成required CI，不计完整terminal Sender、T18模型恢复或生产验收。
+
+
+原来源校验候选0ef23e8的实际MySQL8.4分片失败：foreign invocation测试只替换完成对象的invocation，未同步原provider receipt，被领域构造校验提前拒绝，未进入目标SQL冲突路径。修订使两者均为同一foreign身份，构造有效但仍必须被原dispatch校验拒绝；补两项只读/加锁负例，本地43组合目标、3488完整单元（1199 integration/interop排除）通过。保留失败报告，原领域校验与SQL条件不变，5项原生仍须按新源码完整重验。
