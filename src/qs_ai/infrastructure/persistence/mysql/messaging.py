@@ -209,6 +209,36 @@ class MessagingStore:
             raise MessageConflict("first persisted event identity conflict")
         return row  # only first wire is retained; repeated identity never overwrites it
 
+    async def read_command(
+        self, db: AsyncSession, envelope: pb.MessagingEnvelope, raw: bytes
+    ) -> Any | None:
+        """Read an existing original decision without claiming or creating witness."""
+        parse_body(envelope, raw)
+        row = (
+            (
+                await db.execute(
+                    sa.select(inbox).where(
+                        inbox.c.producer == envelope.producer,
+                        inbox.c.message_id == envelope.message_id,
+                    )
+                )
+            )
+            .mappings()
+            .one_or_none()
+        )
+        if row is None:
+            return None
+        if (row["body_sha256"], row["body"], row["kind"], row["aggregate_key"]) != (
+            envelope.body_sha256,
+            raw,
+            envelope.kind,
+            envelope.aggregate_key,
+        ):
+            raise MessageConflict("Original command identity differs")
+        if row["decision"] not in ("accepted", "rejected", "held") or not row["receipt_id"]:
+            raise RuntimeError("Original command decision remains unresolved")
+        return row
+
     async def reserve_command(
         self,
         db: AsyncSession,

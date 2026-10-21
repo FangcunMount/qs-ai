@@ -86,19 +86,28 @@ class CommandReceiver:
             await self.store.quarantine_wire(db, wire, code)
             await db.commit()  # storage failure propagates: SDK cannot FIN
 
-    async def receive_command(self, received: Received) -> None:
+    async def resolve_command(
+        self, wire: bytes
+    ) -> tuple[pb.MessagingEnvelope, bytes, pb.MessagingBody] | None:
+        """Authenticate and resolve before any business transaction or half message."""
         try:
             envelope = authenticate(
-                received.wire,
+                wire,
                 COMMANDS,
                 decrypt_keys=self.decrypt_keys,
                 trusted_signers=self.trusted_signers,
             )
             raw = await self._body(envelope)
-            body = parse_body(envelope, raw)
+            return envelope, raw, parse_body(envelope, raw)
         except (ProtectionError, MessagingContractError, ValueError):
-            await self.isolate(received.wire, "authentication_failed")
+            await self.isolate(wire, "authentication_failed")
+            return None
+
+    async def receive_command(self, received: Received) -> None:
+        resolved = await self.resolve_command(received.wire)
+        if resolved is None:
             return
+        envelope, raw, body = resolved
         # Fetch timeouts/storage errors are technical Unknown and propagate to REQ.
         try:
             async with self.transactions.open() as db:
