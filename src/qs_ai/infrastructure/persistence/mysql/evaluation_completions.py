@@ -3,7 +3,7 @@
 import asyncio
 import json
 import re
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 from uuid import UUID
 
 from sqlalchemy import select, update
@@ -36,6 +36,64 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_dispatches,
     evaluation_runs,
 )
+
+
+@dataclass(frozen=True)
+class SerialGenerationSource:
+    """Read authority, never a transaction result or provider invocation permission."""
+
+    version: int
+    checkpoint: ExecutionCheckpoint
+    run: dict | RowMapping
+
+
+async def load_serial_generation_source(
+    db: AsyncSession,
+    run_id: UUID,
+    expected_version: int,
+    organization_id: int,
+    owner: str,
+    completion: GenerationCompletion,
+    *,
+    lock: bool,
+) -> SerialGenerationSource:
+    """Original serial identity and cancellation rules on the caller's read boundary.
+
+    Planning selects without locks; the original writer repeats this with locks.
+    Lease expiry alone never authorizes a new model call or invalidates evidence.
+    The caller still validates immutable dispatch, prior receipts and frozen assets.
+    """
+    checkpoint_query = select(evaluation_checkpoints).where(
+        evaluation_checkpoints.c.run_id == str(run_id)
+    )
+    if lock:
+        checkpoint_query = checkpoint_query.with_for_update()
+    row = (await db.execute(checkpoint_query)).mappings().one_or_none()
+    cp = decode(row["checkpoint_json"]) if row is not None else None
+    if row is None or cp is None or not completion.matches_checkpoint(cp, owner):
+        raise CheckpointConflict("Terminal evidence does not match active Run checkpoint")
+    run_query = select(evaluation_runs).where(
+        evaluation_runs.c.run_id == str(run_id),
+        evaluation_runs.c.organization_id == organization_id,
+    )
+    if lock:
+        run_query = run_query.with_for_update()
+    run = (await db.execute(run_query)).mappings().one_or_none()
+    if (
+        run is None
+        or run["progress_json"] is None
+        or run["progress_json"]["status"] != "collecting"
+    ):
+        raise CheckpointConflict("Collecting Run in organization required")
+    if row["version"] != expected_version:
+        intent = run["progress_json"].get("cancel_requested", {})
+        if (
+            intent.get("source_version") != expected_version
+            or intent.get("version") != row["version"]
+        ):
+            raise CheckpointConflict("Run version changed outside cancellation")
+        expected_version = row["version"]
+    return SerialGenerationSource(expected_version, cp, run)
 
 
 async def complete_generation(
@@ -80,50 +138,10 @@ async def complete_generation(
         if not completion.matches_checkpoint(cp, owner):
             raise CheckpointConflict("Completion differs from candidate ownership")
     else:
-        row = (
-            (
-                await db.execute(
-                    select(evaluation_checkpoints)
-                    .where(evaluation_checkpoints.c.run_id == str(run_id))
-                    .with_for_update()
-                )
-            )
-            .mappings()
-            .one_or_none()
+        source = await load_serial_generation_source(
+            db, run_id, expected_version, organization_id, owner, completion, lock=True
         )
-        cp = decode(row["checkpoint_json"]) if row is not None else None
-        if row is None or cp is None or not completion.matches_checkpoint(cp, owner):
-            raise CheckpointConflict("Terminal evidence does not match active Run checkpoint")
-        run = (
-            (
-                await db.execute(
-                    select(evaluation_runs)
-                    .where(
-                        evaluation_runs.c.run_id == str(run_id),
-                        evaluation_runs.c.organization_id == organization_id,
-                    )
-                    .with_for_update()
-                )
-            )
-            .mappings()
-            .one_or_none()
-        )
-        if (
-            run is None
-            or run["progress_json"] is None
-            or run["progress_json"]["status"] != "collecting"
-        ):
-            raise CheckpointConflict("Collecting Run in organization required")
-    if claim is None:
-        assert row is not None
-    if claim is None and row is not None and row["version"] != expected_version:
-        intent = run["progress_json"].get("cancel_requested", {})
-        if (
-            intent.get("source_version") != expected_version
-            or intent.get("version") != row["version"]
-        ):
-            raise CheckpointConflict("Run version changed outside cancellation")
-        expected_version = row["version"]
+        run, cp, expected_version = source.run, source.checkpoint, source.version
     creation = json.loads(run["definition_json"])
     policy, _ = await asyncio.to_thread(frozen_policies, creation)
     if creation["execution_policy_json"] != policy.definition_json:

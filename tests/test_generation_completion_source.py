@@ -133,3 +133,41 @@ async def test_original_serial_terminal_rejects_changed_authority_before_any_wri
     assert all(call.args[0].is_select for call in p.db.execute.await_args_list)
     p.save.assert_not_called()
     p.db.commit.assert_not_called()
+
+
+@pytest.mark.parametrize("lock", [False, True])
+@pytest.mark.parametrize("cancel", [False, True])
+async def test_planner_and_original_writer_share_authority_without_writes_or_commit(
+    source, lock, cancel
+):
+    p = source
+    if cancel:
+        p.checkpoint["version"] = 6
+        p.progress["cancel_requested"] = dict(source_version=5, version=6)
+    read = await original.load_serial_generation_source(
+        p.db, p.run_id, 5, 1, "worker:first", p.value, lock=lock
+    )
+    assert read.version == (6 if cancel else 5)
+    assert read.checkpoint == p.cp and read.run is p.run
+    assert p.db.execute.await_count == 2
+    for call in p.db.execute.await_args_list:
+        query = call.args[0]
+        assert query.is_select
+        assert (query._for_update_arg is not None) == lock
+    p.save.assert_not_called()
+    p.db.commit.assert_not_called()
+
+
+@pytest.mark.parametrize("lock", [False, True])
+async def test_completion_read_does_not_turn_lease_expiry_into_model_retry_authority(source, lock):
+    p = source
+    # Existing completion acceptance is tied to immutable dispatched ownership,
+    # not to the wall clock or a renewed/recreated provider call.
+    expired = replace(p.cp, lease_expires_at=p.cp.claimed_at + timedelta(microseconds=1))
+    p.checkpoint["checkpoint_json"] = encode(expired)
+    read = await original.load_serial_generation_source(
+        p.db, p.run_id, 5, 1, "worker:first", p.value, lock=lock
+    )
+    assert read.checkpoint == expired
+    assert read.version == 5
+    p.db.commit.assert_not_called()
