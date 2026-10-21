@@ -12,8 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict, CheckpointState
 from qs_ai.application.evaluation.completion import validate_generation_completion
-from qs_ai.application.interpretation.route_assets import RouteAssets
-from qs_ai.application.interpretation.schema_assets import SchemaAssets
+from qs_ai.application.interpretation.route_assets import RouteReader
+from qs_ai.application.interpretation.schema_assets import SchemaReader
 from qs_ai.domain.evaluation.checkpoint import ExecutionCheckpoint
 from qs_ai.domain.evaluation.completion import GenerationCompletion
 from qs_ai.domain.evaluation.identity import EvidenceReleaseIdentity, FrozenContractRef
@@ -103,8 +103,8 @@ async def complete_generation(
     organization_id: int,
     owner: str,
     completion: GenerationCompletion,
-    routes: RouteAssets,
-    schemas: SchemaAssets,
+    routes: RouteReader,
+    schemas: SchemaReader,
     *,
     candidate_id: str = "",
     assertions: tuple[AssertionReceipt, ...] = (),
@@ -234,8 +234,8 @@ async def complete_evaluated_generation(
     organization_id: int,
     owner: str,
     completion: GenerationCompletion,
-    routes: RouteAssets,
-    schemas: SchemaAssets,
+    routes: RouteReader,
+    schemas: SchemaReader,
     *,
     candidate_id: str = "",
     claim: SlotClaim | None = None,

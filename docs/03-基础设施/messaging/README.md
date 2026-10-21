@@ -517,4 +517,16 @@ ClaimStage 仅描述 miss/deferred/exhausted/claimed 的暂存结果。returned 
 代码3c6e5ff：新增原入口9项表征先通过，再抽取；抽取后41组合目标、3486完整本地单元（1199 integration/interop明确排除）、419源类型和lint/format通过。5项真实MySQL用例仅收集，覆盖无写读取、取消drain、原根提交/回滚及旧观察不能重复提交；须按精确新源码完成required CI，不计完整terminal Sender、T18模型恢复或生产验收。
 
 
+串行 generation 完成入口由 `SerialGenerationPlanner`、`SerialGenerationWrite` 和 `SerialGenerationSender` 负责：必须已有原SerialResponseReference对应的持久化首次响应；稳定request绑定原dispatch与响应摘要。完整规划冻结首次candidate、精确输入/终态证据/来源摘要及最终状态wire，RO连接关闭后才Seal。原根借用同session读取不可变资产，复算确定性证据并复用首次candidate，调用原complete_evaluated_generation提交完成记录、Run进度与原CAS，最后由外层归档及witness共同提交。没有provider调用或伪造SlotClaim。
+
+重复已提交操作读取精确新witness、首次archive及原业务terminal receipt，返回首次checkpoint结果；Prepared/Aborted/Unknown不自动重做。LocalCommitted+FinalUnknown保留成功。retry只接受宿主明确决策并先读原来源/序号；原来源已改变时拒绝retry。明确replan另经公开SDK竞争精确旧Aborted，保留首次candidate和模型响应，并按新的权威来源冻结新plan；旧执行/消息证据保留。它不授权模型重试。
+
+原prepare_step_completion新增可选显式candidate_id，默认旧行为不变；新根传入首次ID，成功要求原有受限身份，失败只能为空，semantic不得使用该覆盖。generation资产校验的参数收窄为get-only Reader契约，以借用原session读取，不需要写资产能力。85组合目标、3526完整本地单元（1212 integration/interop明确排除）、421源类型与lint/format通过；13项真实MySQL根用例仅收集，涵盖成功/未知、取消drain、witness拒绝、提交后客户端丢回复、首次结果重复及显式新plan保留candidate。原生与真实Broker仍待对应精确候选验收，不计T18的真实provider故障或默认装配/生产启用。
+
+
+真实Broker档新增串行终态成功/未知两项及取消后显式replan一项入口，要求31宿主/76证据：半消息不可见、LocalCommitted+FinalUnknown、首次response/candidate/wire与精确witness、重复不重发，以及旧半消息回滚、新计划保留原candidate并在取消drain的原版本上提交。现阶段仅收集，不计实际Broker或T18真实provider/网络/进程故障验收。工具/source pin、安装SDK与清理报告须由infra另验，旧28/68不能复用。
+
 原来源校验候选0ef23e8的实际MySQL8.4分片失败：foreign invocation测试只替换完成对象的invocation，未同步原provider receipt，被领域构造校验提前拒绝，未进入目标SQL冲突路径。修订使两者均为同一foreign身份，构造有效但仍必须被原dispatch校验拒绝；补两项只读/加锁负例，本地43组合目标、3488完整单元（1199 integration/interop排除）通过。保留失败报告，原领域校验与SQL条件不变，5项原生仍须按新源码完整重验。
+
+
+串行终态候选已在de8a712合入17dc29a的foreign receipt夹具修正；业务/终态Sender、首次wire代码及Broker档与4c068f2逐字节保持，两个来源负例文件与3068e1一致。合并后87目标、3528完整本地单元（1212 integration/interop排除）、421源类型通过；13原生及31/76实际Broker仍须按本候选重验，前置旧0ef失败及修正证据保留。

@@ -3,6 +3,7 @@
 import asyncio
 import hashlib
 import json
+import re
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
@@ -346,6 +347,7 @@ async def prepare_step_completion(
     routes: RouteAssets,
     *,
     clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+    candidate_id: str | None = None,
 ) -> StepCompletion:
     cp = prepared.cp
     at = prepared.at
@@ -414,6 +416,17 @@ async def prepare_step_completion(
     status = (
         "succeeded" if failure is None else "result_unknown" if failure.result_unknown else "failed"
     )
+    if cp.kind != "generation" and candidate_id is not None:
+        raise ValueError("Semantic completion cannot bind a generation candidate identity")
+    if candidate_id is not None and (
+        type(candidate_id) is not str
+        or (
+            status == "succeeded"
+            and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9:._/-]{0,127}", candidate_id) is None
+        )
+        or (status != "succeeded" and candidate_id != "")
+    ):
+        raise ValueError("Exact first generation candidate identity required")
     if cp.kind == "generation":
         completed = GenerationCompletion(
             execution_id,
@@ -431,7 +444,15 @@ async def prepare_step_completion(
             "sha256:" + hashlib.sha256(normalized).hexdigest() if normalized else "",
             failure,
         )
-        return StepCompletion(prepared, completed, str(uuid4()) if status == "succeeded" else "")
+        return StepCompletion(
+            prepared,
+            completed,
+            candidate_id
+            if candidate_id is not None
+            else str(uuid4())
+            if status == "succeeded"
+            else "",
+        )
     judged = SemanticCompletion(
         execution_id,
         cp.candidate_id,

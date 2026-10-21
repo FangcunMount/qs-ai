@@ -254,3 +254,85 @@ async def test_candidate_identity_and_evidence_are_prepared_before_entering_orig
     monkeypatch.setattr(module, "uuid4", no_identity)
     await module.finish_step_in(p.db, p.run_id, 1, "worker:first", Mock(), Mock(), value)
     assert p.generation.await_args.kwargs["candidate_id"] == str(candidate_id)
+
+
+async def test_explicit_first_candidate_identity_does_not_generate_another_in_completion(
+    original, monkeypatch
+):
+    from tests.test_generation_completion import completion
+
+    p = original
+    first = completion()
+    evidence = SimpleNamespace(
+        receipt=first.receipt,
+        raw=first.raw_output,
+        normalized=first.normalized_output,
+        failure=None,
+    )
+    monkeypatch.setattr(module, "response_evidence", Mock(return_value=evidence))
+    p.prepared.invocation_id = first.invocation_id
+    p.prepared.execution_id = first.execution_id
+    monkeypatch.setattr(
+        module, "uuid4", Mock(side_effect=AssertionError("Original first ID must be reused"))
+    )
+    result = await module.prepare_step_completion(
+        p.prepared, Mock(), None, Mock(), clock=lambda: p.at, candidate_id="candidate:first"
+    )
+    assert result.candidate_id == "candidate:first"
+    assert result.completion.status == "succeeded"
+    assert result.completion.raw_output == first.raw_output
+
+
+@pytest.mark.parametrize("candidate", [True, 1, "", " bad", "x" * 129])
+async def test_explicit_candidate_identity_requires_original_bounded_success_identity(
+    original, monkeypatch, candidate
+):
+    from tests.test_generation_completion import completion
+
+    p = original
+    first = completion()
+    monkeypatch.setattr(
+        module,
+        "response_evidence",
+        Mock(
+            return_value=SimpleNamespace(
+                receipt=first.receipt,
+                raw=first.raw_output,
+                normalized=first.normalized_output,
+                failure=None,
+            )
+        ),
+    )
+    p.prepared.invocation_id = first.invocation_id
+    with pytest.raises(ValueError):
+        await module.prepare_step_completion(
+            p.prepared, Mock(), None, Mock(), clock=lambda: p.at, candidate_id=candidate
+        )
+
+
+async def test_unknown_generation_can_reuse_only_explicit_absence_of_candidate(
+    original, monkeypatch
+):
+    p = original
+    monkeypatch.setattr(
+        module,
+        "uuid4",
+        Mock(side_effect=AssertionError("No candidate for unknown provider result")),
+    )
+    result = await module.prepare_step_completion(
+        p.prepared, None, p.failure, Mock(), clock=lambda: p.at, candidate_id=""
+    )
+    assert result.candidate_id == "" and result.completion.status == "result_unknown"
+    with pytest.raises(ValueError):
+        await module.prepare_step_completion(
+            p.prepared, None, p.failure, Mock(), clock=lambda: p.at, candidate_id="candidate:wrong"
+        )
+
+
+async def test_semantic_completion_cannot_accept_generation_candidate_override(original):
+    p = original
+    p.cp.kind = "semantic"
+    with pytest.raises(ValueError):
+        await module.prepare_step_completion(
+            p.prepared, None, p.failure, Mock(), clock=lambda: p.at, candidate_id=""
+        )
