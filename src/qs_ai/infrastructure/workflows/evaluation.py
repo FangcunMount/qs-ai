@@ -10,7 +10,7 @@ from uuid import UUID
 from langgraph.graph import END, START, StateGraph
 from langsmith import tracing_context
 
-from qs_ai.application.evaluation.checkpoints import CheckpointState
+from qs_ai.application.evaluation.checkpoints import CheckpointConflict, CheckpointState
 from qs_ai.application.evaluation.provider_failure import classify_provider_failure
 from qs_ai.application.execution.model_capacity import CapacityToken, ModelCapacity
 from qs_ai.application.interpretation.provider import (
@@ -91,6 +91,17 @@ async def execute_step(
             else:
                 value = await prepare_dispatch(run_id, expected_version, organization_id)
             token = value.capacity_token
+            if prepare_dispatch is not None and (
+                value.state.run_id != run_id
+                or value.state.version != expected_version + 2
+                or value.claim is not None
+                or value.cp.owner != owner
+                or value.cp.phase != "prepared"
+                or value.state.checkpoint != value.cp.mark_dispatching(owner, value.at)
+                or (value.execution_id, value.invocation_id)
+                != (value.cp.execution_id, value.cp.invocation_id)
+            ):
+                raise CheckpointConflict("Original serial dispatch handoff differs from worker")
             if value.claim is not None:
                 heartbeat = asyncio.create_task(renew(value))
             return {"prepared": value}
