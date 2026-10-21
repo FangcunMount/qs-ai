@@ -198,32 +198,48 @@ class MySQLRunCreator:
         request_reason: str,
         created_at: datetime,
     ) -> CheckpointState:
-        from qs_ai.infrastructure.qs_server.evaluation_release import validate_release_assets
-
         async with self.transactions.open() as db:
-            suite = await load_registered_suite(db, release.suite, organization_id=organization_id)
-            contracts = await evaluation_contracts(db, release, organization_id)
-            manifest = await validate_release_assets(
-                release,
-                self.profiles,
-                self.prompts,
-                self.routes,
-                self.schemas,
-                frozen_suite=suite,
-                execution_policy_json=contracts.execution.definition_json,
-                gate_policy_json=contracts.gate.definition_json,
-                semantic=contracts.semantic,
+            plan = await self.plan_in(
+                db, run_id, release, organization_id, requested_by, request_reason, created_at
             )
-            state = await create_run(
-                db,
-                run_id,
-                release,
-                organization_id,
-                requested_by,
-                request_reason,
-                created_at,
-                generation_manifest=manifest,
-                execution_mode=self.execution_mode.value,
-            )
+            state = await apply_run_creation(db, plan)
             await db.commit()
         return state
+
+    async def plan_in(
+        self,
+        db: AsyncSession,
+        run_id: UUID,
+        release: EvidenceReleaseIdentity,
+        organization_id: int,
+        requested_by: str,
+        request_reason: str,
+        created_at: datetime,
+    ) -> RunCreationPlan:
+        """Borrow the caller's read boundary; resolve assets without writing or committing."""
+        from qs_ai.infrastructure.qs_server.evaluation_release import validate_release_assets
+
+        suite = await load_registered_suite(db, release.suite, organization_id=organization_id)
+        contracts = await evaluation_contracts(db, release, organization_id)
+        manifest = await validate_release_assets(
+            release,
+            self.profiles,
+            self.prompts,
+            self.routes,
+            self.schemas,
+            frozen_suite=suite,
+            execution_policy_json=contracts.execution.definition_json,
+            gate_policy_json=contracts.gate.definition_json,
+            semantic=contracts.semantic,
+        )
+        return await plan_run_creation(
+            db,
+            run_id,
+            release,
+            organization_id,
+            requested_by,
+            request_reason,
+            created_at,
+            generation_manifest=manifest,
+            execution_mode=self.execution_mode.value,
+        )
