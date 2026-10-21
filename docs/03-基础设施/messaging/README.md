@@ -454,3 +454,8 @@ StepCompletion是宿主内存中的准备结果，未替代持久化SDK计划、
 InterpretationStateFacts的expected_version表示真实源版本，target_version表示原事务最终可见版本。默认version_delta=1保持旧v1全部字节及原位置参数顺序；一次原事务连续推进两次版本时，可显式选version_delta=2并使用v2 context，冻结一个最终事件和对应最终sequence。解码同时支持原v1和显式v2，拒绝歧义字段、跨版本字段拼装、超出有符号协议范围或与最终正文/序号不符的计划。单次finish仍按原业务投影校验其一次推进。
 
 此扩展仅提供兼容冻结与同根转录基础，完整claim/refusal/attempts-exhausted执行资格、租约/配额和Sender仍须分别接通并验收；四项原根协议用例不等同半消息、实际Broker、完整claim入口或system验收。
+
+
+原 [`MySQLExecutionStore.claim_in`](../../../src/qs_ai/infrastructure/persistence/mysql/execution.py) 允许显式宿主在活跃 AsyncSession 根中暂存一次原候选领取。它保留 Session→Job→Lease 锁序、配额、fence、attempt、运行诊断及耗尽后的两次版本推进，并拒绝嵌套、结束或替换的根；不自行提交、回滚、开连接或关闭资源。首次事件 ID 和容量时钟可由事务外冻结。原 claim 仍扫描最多20个候选，在同一宿主 session 内提交延后后继续下一候选，提交和执行移交仍由原入口负责。
+
+ClaimStage 仅描述 miss/deferred/exhausted/claimed 的暂存结果。returned Claim 不是根提交、witness 或模型执行授权；配额延后无状态事件，不能转录为 running。完整领取 Sender、半消息、精确提交后移交及恢复调度须分别接通。15项原行为表征、24目标、对齐main后的3336非集成/非interop单元零失败跳过；8项真实MySQL仅收集，CI结果与合并/运行进度回链infra总表。默认装配和生产未改。
