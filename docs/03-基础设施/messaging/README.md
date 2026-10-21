@@ -560,3 +560,8 @@ SerialSemanticPlanner/Sender/Write使用独立semantic context和原SerialRespon
 candidate终态的completion_owner新增显式只读观察：沿用原checkpoint→组织Run→全部active claim→精确claim读取顺序；默认加锁行为保持，原写者继续使用原coordinator/claim冲突保护。只读数据不是提交凭证、活跃租约证明或模型调用授权。原Run状态、candidate模式、serial checkpoint拒绝、claim版本/owner/phase/索引/执行身份检查保持；原complete_claim聚合与事务归属未改变。
 
 本批先在原入口增加17项表征，再扩展为34项RO/锁定一致性；116组合目标、3665完整本地单元（1233 integration/interop明确排除）、423源类型、1099文件格式检查通过。4项真实MySQL用例仅收集，验证原根租约/Run共同提交回滚，以及旧观察不能跨越claim释放或slot重用。required实际依赖CI尚待通过；完整candidate终态Sender、聚合虚拟计划和默认装配仍待实施。
+
+
+candidate_completion_progress共享原complete_claim的终态规则，仅对已验证的完成后数据计算原进度及读取精确失败证据；不释放claim、不修改数据库、不保存checkpoint或提交。原complete_claim仍先释放精确claim、锁定其他active claim/Run、用原candidate_plan验证全部dispatch，再执行原CAS与进度写入。其他在途claim存在时不提前全局阻断；最后unknown优先于取消，保留原失败证据时间、semantic恢复的evidence_at及候审责任。
+
+新增11项原入口表征后以原根/RO两个入口覆盖22项，138组合目标、3687完整本地单元（1233 integration/interop排除）、423源类型、1100文件格式及文档门禁通过。原根与RO规则一致，不在测试中用快照冒充真实提交；实际存储仍由required完整CI证明。本批未实现虚拟pre-insert candidate聚合、完整candidate Sender或默认装配。
