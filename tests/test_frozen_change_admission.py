@@ -63,3 +63,22 @@ async def test_wrong_target_or_stale_proof_cannot_start_original_business(monkey
         await f.action(f.db, envelope, body)
     f.action._admission.admit.assert_not_called()
     f.db.commit.assert_not_called()
+
+
+@pytest.mark.parametrize("change", ["owner", "missing"])
+async def test_current_locked_ownership_or_absence_cannot_use_a_former_read_snapshot(
+    monkeypatch, change
+):
+    from qs_ai.domain.interpretation.model import Actor
+
+    f = await fixture(monkeypatch)
+    if change == "owner":
+        f.f.read.session.actor = Actor("7", "10")
+    else:
+        selected = Mock()
+        selected.mappings.return_value.one_or_none.return_value = None
+        f.db.execute.side_effect = None
+        f.db.execute.return_value = selected
+    result = await f.action(f.db, f.f.incoming.envelope(), f.f.incoming.body_message())
+    assert result.grpc_status_code == (7 if change == "owner" else 5)
+    f.action._admission.admit.assert_not_called()

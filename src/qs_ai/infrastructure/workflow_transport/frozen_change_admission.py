@@ -6,7 +6,7 @@ from reliable_messaging.transaction import BindingError, FrozenPlan
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from qs_ai.application.interpretation.ports import AccessDenied
+from qs_ai.application.interpretation.ports import AccessDenied, NotFound
 from qs_ai.application.interpretation.service import InterpretationService
 from qs_ai.contracts.workflow import messaging_pb2 as pb
 from qs_ai.contracts.workflow.command_mapping import change_arguments
@@ -19,7 +19,10 @@ from qs_ai.infrastructure.persistence.mysql.interpretation import (
     session_from,
 )
 from qs_ai.infrastructure.persistence.mysql.schema import sessions
-from qs_ai.infrastructure.workflow_transport.admission_receipts import AdmissionDecision
+from qs_ai.infrastructure.workflow_transport.admission_receipts import (
+    AdmissionDecision,
+    refusal_decision,
+)
 from qs_ai.infrastructure.workflow_transport.change_plan import ChangePlanFacts
 from qs_ai.infrastructure.workflow_transport.command_admission import WorkflowCommandAdmission
 from qs_ai.infrastructure.workflow_transport.frozen_authorization import FrozenEvidenceSource
@@ -97,12 +100,15 @@ class FrozenChangeAdmission:
             .mappings()
             .one_or_none()
         )
-        if row is not None:
-            current = session_from(row)
-            if current.actor == actor and not current.uses_qs_snapshot:
-                try:
-                    await self._source.authorize(actor, current.testee_id, current.assessment_ids)
-                except AccessDenied:
-                    # Keep the original refusal/savepoint mapping, not a root abort.
-                    pass
+        if row is None:
+            return refusal_decision(pb.CHANGE, self._incoming.organization_id, NotFound())
+        current = session_from(row)
+        if current.actor != actor:
+            return refusal_decision(pb.CHANGE, self._incoming.organization_id, AccessDenied())
+        if not current.uses_qs_snapshot:
+            try:
+                await self._source.authorize(actor, current.testee_id, current.assessment_ids)
+            except AccessDenied:
+                # Keep the original refusal/savepoint mapping, not a root abort.
+                pass
         return await self._admission.admit(db, envelope, body)
