@@ -27,7 +27,7 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
 )
 
 
-async def prepare_execution(
+async def plan_prepare_execution(
     db: AsyncSession,
     run_id: UUID,
     expected_version: int,
@@ -37,38 +37,29 @@ async def prepare_execution(
     invocation_id: str,
     at: datetime,
     lease_expires_at: datetime,
+    *,
+    lock: bool = False,
 ) -> CheckpointState:
-    checkpoint = (
-        (
-            await db.execute(
-                select(evaluation_checkpoints)
-                .where(evaluation_checkpoints.c.run_id == str(run_id))
-                .with_for_update()
-            )
-        )
-        .mappings()
-        .one_or_none()
+    """Read the original serial action; only the original writer requests locks."""
+    checkpoint_query = select(evaluation_checkpoints).where(
+        evaluation_checkpoints.c.run_id == str(run_id)
     )
+    if lock:
+        checkpoint_query = checkpoint_query.with_for_update()
+    checkpoint = (await db.execute(checkpoint_query)).mappings().one_or_none()
     if (
         checkpoint is None
         or checkpoint["version"] != expected_version
         or checkpoint["checkpoint_json"] is not None
     ):
         raise CheckpointConflict("Run version changed or execution is active")
-    run = (
-        (
-            await db.execute(
-                select(evaluation_runs)
-                .where(
-                    evaluation_runs.c.run_id == str(run_id),
-                    evaluation_runs.c.organization_id == organization_id,
-                )
-                .with_for_update()
-            )
-        )
-        .mappings()
-        .one_or_none()
+    run_query = select(evaluation_runs).where(
+        evaluation_runs.c.run_id == str(run_id),
+        evaluation_runs.c.organization_id == organization_id,
     )
+    if lock:
+        run_query = run_query.with_for_update()
+    run = (await db.execute(run_query)).mappings().one_or_none()
     if run is None or run["progress_json"] is None or run["execution_mode"] != "serial_v1":
         raise CheckpointConflict("Run progress unavailable")
     if run["progress_json"].get("cancel_requested"):
@@ -77,39 +68,22 @@ async def prepare_execution(
     policy, _ = await asyncio.to_thread(frozen_policies, creation)
     if creation["execution_policy_json"] != policy.definition_json:
         raise CheckpointConflict("Unsupported frozen execution policy")
-    dispatches = (
-        (
-            await db.execute(
-                select(evaluation_dispatches)
-                .where(evaluation_dispatches.c.run_id == str(run_id))
-                .with_for_update()
-            )
-        )
-        .mappings()
-        .all()
+    dispatch_query = select(evaluation_dispatches).where(
+        evaluation_dispatches.c.run_id == str(run_id)
     )
-    completions = (
-        (
-            await db.execute(
-                evaluation_generation_completions.select()
-                .where(evaluation_generation_completions.c.run_id == str(run_id))
-                .with_for_update()
-            )
-        )
-        .mappings()
-        .all()
+    generation_query = evaluation_generation_completions.select().where(
+        evaluation_generation_completions.c.run_id == str(run_id)
     )
-    semantic = (
-        (
-            await db.execute(
-                evaluation_semantic_completions.select()
-                .where(evaluation_semantic_completions.c.run_id == str(run_id))
-                .with_for_update()
-            )
-        )
-        .mappings()
-        .all()
+    semantic_query = evaluation_semantic_completions.select().where(
+        evaluation_semantic_completions.c.run_id == str(run_id)
     )
+    if lock:
+        dispatch_query = dispatch_query.with_for_update()
+        generation_query = generation_query.with_for_update()
+        semantic_query = semantic_query.with_for_update()
+    dispatches = (await db.execute(dispatch_query)).mappings().all()
+    completions = (await db.execute(generation_query)).mappings().all()
+    semantic = (await db.execute(semantic_query)).mappings().all()
     slots = await asyncio.to_thread(
         project_slots,
         creation["slots"],
@@ -151,6 +125,32 @@ async def prepare_execution(
         at,
         lease_expires_at,
     )
-    state = CheckpointState(run_id, expected_version + 1, prepared)
+    return CheckpointState(run_id, expected_version + 1, prepared)
+
+
+async def prepare_execution(
+    db: AsyncSession,
+    run_id: UUID,
+    expected_version: int,
+    organization_id: int,
+    owner: str,
+    execution_id: str,
+    invocation_id: str,
+    at: datetime,
+    lease_expires_at: datetime,
+) -> CheckpointState:
+    """Original lock/read order and one checkpoint CAS; caller retains its dispatch/root."""
+    state = await plan_prepare_execution(
+        db,
+        run_id,
+        expected_version,
+        organization_id,
+        owner,
+        execution_id,
+        invocation_id,
+        at,
+        lease_expires_at,
+        lock=True,
+    )
     await save_checkpoint(db, state, expected_version)
     return state

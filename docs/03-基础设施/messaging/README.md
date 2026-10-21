@@ -363,3 +363,15 @@ ResolveUnknown 的显式事务入口由 [`ResolutionStateOperation`](../../../sr
 显式真实Broker验收档扩展原ResolveUnknown处理器：半消息后暂停原根，证明旧业务仍为blocked且事件不可消费；按首份人工审核时间放行原resolver并在客户端丢弃已完成最终确认回复后，核对原审核、首次wire、witness和未改动的未知执行账本。相同内部调用再次出现保持未决，不重发、不重做裁决或模型；另一场景由原写者先提交取消裁决，新执行须回滚半消息并保留竞争事实。额外fixture使用独立名字和显式关闭，保留旧worker/治理/Solution的原fixture形态。
 
 扩展档总计12个宿主用例、35项必需证据，本地仅收集；实际运行由固定源码的infra矩阵验收。客户端丢弃已完成回复、直接处理器与事件观察者分别界定，不能代替网络故障、真实QS业务、system登录或真实模型验收；默认DI保持关闭。
+
+
+可信主机上的语义契约恢复仍是活动维护写入口。其 [`ContractRecoveryPlan/plan_contract_recovery`](../../../src/qs_ai/infrastructure/persistence/mysql/evaluation_contract_recovery.py) 现可只读冻结原恢复结果：精确 release、当前 block、失败执行及输出摘要、策略例外确认、首次审核时间、原恢复次数/预算和下一步精确候选均沿用原规则。结果正文为不可变 JSON，读取返回独立副本，不写业务或消息，不授予新的模型调用。原 authorize_contract_recovery 显式请求原 checkpoint→Run 锁，再执行原 CAS 和进度更新，可信调用者仍拥有根提交；维护CLI的旧预览回滚及 apply 调用尚未改接 SDK。
+
+原实现7项表征先通过，抽取后25项目标、3106项非集成/非interop回归、405源类型及lint/format通过；新增2项真实MySQL用例仅收集，验证原失败账本的只读SELECT与原根共同提交/回滚。维护命令的事务发送、原witness、默认装配及生产操作仍须分别验收，不以提供计划函数计作迁移完成。
+
+
+原串行worker的 [`plan_prepare_execution`](../../../src/qs_ai/infrastructure/persistence/mysql/evaluation_preparation.py) 可只读计算下一份 prepared checkpoint。原版本、执行模式、取消标记、冻结策略、两种终态证据的kind作用域、原恢复授权和首次时间校验均保留；execution/invocation ID及lease由宿主事先提供。返回值本身是不可变CheckpointState，不写CP、不取写锁、不调用模型，也不表示已取得dispatch或模型执行资格。
+
+原 prepare_execution 仍显式按checkpoint、Run、dispatch、generation、semantic的原顺序取锁，重新计算后执行一次原CP CAS；同一原 prepare_step 后续dispatch与第二次CAS的根提交边界未拆开，PreparedStep.cp的原prepared快照语义不变。生成与语义证据共用统一物理表时仍分别保留kind条件，不能用表名替代证据类型作用域。此基础函数尚未接通worker事务发送器、ModelCapacity转移、candidate并发或恢复路径。
+
+抽取前10项原行为表征、抽取后28项目标与3117项非集成/非interop回归通过，405源文件类型、lint/format通过。新增4项真实MySQL用例仅收集，覆盖generation/semantic原准备的只读SELECT、冻结身份/时间与原CP共同提交/回滚；不是完整prepare+dispatch的SDK/Broker验收。执行结果仍以infra总表为准，原worker配置、默认DI和生产链路保持原状。
