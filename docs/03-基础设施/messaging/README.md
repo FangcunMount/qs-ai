@@ -595,3 +595,5 @@ read_candidate_response将已持久化candidate响应绑定到原不可变dispat
 [`CandidateCompletionSender`](../../../src/qs_ai/infrastructure/workflow_transport/candidate_completion_sender.py) 重复读取首次已提交业务结果；LocalCommitted/FinalUnknown仍返回已提交结果并保留Broker确认责任。旧执行必须被精确证明Aborted，宿主才可显式Retry或Replan；重建来源保留首response和首candidate，不能重做模型；显式授权Replan可以为新的状态版本冻结新wire，旧计划与原消息证据继续保留。实际工作流先独立持久化模型response，再调用完成发送器；MQ故障留下确定性完成责任，不授予业务或provider重试。
 
 本地3862单元和430源类型通过，27个真实MySQL原根用例与38个发布SDK/Broker宿主用例仅完成收集；实际依赖结果另记infra总表。新增入口的存在不表示完整T17、恢复扫描/drain、默认运行装配或生产启用已经完成。
+
+装配保护：worker配置了串行事务入口而缺少candidate runtime时，明确拒绝candidate工作，不退回原Outbox链路。新增用例先复现缺口，再以29项定向回归验证修复；新候选完整门禁另记。
