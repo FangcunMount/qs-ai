@@ -36,32 +36,31 @@ def identity(claim: SlotClaim) -> tuple:
     )
 
 
-async def lock_run(db: AsyncSession, run_id: UUID, organization_id: int) -> tuple[dict, int]:
-    coordinator = (
-        (
-            await db.execute(
-                select(evaluation_checkpoints)
-                .where(evaluation_checkpoints.c.run_id == str(run_id))
-                .with_for_update()
-            )
-        )
-        .mappings()
-        .one_or_none()
+async def lock_run(
+    db: AsyncSession,
+    run_id: UUID,
+    organization_id: int,
+    *,
+    lock: bool = True,
+) -> tuple[dict, int]:
+    """Original candidate coordinator boundary; lock=False is observation only.
+
+    A snapshot is not execution, lease or commit authority. Writers keep the
+    default locking behavior and must repeat the original ownership checks.
+    """
+    coordinator_query = select(evaluation_checkpoints).where(
+        evaluation_checkpoints.c.run_id == str(run_id)
     )
-    run = (
-        (
-            await db.execute(
-                select(evaluation_runs)
-                .where(
-                    evaluation_runs.c.run_id == str(run_id),
-                    evaluation_runs.c.organization_id == organization_id,
-                )
-                .with_for_update()
-            )
-        )
-        .mappings()
-        .one_or_none()
+    if lock:
+        coordinator_query = coordinator_query.with_for_update()
+    coordinator = (await db.execute(coordinator_query)).mappings().one_or_none()
+    run_query = select(evaluation_runs).where(
+        evaluation_runs.c.run_id == str(run_id),
+        evaluation_runs.c.organization_id == organization_id,
     )
+    if lock:
+        run_query = run_query.with_for_update()
+    run = (await db.execute(run_query)).mappings().one_or_none()
     if coordinator is None or run is None or run["execution_mode"] != "candidate_v2":
         raise CheckpointConflict("Candidate Run unavailable in organization")
     if coordinator["checkpoint_json"] is not None:
@@ -89,12 +88,12 @@ async def active_claims(
     return tuple(result)
 
 
-async def require_claim(db: AsyncSession, claim: SlotClaim) -> SlotClaim:
-    row = (
-        (await db.execute(select(claims).where(*identity(claim)).with_for_update()))
-        .mappings()
-        .one_or_none()
-    )
+async def require_claim(db: AsyncSession, claim: SlotClaim, *, lock: bool = True) -> SlotClaim:
+    """Read exact original claim; only the locking writer can retain conflict protection."""
+    statement = select(claims).where(*identity(claim))
+    if lock:
+        statement = statement.with_for_update()
+    row = (await db.execute(statement)).mappings().one_or_none()
     cp = decode(row["checkpoint_json"]) if row else None
     if (
         row is None

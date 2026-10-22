@@ -8,6 +8,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict, CheckpointState
+from qs_ai.domain.evaluation.parallel_plan import ParallelPlan
 from qs_ai.infrastructure.persistence.mysql.completion_records import (
     generation_completions as evaluation_generation_completions,
 )
@@ -97,12 +98,15 @@ async def completion_owner(
     run_id: UUID,
     organization_id: int,
     claim: SlotClaim,
+    *,
+    lock: bool = True,
 ) -> tuple[dict, int, SlotClaim]:
+    """Original candidate completion source, not a witness or model retry permit."""
     if claim.run_id != run_id:
         raise CheckpointConflict("Claim belongs to another Run")
-    run, version = await lock_run(db, run_id, organization_id)
-    await active_claims(db, run_id)
-    current = await require_claim(db, claim)
+    run, version = await lock_run(db, run_id, organization_id, lock=lock)
+    await active_claims(db, run_id, lock=lock)
+    current = await require_claim(db, claim, lock=lock)
     if not run["progress_json"] or run["progress_json"]["status"] not in ("collecting", "blocked"):
         raise CheckpointConflict("Run no longer accepts candidate results")
     return run, version, current
@@ -133,6 +137,36 @@ async def complete_claim(
     run["progress_json"] = progress
     # Projection validates all completed records and every other live dispatch.
     plan = await candidate_plan(db, run_id, run, active, 32)
+    progress = await candidate_completion_progress(
+        db, run_id, claim, progress, actor, at, active=active, plan=plan
+    )
+    state = CheckpointState(run_id, version + 1, None)
+    await save_checkpoint(db, state, version)
+    await db.execute(
+        update(evaluation_runs)
+        .where(evaluation_runs.c.run_id == str(run_id))
+        .values(progress_json=progress)
+    )
+    return state
+
+
+async def candidate_completion_progress(
+    db: AsyncSession,
+    run_id: UUID,
+    claim: SlotClaim,
+    progress: dict,
+    actor: str,
+    at: datetime,
+    *,
+    active: tuple[SlotClaim, ...],
+    plan: ParallelPlan,
+    blocked_evidence: tuple[str, datetime] | None = None,
+) -> dict:
+    """Original aggregate rules over validated post-completion data, without writes.
+
+    The original root still releases the claim, validates every other dispatch
+    and CASes the coordinator. This projection alone grants none of those rights.
+    """
     target, cause = "", ""
     if not active:
         if progress.get("unresolved_result_unknown_count", 0):
@@ -145,7 +179,11 @@ async def complete_claim(
     reference = claim.checkpoint.execution_id
     evidence_time: dict[str, str] = {}
     if target == "blocked":
-        reference, failed_at = await _blocked_execution(db, run_id, progress, cause, plan.blocked)
+        reference, failed_at = (
+            blocked_evidence
+            if blocked_evidence is not None
+            else await _blocked_execution(db, run_id, progress, cause, plan.blocked)
+        )
         if cause == "semantic_recovery_not_allowed":
             # Another candidate may have failed before an earlier recovery was
             # authorized. Record the new block now without changing that evidence.
@@ -174,14 +212,7 @@ async def complete_claim(
                 },
             ],
         }
-    state = CheckpointState(run_id, version + 1, None)
-    await save_checkpoint(db, state, version)
-    await db.execute(
-        update(evaluation_runs)
-        .where(evaluation_runs.c.run_id == str(run_id))
-        .values(progress_json=progress)
-    )
-    return state
+    return progress
 
 
 async def completed_claim_state(
