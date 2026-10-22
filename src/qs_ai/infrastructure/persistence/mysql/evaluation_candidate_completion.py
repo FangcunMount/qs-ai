@@ -150,6 +150,22 @@ async def complete_claim(
     return state
 
 
+def candidate_completion_target(
+    progress: dict, active: tuple[SlotClaim, ...], plan: ParallelPlan
+) -> tuple[str, str]:
+    """Original target precedence shared by root and proposed-record projection."""
+    target, cause = "", ""
+    if not active:
+        if progress.get("unresolved_result_unknown_count", 0):
+            target, cause = "blocked", "result_unknown_requires_review"
+        elif not progress.get("cancel_requested"):
+            if plan.complete:
+                target, cause = "awaiting_review", "candidate_evidence_complete"
+            elif plan.blocked and not plan.ready:
+                target, cause = "blocked", plan.blocked[0].cause
+    return target, cause
+
+
 async def candidate_completion_progress(
     db: AsyncSession,
     run_id: UUID,
@@ -167,15 +183,7 @@ async def candidate_completion_progress(
     The original root still releases the claim, validates every other dispatch
     and CASes the coordinator. This projection alone grants none of those rights.
     """
-    target, cause = "", ""
-    if not active:
-        if progress.get("unresolved_result_unknown_count", 0):
-            target, cause = "blocked", "result_unknown_requires_review"
-        elif not progress.get("cancel_requested"):
-            if plan.complete:
-                target, cause = "awaiting_review", "candidate_evidence_complete"
-            elif plan.blocked and not plan.ready:
-                target, cause = "blocked", plan.blocked[0].cause
+    target, cause = candidate_completion_target(progress, active, plan)
     reference = claim.checkpoint.execution_id
     evidence_time: dict[str, str] = {}
     if target == "blocked":

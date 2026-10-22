@@ -582,3 +582,22 @@ virtual_blocked_execution从精确虚拟记录选择原阻断证据：Unknown跨
 read_candidate_response将已持久化candidate响应绑定到原不可变dispatch：先验证组织Run及candidate模式，再核对原ledger稳定身份，最后复用原响应codec和claim version/hash读取首结果。返回CandidateResponseReference中的checkpoint来自原ledger，租约续期不改变首次计划身份；当前claim释放后仍可只读首响应以完成去重。新引用和正文DTO隐藏repr，读取不查询活跃claim、不写入、提交或授权模型/业务重试；原completion_owner/根事务仍负责当前执行资格。合法续租可以让响应完成时间超过原dispatch租约，因此原租约截止不构成丢弃已持久化首响应的理由。
 
 57原兼容基线、19新增正反例、94组合目标、3761完整本地单元（1248 integration/interop明确排除）、425源类型、1109文件格式及文档通过。3项真实MySQL用例仅收集，使用原renew/save_response/release流程证明续租后首结果、释放后读取与旧claim不可写、错误组织/fence拒绝。旧response codec、表和原保存/读取器不变，不代表完整candidate Sender或默认装配已完成。
+
+
+## candidate 完整事务运行链路（显式装配，默认未启用）
+
+[`CandidateRuntime`](../../../src/qs_ai/infrastructure/workflow_transport/candidate_runtime.py) 将原工作流的准备/dispatch与generation、semantic终态发送成对接入。[`CandidateDispatchPlanner`](../../../src/qs_ai/infrastructure/workflow_transport/candidate_dispatch_state.py) 只读冻结原下一候选、容量上限、checkpoint身份、模型输入和不可变dispatch摘要；原根中的写入器仍调用原prepare_candidate与dispatch_claim，提交一次协调版本、原claim/ledger、状态档案与witness。半消息全部成功后才进入原根；重复dispatch即使已提交，也不转交第二次模型调用权限。
+
+[`CandidateDispatchSender`](../../../src/qs_ai/infrastructure/workflow_transport/candidate_dispatch_sender.py) 使用原ModelCapacity，在准备半消息前取得许可。只有本次本地原根、精确witness、首次档案及仍有效的原claim证明后，才把许可一次性交给原工作流；失败、取消和未知结果保留原责任并释放本次许可。既有三个worker及运行配额没有变更。
+
+[`CandidateCompletionPlanner/Write`](../../../src/qs_ai/infrastructure/workflow_transport/candidate_completion_state.py) 从原不可变dispatch和首个持久化response构造generation或semantic完成计划，冻结首次candidate及所有输入/来源/完成摘要。原根重验锁定来源，调用原终态受理器，再提交claim释放、其他在途候选的原聚合、档案、sequence和witness。只读虚拟记录不能证明提交；其他claim尚未排空时，不提前把整个Run阻断。合法续租不改变首响应身份或完成计划，owner/claim fence/协调版本变化仍被拒绝。
+
+[`CandidateCompletionSender`](../../../src/qs_ai/infrastructure/workflow_transport/candidate_completion_sender.py) 重复读取首次已提交业务结果；LocalCommitted/FinalUnknown仍返回已提交结果并保留Broker确认责任。旧执行必须被精确证明Aborted，宿主才可显式Retry或Replan；重建来源保留首response和首candidate，不能重做模型；显式授权Replan可以为新的状态版本冻结新wire，旧计划与原消息证据继续保留。实际工作流先独立持久化模型response，再调用完成发送器；MQ故障留下确定性完成责任，不授予业务或provider重试。
+
+本地3862单元和430源类型通过，27个真实MySQL原根用例与38个发布SDK/Broker宿主用例仅完成收集；实际依赖结果另记infra总表。新增入口的存在不表示完整T17、恢复扫描/drain、默认运行装配或生产启用已经完成。
+
+装配保护：worker配置了串行事务入口而缺少candidate runtime时，明确拒绝candidate工作，不退回原Outbox链路。新增用例先复现缺口，再以29项定向回归验证修复；新候选完整门禁另记。
+
+首响应/续租根保护：实际整链路验证发现，单纯保存response仍会在EventSession.commit调用宿主旧记录器。修复后的CandidateRuntime为响应持久化与原claim续租安装仅限当前session/根的操作记录保护器；显式校验primary绑定、同一活跃根、无savepoint及无业务事件标记，再执行正常Session提交。保护器拒绝解释状态转录和任何可见业务变更，不把state_events设为None，不修改宿主全局记录器。正常业务/档案/witness仍经各自已冻结的SDK原根提交。原生整链路额外在生成与语义调用期间真实续租，验证两种无消息操作不会调用旧记录器。
+
+当前修复候选3870本地单元、430源类型与1121文件格式通过；f053真实MySQL/Broker失败报告保留，当前源码的27原生及38/95 Broker门禁待验，不把旧独立终态成功作为完整运行链路通过。

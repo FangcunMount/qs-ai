@@ -98,3 +98,20 @@ async def test_unresolved_transaction_never_authorizes_generation_or_an_extra_co
     f.legacy.assert_not_called()
     f.step.assert_not_called()
     f.db.commit.assert_not_called()
+
+
+async def test_candidate_without_matching_runtime_never_falls_back_from_serial_transaction_hook(
+    monkeypatch,
+):
+    f = fixture(monkeypatch)
+    f.row.update(
+        execution_mode="candidate_v2",
+        progress_json={"status": "collecting", "preflight": {"status": "passed"}},
+    )
+    dispatch = AsyncMock()
+    consumer = f.create(prepare_dispatch=dispatch)
+    with pytest.raises(ValueError, match="candidate"):
+        await consumer.once()
+    dispatch.assert_not_called()
+    f.step.assert_not_called()
+    f.db.commit.assert_not_called()
