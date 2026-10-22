@@ -100,3 +100,50 @@ async def test_losing_finish_retry_does_not_execute_business(original):
     with pytest.raises(InterpretationFinishPending):
         await p.sender.retry(p.p.incoming.claim, p.p.incoming.result, p.previous)
     p.sender._execute_owned.assert_not_called()
+
+
+async def test_host_resume_explicitly_authorizes_only_exact_aborted_original_finish(original):
+    p = original
+    p.runtime.store.lookup.return_value = SimpleNamespace(
+        acquired=False, state=State.ABORTED, execution=p.previous
+    )
+    await p.sender.resume(p.p.incoming.claim, p.p.incoming.result)
+    p.runtime.retry.assert_awaited_once_with(RetryAuthorization(p.previous))
+    p.sender._execute_owned.assert_awaited_once_with(p.p.incoming, p.p.intent, p.current)
+    p.runtime.reserve.assert_not_called()
+    p.sender._planner.candidate.assert_not_called()
+
+
+async def test_host_resume_pending_execution_does_not_authorize_new_fence(original):
+    p = original
+    p.runtime.store.lookup.return_value = SimpleNamespace(
+        acquired=False, state=State.PREPARED, execution=p.previous
+    )
+    with pytest.raises(InterpretationFinishPending):
+        await p.sender.resume(p.p.incoming.claim, p.p.incoming.result)
+    p.runtime.retry.assert_not_called()
+    p.sender._execute_owned.assert_not_called()
+
+
+async def test_host_resume_rechecks_original_source_before_retry_admission(original):
+    p = original
+    p.runtime.store.lookup.return_value = SimpleNamespace(
+        acquired=False, state=State.ABORTED, execution=p.previous
+    )
+    p.p.source.return_value = (p.p.incoming.claim.session, "b" * 64, 3)
+    with pytest.raises(LeaseLost):
+        await p.sender.resume(p.p.incoming.claim, p.p.incoming.result)
+    p.runtime.retry.assert_not_called()
+    p.sender._execute_owned.assert_not_called()
+
+
+async def test_host_resume_committed_only_reads_original_witness_and_archive(original):
+    p = original
+    p.runtime.store.lookup.return_value = SimpleNamespace(
+        acquired=False, state=State.COMMITTED, execution=p.previous
+    )
+    p.sender._committed = AsyncMock()
+    await p.sender.resume(p.p.incoming.claim, p.p.incoming.result)
+    p.sender._committed.assert_awaited_once_with(p.p.incoming, p.p.intent, p.previous)
+    p.runtime.retry.assert_not_called()
+    p.sender._execute_owned.assert_not_called()

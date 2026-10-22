@@ -73,6 +73,13 @@ class InterpretationFinishSender:
                 raise InterpretationFinishPending("Exact original finish archive unavailable")
 
     async def __call__(self, claim: Claim, result: WorkflowResult) -> None:
+        await self._send(claim, result, resume_aborted=False)
+
+    async def resume(self, claim: Claim, result: WorkflowResult) -> None:
+        """Host decision to finalize accepted work, never to repeat model execution."""
+        await self._send(claim, result, resume_aborted=True)
+
+    async def _send(self, claim: Claim, result: WorkflowResult, *, resume_aborted: bool) -> None:
         incoming = InterpretationFinishInput(claim, result)
         async with asyncio.timeout(self._database_seconds):
             intent = incoming.intent(await finish_request_id(self._store, incoming))
@@ -83,6 +90,8 @@ class InterpretationFinishSender:
         if not reserved.acquired:
             if reserved.state == State.COMMITTED:
                 return await self._committed(incoming, intent, reserved.execution)
+            if resume_aborted and reserved.state == State.ABORTED:
+                return await self.retry(claim, result, reserved.execution)
             raise InterpretationFinishPending("Original finish is already owned or unresolved")
         return await self._execute_owned(incoming, intent, reserved.execution)
 

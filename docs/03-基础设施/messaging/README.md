@@ -22,6 +22,18 @@ RocketMQ 终态交接携带 provider、原始 Wire 和实际物理来源，宿�
 
 非空 transactions 现在选择完整事务装配：APP `TransactionServices` 借用同一个 primary engine 和 Sender；REQUEST 保留独立 Transactions。command admission、interpretation 执行、evaluation 管理/创建、Solution 准备及 serial/candidate 工作流使用原根事务适配。普通/旧配置继续使用原 Outbox/Relay。此源码候选的原生和 Broker 门禁仍需单独通过，不能据构造成功宣称业务已迁移。全局进度以 [infra M3 总表](https://github.com/FangcunMount/infra/blob/main/docs/server/rocketmq-m3-execution.md) 为准。
 
+## T18 当前协议的解释终态恢复
+
+事务模式的 [`claim_finalization`](../../../src/qs_ai/infrastructure/persistence/mysql/interpretation_finalization_claim.py) 只接管 `response_received` 且两份租约均过期的当前 Run。它按 Session → Job → Lease 锁定，验证原响应和仍有效的 participant slot，只推进执行 fence/到期时间；不改变业务 version/attempt，不新增 running 事件，不重新占用模型或 participant 配额。普通 claim 的原根也重验响应状态，避免扫描后才保存响应的竞争重新进入业务领取。
+
+解释 finish 的稳定输入排除操作性 lease fence，仍绑定完整业务 Session、Run、答案及结果。当前 Claim 在原根中验证真实 fence；失去租约的旧 writer 不能写入。宿主显式 `resume` 仅在精确 Aborted 后授权 SDK retry，复用首次 plan/wire/事件/Artifact；Prepared/Unknown 保持 Pending，Committed 校验精确 witness/archive。权限、取消或业务事实变化不授权换键、重调模型或发布旧 Artifact。
+
+本批直接收敛尚未投产的宿主协议，不新增中间协议在线兼容；当前版本内的重启恢复继续保留。旧实现清理由 [infra M4](https://github.com/FangcunMount/infra/blob/main/docs/server/rocketmq-m4-execution.md)记录。真实 MySQL/独立进程/Broker 故障证据分别由 infra M3 总表记录，不把本地测试或受控发送失败算作生产验收。
+
+T18-C 使用独立测试入口 `tests/integration/rocketmq_finalization_host.py`：业务 worker 与回环 HTTP provider 分属独立进程，provider 的 SQLite 计数不去重、不保存正文或凭据。真实 DeepSeek Responses 适配器走 HTTP，测试关联 header 只用于按 invocation 统计，不赋予 provider 幂等能力。worker 在原数据库保存响应后可被真实 SIGKILL，新实例仍通过原执行入口复用响应和恢复终态。网络工具复用固定 SDK 的 loopback RPC proxy；该批正常转发不冒充丢包证明，五路径故障矩阵另行验收。私有配置/密钥/进程均由测试拥有并清理，实际运行状态见 infra 总表。
+
+T18-D 在同一隔离入口增加五条实际宿主路径的20组核心情景，独立模块 `tests/integration/rocketmq_finalization_matrix.py` 使用原 `transaction_evaluation_worker` 和 MySQL 资产库。终态故障在原响应提交后以私有文件屏障精确放行，固定SDK代理分别在 SendMessage 转发前断开TCP、EndTransaction 的真实Broker成功回复后断开TCP；逐项检查三阶段结果、首次响应/计划/wire、原业务终态及每个invocation的外部HTTP次数。语义前置generation由受控fixture准备，不冒充完整成对业务。新增20组与原两组进程测试分开计数；收集成功及工具单元通过仍不算实际故障通过，精确候选报告见infra总表。
+
 ## 显式事务模式的默认装配与回执
 
 `TransactionProvider` 只在显式 owner 配置下提供共享 Sender、档案和固定进程 owner；构造不连接数据库或 Broker。`transaction_evaluation_worker` 一次绑定 preflight、串行/candidate 派发与终态、首响应恢复、旧 Aborted 的显式恢复及取消排空，保留原 ModelCapacity、游标和每请求事务。串行模型调用前必须通过事务 dispatch；首响应另存原根后才发送终态，MQ 故障不增加 provider invocation。

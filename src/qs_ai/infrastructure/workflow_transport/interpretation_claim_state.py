@@ -19,7 +19,12 @@ from qs_ai.contracts.workflow import workflow_pb2 as workflow
 from qs_ai.domain.interpretation.model import Session, Status
 from qs_ai.infrastructure.persistence.mysql.execution import ClaimStage, MySQLExecutionStore
 from qs_ai.infrastructure.persistence.mysql.interpretation import session_from
-from qs_ai.infrastructure.persistence.mysql.schema import execution_leases, jobs, sessions
+from qs_ai.infrastructure.persistence.mysql.schema import (
+    execution_leases,
+    jobs,
+    model_calls,
+    sessions,
+)
 from qs_ai.infrastructure.workflow_transport.interpretation_state_plan import (
     InterpretationStateFacts,
     InterpretationStateIntent,
@@ -136,6 +141,15 @@ async def read_claim_source(
     # Original exhausted admission invalidates even a still-active stale lease.
     if job["attempt"] < 3 and lease is not None and not lease["expired"]:
         raise LeaseLost("Original claim lease is still active")
+    # A response may have committed after the scanner's advisory probe. Recheck
+    # here, including on the locked original write, before incrementing attempts.
+    query = select(model_calls.c.run_id).where(
+        model_calls.c.run_id == job["run_id"], model_calls.c.status == "response_received"
+    )
+    if lock:
+        query = query.with_for_update()  # Current read, even after earlier protocol reads.
+    if await db.scalar(query) is not None:
+        raise LeaseLost("Durable response requires finalization-only lease recovery")
     source_hash = hashlib.sha256(
         _json(
             dict(

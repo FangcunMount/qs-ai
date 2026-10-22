@@ -9,6 +9,9 @@ from reliable_messaging.transaction import State
 from qs_ai.application.execution.errors import LeaseLost
 from qs_ai.application.interpretation.ports import Claim, EvidenceSet, WorkflowResult
 from qs_ai.infrastructure.persistence.mysql.execution import MySQLExecutionStore
+from qs_ai.infrastructure.persistence.mysql.interpretation_finalization_claim import (
+    claim_finalization,
+)
 from qs_ai.infrastructure.persistence.mysql.transaction_archive import TransactionArchive
 from qs_ai.infrastructure.workflow_transport.interpretation_claim_deferral import (
     InterpretationClaimDeferral,
@@ -68,6 +71,12 @@ class TransactionalInterpretationExecutionStore:
         for job_id, session_id in candidates:
             self._admit()
             try:
+                async with asyncio.timeout(self._database_seconds):
+                    recovered = await claim_finalization(
+                        self._store, job_id, session_id, ttl_seconds
+                    )
+                if recovered is not None:
+                    return recovered
                 source = await self._claims.source(job_id, session_id)
             except LeaseLost:
                 continue
@@ -102,4 +111,4 @@ class TransactionalInterpretationExecutionStore:
         return await self._store.evidence(claim)
 
     async def finish(self, claim: Claim, result: WorkflowResult) -> None:
-        await self._finish(claim, result)
+        await self._finish.resume(claim, result)
