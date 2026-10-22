@@ -34,6 +34,12 @@ T18-C 使用独立测试入口 `tests/integration/rocketmq_finalization_host.py`
 
 T18-D 在同一隔离入口增加五条实际宿主路径的20组核心情景，独立模块 `tests/integration/rocketmq_finalization_matrix.py` 使用原 `transaction_evaluation_worker` 和 MySQL 资产库。终态故障在原响应提交后以私有文件屏障精确放行，固定SDK代理分别在 SendMessage 转发前断开TCP、EndTransaction 的真实Broker成功回复后断开TCP；逐项检查三阶段结果、首次响应/计划/wire、原业务终态及每个invocation的外部HTTP次数。语义前置generation由受控fixture准备，不冒充完整成对业务。新增20组与原两组进程测试分开计数；收集成功及工具单元通过仍不算实际故障通过，精确候选报告见infra总表。
 
+## T19 当前正文RPC的拒绝与不可用边界
+
+当前档案的RPC沿用固定mTLS工作负载身份和原始引用。请求producer/destination或组织、正文hash、长度不匹配时，使用既有MessageConflict → NOT_FOUND与payload_serve_reference_mismatch；这类输入拒绝不计为数据库不可用。档案身份损坏、精确Committed证据缺失、数据库异常/超时仍保持UNAVAILABLE与payload_serve_storage_unavailable，当前身份存在时不回退旧数据。
+
+独立原生入口tests/integration/rocketmq_payload_host.py以原finish规划与根事务产生大于32KiB的真实正文引用：原根未提交或共同回滚时不提供正文；提交后以实际回环mTLS取回首次body/wire。缺失witness是隔离的存储损坏fixture，恢复原行后才能重新读取。它同时复用原STORED/HELD/重复/冲突ACK原根验收，不宣称Broker投递、成对QS业务或system登录；部署/验收状态继续回链infra唯一总表。事务装配不创建MQRelay的契约保持不变，历史reader清理交M4。
+
 ## 显式事务模式的默认装配与回执
 
 `TransactionProvider` 只在显式 owner 配置下提供共享 Sender、档案和固定进程 owner；构造不连接数据库或 Broker。`transaction_evaluation_worker` 一次绑定 preflight、串行/candidate 派发与终态、首响应恢复、旧 Aborted 的显式恢复及取消排空，保留原 ModelCapacity、游标和每请求事务。串行模型调用前必须通过事务 dispatch；首响应另存原根后才发送终态，MQ 故障不增加 provider invocation。
