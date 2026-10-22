@@ -156,6 +156,16 @@ async def payload_rpc(host, tmp_path):
 
     legacy = ReadLegacy()
     access = MySQLPayloadAccess(host.tx, ArchivePayloadReader(host.archives, legacy))
+    recorded_workload_denial = asyncio.Event()
+    record = access.record_failure
+
+    async def observe_failure(kind):
+        value = await record(kind)
+        if kind == "payload_serve_workload_denied":
+            recorded_workload_denial.set()
+        return value
+
+    access.record_failure = observe_failure
     rpc.add_MessagePayloadsServicer_to_server(MessagePayloads(access), server)
     ca = (directory / "ca.pem").read_bytes()
     port = server.add_secure_port(
@@ -181,7 +191,9 @@ async def payload_rpc(host, tmp_path):
         return rpc.MessagePayloadsStub(channel)
 
     try:
-        yield SimpleNamespace(stub=stub, legacy=legacy)
+        yield SimpleNamespace(
+            stub=stub, legacy=legacy, recorded_workload_denial=recorded_workload_denial
+        )
     finally:
         try:
             for channel in channels:
@@ -353,6 +365,10 @@ async def test_current_payload_mtls_wrong_or_missing_client_is_denied(
         await transport.stub("other" if identity == "other" else None).Get(p.reference, timeout=3)
     if identity == "other":
         assert error.value.code() == grpc.StatusCode.PERMISSION_DENIED
+        # context.abort sends the status before its caller records the bounded
+        # technical observation. Await that completion rather than assume the
+        # client status is a barrier for subsequent server-side SQL.
+        await asyncio.wait_for(transport.recorded_workload_denial.wait(), 2)
         assert await counter(p.host, "payload_serve_workload_denied") == before + 1
         passed("wrong_workload_denied")
     else:
