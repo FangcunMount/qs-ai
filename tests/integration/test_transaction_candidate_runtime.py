@@ -285,6 +285,19 @@ async def test_actual_candidate_graph_both_stages_without_legacy_hook(
     runtime = CandidateRuntime(
         dispatch, CandidateCompletionSender(p.host.tx, p.host.archives, transport, s.planner)
     )
+    original_generate = s.gateway.generate_messages
+
+    async def generate_with_original_lease_renewal(*args, **kwargs):
+        async with p.tx.open() as db:
+            claims = await active_claims(db, p.run_id, lock=False)
+        assert len(claims) == 1
+        claim = claims[0]
+        await runtime.renew(
+            1, claim, current, claim.checkpoint.lease_expires_at + timedelta(minutes=1)
+        )
+        return await original_generate(*args, **kwargs)
+
+    s.gateway.generate_messages = generate_with_original_lease_renewal
     p.host.tx.database.state_events = SimpleNamespace(
         flush=AsyncMock(
             side_effect=AssertionError("Transaction candidate graph cannot use legacy hook")

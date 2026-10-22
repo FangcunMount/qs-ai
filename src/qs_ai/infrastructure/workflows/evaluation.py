@@ -75,6 +75,11 @@ async def execute_step(
         while True:
             await asyncio.sleep(30)
             at = clock()
+            if candidate_runtime is not None:
+                await candidate_runtime.renew(
+                    organization_id, prepared.claim, at, at + timedelta(minutes=5)
+                )
+                continue
             async with transactions.open() as db:
                 await lock_run(db, run_id, organization_id)
                 await renew_claim(db, prepared.claim, at, at + timedelta(minutes=5))
@@ -160,15 +165,20 @@ async def execute_step(
             finished = max(clock(), prepared.at)
             response = EvaluationResponse(state["response"], state["failure"], finished)
             if prepared.claim is not None:
-                async with transactions.open() as db:
-                    await save_response(
-                        db,
-                        organization_id,
-                        prepared.claim,
-                        response,
-                        at=clock(),
+                if candidate_runtime is not None:
+                    await candidate_runtime.save_response(
+                        organization_id, prepared, response, clock()
                     )
-                    await db.commit()
+                else:
+                    async with transactions.open() as db:
+                        await save_response(
+                            db,
+                            organization_id,
+                            prepared.claim,
+                            response,
+                            at=clock(),
+                        )
+                        await db.commit()
             if candidate_runtime is not None:
                 result = await candidate_runtime.complete(organization_id, prepared, response)
                 return {"result": result}

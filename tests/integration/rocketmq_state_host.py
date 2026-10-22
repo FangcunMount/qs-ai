@@ -2466,9 +2466,10 @@ async def test_actual_candidate_graph_halves_first_response_and_final_unknown(
     b.runtime.pause = True
     original_execute = b.runtime.execute
     terminal_entered = asyncio.Event()
+    closing = False
 
     async def phased(execution, local):
-        if b.runtime.results:
+        if b.runtime.results and not closing:
             b.runtime.entered.clear()
             b.runtime.release.clear()
             terminal_entered.set()
@@ -2491,8 +2492,17 @@ async def test_actual_candidate_graph_halves_first_response_and_final_unknown(
             candidate_runtime=runtime,
         )
     )
+
+    async def barrier(event):
+        async with asyncio.timeout(30):
+            while not event.is_set():
+                if task.done():
+                    await task  # Surface the original host error instead of a secondary timeout.
+                    raise AssertionError("Candidate host ended before its original root barrier")
+                await asyncio.sleep(0.05)
+
     try:
-        await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
+        await barrier(b.runtime.entered)
         intent = candidate_dispatch_intent(run_id, version, 1)
         _, _, first_dispatch = read_candidate_dispatch_plan(intent, b.host.executions[-1].plan)
         b.empty_poll.clear()
@@ -2509,8 +2519,8 @@ async def test_actual_candidate_graph_halves_first_response_and_final_unknown(
         with monkeypatch.context() as patch:
             patch.setattr(b.sender._client, "end_transaction", discard)
             b.runtime.release.set()
-            await asyncio.wait_for(terminal_entered.wait(), timeout=30)
-            await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
+            await barrier(terminal_entered)
+            await barrier(b.runtime.entered)
             owned = b.host.executions[-1]
             # Decode the first frozen intent without rebuilding a candidate or wire.
             from qs_ai.infrastructure.workflow_transport.evaluation_state_plan import (
@@ -2559,6 +2569,7 @@ async def test_actual_candidate_graph_halves_first_response_and_final_unknown(
         b.recorder.flush.assert_not_called()
         passed("candidate_original_roots_first_response_archive_and_witness")
     finally:
+        closing = True
         b.runtime.release.set()
         await asyncio.gather(task, return_exceptions=True)
         async with tx.open() as db:

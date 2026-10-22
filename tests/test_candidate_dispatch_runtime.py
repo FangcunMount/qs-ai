@@ -173,10 +173,14 @@ async def test_actual_candidate_graph_calls_provider_once_and_uses_first_durable
         transactions=tx,
         limit=3,
         prepare=AsyncMock(return_value=prepared),
+        save_response=AsyncMock(),
         complete=AsyncMock(return_value=CheckpointState(p.run_id, 4, None)),
     )
     gateway = SimpleNamespace(generate_messages=AsyncMock(return_value=object()))
-    save, old = AsyncMock(), AsyncMock()
+    save = AsyncMock(
+        side_effect=AssertionError("Candidate graph must use its protected response root")
+    )
+    old = AsyncMock()
     monkeypatch.setattr(graph, "save_response", save)
     monkeypatch.setattr(graph, "prepare_step", old)
     monkeypatch.setattr(graph, "finish_step", old)
@@ -207,8 +211,9 @@ async def test_actual_candidate_graph_calls_provider_once_and_uses_first_durable
     assert gateway.generate_messages.await_count == (
         0 if fault in ("pending", "wrong_handoff") else 1
     )
-    assert save.await_count == gateway.generate_messages.await_count
-    assert db.commit.await_count == save.await_count
+    assert runtime.save_response.await_count == gateway.generate_messages.await_count
+    save.assert_not_called()
+    db.commit.assert_not_called()
     old.assert_not_called()
     token = pool.try_acquire("first", evaluation=True)
     assert token is not None
