@@ -96,6 +96,8 @@ async def test_expiry_planner_freezes_first_actor_time_projection_without_busine
     source, monkeypatch
 ):
     f = await fixture(source, monkeypatch)
+    assert f.facts.intent.expected_version == f.p.request.version
+    assert f.facts.source_version is None
     assert f.actor == "worker:first" and f.facts.at == f.p.cp.lease_expires_at
     assert f.facts.sequence == 4 and f.facts.intent == f.p.request.intent
     f.project.assert_awaited_once_with(

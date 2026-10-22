@@ -1418,7 +1418,10 @@ async def test_actual_serial_expiry_recovery_halves_and_original_unknown(
             "recovery_serial_" + mode,
             lambda: _provider_unchanged(gateway, calls),
         )
-        assert result is True and facts.source_version == cp.version
+        # This codec binds the exact expired checkpoint in expected_version;
+        # source_version is reserved for operations whose coordinator advanced.
+        assert result is True and facts.intent.expected_version == cp.version
+        assert facts.source_version is None
         run, _, current = await evaluation_rows(tx, run_id)
         assert current["version"] == cp.version + 1 and current["checkpoint_json"] is None
         assert run["progress_json"]["status"] == ("collecting" if mode == "prepared" else "blocked")
