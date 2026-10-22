@@ -812,7 +812,7 @@
     "tests/integration/rocketmq_finalization_host.py": "b6ebc5075dc4cb4a8fccb140df9753d17d111533b93cde9d0e3f2cc4cc44e7da",
     "tests/integration/rocketmq_finalization_matrix.py": "0a4acb4b536d08e19b03ffcd2539840ce3b9a257c95a2d0fd182c71d724aa05e",
     "tests/test_current_payload_rpc.py": "da5eb2082822053325a3a4f79ea8c84ca0e63a75551f4f2375e77a18029a8764",
-    "tests/integration/rocketmq_payload_host.py": "44096f91665378241fafbff7ff104cd0a87f157c97b86e6b1257bee165bc45d0"
+    "tests/integration/rocketmq_payload_host.py": "49c74eb94b357dbac96a09bdf46bf6b9ac24cfb14d4c9a072dbd69ca59af64d8"
   },
   "documents": [
     {
