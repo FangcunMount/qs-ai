@@ -1318,6 +1318,38 @@ async def _actual_serial_dispatch(b, ready, monkeypatch, *, semantic):
         await clean_governance_sequence(b.host, run_id)
 
 
+def default_transport_settings(dsn, binding, config, files, credentials, routes, *, paused):
+    return Settings(
+        database_url=dsn.replace("mysql://", "mysql+asyncmy://", 1),
+        evaluation={"enabled": True},
+        generation={"endpoint": "https://model.invalid/responses"},
+        model_api_key="isolated-not-used",
+        grpc={"access_address": "127.0.0.1:1"},
+        messaging={
+            "enabled": True,
+            "provider": "rocketmq",
+            "publish_enabled": not paused,
+            "signing_key_file": files["ai.sign"],
+            "qs_recipient_key_file": files["qs.encrypt"],
+            "decrypt_key_files": {"ai.encrypt": files["ai.encrypt"]},
+            "qs_signer_files": {"qs.sign": files["qs.sign"]},
+            "rocketmq": {
+                "endpoint": config["endpoint"],
+                "credentials_file": str(credentials),
+                "routes_file": str(routes),
+                "ca_file": config["ca_file"],
+            },
+            "transactions": {
+                "ai.mysql": {
+                    "store_id": binding.store_id,
+                    "writer_epoch": binding.writer_epoch,
+                    "route_revision": "m3-1",
+                }
+            },
+        },
+    )
+
+
 @pytest.mark.parametrize("paused", [False, True])
 async def test_actual_default_transport_and_worker_share_sender_root_and_shutdown(
     governance_broker, original, required_broker, tmp_path, monkeypatch, paused
@@ -1358,34 +1390,8 @@ async def test_actual_default_transport_and_worker_share_sender_root_and_shutdow
     routes.write_text(json.dumps({"version": 2, "routes": config["routes"]}))
     credentials.chmod(0o600)
     routes.chmod(0o600)
-    settings = Settings(
-        database_url=host.kit.dsn,
-        evaluation={"enabled": True},
-        generation={"endpoint": "https://model.invalid/responses"},
-        model_api_key="isolated-not-used",
-        grpc={"access_address": "127.0.0.1:1"},
-        messaging={
-            "enabled": True,
-            "provider": "rocketmq",
-            "publish_enabled": not paused,
-            "signing_key_file": files["ai.sign"],
-            "qs_recipient_key_file": files["qs.encrypt"],
-            "decrypt_key_files": {"ai.encrypt": files["ai.encrypt"]},
-            "qs_signer_files": {"qs.sign": files["qs.sign"]},
-            "rocketmq": {
-                "endpoint": config["endpoint"],
-                "credentials_file": str(credentials),
-                "routes_file": str(routes),
-                "ca_file": config["ca_file"],
-            },
-            "transactions": {
-                "ai.mysql": {
-                    "store_id": host.store.binding.store_id,
-                    "writer_epoch": host.store.binding.writer_epoch,
-                    "route_revision": "m3-1",
-                }
-            },
-        },
+    settings = default_transport_settings(
+        host.kit.dsn, host.store.binding, config, files, credentials, routes, paused=paused
     )
     monkeypatch.setenv("GRPC_DEFAULT_SSL_ROOTS_FILE_PATH", config["ca_file"])
 

@@ -33,7 +33,7 @@ pytestmark = pytest.mark.integration
 
 
 @pytest.fixture
-async def committed(host):
+async def committed(host, published_configuration):
     message = incoming(host)
     candidate = await planner(host).candidate(message)
     owned = (await reserve(host, message, candidate)).execution

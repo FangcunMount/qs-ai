@@ -5,6 +5,7 @@ No Start, real database, Broker or QS RPC business acceptance is claimed here.
 
 import json
 from contextlib import asynccontextmanager
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, Mock
 
 import pytest
@@ -26,6 +27,28 @@ from qs_ai.infrastructure.workflow_transport.transaction_events import Transacti
 from qs_ai.infrastructure.workflow_transport.transaction_receiver import TransactionCommandReceiver
 from tests.test_evaluation_container import configured
 from tests.test_transaction_services_container import transaction_settings
+
+
+@pytest.mark.parametrize("paused", [False, True])
+def test_actual_broker_profile_configuration_uses_the_host_async_driver(tmp_path, paused):
+    from tests.integration.rocketmq_state_host import default_transport_settings
+
+    files = {
+        name: str(tmp_path / name) for name in ("ai.sign", "qs.sign", "ai.encrypt", "qs.encrypt")
+    }
+    value = default_transport_settings(
+        "mysql://test:fixture@127.0.0.1:3306/disposable",
+        SimpleNamespace(store_id="fixture-primary", writer_epoch="m3-1"),
+        {"endpoint": "127.0.0.1:1", "ca_file": str(tmp_path / "ca.crt")},
+        files,
+        tmp_path / "credentials.json",
+        tmp_path / "routes.json",
+        paused=paused,
+    )
+    assert value.database_url.get_secret_value().startswith("mysql+asyncmy://")
+    assert value.messaging.publish_enabled is not paused
+    assert value.messaging.transactions["ai.mysql"].store_id == "fixture-primary"
+    assert value.messaging.transactions["ai.mysql"].writer_epoch == "m3-1"
 
 
 @pytest.mark.parametrize("route_fault", [False, True])
