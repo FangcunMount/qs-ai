@@ -120,3 +120,11 @@ async def test_untrusted_workload_is_rejected_before_current_archive_read(curren
     p.current.read_committed.assert_not_awaited()
     p.access.payload.assert_not_awaited()
     p.access.record_failure.assert_awaited_once_with("payload_serve_workload_denied")
+
+
+async def test_internal_workload_binding_error_retains_original_contract(current_payload):
+    p = current_payload
+    with pytest.raises(MessagingContractError):
+        await p.current.payload(p.reference, "wrong")
+    p.current.read_committed.assert_not_awaited()
+    p.legacy.payload.assert_not_awaited()

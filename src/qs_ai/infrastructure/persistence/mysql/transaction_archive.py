@@ -159,11 +159,9 @@ class TransactionArchive:
         self, reference: pb.MessagePayloadReference, authenticated_workload: str
     ) -> bytes | None:
         """Only None permits legacy fallback; invalid/uncommitted rows raise."""
-        if (
-            authenticated_workload != "qs-server"
-            or reference.producer != "qs-ai"
-            or reference.destination != "qs-server"
-        ):
+        if authenticated_workload != "qs-server":
+            raise MessagingContractError("archive payload workload rejected")
+        if reference.producer != "qs-ai" or reference.destination != "qs-server":
             raise MessageConflict("archive payload reference target rejected")
         value = await self.read_committed(reference.message_id)
         if value is None:
