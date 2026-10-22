@@ -205,7 +205,7 @@ async def test_independent_five_path_finalization_matrix(
         assert first is not None and first.wire == delivery.wire
         state = parse_body(header, first.body)
         if report:
-            assert state.interpretation_state.run_id == str(run_id)
+            assert state.interpretation_state.session_id == receipt.session_id
         else:
             assert state.evaluation_state.run_id == str(run_id)
         digest = hashlib.sha256(delivery.wire).hexdigest()
