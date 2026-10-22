@@ -5,6 +5,7 @@ no real model, public HTTP/system login, production or packet-fault claim.
 """
 
 import asyncio
+import hashlib
 import importlib.metadata as metadata
 import json
 import logging
@@ -223,6 +224,7 @@ async def pair(host, required_pair, monkeypatch):
     process, qs, container, runtime, supervisor, server = None, None, None, None, None, None
     stop, state = asyncio.Event(), RuntimeState()
     request_ids = []
+    ack_wires = {}
     recorder = host.tx.database.state_events
     try:
         env = dict(os.environ)
@@ -296,6 +298,20 @@ async def pair(host, required_pair, monkeypatch):
 
         monkeypatch.setattr(services.runtime, "reserve", track)
         runtime = await MessagingRuntime.create(container, settings, ca, ai_cert, ai_key)
+        acknowledgement = next(
+            subscriber
+            for subscriber in runtime.subscribers
+            if subscriber.route.topic == "qs.ai.acks.v1"
+        )
+        original_ack = acknowledgement.handler
+
+        async def observe_ack(received):
+            await original_ack(received)  # Actual production ACK handler and original commit.
+            identity = received.envelope.message_id
+            digest = hashlib.sha256(received.wire).hexdigest()
+            assert ack_wires.setdefault(identity, digest) == digest
+
+        acknowledgement.handler = observe_ack
         assert runtime.relay is None and not runtime.publishers
         server = grpc.aio.server()
         rpc.add_MessagePayloadsServicer_to_server(runtime.payloads, server)
@@ -380,6 +396,7 @@ async def test_actual_qs_ai_original_start_receipt_state_and_ack_loop(pair):
                 and facts["operation"]["status"] == "accepted"
                 and facts.get("projection", {}).get("status") == "queued"
                 and len(acks) == 2
+                and len(p.ack_wires) == 2
             ):
                 break
             await asyncio.sleep(0.05)
@@ -411,12 +428,10 @@ async def test_actual_qs_ai_original_start_receipt_state_and_ack_loop(pair):
         archives = {row["id"]: row for row in facts["archives"]}
         for row in acks:
             ack_id = bytes(row["ack_id"]).decode()
-            received = (
-                (await db.execute(select(inbox).where(inbox.c.message_id == ack_id)))
-                .mappings()
-                .one()
-            )
-            assert received["wire_sha256"] == archives[ack_id]["wire_sha256"]
+            # ACK history is the exact event_receipts root, not a second
+            # general Inbox. Compare the actual default handler's received bytes.
+            assert p.ack_wires[ack_id] == archives[ack_id]["wire_sha256"]
+            assert hashlib.sha256(bytes(row["body"])).hexdigest() == archives[ack_id]["body_sha256"]
     passed("first_command_and_ack_wire_cross_language")
     passed("actual_ai_business_receipts_and_history")
     passed("no_new_publish_outbox_or_model_call")
