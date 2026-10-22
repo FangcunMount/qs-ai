@@ -48,6 +48,7 @@ from tests.test_input_binding import bound_case
 
 pytestmark = pytest.mark.integration
 _CASES = {}
+_GO_PHASE = "not_started"
 
 
 def passed(name):
@@ -88,6 +89,8 @@ def required_pair(request):
             + json.dumps(
                 dict(
                     cases=_CASES,
+                    profile=config["paired_profile"],
+                    go_phase=_GO_PHASE,
                     passed=len(_CASES),
                     failed=request.session.testsfailed,
                     skipped=len(
@@ -214,7 +217,9 @@ async def pair(host, required_pair, monkeypatch):
         )
     )
     go_config.chmod(0o600)
-    stderr = (directory / "go-private-stderr.log").open("wb")
+    stderr_path = directory / "go-private-stderr.log"
+    await asyncio.to_thread(stderr_path.touch, mode=0o600)
+    stderr = stderr_path.open("wb")
     process, qs, container, runtime, supervisor, server = None, None, None, None, None, None
     stop, state = asyncio.Event(), RuntimeState()
     request_ids = []
@@ -230,9 +235,12 @@ async def pair(host, required_pair, monkeypatch):
             stdout=asyncio.subprocess.PIPE,
             stderr=stderr,
             env=env,
+            umask=0o077,
         )
         qs = QSProcess(process)
         ready = await qs.read()
+        global _GO_PHASE
+        _GO_PHASE = "ready" if ready.get("ready") is True else ready.get("phase", "invalid_ready")
         assert ready.get("ready") is True and ready["schema"] == schema
         qs_port = int(ready["payload_endpoint"].rsplit(":", 1)[1])
         settings = Settings(
