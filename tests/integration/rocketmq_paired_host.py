@@ -57,7 +57,15 @@ pytestmark = pytest.mark.integration
 _CASES = {}
 _GO_PHASE = "not_started"
 _DELIVERY_ERRORS = set()
-_OBSERVATION = dict(polls=0, payload_calls=0, ack_count=0, operation_status="unobserved")
+_OBSERVATION = dict(
+    polls=0,
+    payload_calls=0,
+    ack_count=0,
+    operation_status="unobserved",
+    projection_version=0,
+    projection_status="missing",
+    ai_payload_reads=0,
+)
 
 
 def passed(name):
@@ -472,6 +480,9 @@ async def start_loop(p, *, large=False):
                 polls=_OBSERVATION["polls"] + 1,
                 payload_calls=facts.get("payload_calls", 0),
                 ack_count=len(acks),
+                projection_version=facts.get("projection", {}).get("version", 0),
+                projection_status=facts.get("projection", {}).get("status", "missing"),
+                ai_payload_reads=len(p.ai_payload_reads),
                 operation_status=status
                 if status in {"submitted", "accepted", "held", "rejected"}
                 else "unobserved",
@@ -488,6 +499,7 @@ async def start_loop(p, *, large=False):
                 break
             await asyncio.sleep(0.05)
     assert facts["operation"]["transport_status"] == "confirmed"
+    assert facts["projection"]["version"] == 2  # Created v1 -> original queued v2.
     assert facts["counts"]["ai_messaging_outbox"] == 0
     assert facts["counts"]["ai_messaging_archive"] == 3
     assert facts["counts"]["rm_tx_witness"] == 3
@@ -543,6 +555,12 @@ async def facts_after(p, case, *, version, status, receipts):
             )
             async with p.host.tx.open() as db:
                 recorded = (await db.execute(select(event_receipts))).mappings().all()
+            _OBSERVATION.update(
+                projection_version=value.get("projection", {}).get("version", 0),
+                projection_status=value.get("projection", {}).get("status", "missing"),
+                ack_count=len(recorded),
+                ai_payload_reads=len(p.ai_payload_reads),
+            )
             if (
                 value.get("ok") is True
                 and value.get("projection", {}).get("status") == status
@@ -625,12 +643,12 @@ async def test_actual_qs_ai_large_payloads_and_mtls_denial(pair):
     passed("actual_go_large_command_body_rpc")
     worker = p.services.execution(p.host.kit.store)
     claim = await worker.claim(60)
-    assert claim is not None
+    assert claim is not None and claim.session.version == 3
     question = "first large frozen question " + "x" * 40000
     await worker.finish(
         claim, WorkflowResult("checkpoint:paired", question=question, can_skip=True)
     )
-    value = await facts_after(p, case, version=3, status="awaiting_answer", receipts=4)
+    value = await facts_after(p, case, version=4, status="awaiting_answer", receipts=4)
     assert value["projection"]["question_length"] == len(question)
     assert value["projection"]["question_sha256"] == hashlib.sha256(question.encode()).hexdigest()
     assert p.ai_payload_reads
@@ -683,13 +701,13 @@ async def test_actual_qs_ai_original_cancellation_preserves_final_state(pair):
         session_id=case.facts["projection"]["session_id"],
         actor=case.start["actor"],
         action="cancel",
-        expected_version=1,
+        expected_version=case.facts["projection"]["version"],
         question_id="",
         skip=False,
     )
     before_calls = (await business_snapshot(p))[model_calls.name]
     assert await p.qs.call(mode="change", request_id=case.identity, change=command) == {"ok": True}
-    final = await facts_after(p, case, version=2, status="cancelled", receipts=4)
+    final = await facts_after(p, case, version=3, status="cancelled", receipts=4)
     current = await business_snapshot(p)
     assert current[model_calls.name] == before_calls == []
     assert current[jobs.name][0]["attempt"] == 0
