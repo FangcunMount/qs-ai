@@ -452,7 +452,12 @@ async def start_loop(p, *, large=False):
         evidence=[asdict(bound_case()[1].items[0])],
     )
     if large:
-        start["evidence"][0]["facts"][0]["value"] = "first large frozen fact " + "x" * 40000
+        fact = start["evidence"][0]["facts"][0]
+        snapshot = json.loads(fact["value"])
+        # Preserve the valid published report and its binding. Padding the JSON
+        # exercises the raw-byte reference boundary without corrupting business input.
+        fact["value"] += " " * 40000
+        assert json.loads(fact["value"]) == snapshot
     assert await p.qs.call(mode="start", start=start) == {"ok": True}
     passed("actual_qs_service_and_command_root")
     async with asyncio.timeout(60):
