@@ -47,6 +47,20 @@ def _artifact_fields(raw: str) -> dict[str, str]:
     return value
 
 
+def same_state_event(actual: workflow.StateEvent, expected: workflow.StateEvent) -> bool:
+    """Compare stored history without changing either original first message.
+
+    MySQL JSON may reorder Artifact fields. All other protobuf fields, including
+    unknown fields, remain exact; malformed/duplicate Artifact keys are rejected.
+    """
+    actual = workflow.StateEvent.FromString(actual.SerializeToString())
+    if expected.status == actual.status == "completed" and expected.artifact_json:
+        if _artifact_fields(actual.artifact_json) != _artifact_fields(expected.artifact_json):
+            return False
+        actual.artifact_json = expected.artifact_json
+    return actual == expected
+
+
 class InterpretationStateTranscription:
     """Keyless row transcription; its root adapter must validate the frozen plan."""
 
@@ -77,16 +91,8 @@ class InterpretationStateTranscription:
             raise MessageConflict("Unplanned interpretation state cannot be recorded")
         try:
             actual = workflow.StateEvent(**row["payload"])
-            if expected.status == actual.status == "completed" and expected.artifact_json:
-                if _artifact_fields(actual.artifact_json) != _artifact_fields(
-                    expected.artifact_json
-                ):
-                    raise ValueError("Original Artifact fields differ")
-                # Compare the remaining exact projection without re-encoding or
-                # replacing the immutable first body/wire in its archive.
-                actual.artifact_json = expected.artifact_json
             valid = (
-                actual == expected
+                same_state_event(actual, expected)
                 and row["event_id"] == expected.event_id
                 and row["session_id"] == expected.session_id
                 and row["version"] == expected.version

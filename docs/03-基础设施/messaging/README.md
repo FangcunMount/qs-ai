@@ -1,8 +1,8 @@
-# 消息接单、Outbox 与业务确认
+# 消息接单、事务档案与业务确认
 
 qs-ai 通过消息受理命令，把可见状态和成果作为持久事件交给 QS。一次本地提交证明“业务效果与待发消息同时存在”；Broker 的发布确认成功证明 Broker 接收；QS 对原事件返回 `STORED` 才证明其接收事务完成。这三个完成点分别有记录，不能合并成一个“发送成功”。
 
-本文以一次 Start 产生 Session、最终形成 Artifact 并交付 QS 为主线。核对基线：qs-ai `d9c3155`，QS `2ccc2de44`，2026-10-06。上述日期记录原业务链路；2026-10-19 的 M3 接入基础固定依赖 `fangcun-reliable-messaging[nsq,rocketmq]==0.4.0a1`（SDK 源码 `bfaae2b82ee0d1229b8c965fce472cdf5dec486f`）。业务尚未切换事务入口，测试、部署与真实业务接收仍是独立证据。
+本文以一次 Start 产生 Session、最终形成 Artifact 并交付 QS 为主线。核对基线：qs-ai `d9c3155`，QS `2ccc2de44`，2026-10-06。上述日期记录原业务链路；2026-10-19 的 M3 接入基础固定依赖 `fangcun-reliable-messaging[nsq,rocketmq]==0.4.0a1`。当前源码固定 `0.4.0a2`（SDK `8de893b367cc797580799abd8325f41dd62356db`），显式事务配置选择完整装配；默认配置及生产尚未切换，测试、部署与真实业务接收仍是独立证据。
 
 ## RocketMQ 普通消息
 
@@ -20,7 +20,19 @@ RocketMQ 终态交接携带 provider、原始 Wire 和实际物理来源，宿�
 
 宿主迁移 `0041_transaction_messaging` 显式安装独立 schema v1；owner binding 必须由冻结清单另行安装，不由构造/Start 推断。Down 保留证据并拒绝回退；隔离原事务安装测试见 `tests/integration/test_transaction_schema.py`。
 
-此入口目前未接入 command admission、状态 finalization 或统一 server。旧 `MessagingRuntime.create()` 遇到非空 transactions 明确拒绝，避免继续由 MQRelay 发送事务 owner 的消息。原根事务、首 wire、业务 receipt 和模型 unknown 恢复仍按下文执行；后续批次逐项替换，不因 SDK 具备事务能力就宣称业务已迁移。全局进度以 [infra M3 总表](https://github.com/FangcunMount/infra/blob/main/docs/server/rocketmq-m3-execution.md) 为准。
+非空 transactions 现在选择完整事务装配：APP `TransactionServices` 借用同一个 primary engine 和 Sender；REQUEST 保留独立 Transactions。command admission、interpretation 执行、evaluation 管理/创建、Solution 准备及 serial/candidate 工作流使用原根事务适配。普通/旧配置继续使用原 Outbox/Relay。此源码候选的原生和 Broker 门禁仍需单独通过，不能据构造成功宣称业务已迁移。全局进度以 [infra M3 总表](https://github.com/FangcunMount/infra/blob/main/docs/server/rocketmq-m3-execution.md) 为准。
+
+## 显式事务模式的默认装配与回执
+
+`TransactionProvider` 只在显式 owner 配置下提供共享 Sender、档案和固定进程 owner；构造不连接数据库或 Broker。`transaction_evaluation_worker` 一次绑定 preflight、串行/candidate 派发与终态、首响应恢复、旧 Aborted 的显式恢复及取消排空，保留原 ModelCapacity、游标和每请求事务。串行模型调用前必须通过事务 dispatch；首响应另存原根后才发送终态，MQ 故障不增加 provider invocation。
+
+统一服务在 SDK Start 完成后才启动命令和 ACK 订阅。所有实例登记 owner 的完整事件 Topic，`publish_enabled=false` 仍启动 Checker；执行循环在 Sender 就绪且准入开放后才领取。事务模式不创建普通 Publisher 或 MQRelay，`TransactionOnlyEvents` 允许操作事务提交，但拒绝未经过冻结计划的业务事件；具体业务根使用自己的转录器，不在 commit hook 中发送 MQ。
+
+新事务事件的正文读取先查精确 Committed 档案/witness，仅缺身份才读取历史 Outbox。业务 ACK 同样先查档案；Prepared、证据矛盾、数据库错误或超时不回退旧路径。新增显式迁移 `0042_transaction_event_receipts` 安装 `messaging_event_receipts`：只追加受保护的 QS ACK，不含待发状态或扫描责任。相同 ACK ID 必须复用原 header/body；STORED 与 HELD 分别保留，晚到 HELD 不撤销 delivered。Interpretation 的匹配 history 与业务 receipt 在同一个 ACK 原根提交/回滚；Broker Commit 不直接标记 delivered。MySQL JSON 的 Artifact 键顺序可变，比较原字段值但不重建首次 wire。
+
+关闭先停止新的外部领取和订阅，再等已接受业务；此时仍允许终态半消息及 Checker。业务任务终止后才调用 SDK Close；若预算耗尽，保留 ShutdownIncomplete 并由 Wait 等真实 RPC/回查完成，然后关闭载荷通道、APP pool 与 loop。事务模式不使用旧分支的最外层五秒资源取消；取消不等同于数据库回滚或 RPC 结束。
+
+验证入口为 `tests/test_default_transaction_transport.py`、`tests/test_transaction_transport_lifecycle.py`、`tests/integration/test_transaction_serial_runtime.py`、`tests/integration/test_transaction_receipts.py` 与隔离 Broker 的 `rocketmq_state_host.py`。收集不算通过；完整门禁、合并、部署、system 及48小时观察仍按 infra 总表分别登记。
 
 ## command 冻结与原根执行器（生产装配尚未启用）
 
@@ -64,13 +76,13 @@ worker 预检通过显式 `preflight_dispatch` 借用 [`PreflightStateDispatcher
 
 [`GovernanceStateDispatcher`](../../../src/qs_ai/infrastructure/workflow_transport/evaluation_governance_dispatch.py) 先查原请求再规划/准备，使用持久化赢家并仅执行一次。只有精确 witness 和首次档案都证明原提交，才返回原根中取得的原响应；不读取今天的 Run 来替代该次响应。`LocalCommitted + FinalUnknown` 保留确认责任；原 CAS/业务错误只有在原根已证实 Aborted 时才能继续按原错误返回，未知结果不改写为冲突或授权业务重做。
 
-[`TransactionalEvaluationManagement`](../../../src/qs_ai/infrastructure/workflow_transport/transactional_evaluation_management.py) 为定稿/重开提供显式管理适配器。原RPC处理函数继续校验QS工作负载、主体、版本和确认，服务端首次分配操作ID/时间；每个新RPC仍遵循原CAS行为，不新增公共幂等承诺。其余写入口继承原实现，因此默认容器/生产装配仍等待完整迁移，不能提前启用混合运行。
+[`TransactionalEvaluationManagement`](../../../src/qs_ai/infrastructure/workflow_transport/transactional_evaluation_management.py) 为定稿/重开提供显式管理适配器。原RPC处理函数继续校验QS工作负载、主体、版本和确认，服务端首次分配操作ID/时间；每个新RPC仍遵循原CAS行为，不新增公共幂等承诺。其余写入口继承原实现，显式事务容器已选择完整适配，生产仍等待最终切换门禁。
 
 原 [`accept_reviews/plan_reviews`](../../../src/qs_ai/infrastructure/persistence/mysql/evaluation_reviews.py) 共享评审准入与投影。`plan_reviews(lock=False)` 仅使用宿主明确的 RR 只读快照，不推进 checkpoint、写业务或提交；原写入口仍先锁 checkpoint/Run，再写原 CAS 与审核事实。原 1–35 项、单项理由和语义评审边界继续有效，不因消息元数据预算缩小合法输入。只读规划和原写入口共享规则；[`ReviewStatePlanner/ReviewStateRoot`](../../../src/qs_ai/infrastructure/workflow_transport/review_state.py) 已提供显式评审事务入口，但默认生产装配仍未启用。相关真实 MySQL 用例执行状态以 infra 总表为准。
 
-本批尚未替换全部 worker、治理和终态入口。MySQL 原状态根、实际 worker 及固定 SDK/Broker profile 分别验证；当前进度和失败记录回链 infra 总表，不据单项通过启用统一 runtime 或标记 T17 完成。
+显式事务模式已接入上述 worker、治理与终态适配，普通配置保留旧实现。MySQL 原状态根、实际 worker 及固定 SDK/Broker profile 分别验证；进度和失败记录回链 infra 总表，不据单项通过标记 T17 或生产完成。
 
-## 当前服务怎样装配这条链路
+## 兼容配置怎样装配原 Outbox 链路
 
 统一入口 `bootstrap.server.serve()` 要求 `messaging.enabled=true`；缺少时直接启动失败。配置模型的默认值仍为 false，意味着调用方必须显式绑定所选 Broker、JOSE 密钥和 QS mTLS 载荷端点，不会自动启用开发传输。旧 `bootstrap.integration` 入口已经退役，当前没有并行运行的 gRPC 结果扫描器。
 

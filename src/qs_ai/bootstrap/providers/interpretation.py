@@ -18,6 +18,7 @@ from qs_ai.application.interpretation.ports import (
     UnitOfWorkFactory,
 )
 from qs_ai.application.interpretation.service import InterpretationService
+from qs_ai.bootstrap.transaction_services import TransactionServices
 from qs_ai.config import Settings
 from qs_ai.infrastructure.interpretation.unconfigured import (
     UnconfiguredEvidenceSource,
@@ -86,10 +87,14 @@ class InterpretationProvider(Provider):
         capacity: ParticipantCapacityPolicy,
         quota_baseline: QuotaBaseline,
         settings: Settings,
+        transactions_services: TransactionServices | None,
     ) -> ExecutionStore:
-        return MySQLExecutionStore(
+        original = MySQLExecutionStore(
             transactions, capacity, quota_baseline, settings.diagnostics.retention_days
         )
+        if transactions_services is not None:
+            return transactions_services.execution(original)
+        return original
 
     @provide(scope=Scope.REQUEST)
     def service(

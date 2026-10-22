@@ -1,24 +1,19 @@
 """Explicit embedded MQ assembly on the unified application's loop and database."""
 
 import asyncio
-import json
 import os
 from contextlib import AsyncExitStack
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING
 
 from dishka import AsyncContainer
-from jwcrypto import jwk  # type: ignore[import-untyped]
 from reliable_messaging.nsq import NSQPublisher, NSQSubscriber
 from reliable_messaging.protected import TrustedSigner
-from reliable_messaging.rocketmq import (
-    Config as RocketMQConfig,
-)
 from reliable_messaging.rocketmq import (
     RocketMQPublisher,
     RocketMQSubscriber,
 )
-from reliable_messaging.transport import Publisher, RouteBinding, Subscriber, validate_routes
+from reliable_messaging.transaction import ShutdownIncompleteError
+from reliable_messaging.transport import Publisher, Subscriber
 from sqlalchemy import text
 from tornado.httpclient import AsyncHTTPClient
 
@@ -28,47 +23,37 @@ from qs_ai.application.execution.capacity import ParticipantCapacityPolicy
 from qs_ai.application.governance.quotas import QuotaBaseline
 from qs_ai.application.governance.solution_models import EditableModelPolicy
 from qs_ai.application.interpretation.ports import EvidenceSource
-from qs_ai.bootstrap.lifecycle import Component, RuntimeState
+from qs_ai.bootstrap.lifecycle import Component, RuntimeState, event
+from qs_ai.bootstrap.messaging_config import read_key as read_key
+from qs_ai.bootstrap.messaging_config import read_rocketmq_config as read_rocketmq_config
 from qs_ai.config import Settings
 from qs_ai.contracts.workflow import messaging_pb2_grpc as rpc
 from qs_ai.infrastructure.persistence.mysql.database import Database, Transactions
 from qs_ai.infrastructure.persistence.mysql.messaging import MessagingStore
 from qs_ai.infrastructure.persistence.mysql.messaging_observations import require_recording_schema
+from qs_ai.infrastructure.persistence.mysql.transaction_archive import ArchivePayloadReader
+from qs_ai.infrastructure.persistence.mysql.transaction_receipts import TransactionMessagingStore
 from qs_ai.infrastructure.qs_server.report_probe import mtls_channel
 from qs_ai.infrastructure.workflow_transport.command_admission import WorkflowCommandAdmission
 from qs_ai.infrastructure.workflow_transport.messaging import ACKS, CHANNELS, COMMANDS, EVENTS
 from qs_ai.infrastructure.workflow_transport.mq_failure import FailureTopology
 from qs_ai.infrastructure.workflow_transport.mq_receiver import CommandReceiver
 from qs_ai.infrastructure.workflow_transport.mq_relay import MQRelay
-from qs_ai.infrastructure.workflow_transport.payload_access import MySQLPayloadAccess
+from qs_ai.infrastructure.workflow_transport.payload_access import MySQLPayloadAccess, PayloadReader
 from qs_ai.infrastructure.workflow_transport.payloads import PayloadResolver
 from qs_ai.infrastructure.workflow_transport.state_events import StateEventRecorder
+from qs_ai.infrastructure.workflow_transport.transaction_events import TransactionOnlyEvents
+from qs_ai.infrastructure.workflow_transport.transaction_receiver import TransactionCommandReceiver
 from qs_ai.transport.grpc.message_payloads import MessagePayloads
 
-
-def read_key(path: str, *, private: bool, expected_id: str | None = None) -> Any:
-    # Never put path contents, JOSE errors, or private material in diagnostics.
-    try:
-        with Path(path).open("rb") as stream:
-            data = stream.read(65537)
-        if len(data) > 65536:
-            raise ValueError
-        key = jwk.JWK.from_json(data.decode())
-        if not key.get("kid") or (expected_id is not None and key.get("kid") != expected_id):
-            raise ValueError
-        if private != key.has_private:
-            raise ValueError
-        if key.get("kty") != "EC" or key.get("crv") != "P-256":
-            raise ValueError
-        return key
-    except Exception:
-        raise ValueError("Invalid configured messaging key") from None
+if TYPE_CHECKING:
+    from qs_ai.bootstrap.transaction_services import TransactionServices
 
 
 class MessagingRuntime:
-    recorder: StateEventRecorder
+    recorder: StateEventRecorder | TransactionOnlyEvents
     tx: Transactions
-    relay: MQRelay
+    relay: MQRelay | None = None
     payloads: MessagePayloads
 
     def __init__(self) -> None:
@@ -80,6 +65,9 @@ class MessagingRuntime:
         self.publisher_ready = asyncio.Event()
         self.database: Database | None = None
         self.http: AsyncHTTPClient | None = None
+        self.transaction_services: TransactionServices | None = None
+        self._transaction_closed = asyncio.Event()
+        self._close_task: asyncio.Task[None] | None = None
 
     @classmethod
     async def create(
@@ -88,7 +76,7 @@ class MessagingRuntime:
         runtime = cls()
         try:
             options = settings.messaging
-            if options.transactions:
+            if options.transactions and container is None:
                 raise ValueError(
                     "Transaction owners require transaction-bound workflow assembly; "
                     "legacy MQRelay cannot publish them"
@@ -115,13 +103,30 @@ class MessagingRuntime:
             database = await container.get(Database)
             runtime.database = database
             tx, store = Transactions(database), MessagingStore()
+            if options.transactions:
+                # Import only at explicit assembly; the provider's inert factory
+                # itself imports this module's host-owned file readers.
+                from qs_ai.bootstrap.transaction_services import TransactionServices
+
+                runtime.transaction_services = await container.get(TransactionServices | None)
+                if runtime.transaction_services is None:
+                    raise ValueError("Transaction-bound application services required")
+                services = runtime.transaction_services
+                signing, recipient = services.signing_key, services.recipient_key
+                store = TransactionMessagingStore(
+                    services.archives, database_seconds=services.database_seconds
+                )
             # Borrow the application pool before any transport or subscription exists.
             # The read is rolled back by Transactions; startup never installs its schema.
             async with asyncio.timeout(5), tx.open() as db:
                 await db.connection(execution_options={"isolation_level": "REPEATABLE READ"})
                 await db.execute(text("START TRANSACTION WITH CONSISTENT SNAPSHOT, READ ONLY"))
                 await require_recording_schema(db)
-            runtime.recorder = StateEventRecorder(store, signing, recipient)
+            runtime.recorder = (
+                TransactionOnlyEvents()
+                if runtime.transaction_services is not None
+                else StateEventRecorder(store, signing, recipient)
+            )
             database.state_events = runtime.recorder
             async with container() as scope:
                 admission = WorkflowCommandAdmission(
@@ -153,9 +158,38 @@ class MessagingRuntime:
                         "RocketMQ requires its explicit CA environment before process startup"
                     )
                 config = await asyncio.to_thread(read_rocketmq_config, options)
-                runtime.publishers = {config.endpoint: RocketMQPublisher(config)}
+                command_handler, failed_command = receiver.receive_command, receiver.failed_command
+                if runtime.transaction_services is not None:
+                    services = runtime.transaction_services
+                    # Require the final owner/type/revision, including received
+                    # topics, before constructing a subscriber or opening Start.
+                    for topic, owner in (
+                        (COMMANDS, "qs.mysql"),
+                        (ACKS, "qs.mysql"),
+                        (EVENTS, "ai.mysql"),
+                    ):
+                        selected = [r for r in config.routes if r.topic == topic]
+                        if not selected or any(
+                            (r.message_type, r.owner, r.route_revision)
+                            != ("TRANSACTION", owner, "m3-1")
+                            for r in selected
+                        ):
+                            raise ValueError("Transaction workflow route binding differs")
+                    commands = TransactionCommandReceiver(
+                        receiver,
+                        admission,
+                        services.runtime,
+                        services.archives,
+                        database_seconds=services.database_seconds,
+                    )
+                    command_handler, failed_command = (
+                        commands.receive_command,
+                        commands.failed_command,
+                    )
+                else:
+                    runtime.publishers = {config.endpoint: RocketMQPublisher(config)}
                 for topic, handler, failed in (
-                    (COMMANDS, receiver.receive_command, receiver.failed_command),
+                    (COMMANDS, command_handler, failed_command),
                     (ACKS, receiver.receive_ack, receiver.failed_ack),
                 ):
                     runtime.subscribers.append(
@@ -192,10 +226,14 @@ class MessagingRuntime:
                         )
                     )
             runtime.tx = tx
-            runtime.relay = MQRelay(
-                tx, store, runtime.publishers, address=next(iter(runtime.publishers))
-            )
-            runtime.payloads = MessagePayloads(MySQLPayloadAccess(tx, store))
+            payload_reader: PayloadReader = store
+            if runtime.transaction_services is not None:
+                payload_reader = ArchivePayloadReader(runtime.transaction_services.archives, store)
+            else:
+                runtime.relay = MQRelay(
+                    tx, store, runtime.publishers, address=next(iter(runtime.publishers))
+                )
+            runtime.payloads = MessagePayloads(MySQLPayloadAccess(tx, payload_reader))
             return runtime
         except BaseException:
             await runtime.close()
@@ -203,6 +241,44 @@ class MessagingRuntime:
 
     def components(self, state: RuntimeState, drain_seconds: float) -> list[Component]:
         result: list[Component] = []
+        if self.transaction_services is not None:
+            transactions = self.transaction_services.runtime
+
+            async def run_transactions() -> None:
+                await transactions.start()
+                # An idle/paused producer still registers all owner topics and
+                # serves Checker; this event denotes Start, not write admission.
+                self.publisher_ready.set()
+                await self._transaction_closed.wait()
+
+            async def halt_transactions() -> None:
+                # Seal external claims/subscriptions first. Accepted model work
+                # may still need a new terminal half message during its drain.
+                await asyncio.gather(
+                    *(
+                        asyncio.shield(task)
+                        for name, task in state.tasks.items()
+                        if name not in {"http", "mq_transactions"}
+                    ),
+                    return_exceptions=True,
+                )
+                try:
+                    await transactions.close(grace_seconds=5)
+                except ShutdownIncompleteError:
+                    event("transaction_shutdown_incomplete", "mq_transactions")
+                    raise
+                finally:
+                    self._transaction_closed.set()
+
+            result.append(
+                Component(
+                    "mq_transactions",
+                    run_transactions,
+                    halt_transactions,
+                    self.publisher_ready.is_set,
+                    drain_seconds + 6,
+                )
+            )
         for index, (address, publisher) in enumerate(self.publishers.items()):
 
             async def run(address: str = address, publisher: Publisher = publisher) -> None:
@@ -262,7 +338,7 @@ class MessagingRuntime:
         return result
 
     async def step(self) -> int:
-        if not self.publish_enabled or not self.publisher_ready.is_set():
+        if self.relay is None or not self.publish_enabled or not self.publisher_ready.is_set():
             return 0  # Starting/stopping publisher cannot reject or hold durable results.
         # Historical ownership moves only through an explicitly reviewed handoff.
         # New state events are already staged on their original business transaction.
@@ -270,6 +346,37 @@ class MessagingRuntime:
         return 0
 
     async def close(self) -> None:
+        if self.transaction_services is not None:
+            if self._close_task is None:
+                self._close_task = asyncio.create_task(self._close_transactions())
+            cancelled = False
+            while True:
+                try:
+                    await asyncio.shield(self._close_task)
+                    break
+                except asyncio.CancelledError:
+                    # Repeated parent cancellation is not proof that a blocking
+                    # RPC ended. An actually cancelled close task still raises.
+                    if self._close_task.done():
+                        await self._close_task
+                    cancelled = True
+            if cancelled:
+                raise asyncio.CancelledError
+            return
+        await self._close_resources()
+
+    async def _close_transactions(self) -> None:
+        assert self.transaction_services is not None
+        for subscriber in self.subscribers:
+            await subscriber.stop(grace_seconds=0)
+        try:
+            await self.transaction_services.runtime.close(grace_seconds=0)
+        except ShutdownIncompleteError:
+            await self.transaction_services.runtime.wait()
+        self._transaction_closed.set()
+        await self._close_resources()
+
+    async def _close_resources(self) -> None:
         for subscriber in self.subscribers:
             await subscriber.stop(grace_seconds=0)
         for publisher in self.publishers.values():
@@ -279,42 +386,3 @@ class MessagingRuntime:
         await self.resources.aclose()
         if self.database is not None:
             self.database.state_events = None
-
-
-def read_rocketmq_config(options: Any) -> RocketMQConfig:
-    """Read host-owned private files; SDK constructors never discover them."""
-    config = options.rocketmq
-    account = json.loads(Path(config.credentials_file).read_text())
-    manifest = json.loads(Path(config.routes_file).read_text())
-    version = manifest.get("version")
-    if version not in (1, 2):
-        raise ValueError("RocketMQ route manifest version1 or version2 required")
-    allowed = {
-        "topic",
-        "subscription",
-        "physical_topic",
-        "consumer_group",
-        "message_type",
-        "owner",
-        "route_revision",
-    }
-    all_routes = tuple(
-        RouteBinding(**{k: v for k, v in r.items() if k in allowed}) for r in manifest["routes"]
-    )
-    if any(
-        (version == 1 and (r.message_type or r.owner or r.route_revision))
-        or (version == 2 and not r.message_type)
-        for r in all_routes
-    ):
-        raise ValueError("RocketMQ route fields conflict with manifest version")
-    validate_routes(all_routes)
-    routes = tuple(r for r in all_routes if r.topic in {COMMANDS, ACKS, EVENTS})
-    if {r.topic for r in routes} != {COMMANDS, ACKS, EVENTS}:
-        raise ValueError("RocketMQ manifest missing required workflow topics")
-    return RocketMQConfig(
-        config.endpoint,
-        account["username"],
-        account["password"],
-        routes,
-        max_in_flight=options.max_in_flight,
-    )

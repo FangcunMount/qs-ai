@@ -272,7 +272,7 @@ def require_schema(
 
 
 def require_runtime_schema(conn: Connection) -> None:
-    """Validate fixed 0041 runtime without changing frozen conversion layouts."""
+    """Validate fixed 0042 runtime without changing frozen conversion layouts."""
     from qs_ai.infrastructure.persistence.mysql.transaction_schema import metadata
 
     schema = str(conn.scalar(sa.text("SELECT DATABASE()")))
@@ -280,7 +280,7 @@ def require_runtime_schema(conn: Connection) -> None:
         conn,
         NEW_HEAD,
         schema,
-        expected_head="0041_transaction_messaging",
+        expected_head="0042_transaction_event_receipts",
         extensions=metadata,
     )
     inspector = sa.inspect(conn)

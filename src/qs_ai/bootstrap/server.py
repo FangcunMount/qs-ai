@@ -152,10 +152,22 @@ async def serve(settings: Settings, stop: asyncio.Event) -> None:
             await grpc_server.stop(settings.grpc.shutdown_grace_seconds)
 
         async def generate() -> bool:
+            if settings.messaging.transactions and (
+                not messaging.publisher_ready.is_set()
+                or messaging.transaction_services is None
+                or not messaging.transaction_services.runtime.stats()["ready"]
+            ):
+                return False
             async with container() as operation:
                 return await (await operation.get(ExecuteNext)).once(settings.worker.lease_seconds)
 
         async def evaluate() -> bool:
+            if settings.messaging.transactions and (
+                not messaging.publisher_ready.is_set()
+                or messaging.transaction_services is None
+                or not messaging.transaction_services.runtime.stats()["ready"]
+            ):
+                return False
             async with container() as operation:
                 return await (await operation.get(EvaluationWorker)).once()
 
@@ -190,9 +202,10 @@ async def serve(settings: Settings, stop: asyncio.Event) -> None:
 
         if messaging is not None:
             # Replaces the old gRPC scanner; no dual result delivery owner.
-            values = settings.delivery.model_dump(exclude={"batch_size", "max_retry_seconds"})
-            values["concurrency"] = 1
-            components.append(background("mq_relay", messaging.step, stop, values))
+            if not settings.messaging.transactions:
+                values = settings.delivery.model_dump(exclude={"batch_size", "max_retry_seconds"})
+                values["concurrency"] = 1
+                components.append(background("mq_relay", messaging.step, stop, values))
             components.extend(
                 messaging.components(
                     state, max(component.shutdown_seconds for component in components)
@@ -254,10 +267,20 @@ async def serve(settings: Settings, stop: asyncio.Event) -> None:
     finally:
         if grpc_server is not None:
             await grpc_server.stop(0)
-        async with asyncio.timeout(5):
-            if messaging is not None:
-                await messaging.close()
-            await container.close()
+        if settings.messaging.transactions:
+            # A ShutdownIncomplete result keeps the host pool and event loop
+            # alive until the SDK's real RPC/checker work finishes. A five-second
+            # outer cancellation must not dispose the pool underneath it.
+            try:
+                if messaging is not None:
+                    await messaging.close()
+            finally:
+                await container.close()
+        else:
+            async with asyncio.timeout(5):
+                if messaging is not None:
+                    await messaging.close()
+                await container.close()
 
 
 async def run() -> None:

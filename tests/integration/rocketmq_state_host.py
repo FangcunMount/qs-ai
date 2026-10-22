@@ -16,6 +16,7 @@ from unittest.mock import AsyncMock, Mock
 from uuid import uuid4
 
 import pytest
+from dishka import Provider, Scope, provide
 from reliable_messaging.protected import TrustedSigner
 from reliable_messaging.rocketmq import Config, RocketMQSubscriber
 from reliable_messaging.rocketmq_transaction import (
@@ -38,15 +39,24 @@ from sqlalchemy import delete, event, select, text, update
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict
 from qs_ai.application.evaluation.management import EvaluationManagementStore
 from qs_ai.application.governance.solutions import PrepareSolution
+from qs_ai.application.interpretation.ports import EvidenceSource
+from qs_ai.bootstrap.container import create_container
+from qs_ai.bootstrap.lifecycle import RuntimeState, supervise
+from qs_ai.bootstrap.messaging import MessagingRuntime
+from qs_ai.bootstrap.providers.evaluation import EvaluationProvider
 from qs_ai.bootstrap.transaction_messaging import TransactionRuntime
+from qs_ai.bootstrap.transaction_services import TransactionServices
+from qs_ai.config import Settings
+from qs_ai.contracts.workflow import messaging_pb2 as messaging_pb
 from qs_ai.contracts.workflow import workflow_pb2 as workflow
+from qs_ai.infrastructure.persistence.mysql.database import Database
 from qs_ai.infrastructure.persistence.mysql.evaluation_management import MySQLEvaluationManagement
 from qs_ai.infrastructure.persistence.mysql.evaluation_reviews import accept_reviews
 from qs_ai.infrastructure.persistence.mysql.evaluation_worker import EvaluationWorker
 from qs_ai.infrastructure.persistence.mysql.messaging import outbox
 from qs_ai.infrastructure.persistence.mysql.schema import evaluation_checkpoints, evaluation_runs
 from qs_ai.infrastructure.persistence.mysql.solutions import MySQLSolutions
-from qs_ai.infrastructure.persistence.mysql.transaction_schema import witness
+from qs_ai.infrastructure.persistence.mysql.transaction_schema import event_receipts, witness
 from qs_ai.infrastructure.workflow_transport.correction_state import read_correction_plan
 from qs_ai.infrastructure.workflow_transport.correction_state_plan import CorrectionStateOperation
 from qs_ai.infrastructure.workflow_transport.evaluation_governance_dispatch import (
@@ -65,7 +75,12 @@ from qs_ai.infrastructure.workflow_transport.evaluation_preflight_state import (
     preflight_intent,
 )
 from qs_ai.infrastructure.workflow_transport.evaluation_state_plan import read_evaluation_state_plan
-from qs_ai.infrastructure.workflow_transport.messaging import EVENTS, authenticate, parse_body
+from qs_ai.infrastructure.workflow_transport.messaging import (
+    EVENTS,
+    authenticate,
+    parse_body,
+    prepare,
+)
 from qs_ai.infrastructure.workflow_transport.resolution_state import read_resolution_plan
 from qs_ai.infrastructure.workflow_transport.resolution_state_plan import ResolutionStateOperation
 from qs_ai.infrastructure.workflow_transport.review_state_plan import (
@@ -1301,6 +1316,191 @@ async def _actual_serial_dispatch(b, ready, monkeypatch, *, semantic):
         if value is not None and value.capacity_token is not None:
             value.capacity_token.release()
         await clean_governance_sequence(b.host, run_id)
+
+
+@pytest.mark.parametrize("paused", [False, True])
+async def test_actual_default_transport_and_worker_share_sender_root_and_shutdown(
+    governance_broker, original, required_broker, tmp_path, monkeypatch, paused
+):
+    """Actual default DI/SDK/subscriptions; QS ACK input is controlled, not paired QS."""
+    from qs_ai.infrastructure.workflow_transport.messaging import ACKS
+    from tests.integration.test_delivery import certificates
+    from tests.integration.test_mq_storage import received
+
+    b = governance_broker
+    host, scope, management = original
+    config = required_broker
+    # This seed has no new transport responsibility. All writes after installing
+    # default assembly must use its exact original-root transaction adapters.
+    host.tx.database.state_events = None
+    try:
+        await management.start(
+            scope, 1, "isolated default worker seed", datetime.now(UTC), confirm=True
+        )
+    finally:
+        host.tx.database.state_events = b.recorder
+    certificates(tmp_path)
+    files = {}
+    for name, private in (
+        ("ai.sign", True),
+        ("qs.encrypt", False),
+        ("ai.encrypt", True),
+        ("qs.sign", False),
+    ):
+        path = tmp_path / (name + ".json")
+        path.write_text(
+            host.keys[name].export_private() if private else host.keys[name].export_public()
+        )
+        path.chmod(0o600)
+        files[name] = str(path)
+    credentials, routes = tmp_path / "credentials.json", tmp_path / "routes.json"
+    credentials.write_text(json.dumps(config["ai"]))
+    routes.write_text(json.dumps({"version": 2, "routes": config["routes"]}))
+    credentials.chmod(0o600)
+    routes.chmod(0o600)
+    settings = Settings(
+        database_url=host.kit.dsn,
+        evaluation={"enabled": True},
+        generation={"endpoint": "https://model.invalid/responses"},
+        model_api_key="isolated-not-used",
+        grpc={"access_address": "127.0.0.1:1"},
+        messaging={
+            "enabled": True,
+            "provider": "rocketmq",
+            "publish_enabled": not paused,
+            "signing_key_file": files["ai.sign"],
+            "qs_recipient_key_file": files["qs.encrypt"],
+            "decrypt_key_files": {"ai.encrypt": files["ai.encrypt"]},
+            "qs_signer_files": {"qs.sign": files["qs.sign"]},
+            "rocketmq": {
+                "endpoint": config["endpoint"],
+                "credentials_file": str(credentials),
+                "routes_file": str(routes),
+                "ca_file": config["ca_file"],
+            },
+            "transactions": {
+                "ai.mysql": {
+                    "store_id": host.store.binding.store_id,
+                    "writer_epoch": host.store.binding.writer_epoch,
+                    "route_revision": "m3-1",
+                }
+            },
+        },
+    )
+    monkeypatch.setenv("GRPC_DEFAULT_SSL_ROOTS_FILE_PATH", config["ca_file"])
+
+    class Overrides(Provider):
+        @provide(scope=Scope.APP, override=True)
+        def database(self) -> Database:
+            return host.tx.database  # Fixture owns disposal, never the borrowed container.
+
+        @provide(scope=Scope.APP, override=True)
+        def source(self) -> EvidenceSource:
+            return host.kit.source
+
+    container = create_container(settings, EvaluationProvider(), Overrides())
+    runtime, supervisor = None, None
+    state, stop = RuntimeState(), asyncio.Event()
+    intent = preflight_intent(scope.run_id, 2, scope.organization_id)
+    tracked = False
+    try:
+        services = await container.get(TransactionServices | None)
+        assert services is not None and services.runtime is not b.runtime
+        runtime = await MessagingRuntime.create(
+            container,
+            settings,
+            (tmp_path / "ca.pem").read_bytes(),
+            (tmp_path / "ai.pem").read_bytes(),
+            (tmp_path / "ai.key").read_bytes(),
+        )
+        assert runtime.transaction_services is services and runtime.tx.database is host.tx.database
+        assert runtime.relay is None and not runtime.publishers
+        passed("default_assembly_shared_primary_sender")
+        passed("default_assembly_no_legacy_publish_path")
+        supervisor = asyncio.create_task(supervise(runtime.components(state, 20), state, stop))
+        async with asyncio.timeout(30):
+            while not state.ready:
+                if supervisor.done():
+                    await supervisor
+                await asyncio.sleep(0.01)
+        assert runtime.publisher_ready.is_set() and len(runtime.subscribers) == 2
+        assert services.runtime._sender.stats()[
+            "ready"
+        ]  # Checker lives even when host admission is paused.
+        passed("default_assembly_idle_checker_subscriptions")
+        async with container() as request:
+            worker = await request.get(EvaluationWorker)
+            assert worker.transactions.database is host.tx.database
+            assert worker._serial_runtime.dispatch._runtime is services.runtime
+            if paused:
+                from qs_ai.bootstrap.transaction_messaging import TransactionAdmissionClosed
+
+                before = await evaluation_rows(host.tx, scope.run_id)
+                with pytest.raises(TransactionAdmissionClosed):
+                    await worker.once()
+                assert await evaluation_rows(host.tx, scope.run_id) == before
+                assert await host.store.lookup(intent.request) is None
+                passed("default_assembly_pause_no_new_writes")
+            else:
+                assert await worker.once()
+                owned = await b.consumed(SimpleNamespace(intent=intent))
+                host.executions.append(owned.execution)
+                tracked = True
+                passed("default_assembly_original_worker_preflight")
+                passed("default_assembly_exact_archive_witness")
+                _, event_value = read_evaluation_state_plan(intent, owned.execution.plan)
+                event_header = event_value.envelope()
+                ack = prepare(
+                    messaging_pb.EVENT_ACKNOWLEDGEMENT,
+                    str(uuid4()),
+                    event_header.aggregate_key,
+                    messaging_pb.MessagingBody(
+                        event_acknowledgement=messaging_pb.MessagingEventAcknowledgement(
+                            event_id=event_header.message_id,
+                            event_kind=event_header.kind,
+                            event_body_sha256=event_header.body_sha256,
+                            outcome=messaging_pb.MessagingEventAcknowledgement.STORED,
+                        )
+                    ),
+                    organization_id=str(event_value.organization_id),
+                    signing_key=host.keys["qs.sign"],
+                    recipient_key=host.keys["ai.encrypt"],
+                )
+                acknowledgement = next(s for s in runtime.subscribers if s.route.topic == ACKS)
+                await acknowledgement.handler(received(ack))
+                async with host.tx.open() as db:
+                    receipt = (
+                        (
+                            await db.execute(
+                                select(event_receipts).where(
+                                    event_receipts.c.ack_id == ack.envelope.message_id.encode()
+                                )
+                            )
+                        )
+                        .mappings()
+                        .one()
+                    )
+                    assert receipt["event_id"] == event_header.message_id.encode()
+                    assert receipt["outcome"] == messaging_pb.MessagingEventAcknowledgement.STORED
+                passed("default_assembly_authenticated_business_ack")
+    finally:
+        stop.set()
+        if supervisor is not None:
+            await supervisor
+        if runtime is not None:
+            await runtime.close()
+        await container.close()
+        owned = await host.store.lookup(intent.request)
+        if owned is not None and not tracked:
+            host.executions.append(owned.execution)
+        async with host.tx.open() as db:
+            assert await db.scalar(text("SELECT 1")) == 1
+            if owned is not None:
+                ids = [r.message_id.encode() for r in owned.execution.references]
+                await db.execute(delete(event_receipts).where(event_receipts.c.event_id.in_(ids)))
+            await db.commit()
+        await clean_governance_sequence(host, scope.run_id)
+    passed("default_assembly_close_preserves_pool")
 
 
 async def _wait_recovery_barrier(task, event):

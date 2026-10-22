@@ -43,8 +43,9 @@ def fixture(monkeypatch):
     gateway = SimpleNamespace(generate_messages=AsyncMock())
 
     def create(**kwargs):
+        tx = kwargs.pop("transactions", SimpleNamespace(open=transactions))
         value = worker.EvaluationWorker(
-            SimpleNamespace(open=transactions),
+            tx,
             gateway,
             Mock(),
             Mock(),
@@ -69,6 +70,39 @@ async def test_explicit_transaction_preflight_owns_its_root_and_never_calls_lega
     dispatch.assert_awaited_once_with(f.run_id, 2, 7)
     assert len(f.opened) == 1
     f.db.commit.assert_not_called()
+    f.legacy.assert_not_called()
+    f.step.assert_not_called()
+    f.gateway.generate_messages.assert_not_called()
+
+
+@pytest.mark.parametrize("mode", ["serial_v1", "candidate_v2"])
+async def test_complete_serial_worker_selects_matching_runtime_and_never_legacy_fallback(
+    monkeypatch, mode
+):
+    f = fixture(monkeypatch)
+    f.row.update(execution_mode=mode, progress_json={"status": "collecting", "preflight": {}})
+    tx = SimpleNamespace(open=f.transactions)
+    serial = SimpleNamespace(transactions=tx)
+    consumer = f.create(transactions=tx, serial_runtime=serial)
+    if mode == "candidate_v2":
+        with pytest.raises(ValueError, match="candidate"):
+            await consumer.once()
+        f.step.assert_not_called()
+    else:
+        assert await consumer.once()
+        assert f.step.await_args.kwargs["serial_runtime"] is serial
+        assert f.step.await_args.kwargs["prepare_dispatch"] is None
+    f.db.commit.assert_not_called()
+
+
+@pytest.mark.parametrize("fault", ["foreign_host", "partial_dispatch"])
+def test_complete_serial_worker_refuses_mixed_host_or_partial_dispatch(monkeypatch, fault):
+    f = fixture(monkeypatch)
+    tx = SimpleNamespace(open=f.transactions)
+    serial = SimpleNamespace(transactions=object() if fault == "foreign_host" else tx)
+    extra = {"prepare_dispatch": AsyncMock()} if fault == "partial_dispatch" else {}
+    with pytest.raises(ValueError, match="[Ss]erial"):
+        f.create(transactions=tx, serial_runtime=serial, **extra)
     f.legacy.assert_not_called()
     f.step.assert_not_called()
     f.gateway.generate_messages.assert_not_called()

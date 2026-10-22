@@ -10,8 +10,8 @@ from qs_ai.maintenance.schema_layout import (
 )
 
 
-def test_0041_legacy_handoff_does_not_authorize_old_layout_conversion():
-    head = "0041_transaction_messaging"
+@pytest.mark.parametrize("head", ["0041_transaction_messaging", "0042_transaction_event_receipts"])
+def test_transaction_history_handoff_does_not_authorize_old_layout_conversion(head):
     assert require_handoff_head([head]) == head
     assert handoff_tables(head) == (result_outbox, outbox)
     assert retained_physical_table(head, "ai_messaging_outbox") == "messaging_outbox"

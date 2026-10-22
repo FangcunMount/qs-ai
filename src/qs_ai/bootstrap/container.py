@@ -6,6 +6,7 @@ from qs_ai.bootstrap.providers.core import OperationsProvider, PersistenceProvid
 from qs_ai.bootstrap.providers.generation import GenerationProvider
 from qs_ai.bootstrap.providers.integration import IntegrationProvider
 from qs_ai.bootstrap.providers.interpretation import InterpretationProvider
+from qs_ai.bootstrap.providers.transactions import TransactionProvider
 from qs_ai.config import Settings
 
 
@@ -13,6 +14,7 @@ def create_container(settings: Settings, *overrides: Provider) -> AsyncContainer
     return make_async_container(
         RuntimeProvider(),
         PersistenceProvider(),
+        TransactionProvider(),
         OperationsProvider(),
         InterpretationProvider(),
         GenerationProvider(),

@@ -32,6 +32,7 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_slot_claims,
 )
 from qs_ai.infrastructure.workflow_transport.candidate_runtime import CandidateRuntime
+from qs_ai.infrastructure.workflow_transport.serial_runtime import SerialRuntime
 from qs_ai.infrastructure.workflows.evaluation import execute_step
 
 
@@ -55,6 +56,7 @@ class EvaluationWorker:
         cancel_drain_dispatch: Callable[[ManagementScope, datetime], Awaitable[bool]] | None = None,
         serial_recovery_dispatch: RecoveryDispatch | None = None,
         candidate_recovery_dispatch: CandidateRecoveryDispatch | None = None,
+        serial_runtime: SerialRuntime | None = None,
     ) -> None:
         if type(candidate_limit) is not int or not 1 <= candidate_limit <= 32:
             raise ValueError("Invalid candidate concurrency")
@@ -65,6 +67,11 @@ class EvaluationWorker:
         self.owner, self.enabled, self.clock = owner, enabled, clock
         self._preflight_dispatch = preflight_dispatch
         self._prepare_dispatch = prepare_dispatch
+        if serial_runtime is not None and (
+            serial_runtime.transactions is not transactions or prepare_dispatch is not None
+        ):
+            raise ValueError("Serial runtime must own the complete original worker graph")
+        self._serial_runtime = serial_runtime
         if candidate_runtime is not None and (
             candidate_runtime.transactions is not transactions
             or candidate_runtime.limit != candidate_limit
@@ -164,7 +171,7 @@ class EvaluationWorker:
                 else:
                     if (
                         row["execution_mode"] == "candidate_v2"
-                        and self._prepare_dispatch is not None
+                        and (self._prepare_dispatch is not None or self._serial_runtime is not None)
                         and self._candidate_runtime is None
                     ):
                         raise ValueError(
@@ -186,6 +193,9 @@ class EvaluationWorker:
                         else None,
                         candidate_runtime=self._candidate_runtime
                         if row["execution_mode"] == "candidate_v2"
+                        else None,
+                        serial_runtime=self._serial_runtime
+                        if row["execution_mode"] != "candidate_v2"
                         else None,
                         candidate_limit=self.candidate_limit
                         if row["execution_mode"] == "candidate_v2"

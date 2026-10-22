@@ -19,9 +19,9 @@ def physical_table(head: str, logical_name: str) -> str:
 
 
 def require_handoff_head(heads: list[str] | None) -> str:
-    # 0041 adds protocol tables; retained result/Outbox tables keep 0040 names.
+    # 0041/0042 add protocol/receipt tables; retained history keeps 0040 names.
     # This does not extend the old full-layout conversion/backup whitelist.
-    if heads == ["0041_transaction_messaging"]:
+    if heads in (["0041_transaction_messaging"], ["0042_transaction_event_receipts"]):
         return heads[0]
     return require_known_head(heads)
 
@@ -41,4 +41,9 @@ def handoff_tables(head: str) -> tuple[sa.Table, sa.Table]:
 def retained_physical_table(head: str, logical_name: str) -> str:
     """Names for retained business/Outbox audit only, not whole-layout conversion."""
     require_handoff_head([head])
-    return physical_table(NEW_HEAD if head == "0041_transaction_messaging" else head, logical_name)
+    return physical_table(
+        NEW_HEAD
+        if head in ("0041_transaction_messaging", "0042_transaction_event_receipts")
+        else head,
+        logical_name,
+    )

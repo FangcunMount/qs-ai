@@ -34,6 +34,7 @@ from qs_ai.infrastructure.persistence.mysql.evaluation_step import (
     prepare_step,
 )
 from qs_ai.infrastructure.workflow_transport.candidate_runtime import CandidateRuntime
+from qs_ai.infrastructure.workflow_transport.serial_runtime import SerialRuntime
 
 
 class EvaluationState(TypedDict, total=False):
@@ -58,7 +59,15 @@ async def execute_step(
     capacity: ModelCapacity | None = None,
     prepare_dispatch: Callable[[UUID, int, int], Awaitable[PreparedStep]] | None = None,
     candidate_runtime: CandidateRuntime | None = None,
+    serial_runtime: SerialRuntime | None = None,
 ) -> CheckpointState:
+    if serial_runtime is not None and (
+        serial_runtime.transactions is not transactions
+        or candidate_limit is not None
+        or candidate_runtime is not None
+        or prepare_dispatch is not None
+    ):
+        raise ValueError("Serial runtime must retain its original host and complete paired graph")
     if prepare_dispatch is not None and candidate_limit is not None:
         raise ValueError("Serial transaction dispatcher cannot own candidate claims")
     if candidate_runtime is not None and (
@@ -90,6 +99,8 @@ async def execute_step(
         with operation("graph.evaluation.prepare", "evaluation"):
             if candidate_runtime is not None:
                 value = await candidate_runtime.prepare(run_id, expected_version, organization_id)
+            elif serial_runtime is not None:
+                value = await serial_runtime.prepare(run_id, expected_version, organization_id)
             elif prepare_dispatch is None:
                 value = await prepare_step(
                     transactions,
@@ -121,7 +132,7 @@ async def execute_step(
                 != (value.cp.execution_id, value.cp.invocation_id)
             ):
                 raise CheckpointConflict("Original candidate dispatch handoff differs from worker")
-            if prepare_dispatch is not None and (
+            if (prepare_dispatch is not None or serial_runtime is not None) and (
                 value.state.run_id != run_id
                 or value.state.version != expected_version + 2
                 or value.claim is not None
@@ -164,6 +175,10 @@ async def execute_step(
                 heartbeat.result()
             finished = max(clock(), prepared.at)
             response = EvaluationResponse(state["response"], state["failure"], finished)
+            if serial_runtime is not None:
+                await serial_runtime.save_response(organization_id, prepared, response)
+                result = await serial_runtime.complete(organization_id, prepared, response)
+                return {"result": result}
             if prepared.claim is not None:
                 if candidate_runtime is not None:
                     await candidate_runtime.save_response(
