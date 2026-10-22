@@ -122,13 +122,35 @@ def required_pair(request):
 
 
 class QSProcess:
-    def __init__(self, process):
+    def __init__(self, process, directory):
+        self.directory = directory
         self.process = process
         self.lock = asyncio.Lock()
 
     async def read(self):
-        async with asyncio.timeout(40):
-            line = await self.process.stdout.readline()
+        try:
+            async with asyncio.timeout(40):
+                line = await self.process.stdout.readline()
+        except TimeoutError:
+            # Fixed fixture phases only; never export private stdout/stderr or body.
+            value = (self.directory / "go-control-phase").read_text()
+            allowed = {
+                "control_ready",
+                "control_received",
+                "control_output",
+                "control_waiting",
+                "facts_operation",
+                "facts_evaluation_projection",
+                "facts_projection",
+                "facts_command_archive",
+                "facts_archive_identities",
+                "facts_archive_evidence",
+                "facts_counts",
+            }
+            if value in allowed:
+                global _GO_PHASE
+                _GO_PHASE = value
+            raise
         assert line and len(line) < 65536, "Owned QS control response absent or excessive"
         return json.loads(line)
 
@@ -247,7 +269,7 @@ async def pair(host, required_pair, monkeypatch):
             env=env,
             umask=0o077,
         )
-        qs = QSProcess(process)
+        qs = QSProcess(process, directory)
         ready = await qs.read()
         global _GO_PHASE
         _GO_PHASE = "ready" if ready.get("ready") is True else ready.get("phase", "invalid_ready")
