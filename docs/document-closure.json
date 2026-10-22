@@ -1,6 +1,6 @@
 {
   "schema_version": "qs-ai-document-closure/v1",
-  "source_commit": "4e6dd178cf1b6fe8475e20c52b98c779366423a6",
+  "source_commit": "23842172b572b2055efbf5c92881f552e0b3b7a9",
   "reviewed_on": "2026-10-22",
   "authority": "runtime composition > code > machine contracts/config/migrations > scoped tests > maintained prose > dated evidence/plans/archive",
   "source_catalog": {
@@ -544,7 +544,7 @@
     "tests/test_read_only_start_admission.py": "84d1f1a51ffe65e9e1b84ae11d55071473ad0cd65ddc0fea984fda80b7383619",
     "tests/test_transaction_admission_decision.py": "9adbe03061483ef78ce3428e3595ba62b3b5925d9e9cbbb017c4fa8e8c695251",
     "tests/test_transaction_command.py": "5b00febff93bd70c36e8901c1363b2153e06089d2db1d3c5fcda4cbaa50731e7",
-    "docs/03-基础设施/messaging/README.md": "41fca0467ab833380ff1b6815581714ebfc0b20616fc0ed352cc1e0e26de2753",
+    "docs/03-基础设施/messaging/README.md": "ca21f80fd2867f35a764a7ca507acf6f540cb40403e8f193cdc2263e2e9dedc2",
     "src/qs_ai/infrastructure/workflow_transport/change_planner.py": "4eb6bc873363c4612d8b28c16453b3104a907616c319edb81b518b6974403b6f",
     "src/qs_ai/infrastructure/workflow_transport/frozen_change_admission.py": "e252f16bf36ccf4149a24ae9e5b59a73684a0438b9124cadeb22fc666135e886",
     "tests/integration/test_transaction_change_admission.py": "a8c124f5481e94a56df7e3d1461beb053a02be5b4946c22caed8046dc8310543",
@@ -804,7 +804,12 @@
     "tests/integration/test_transaction_serial_runtime.py": "fd5534706eff28d3f55ea891d16efacfde07b5b709cb5a7833e2f92db00608e4",
     "tests/integration/test_finalization_characterization.py": "da43cb41059612d8407e34cee960c2ce044cfc0a2b8d461ba7d5848c3e448932",
     "src/qs_ai/infrastructure/persistence/mysql/interpretation_finalization_claim.py": "f1beb2123a2c9daa86c227ac26fe0d65ddae08b3f65ea17e19a57d82f5bbb01e",
-    "tests/integration/test_finalization_recovery.py": "22be0b66bc149a1d6714e598065968b31bef87d3cf3a06995f183cbd83c2ff55"
+    "tests/integration/test_finalization_recovery.py": "22be0b66bc149a1d6714e598065968b31bef87d3cf3a06995f183cbd83c2ff55",
+    "tests/probes/finalization_provider.py": "838089eb77c73a127a00c02da835d741e8a89afe24dcac605195c2bb97268f60",
+    "tests/probes/finalization_proxy.py": "f9868376a92f444c8bf0d6fa8aa1419d64dc8bda927a76f71612398377d2aded",
+    "tests/probes/finalization_worker.py": "41c35942315adf6aecabc9b2cab27444a1eeabb1c09673a79b6e51216606c02e",
+    "tests/test_finalization_provider_probe.py": "4e3e9308f74664cfb7d033caac0148df394a9b284cd5b84d9b0f2cda9bc54386",
+    "tests/integration/rocketmq_finalization_host.py": "d412cc815fe60e49cc94a442482736c2fe3acdf33328e5279ddf8efd2e9bb91e"
   },
   "documents": [
     {
@@ -2305,7 +2310,12 @@
         "tests/integration/test_transaction_receipts.py",
         "tests/integration/test_transaction_serial_runtime.py",
         "src/qs_ai/infrastructure/persistence/mysql/interpretation_finalization_claim.py",
-        "tests/integration/test_finalization_recovery.py"
+        "tests/integration/test_finalization_recovery.py",
+        "tests/probes/finalization_provider.py",
+        "tests/probes/finalization_proxy.py",
+        "tests/probes/finalization_worker.py",
+        "tests/test_finalization_provider_probe.py",
+        "tests/integration/rocketmq_finalization_host.py"
       ],
       "verify": [
         "python scripts/check_docs.py",
