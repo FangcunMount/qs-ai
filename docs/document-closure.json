@@ -1,6 +1,6 @@
 {
   "schema_version": "qs-ai-document-closure/v1",
-  "source_commit": "fe30c81de4b5b81e26f0d511e8133270818d0f95",
+  "source_commit": "c8a8701030d5b353938065d9706593388d7bae30",
   "reviewed_on": "2026-10-22",
   "authority": "runtime composition > code > machine contracts/config/migrations > scoped tests > maintained prose > dated evidence/plans/archive",
   "source_catalog": {
@@ -505,7 +505,7 @@
     "src/qs_ai/infrastructure/persistence/mysql/transaction_schema.py": "0c8a1c9a4274901d4d4bdb1002e5d0834343a2e0c82d76c3caed40aa9d6c6683",
     "migrations/versions/0041_transaction_messaging.py": "dd27c8eb56581bf9ef78b52a6d4ced763dc8aa6676587b1836ff5dce3f4312f1",
     "src/qs_ai/infrastructure/persistence/mysql/tls.py": "822dedd5a952a9abb9b2398b54b4fde0e261a1d7a87a84c09768b4208364a24c",
-    "src/qs_ai/infrastructure/persistence/mysql/transaction_archive.py": "7f15035422eabdf7ca7d055aabc17cd9621c611edb8d0c05fe1fde021a4eaca6",
+    "src/qs_ai/infrastructure/persistence/mysql/transaction_archive.py": "5df3aad825e6199abff142f86165c313ab8e2395f4d46acfbff0aff56c068071",
     "src/qs_ai/infrastructure/workflow_transport/transaction_archive.py": "cb25c08914152175a9b5e6b16a51598653b96998a31232915d8f229111892bcd",
     "tests/fixtures/messaging_archive/v1.json": "6323925a937e6429c14ff49c33ea6a59b4f8edabb0a1ce3aaccb997d46effaeb",
     "tests/test_m3_legacy_layout.py": "28770bac3a039ef6fc7b46e96a7e54d1be875ad6e90ec9a0d5edaa2212b4662e",
@@ -811,7 +811,7 @@
     "tests/test_finalization_provider_probe.py": "c84670234be54e8551e2b1d0af393eaf20de22490e1d3485509b1b2d0bb89df6",
     "tests/integration/rocketmq_finalization_host.py": "b6ebc5075dc4cb4a8fccb140df9753d17d111533b93cde9d0e3f2cc4cc44e7da",
     "tests/integration/rocketmq_finalization_matrix.py": "0a4acb4b536d08e19b03ffcd2539840ce3b9a257c95a2d0fd182c71d724aa05e",
-    "tests/test_current_payload_rpc.py": "da5eb2082822053325a3a4f79ea8c84ca0e63a75551f4f2375e77a18029a8764",
+    "tests/test_current_payload_rpc.py": "a2acfd73b08ce0e4595f036796823a89ac23d5002badd3e7960d0c3388928878",
     "tests/integration/rocketmq_payload_host.py": "49c74eb94b357dbac96a09bdf46bf6b9ac24cfb14d4c9a072dbd69ca59af64d8"
   },
   "documents": [
