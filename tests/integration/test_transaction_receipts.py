@@ -15,7 +15,7 @@ from qs_ai.infrastructure.persistence.mysql.transaction_receipts import Transact
 from qs_ai.infrastructure.persistence.mysql.transaction_schema import event_receipts
 from qs_ai.infrastructure.workflow_transport.messaging import prepare
 from qs_ai.infrastructure.workflow_transport.transaction_command import read_admission_plan
-from tests.integration.test_interpretation import kit as kit
+from tests.integration import test_interpretation
 from tests.integration.test_mq_storage import keys as keys
 from tests.integration.test_transaction_start_admission import (
     assert_committed_original_root,
@@ -33,7 +33,15 @@ pytestmark = pytest.mark.integration
 
 
 @pytest.fixture
-async def committed(host, published_configuration):
+async def kit(published_configuration):
+    # Participant configurations reference this publication. Their fixture must
+    # release those rows before the publication fixture removes its parent rows.
+    async for value in test_interpretation.kit.__wrapped__():
+        yield value
+
+
+@pytest.fixture
+async def committed(host):
     message = incoming(host)
     candidate = await planner(host).candidate(message)
     owned = (await reserve(host, message, candidate)).execution
