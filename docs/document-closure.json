@@ -1,6 +1,6 @@
 {
   "schema_version": "qs-ai-document-closure/v1",
-  "source_commit": "6a3f481869bbd3c90b90d085eaef5b35e5d55adf",
+  "source_commit": "02196c6dd8922bdf90da4881db7b554e43fd0861",
   "reviewed_on": "2026-10-22",
   "authority": "runtime composition > code > machine contracts/config/migrations > scoped tests > maintained prose > dated evidence/plans/archive",
   "source_catalog": {
@@ -605,7 +605,7 @@
     "tests/test_preflight_state_dispatch.py": "aaf49e0066222ccf36b0908ed9898c7d697845b64f917c68b495c135f9ae0328",
     "tests/test_evaluation_worker_preflight_dispatch.py": "e743721da64174e7c026cac24b539b6e680a557b14767254cfe3875857b68465",
     "tests/integration/test_transaction_worker_preflight.py": "dc9235429518ea981181c2daa7973495b6c59dd0572770856830a1f9003cb75c",
-    "tests/integration/rocketmq_state_host.py": "74977c0ea47ccd09c19dbefc603b143f95996784353db658b28a0b1f8bb72a80",
+    "tests/integration/rocketmq_state_host.py": "85f91175d4923e8a5e939992f48f42163448cadb062dd179a67e08ed827ff7fe",
     "src/qs_ai/infrastructure/persistence/mysql/evaluation_reopening.py": "d8c90e6cb965ad8c6bfa208400bbaf26e86b048ad4cc80bd6ddf69fd8ab33fb9",
     "tests/integration/test_evaluation_step.py": "374b756dc682de353b1e0325498cc2b1805295cff7508c291c01df2c680334db",
     "tests/test_evaluation_governance_projection.py": "93c74102c8c4e3af6b0830a88879119b317fe8a30b8b590e16b2682eb7e4818c",
