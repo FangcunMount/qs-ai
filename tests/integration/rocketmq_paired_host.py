@@ -476,6 +476,8 @@ async def start_loop(p, *, large=False):
                 if status in {"submitted", "accepted", "held", "rejected"}
                 else "unobserved",
             )
+            assert status not in {"rejected", "held"}, "START received a terminal refusal"
+            assert facts.get("projection", {}).get("status") != "blocked", "START input blocked"
             if (
                 facts.get("ok") is True
                 and facts["operation"]["status"] == "accepted"
