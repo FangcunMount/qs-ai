@@ -82,6 +82,10 @@ async def installed():
             conn.commit()
             command.upgrade(config, "0041_transaction_messaging")
             conn.commit()
+            # An explicit forward install adds business ACK history; the frozen
+            # 0041 migration and old records are never rewritten.
+            command.upgrade(config, "0042_transaction_event_receipts")
+            conn.commit()
             # Migration and metadata must agree; this also covers native binary types/indexes.
             command.check(config)
             require_runtime_schema(conn)

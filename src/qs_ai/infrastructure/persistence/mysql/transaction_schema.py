@@ -85,3 +85,20 @@ archive = sa.Table(
     sa.Index("messaging_archive_branch", "execution_key", "branch_key", unique=True),
     mysql_engine="InnoDB",
 )
+
+# Authenticated consumer business receipts; append-only, with no pending/send
+# state or relay ownership. A later STORED receipt never rewrites an earlier HELD.
+event_receipts = sa.Table(
+    "messaging_event_receipts",
+    metadata,
+    sa.Column("producer", IDENTITY, primary_key=True),
+    sa.Column("ack_id", IDENTITY, primary_key=True),
+    sa.Column("event_id", IDENTITY, nullable=False),
+    sa.Column("organization_id", mysql.BIGINT(unsigned=True), nullable=False),
+    sa.Column("header", mysql.MEDIUMBLOB, nullable=False),
+    sa.Column("body", mysql.MEDIUMBLOB, nullable=False),
+    sa.Column("outcome", sa.Integer, nullable=False),
+    sa.Column("recorded_at", UTC, nullable=False),
+    sa.Index("messaging_event_receipts_event", "event_id", "outcome"),
+    mysql_engine="InnoDB",
+)

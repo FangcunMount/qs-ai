@@ -1,5 +1,7 @@
 # Dishka 作用域与资源所有权
 
+显式事务模式增加 APP TransactionServices：共享固定 SDK Sender、借用 primary pool 的档案、冻结密钥及进程稳定 worker owner；业务 Transactions、适配器和模型 HTTP client 继续为 REQUEST。Sender 构造不启动资源，Close/Wait 完成后才允许父 Database dispose。见[事务装配](../03-基础设施/messaging/README.md#显式事务模式的默认装配与回执)。
+
 一次生成 attempt 会解析执行用例、使用数据库、回查 QS 并调用模型，但这四种动作并不共享一个生命周期。**Dishka 作用域决定对象何时创建和复用；`Transactions.open()` 决定数据库 Session 的生命；业务宿主决定哪次修改可以提交。** 理解这三个边界，才能避免把“同一个 REQUEST”当成“同一笔事务”，或在释放借用资源时关闭整个服务的连接池。
 
 本文沿一次后台生成和一条 MQ Start 两个例子解释当前装配。核对源码基线为 `766b2aa`；APP/REQUEST 是 Dishka 的对象作用域名，本文中的数据库 Session 指 SQLAlchemy `AsyncSession`，不是业务解释 Session。

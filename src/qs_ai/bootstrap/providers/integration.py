@@ -19,6 +19,7 @@ from qs_ai.application.governance.semantic_drafts import SemanticDrafts
 from qs_ai.application.governance.solution_models import EditableModelPolicy
 from qs_ai.application.governance.solutions import SolutionStore
 from qs_ai.application.governance.suite_registration import SuiteRegistrar
+from qs_ai.bootstrap.transaction_services import TransactionServices
 from qs_ai.config import Settings
 from qs_ai.infrastructure.persistence.mysql.asset_catalog import MySQLAssetCatalog
 from qs_ai.infrastructure.persistence.mysql.asset_references import MySQLPolicyReferences
@@ -43,7 +44,13 @@ from qs_ai.infrastructure.persistence.mysql.solutions import MySQLSolutions
 
 class IntegrationProvider(Provider):
     flows = provide(MySQLFlowReader, provides=FlowReader, scope=Scope.REQUEST)
-    solutions = provide(MySQLSolutions, provides=SolutionStore, scope=Scope.REQUEST)
+    original_solutions = provide(MySQLSolutions, scope=Scope.REQUEST)
+
+    @provide(scope=Scope.REQUEST)
+    def solutions(
+        self, original: MySQLSolutions, services: TransactionServices | None
+    ) -> SolutionStore:
+        return services.solutions(original) if services is not None else original
 
     @provide(scope=Scope.APP)
     def editable_models(self, settings: Settings) -> EditableModelPolicy:
@@ -77,9 +84,14 @@ class IntegrationProvider(Provider):
     prompt_drafts = provide(MySQLPromptDrafts, provides=PromptDraftStore, scope=Scope.REQUEST)
     publications = provide(MySQLPublications, provides=PublicationStore, scope=Scope.REQUEST)
     run_creator = provide(MySQLRunCreator, scope=Scope.REQUEST)
-    evaluation_requests = provide(
-        MySQLEvaluationRequests, provides=EvaluationRequests, scope=Scope.REQUEST
-    )
+    original_evaluation_requests = provide(MySQLEvaluationRequests, scope=Scope.REQUEST)
+
+    @provide(scope=Scope.REQUEST)
+    def evaluation_requests(
+        self, original: MySQLEvaluationRequests, services: TransactionServices | None
+    ) -> EvaluationRequests:
+        return services.requests(original.creator) if services is not None else original
+
     evaluation_capacity = provide(
         MySQLEvaluationCapacity, provides=EvaluationCapacityReader, scope=Scope.REQUEST
     )
@@ -89,6 +101,10 @@ class IntegrationProvider(Provider):
     evaluation_diagnostics = provide(
         MySQLEvaluationDiagnostics, provides=EvaluationDiagnostics, scope=Scope.REQUEST
     )
-    evaluation_management = provide(
-        MySQLEvaluationManagement, provides=EvaluationManagementStore, scope=Scope.REQUEST
-    )
+    original_evaluation_management = provide(MySQLEvaluationManagement, scope=Scope.REQUEST)
+
+    @provide(scope=Scope.REQUEST)
+    def evaluation_management(
+        self, original: MySQLEvaluationManagement, services: TransactionServices | None
+    ) -> EvaluationManagementStore:
+        return services.management(original) if services is not None else original
