@@ -7,6 +7,7 @@ import subprocess
 import sys
 import urllib.error
 import urllib.request
+from pathlib import Path
 from uuid import uuid4
 
 import httpx
@@ -103,3 +104,34 @@ def test_unattributed_or_malformed_posts_cannot_disappear_from_the_counter(tmp_p
             urllib.request.urlopen(request, timeout=3)
         assert failed.value.code == 400
         assert probe.counts() == {"unattributed": 1}
+
+
+def test_worker_key_export_preserves_jwk_identity_and_recipient_public_boundary(tmp_path):
+    from types import SimpleNamespace
+
+    from jwcrypto import jwk
+    from reliable_messaging.transaction import Binding
+
+    from tests.integration.rocketmq_finalization_host import inputs
+
+    keys = {k: jwk.JWK.generate(kty="EC", crv="P-256", kid=k) for k in ("ai.sign", "qs.encrypt")}
+    host = SimpleNamespace(
+        keys=keys,
+        kit=SimpleNamespace(dsn="mysql://isolated@127.0.0.1/test"),
+        store=SimpleNamespace(binding=Binding("ai.mysql", "isolated", "m3-1")),
+    )
+    broker = {"endpoint": "127.0.0.1:12345", "ai": {"username": "isolated", "password": "isolated"}}
+    config, _ = inputs(
+        host,
+        broker,
+        SimpleNamespace(endpoint="http://127.0.0.1:12346/responses"),
+        tmp_path / "worker",
+        pause=False,
+    )
+    value = json.loads(config.read_text())
+    signing = jwk.JWK.from_json(Path(value["signing_key"]).read_text())
+    recipient = jwk.JWK.from_json(Path(value["recipient_key"]).read_text())
+    assert signing.get("kid") == "ai.sign" and signing.has_private
+    assert recipient.get("kid") == "qs.encrypt" and not recipient.has_private
+    assert signing.thumbprint() == keys["ai.sign"].thumbprint()
+    assert recipient.thumbprint() == keys["qs.encrypt"].thumbprint()

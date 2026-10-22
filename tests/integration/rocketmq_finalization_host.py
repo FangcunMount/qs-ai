@@ -15,7 +15,6 @@ from datetime import UTC
 from uuid import uuid4
 
 import pytest
-from cryptography.hazmat.primitives.serialization import Encoding, NoEncryption, PrivateFormat
 from reliable_messaging.protected import TrustedSigner
 from reliable_messaging.rocketmq import Config, RocketMQSubscriber
 from reliable_messaging.transaction import Decision, Execution, StoreChecker, decode_plan
@@ -82,17 +81,20 @@ def finalization_receipt(required_broker, request):
 def inputs(host, broker, probe, directory, *, pause):
     directory.mkdir(mode=0o700, parents=True, exist_ok=True)
     directory.chmod(0o700)
-    for name, value in (("sign", host.keys["ai.sign"]), ("recipient", host.keys["qs.encrypt"])):
-        path = directory / (name + ".pem")
-        path.write_bytes(value.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, NoEncryption()))
+    for name, value, private in (
+        ("sign", host.keys["ai.sign"], True),
+        ("recipient", host.keys["qs.encrypt"], False),
+    ):
+        path = directory / (name + ".jwk")
+        path.write_text(value.export_private() if private else value.export_public())
         path.chmod(0o600)
     config = dict(
         database_url=host.kit.dsn.replace("mysql://", "mysql+asyncmy://", 1),
         binding=asdict(host.store.binding),
         broker=dict(endpoint=broker["endpoint"], ai=broker["ai"]),
         provider_endpoint=probe.endpoint,
-        signing_key=str(directory / "sign.pem"),
-        recipient_key=str(directory / "recipient.pem"),
+        signing_key=str(directory / "sign.jwk"),
+        recipient_key=str(directory / "recipient.jwk"),
         physical_topic=physical_topic_v2(EVENTS, "TRANSACTION", "ai.mysql", "m3-1"),
         pause_after_response=pause,
         progress=str(directory / "progress.json"),

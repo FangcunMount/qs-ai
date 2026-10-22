@@ -9,7 +9,7 @@ import os
 from pathlib import Path
 
 import httpx
-from cryptography.hazmat.primitives.serialization import load_pem_private_key
+from jwcrypto import jwk
 from reliable_messaging.rocketmq_transaction import (
     TransactionalSender,
     TransactionConfig,
@@ -142,7 +142,7 @@ if __name__ == "__main__":
     cfg = json.loads(parser.parse_args().config.read_text())
     Path(cfg["client_log"]).touch(mode=0o600)
     for key in ("signing_key", "recipient_key"):
-        cfg[key + "_object"] = load_pem_private_key(Path(cfg[key]).read_bytes(), None)
+        cfg[key + "_object"] = jwk.JWK.from_json(Path(cfg[key]).read_text())
     try:
         asyncio.run(run(cfg))
     except Exception as error:
