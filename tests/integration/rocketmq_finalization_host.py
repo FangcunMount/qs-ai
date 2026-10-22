@@ -10,6 +10,7 @@ import json
 import os
 import shutil
 import sys
+from contextlib import aclosing
 from dataclasses import asdict
 from datetime import UTC
 from uuid import uuid4
@@ -25,6 +26,7 @@ from qs_ai.infrastructure.persistence.mysql.messaging import outbox
 from qs_ai.infrastructure.persistence.mysql.schema import artifacts, jobs, model_calls, sessions
 from qs_ai.infrastructure.persistence.mysql.transaction_schema import execution
 from qs_ai.infrastructure.workflow_transport.messaging import EVENTS, authenticate, parse_body
+from tests.integration import test_evaluation_step as evaluation_fixtures
 from tests.integration.rocketmq_admission_host import required_broker as required_broker
 from tests.integration.rocketmq_finalization_matrix import (
     PATHS,
@@ -33,9 +35,6 @@ from tests.integration.rocketmq_finalization_matrix import (
 from tests.integration.rocketmq_finalization_matrix import (
     test_independent_five_path_finalization_matrix as matrix_test,
 )
-from tests.integration.test_evaluation_step import persisted_assets as persisted_assets
-from tests.integration.test_evaluation_step import ready as original_evaluation_ready
-from tests.integration.test_evaluation_step import setup_run as setup_run
 from tests.integration.test_finalization_characterization import kit as kit
 from tests.integration.test_interpretation import expire
 from tests.integration.test_transaction_start_admission import host as host
@@ -55,9 +54,22 @@ test_independent_five_path_finalization_matrix = matrix_test
 
 
 @pytest.fixture
-async def evaluation_ready(setup_run, persisted_assets):
-    async for value in original_evaluation_ready.__wrapped__(setup_run, persisted_assets):
-        yield value
+async def evaluation_ready(workflow, setup_run):
+    if workflow == "interpretation_report":
+        yield None
+        return
+    # The publication required by host.kit already owns conftest's setup_run.
+    # A new evaluation must have a distinct Run, not try to recreate that Run.
+    async with aclosing(evaluation_fixtures.setup_run.__wrapped__()) as setups:
+        async for setup in setups:
+            assert setup[1] != setup_run[1], "Matrix must not recreate the published fixture Run"
+            async with aclosing(evaluation_fixtures.persisted_assets.__wrapped__(setup)) as assets:
+                async for _ in assets:
+                    async with aclosing(
+                        evaluation_fixtures.ready.__wrapped__(setup, None)
+                    ) as ready:
+                        async for value in ready:
+                            yield value
 
 
 def passed(name):
