@@ -1,6 +1,6 @@
 {
   "schema_version": "qs-ai-document-closure/v1",
-  "source_commit": "c86024e6a6835155c75dcfe6bf96664f9e97aea9",
+  "source_commit": "4e6dd178cf1b6fe8475e20c52b98c779366423a6",
   "reviewed_on": "2026-10-22",
   "authority": "runtime composition > code > machine contracts/config/migrations > scoped tests > maintained prose > dated evidence/plans/archive",
   "source_catalog": {
@@ -544,7 +544,7 @@
     "tests/test_read_only_start_admission.py": "84d1f1a51ffe65e9e1b84ae11d55071473ad0cd65ddc0fea984fda80b7383619",
     "tests/test_transaction_admission_decision.py": "9adbe03061483ef78ce3428e3595ba62b3b5925d9e9cbbb017c4fa8e8c695251",
     "tests/test_transaction_command.py": "5b00febff93bd70c36e8901c1363b2153e06089d2db1d3c5fcda4cbaa50731e7",
-    "docs/03-基础设施/messaging/README.md": "32d73a42e9a50602e436a2cddb33d9b88de6976a5e6bc102ddf447340bbd2d94",
+    "docs/03-基础设施/messaging/README.md": "41fca0467ab833380ff1b6815581714ebfc0b20616fc0ed352cc1e0e26de2753",
     "src/qs_ai/infrastructure/workflow_transport/change_planner.py": "4eb6bc873363c4612d8b28c16453b3104a907616c319edb81b518b6974403b6f",
     "src/qs_ai/infrastructure/workflow_transport/frozen_change_admission.py": "e252f16bf36ccf4149a24ae9e5b59a73684a0438b9124cadeb22fc666135e886",
     "tests/integration/test_transaction_change_admission.py": "a8c124f5481e94a56df7e3d1461beb053a02be5b4946c22caed8046dc8310543",
@@ -709,10 +709,10 @@
     "tests/test_interpretation_state_root.py": "1ddd1bf49da6ff110b1247871f70af443532db8c99b05eaeb5ff4ef9febd8c55",
     "tests/test_interpretation_claim_source.py": "45c02476e96eccded51f6e7b5e668c8220ae9bd23d226503ea1096332d4de27a",
     "tests/integration/test_interpretation_claim_source.py": "983bee62bd42163291d6487b2978e5c7cc201f8b541e3f58b4245716f6c31e03",
-    "src/qs_ai/infrastructure/workflow_transport/interpretation_finish_sender.py": "6d3ec35717d5aee7eb321831615b728d4b1c1f5c25d533c574ea995fe4d13084",
-    "src/qs_ai/infrastructure/workflow_transport/interpretation_finish_state.py": "864fdfceacaa0076acbb9fdb423b5ab847f643851f05501dd7f9e16deb27ea19",
+    "src/qs_ai/infrastructure/workflow_transport/interpretation_finish_sender.py": "9cd1b2a8a1d460b8da879047165185a0dc35f18143fbed02f72659fac90e044a",
+    "src/qs_ai/infrastructure/workflow_transport/interpretation_finish_state.py": "0bc73c24e27d72707dad7d83b4469315ea25905b093ac80596f7f2159489093e",
     "tests/integration/test_transaction_interpretation_finish.py": "9d579def77a6aaad8570f16775f17444ec6b8b029b986b659ef5a6757809739a",
-    "tests/test_interpretation_finish_state.py": "96e0d4ee319a470b92cc293263daf938e1fdfe2fbec7a383291a0bf1dc04eb05",
+    "tests/test_interpretation_finish_state.py": "ef660cef8f2ba7167bb0314e572789779cb6f773bd91842bc649b41c0ef8c97e",
     "tests/integration/test_evaluation_finish_root.py": "fba7ef811debd3b3dfff27d2529c286d046ba6774dff7455d70ea98dd2aecb87",
     "tests/test_evaluation_finish_root.py": "7d4a68fb536f5db6440ec7195489cda1dfd53d6aca02cc695d64552120e7547a",
     "src/qs_ai/infrastructure/persistence/mysql/evaluation_serial_response_receipts.py": "249f122b5bf5916724a985629988abddc3a91c12e6f899736d6e02da97e405a7",
@@ -722,7 +722,7 @@
     "tests/test_interpretation_claim_root.py": "06c5ae6cafd1991759d7e540051dcb16b77aad9812f5324820c644ac7cdce7b5",
     "tests/integration/test_interpretation_claim_root.py": "1ea374a5031aba1f40b3aedbb956028f3e291dc57ac8e2425e3fe4adb9793638",
     "src/qs_ai/infrastructure/workflow_transport/interpretation_claim_sender.py": "d592f0685715549e22b3355f5e83eb370c5de773a35a64872cfb6bf105474316",
-    "src/qs_ai/infrastructure/workflow_transport/interpretation_claim_state.py": "c90a9677ba8308cb3452d472d3c15067ff27a63ce4bd637d9bde10298054b596",
+    "src/qs_ai/infrastructure/workflow_transport/interpretation_claim_state.py": "b33909132c21edf8f94f39fec1abc762044e36efa031caba5e39fa8e3cde8ab5",
     "tests/integration/test_transaction_interpretation_claim.py": "64ace747273ccd0ee9a9e0e2e79751efa0bd53e179ac6cdddd24048ae4d6aa4d",
     "tests/test_interpretation_claim_state.py": "22c26a908def6594b37f59aeeed8e5ded5e5e908756499e2e3536952fef24c10",
     "src/qs_ai/infrastructure/workflow_transport/interpretation_claim_deferral.py": "e44fcdeda8c8a25835c940d3d0347f6443ef8ee6e08da9b526feb4a2702ee170",
@@ -731,11 +731,11 @@
     "tests/integration/test_transaction_interpretation_claim_retry.py": "f08d5355416d8d8857c2d6f9282f4d938635dc9f66a940bce81bb895d9d58dde",
     "tests/test_interpretation_claim_retry.py": "26f903b8926ae7a4275919af9efea2e55cff28970286e1c0516c013bbcd17097",
     "tests/test_transaction_authorized_runtime.py": "de0484f7b5d3eb731aca6ab82bfda1069f988e5f1acf4798adfd6cd3c2c0406e",
-    "src/qs_ai/infrastructure/workflow_transport/transactional_interpretation_execution.py": "a18d8588ae5cecb7a6863d87fb5ef16f23c1ddc14228c374bb2e6bd29c96941f",
+    "src/qs_ai/infrastructure/workflow_transport/transactional_interpretation_execution.py": "a6ba823d235a2b87c5bb2a048b899b049079e50bfb5ed033673db05797c094de",
     "tests/integration/test_transactional_interpretation_execution.py": "e9f0e54ee9ac273b516f53f572a335609e98264a7631e97b81829a21b2036c26",
-    "tests/test_transactional_interpretation_execution.py": "94188fa21fa758d74942b2c2b49dfff040ec97387f889f50ab8579882ef97613",
+    "tests/test_transactional_interpretation_execution.py": "e410b22904b9d46988b41e1fbca5ac1e7b9038742aec265a4be3b98e0077bb2e",
     "tests/integration/test_transaction_interpretation_finish_retry.py": "2bc7f40a6b77be5b4498da3d92692c97548084f5775ba1099f6328fa56aa0b69",
-    "tests/test_interpretation_finish_retry.py": "24c993b1ec4fc89b613ded4d6b87dc4253d942ea873456d9c279182cba08ffaa",
+    "tests/test_interpretation_finish_retry.py": "d45fdf29e0ce4d10758d646bd6d68ab684e8517df82adaf6c04cab9bc01666ea",
     "src/qs_ai/infrastructure/persistence/mysql/evaluation_completion_progress.py": "586e6a87695bf8ba42a8ab94a47067705e5f3460b3f2b8efc3c4464357bfb3a6",
     "tests/test_generation_terminal_progress.py": "3abe2260f0d0aa1b24b301c092be9fd4c9d3b0780bb0a614ebcccfda2eebd916",
     "tests/test_evaluation_state_source_version.py": "3a7da303ec0e3cb10d54c939838b3e1a543e6d59fdba490f4116f56f17981947",
@@ -802,7 +802,9 @@
     "tests/test_transaction_receipts.py": "f8453a99ced3c17633b19aecdcd611f42cadb569fb43149cb06c32e1e16051da",
     "tests/integration/test_transaction_receipts.py": "4d526be1912c6ba1e0f160b6146c05f898e65cd1a675da88dd64e3513c49dafe",
     "tests/integration/test_transaction_serial_runtime.py": "fd5534706eff28d3f55ea891d16efacfde07b5b709cb5a7833e2f92db00608e4",
-    "tests/integration/test_finalization_characterization.py": "7cb4221e0091dba084ece8921478f244cce7785af7b9771efc54791d6dbfb5cf"
+    "tests/integration/test_finalization_characterization.py": "da43cb41059612d8407e34cee960c2ce044cfc0a2b8d461ba7d5848c3e448932",
+    "src/qs_ai/infrastructure/persistence/mysql/interpretation_finalization_claim.py": "f1beb2123a2c9daa86c227ac26fe0d65ddae08b3f65ea17e19a57d82f5bbb01e",
+    "tests/integration/test_finalization_recovery.py": "22be0b66bc149a1d6714e598065968b31bef87d3cf3a06995f183cbd83c2ff55"
   },
   "documents": [
     {
@@ -2301,7 +2303,9 @@
         "tests/test_transaction_transport_lifecycle.py",
         "tests/test_transaction_receipts.py",
         "tests/integration/test_transaction_receipts.py",
-        "tests/integration/test_transaction_serial_runtime.py"
+        "tests/integration/test_transaction_serial_runtime.py",
+        "src/qs_ai/infrastructure/persistence/mysql/interpretation_finalization_claim.py",
+        "tests/integration/test_finalization_recovery.py"
       ],
       "verify": [
         "python scripts/check_docs.py",
