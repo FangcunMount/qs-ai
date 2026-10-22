@@ -5,10 +5,10 @@ from datetime import timedelta
 import pytest
 from reliable_messaging.rocketmq_transaction import TransactionSendError
 from reliable_messaging.transaction import Decision, LocalOutcome, Result, StoreChecker
-from sqlalchemy import update
+from sqlalchemy import delete, update
 
 from qs_ai.application.execution.model_capacity import ModelCapacity, ProviderCapacity
-from qs_ai.infrastructure.persistence.mysql.schema import evaluation_runs
+from qs_ai.infrastructure.persistence.mysql.schema import evaluation_runs, evaluation_slot_claims
 from qs_ai.infrastructure.workflow_transport.candidate_dispatch_sender import (
     CandidateDispatchPending,
     CandidateDispatchRecovery,
@@ -45,12 +45,29 @@ from tests.integration.test_transaction_worker_dispatch import original as origi
 pytestmark = pytest.mark.integration
 
 
+@pytest.fixture
+async def dispatch_subject(original):
+    # Successful candidate dispatch deliberately leaves a live domain claim.
+    # This disposable fixture owns that claim until the test hands it off or
+    # ends; release it before the parent fixture removes its Run/capacity row.
+    try:
+        yield original
+    finally:
+        async with original.tx.open() as db:
+            await db.execute(
+                delete(evaluation_slot_claims).where(
+                    evaluation_slot_claims.c.run_id == str(original.run_id)
+                )
+            )
+            await db.commit()
+
+
 @pytest.mark.parametrize("candidate", [False, True])
 @pytest.mark.parametrize("fault", ["none", "half_rejected", "final_unknown", "already_committed"])
 async def test_host_dispatch_recovery_never_repeats_commit_and_retains_original_model_budget(
-    original, candidate, fault
+    dispatch_subject, candidate, fault
 ):
-    p = original
+    p = dispatch_subject
     if candidate:
         async with p.tx.open() as db:
             await db.execute(
