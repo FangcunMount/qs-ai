@@ -1,6 +1,6 @@
 {
   "schema_version": "qs-ai-document-closure/v1",
-  "source_commit": "beee9b841d074352998992be663adef8ba79f6f3",
+  "source_commit": "c86024e6a6835155c75dcfe6bf96664f9e97aea9",
   "reviewed_on": "2026-10-22",
   "authority": "runtime composition > code > machine contracts/config/migrations > scoped tests > maintained prose > dated evidence/plans/archive",
   "source_catalog": {
@@ -801,7 +801,8 @@
     "migrations/versions/0042_transaction_event_receipts.py": "6d9e884de4af5b8d3ea99e8be902c3f4c81f317525a790775a93bf8249d7b517",
     "tests/test_transaction_receipts.py": "f8453a99ced3c17633b19aecdcd611f42cadb569fb43149cb06c32e1e16051da",
     "tests/integration/test_transaction_receipts.py": "4d526be1912c6ba1e0f160b6146c05f898e65cd1a675da88dd64e3513c49dafe",
-    "tests/integration/test_transaction_serial_runtime.py": "fd5534706eff28d3f55ea891d16efacfde07b5b709cb5a7833e2f92db00608e4"
+    "tests/integration/test_transaction_serial_runtime.py": "fd5534706eff28d3f55ea891d16efacfde07b5b709cb5a7833e2f92db00608e4",
+    "tests/integration/test_finalization_characterization.py": "7cb4221e0091dba084ece8921478f244cce7785af7b9771efc54791d6dbfb5cf"
   },
   "documents": [
     {
