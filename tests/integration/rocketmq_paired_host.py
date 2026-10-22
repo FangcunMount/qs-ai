@@ -5,6 +5,8 @@ no real model, public HTTP/system login, production or packet-fault claim.
 """
 
 import asyncio
+import base64
+import copy
 import hashlib
 import importlib.metadata as metadata
 import json
@@ -14,6 +16,7 @@ import shutil
 import socket
 import sys
 import tempfile
+from contextlib import aclosing
 from dataclasses import asdict
 from pathlib import Path
 from types import SimpleNamespace
@@ -25,7 +28,8 @@ from dishka import Provider, Scope, provide
 from reliable_messaging.transaction import Decision, StoreChecker
 from sqlalchemy import delete, select
 
-from qs_ai.application.interpretation.ports import EvidenceSource
+from qs_ai.application.evaluation.management import ManagementScope
+from qs_ai.application.interpretation.ports import EvidenceSource, WorkflowResult
 from qs_ai.bootstrap.container import create_container
 from qs_ai.bootstrap.lifecycle import RuntimeState, supervise
 from qs_ai.bootstrap.messaging import MessagingRuntime
@@ -36,8 +40,10 @@ from qs_ai.contracts.workflow import messaging_pb2 as pb
 from qs_ai.contracts.workflow import messaging_pb2_grpc as rpc
 from qs_ai.infrastructure.persistence.mysql.database import Database
 from qs_ai.infrastructure.persistence.mysql.messaging import inbox, outbox
-from qs_ai.infrastructure.persistence.mysql.schema import model_calls, result_outbox, sessions
+from qs_ai.infrastructure.persistence.mysql.schema import jobs, model_calls, result_outbox, sessions
 from qs_ai.infrastructure.persistence.mysql.transaction_schema import event_receipts
+from qs_ai.infrastructure.workflow_transport.state_events import evaluation_sequences
+from tests.integration import test_evaluation_runs as evaluation_fixtures
 from tests.integration.test_delivery import certificates
 from tests.integration.test_transaction_receipts import kit as kit
 from tests.integration.test_transaction_start_admission import host as host
@@ -225,6 +231,8 @@ async def pair(host, required_pair, monkeypatch):
     stop, state = asyncio.Event(), RuntimeState()
     request_ids = []
     ack_wires = {}
+    ack_deliveries = {}
+    ai_payload_reads = []
     recorder = host.tx.database.state_events
     try:
         env = dict(os.environ)
@@ -310,8 +318,17 @@ async def pair(host, required_pair, monkeypatch):
             identity = received.envelope.message_id
             digest = hashlib.sha256(received.wire).hexdigest()
             assert ack_wires.setdefault(identity, digest) == digest
+            ack_deliveries.setdefault(identity, received)
 
         acknowledgement.handler = observe_ack
+        original_payload_get = runtime.payloads.Get
+
+        async def observe_payload_get(reference, context):
+            response = await original_payload_get(reference, context)
+            ai_payload_reads.append(reference.message_id)
+            return response
+
+        runtime.payloads.Get = observe_payload_get
         assert runtime.relay is None and not runtime.publishers
         server = grpc.aio.server()
         rpc.add_MessagePayloadsServicer_to_server(runtime.payloads, server)
@@ -370,8 +387,7 @@ async def pair(host, required_pair, monkeypatch):
         passed("owned_processes_rpc_and_private_files_closed")
 
 
-async def test_actual_qs_ai_original_start_receipt_state_and_ack_loop(pair):
-    p = pair
+async def start_loop(p, *, large=False):
     identity = str(uuid4())
     p.request_ids.append(identity)
     start = dict(
@@ -382,6 +398,8 @@ async def test_actual_qs_ai_original_start_receipt_state_and_ack_loop(pair):
         goal="paired original-root acceptance",
         evidence=[asdict(bound_case()[1].items[0])],
     )
+    if large:
+        start["evidence"][0]["facts"][0]["value"] = "first large frozen fact " + "x" * 40000
     assert await p.qs.call(mode="start", start=start) == {"ok": True}
     passed("actual_qs_service_and_command_root")
     async with asyncio.timeout(60):
@@ -435,3 +453,305 @@ async def test_actual_qs_ai_original_start_receipt_state_and_ack_loop(pair):
     passed("first_command_and_ack_wire_cross_language")
     passed("actual_ai_business_receipts_and_history")
     passed("no_new_publish_outbox_or_model_call")
+
+    return SimpleNamespace(
+        identity=identity, start=start, facts=facts, acks=[dict(r) for r in acks]
+    )
+
+
+async def test_actual_qs_ai_original_start_receipt_state_and_ack_loop(pair):
+    await start_loop(pair)
+
+
+async def facts_after(p, case, *, version, status, receipts):
+    async with asyncio.timeout(60):
+        while True:
+            value = await p.qs.call(
+                mode="facts",
+                request_id=case.identity,
+                command_id=case.identity,
+                actor=case.start["actor"],
+            )
+            async with p.host.tx.open() as db:
+                recorded = (await db.execute(select(event_receipts))).mappings().all()
+            if (
+                value.get("ok") is True
+                and value.get("projection", {}).get("status") == status
+                and value["projection"]["version"] == version
+                and len(recorded) == receipts
+                and len(p.ack_wires) == receipts
+            ):
+                return value
+            await asyncio.sleep(0.05)
+
+
+async def business_snapshot(p):
+    async with p.host.tx.open() as db:
+        return {
+            table.name: [dict(r) for r in (await db.execute(select(table))).mappings().all()]
+            for table in (jobs, sessions, model_calls, event_receipts)
+        }
+
+
+async def test_actual_qs_ai_first_wire_and_duplicate_command_event_ack(pair):
+    p = pair
+    case = await start_loop(p)
+    before = await business_snapshot(p)
+    assert await p.qs.call(mode="start", start=case.start) == {"ok": True}
+    changed = copy.deepcopy(case.start)
+    changed["goal"] += " conflicting input"
+    assert (await p.qs.call(mode="start", start=changed))["code"] == "conflict"
+    duplicate = await p.qs.call(
+        mode="facts",
+        request_id=case.identity,
+        command_id=case.identity,
+        actor=case.start["actor"],
+    )
+    assert duplicate["command"] == case.facts["command"]
+    assert duplicate["seals"] == case.facts["seals"]
+    assert duplicate["counts"] == case.facts["counts"]
+    passed("duplicate_original_command_no_new_seal")
+    # Controlled duplicate delivery at the actual authenticated business receiver;
+    # this is not a packet-fault or physical Broker-redelivery test.
+    for ref in p.host.executions[0].references:
+        archived = await p.host.archives.read_committed(ref.message_id)
+        assert archived is not None
+        assert await p.qs.call(
+            mode="replay_event", wire=base64.b64encode(archived.wire).decode()
+        ) == {"ok": True}
+    for delivery in p.ack_deliveries.values():
+        await p.acknowledgement.handler(delivery)
+    after = await p.qs.call(
+        mode="facts",
+        request_id=case.identity,
+        command_id=case.identity,
+        actor=case.start["actor"],
+    )
+    assert after["archives"] == case.facts["archives"]
+    assert after["seals"] == case.facts["seals"]
+    assert after["counts"] == case.facts["counts"]
+    assert await business_snapshot(p) == before
+    passed("duplicate_event_uses_first_ack")
+    passed("duplicate_ack_keeps_first_receipt")
+    passed("cross_language_first_wire_unchanged")
+    passed("duplicate_delivery_does_not_authorize_business_retry")
+
+
+async def payload_get(p, target, reference, identity):
+    credentials = grpc.ssl_channel_credentials(
+        root_certificates=p.ca,
+        private_key=(p.directory / (identity + ".key")).read_bytes(),
+        certificate_chain=(p.directory / (identity + ".pem")).read_bytes(),
+    )
+    async with grpc.aio.secure_channel(target, credentials) as channel:
+        return await rpc.MessagePayloadsStub(channel).Get(reference, timeout=3)
+
+
+async def test_actual_qs_ai_large_payloads_and_mtls_denial(pair):
+    p = pair
+    case = await start_loop(p, large=True)
+    assert case.facts["command"]["reference"]
+    assert case.facts["command"]["body_length"] > 32768
+    assert case.facts["payload_calls"] >= 1  # Before any direct test RPC.
+    passed("actual_go_large_command_body_rpc")
+    worker = p.services.execution(p.host.kit.store)
+    claim = await worker.claim(60)
+    assert claim is not None
+    question = "first large frozen question " + "x" * 40000
+    await worker.finish(
+        claim, WorkflowResult("checkpoint:paired", question=question, can_skip=True)
+    )
+    value = await facts_after(p, case, version=3, status="awaiting_answer", receipts=4)
+    assert value["projection"]["question_length"] == len(question)
+    assert value["projection"]["question_sha256"] == hashlib.sha256(question.encode()).hexdigest()
+    assert p.ai_payload_reads
+    values = [
+        await p.host.archives.read_committed(ref.message_id)
+        for owned in p.host.executions
+        for ref in owned.references
+    ]
+    large = [v for v in values if v is not None and v.envelope().HasField("payload_reference")]
+    assert len(large) == 1 and large[0].envelope().message_id in p.ai_payload_reads
+    passed("actual_ai_large_state_body_rpc")
+    go_reference = pb.MessagePayloadReference(
+        producer="qs-server",
+        destination="qs-ai",
+        message_id=case.identity,
+        organization_id=str(p.host.kit.actor.org_id),
+        body_sha256=case.facts["command"]["body_sha256"],
+        body_length=case.facts["command"]["body_length"],
+    )
+    ai_reference = large[0].envelope().payload_reference
+    for target, reference, good_peer in (
+        (f"localhost:{p.qs_port}", go_reference, "ai"),
+        (f"localhost:{p.ai_port}", ai_reference, "qs"),
+    ):
+        result = await payload_get(p, target, reference, good_peer)
+        assert hashlib.sha256(result.body).hexdigest() == reference.body_sha256
+        with pytest.raises(grpc.aio.AioRpcError) as error:
+            await payload_get(p, target, reference, "other")
+        assert error.value.code() == grpc.StatusCode.PERMISSION_DENIED
+        for field, wrong in (
+            ("organization_id", "999"),
+            ("body_sha256", "b" * 64),
+            ("body_length", 1),
+        ):
+            altered = pb.MessagePayloadReference()
+            altered.CopyFrom(reference)
+            setattr(altered, field, wrong)
+            with pytest.raises(grpc.aio.AioRpcError) as denied:
+                await payload_get(p, target, altered, good_peer)
+            assert denied.value.code() == grpc.StatusCode.NOT_FOUND
+    passed("wrong_peer_mtls_denied_both_hosts")
+    passed("wrong_reference_never_serves_body_both_hosts")
+
+
+async def test_actual_qs_ai_original_cancellation_preserves_final_state(pair):
+    p = pair
+    case = await start_loop(p)
+    command = dict(
+        command_id=str(uuid4()),
+        session_id=case.facts["projection"]["session_id"],
+        actor=case.start["actor"],
+        action="cancel",
+        expected_version=1,
+        question_id="",
+        skip=False,
+    )
+    before_calls = (await business_snapshot(p))[model_calls.name]
+    assert await p.qs.call(mode="change", request_id=case.identity, change=command) == {"ok": True}
+    final = await facts_after(p, case, version=2, status="cancelled", receipts=4)
+    current = await business_snapshot(p)
+    assert current[model_calls.name] == before_calls == []
+    assert current[jobs.name][0]["attempt"] == 0
+    assert await p.qs.call(mode="change", request_id=case.identity, change=command) == {"ok": True}
+    again = await p.qs.call(
+        mode="facts",
+        request_id=case.identity,
+        command_id=case.identity,
+        actor=case.start["actor"],
+    )
+    assert again["archives"] == final["archives"] and again["seals"] == final["seals"]
+    assert await business_snapshot(p) == current
+    passed("interpretation_cancel_original_roots")
+    passed("cancel_duplicate_no_new_event")
+    passed("cancel_no_provider_or_attempt_change")
+
+
+@pytest.fixture
+async def evaluation_seed():
+    # A publication fixture already owns its own Run; use an independently owned
+    # original requested Run rather than recreating or rewinding that Run.
+    async with aclosing(evaluation_fixtures.setup_run.__wrapped__()) as setups:
+        async for setup in setups:
+            tx, run_id, release = setup
+            async with tx.open() as db:
+                await evaluation_fixtures.create(db, run_id, release)
+                await db.commit()
+            yield tx, ManagementScope(run_id, 1, 42)
+
+
+@pytest.fixture
+async def evaluation_pair(evaluation_seed, pair):
+    tx, scope = evaluation_seed
+    pair.request_ids.append(str(scope.run_id))
+    try:
+        yield pair, tx, scope
+    finally:
+        async with tx.open() as db:
+            await db.execute(
+                delete(evaluation_sequences).where(
+                    evaluation_sequences.c.run_id == str(scope.run_id)
+                )
+            )
+            await db.commit()
+
+
+async def evaluation_facts(p, scope, command_id, *, version, status, receipts):
+    async with asyncio.timeout(60):
+        while True:
+            value = await p.qs.call(
+                mode="evaluation_facts",
+                command_id=command_id,
+                actor=dict(
+                    org_id=str(scope.organization_id), subject_id=str(scope.operator_user_id)
+                ),
+                evaluation_scope=dict(
+                    RunID=str(scope.run_id),
+                    OrganizationID=scope.organization_id,
+                    OperatorUserID=scope.operator_user_id,
+                ),
+            )
+            async with p.host.tx.open() as db:
+                recorded = (await db.execute(select(event_receipts))).mappings().all()
+            if (
+                value.get("ok") is True
+                and value["operation"]["status"] == "accepted"
+                and value.get("evaluation_projection", {}).get("status") == status
+                and value["evaluation_projection"]["version"] == version
+                and len(recorded) == receipts
+                and len(p.ack_wires) == receipts
+            ):
+                return value
+            await asyncio.sleep(0.05)
+
+
+async def test_actual_qs_ai_evaluation_start_cancel_receipt_state_ack(evaluation_pair):
+    p, tx, scope = evaluation_pair
+    go_scope = dict(
+        RunID=str(scope.run_id),
+        OrganizationID=scope.organization_id,
+        OperatorUserID=scope.operator_user_id,
+    )
+    start_id = str(uuid4())
+    assert await p.qs.call(
+        mode="evaluation_start",
+        command_id=start_id,
+        evaluation_scope=go_scope,
+        evaluation_start=dict(
+            command_id=start_id,
+            expected_version=1,
+            reason="paired explicit evaluation start",
+            confirm=True,
+        ),
+    ) == {"ok": True}
+    initial = await evaluation_facts(p, scope, start_id, version=2, status="collecting", receipts=2)
+    before = await evaluation_fixtures.rows(tx, scope.run_id)
+    assert before[0]["version"] == 2
+    passed("evaluation_start_original_roots")
+    cancel_id = str(uuid4())
+    cancel = dict(
+        command_id=cancel_id,
+        expected_version=2,
+        reason="paired explicit evaluation cancel",
+        confirm=True,
+        discard=False,
+    )
+    assert await p.qs.call(
+        mode="evaluation_cancel",
+        command_id=cancel_id,
+        evaluation_scope=go_scope,
+        evaluation_cancel=cancel,
+    ) == {"ok": True}
+    final = await evaluation_facts(p, scope, cancel_id, version=3, status="canceled", receipts=4)
+    after = await evaluation_fixtures.rows(tx, scope.run_id)
+    assert after[0]["version"] == 3 and after[0]["definition_json"] == before[0]["definition_json"]
+    assert after[1] == before[1]  # Frozen policy is not regenerated by the command pair.
+    assert (
+        final["evaluation_projection"]["event_sequence"]
+        > initial["evaluation_projection"]["event_sequence"]
+    )
+    assert final["counts"]["ai_messaging_operations"] == 2
+    assert final["counts"]["ai_messaging_archive"] == 6
+    assert final["counts"]["ai_messaging_outbox"] == 0
+    assert await p.qs.call(
+        mode="evaluation_cancel",
+        command_id=cancel_id,
+        evaluation_scope=go_scope,
+        evaluation_cancel=cancel,
+    ) == {"ok": True}
+    assert await evaluation_fixtures.rows(tx, scope.run_id) == after
+    async with p.host.tx.open() as db:
+        assert not (await db.execute(select(model_calls))).first()
+    passed("evaluation_cancel_original_roots")
+    passed("evaluation_receipt_state_ack_sequence")
