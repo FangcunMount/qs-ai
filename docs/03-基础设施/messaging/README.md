@@ -30,7 +30,7 @@ RocketMQ 终态交接携带 provider、原始 Wire 和实际物理来源，宿�
 
 新事务事件的正文读取先查精确 Committed 档案/witness，仅缺身份才读取历史 Outbox。业务 ACK 同样先查档案；Prepared、证据矛盾、数据库错误或超时不回退旧路径。新增显式迁移 `0042_transaction_event_receipts` 安装 `messaging_event_receipts`：只追加受保护的 QS ACK，不含待发状态或扫描责任。相同 ACK ID 必须复用原 header/body；STORED 与 HELD 分别保留，晚到 HELD 不撤销 delivered。Interpretation 的匹配 history 与业务 receipt 在同一个 ACK 原根提交/回滚；Broker Commit 不直接标记 delivered。MySQL JSON 的 Artifact 键顺序可变，比较原字段值但不重建首次 wire。
 
-关闭先停止新的外部领取和订阅，再等已接受业务；此时仍允许终态半消息及 Checker。业务任务终止后才调用 SDK Close；若预算耗尽，保留 ShutdownIncomplete 并由 Wait 等真实 RPC/回查完成，然后关闭载荷通道、APP pool 与 loop。事务模式不使用旧分支的最外层五秒资源取消；取消不等同于数据库回滚或 RPC 结束。
+关闭先停止新的外部领取和订阅，再等已接受业务；此时仍允许终态半消息及 Checker。业务任务终止后才调用 SDK Close；若预算耗尽，保留 ShutdownIncomplete 并由 Wait 等真实 RPC/回查完成，然后关闭载荷通道、APP pool 与 loop。事务模式不使用旧分支的最外层五秒资源取消；取消不等同于数据库回滚或 RPC 结束。部分启动的订阅器在宿主 Stop 预算耗尽后继续等待真实驱动，不用零秒关闭跳过 Sender 排空；已经返回的 RPC 错误不被无限重试，其他资源排空后保留失败。
 
 验证入口为 `tests/test_default_transaction_transport.py`、`tests/test_transaction_transport_lifecycle.py`、`tests/integration/test_transaction_serial_runtime.py`、`tests/integration/test_transaction_receipts.py` 与隔离 Broker 的 `rocketmq_state_host.py`。收集不算通过；完整门禁、合并、部署、system 及48小时观察仍按 infra 总表分别登记。
 

@@ -1503,6 +1503,95 @@ async def test_actual_default_transport_and_worker_share_sender_root_and_shutdow
     passed("default_assembly_close_preserves_pool")
 
 
+@pytest.mark.parametrize("kind", ["generation", "semantic"])
+async def test_actual_default_serial_factory_commits_dispatch_response_and_terminal(
+    governance_broker, resolution_ready, kind
+):
+    """Complete paired serial graph with real SDK/Broker and a synthetic model."""
+    from qs_ai.application.execution.model_capacity import ModelCapacity, ProviderCapacity
+    from qs_ai.application.interpretation.route_assets import executable_route
+    from qs_ai.bootstrap.evaluation_transactions import transaction_evaluation_worker
+    from qs_ai.infrastructure.persistence.mysql.evaluation_scan import RecoveryCursor
+    from qs_ai.infrastructure.persistence.mysql.schema import evaluation_response_receipts
+    from tests.integration.test_evaluation_step import AT, Gateway, step
+
+    b = governance_broker
+    tx, run_id, _, routes, schemas = resolution_ready
+    gateway = Gateway(resolution_ready)
+    version = (await step(resolution_ready, gateway)).version if kind == "semantic" else 3
+    before = gateway.calls
+    first = len(b.host.executions)
+    provider = executable_route(routes.get.return_value).provider
+    capacity = ModelCapacity({provider: ProviderCapacity(2, 1)}, 1)
+    worker = transaction_evaluation_worker(
+        b.host.tx,
+        b.host.archives,
+        b.runtime,
+        gateway,
+        routes,
+        schemas,
+        "worker:default-paired",
+        signing_key=b.host.keys["ai.sign"],
+        recipient_key=b.host.keys["qs.encrypt"],
+        candidate_limit=1,
+        capacity=capacity,
+        recovery_cursor=RecoveryCursor(),
+        clock=lambda: AT + timedelta(seconds=2),
+    )
+    try:
+        async with asyncio.timeout(60):
+            assert await worker.once()
+        _, _, current = await evaluation_rows(tx, run_id)
+        assert current["version"] == version + 3 and current["checkpoint_json"] is None
+        assert gateway.calls == before + 1
+        executions = b.host.executions[first:]
+        assert len(executions) == 2
+        for owned in executions:
+            for reference in owned.references:
+                assert await StoreChecker(b.host.store).check(reference) == Decision.COMMIT
+                value = await b.host.archives.read_committed(reference.message_id)
+                assert value is not None
+                async with asyncio.timeout(60):
+                    while reference.message_id not in b.messages:
+                        assert not b.failures
+                        await asyncio.sleep(0.01)
+                assert b.messages[reference.message_id] == hashlib.sha256(value.wire).hexdigest()
+                async with tx.open() as db:
+                    assert not await db.scalar(
+                        select(outbox.c.message_id).where(
+                            outbox.c.message_id == reference.message_id
+                        )
+                    )
+        async with tx.open() as db:
+            response = (
+                (
+                    await db.execute(
+                        select(evaluation_response_receipts).where(
+                            evaluation_response_receipts.c.run_id == str(run_id)
+                        )
+                    )
+                )
+                .mappings()
+                .all()
+            )
+        assert len(response) == 1
+        token = capacity.try_acquire(provider, evaluation=True)
+        assert token is not None
+        token.release()
+        b.recorder.flush.assert_not_called()
+        passed("default_serial_actual_factory_" + kind)
+        passed("default_serial_first_response_original_witness_no_legacy")
+    finally:
+        async with tx.open() as db:
+            await db.execute(
+                delete(evaluation_response_receipts).where(
+                    evaluation_response_receipts.c.run_id == str(run_id)
+                )
+            )
+            await db.commit()
+        await clean_governance_sequence(b.host, run_id)
+
+
 async def _wait_recovery_barrier(task, event):
     async with asyncio.timeout(30):
         while not event.is_set():

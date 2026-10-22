@@ -68,6 +68,7 @@ class MessagingRuntime:
         self.transaction_services: TransactionServices | None = None
         self._transaction_closed = asyncio.Event()
         self._close_task: asyncio.Task[None] | None = None
+        self._subscriber_shutdown_seconds = 5.0
 
     @classmethod
     async def create(
@@ -367,18 +368,44 @@ class MessagingRuntime:
 
     async def _close_transactions(self) -> None:
         assert self.transaction_services is not None
+        failures: list[Exception] = []
         for subscriber in self.subscribers:
-            await subscriber.stop(grace_seconds=0)
+            while True:
+                budget = asyncio.timeout(self._subscriber_shutdown_seconds)
+                try:
+                    # A partially started subscriber can still own a blocking
+                    # driver call. Zero seconds aborts before its cleanup and
+                    # would prevent the producer's Close/Wait from running.
+                    async with budget:
+                        await subscriber.stop(grace_seconds=self._subscriber_shutdown_seconds + 1)
+                    break
+                except TimeoutError as error:
+                    if not budget.expired():
+                        # An actual completed RPC error is not a request to
+                        # retry shutdown forever. Drain other owned resources,
+                        # then preserve the failure for the caller.
+                        failures.append(error)
+                        break
+                    # The fixed SDK retains the real call/capacity after caller
+                    # timeout. Continue waiting through Stop; do not seal sender
+                    # admission while accepted handlers may need final halves.
+                    event("transaction_subscription_shutdown_incomplete", "mq_subscriber")
+                except Exception as error:
+                    failures.append(error)
+                    break
         try:
             await self.transaction_services.runtime.close(grace_seconds=0)
         except ShutdownIncompleteError:
             await self.transaction_services.runtime.wait()
         self._transaction_closed.set()
-        await self._close_resources()
+        await self._close_resources(subscribers_stopped=True)
+        if failures:
+            raise failures[0]
 
-    async def _close_resources(self) -> None:
-        for subscriber in self.subscribers:
-            await subscriber.stop(grace_seconds=0)
+    async def _close_resources(self, *, subscribers_stopped: bool = False) -> None:
+        if not subscribers_stopped:
+            for subscriber in self.subscribers:
+                await subscriber.stop(grace_seconds=0)
         for publisher in self.publishers.values():
             await publisher.stop(grace_seconds=0)
         if self.http is not None:

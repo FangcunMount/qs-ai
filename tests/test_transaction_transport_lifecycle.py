@@ -1,10 +1,14 @@
 """Host lifecycle ordering with controlled barriers, not real Broker fault proof."""
 
 import asyncio
+import threading
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
+from reliable_messaging.rocketmq import Config, RocketMQSubscriber
 from reliable_messaging.transaction import ShutdownIncompleteError
+from reliable_messaging.transport import RouteBinding, consumer_group, physical_topic
 
 from qs_ai.bootstrap.lifecycle import Component, RuntimeState, supervise
 from qs_ai.bootstrap.messaging import MessagingRuntime
@@ -156,3 +160,74 @@ async def test_paused_producer_starts_checker_without_a_legacy_relay_or_normal_p
         stop.set()
         await asyncio.wait_for(task, 2)
         await value.close()
+
+
+async def test_real_subscriber_driver_partial_start_retains_calls_before_owner_close(monkeypatch):
+    """Real fixed SDK executor/Stop; controlled blocked shutdown, no network fault."""
+    value, sdk, events = runtime()
+    entered, release = threading.Event(), threading.Event()
+    first_timeout = asyncio.Event()
+
+    class Client:
+        def shutdown(self):
+            entered.set()
+            assert release.wait(3), "Owned shutdown fixture was not released"
+
+    subscriber = RocketMQSubscriber(
+        Config(
+            "127.0.0.1:1",
+            "fixture",
+            "fixture",
+            (RouteBinding("t", "s", physical_topic("t"), consumer_group("t", "s")),),
+        ),
+        "t",
+        "s",
+        handler=AsyncMock(),
+        failed_handler=AsyncMock(),
+        invalid_handler=AsyncMock(),
+    )
+    subscriber._driver.begin()
+    subscriber._driver.client = Client()
+    value.subscribers = [subscriber]
+    stop = subscriber.stop
+    calls = 0
+
+    async def controlled_stop(*, grace_seconds):
+        nonlocal calls
+        calls += 1
+        try:
+            await stop(grace_seconds=grace_seconds)
+        except asyncio.CancelledError:
+            first_timeout.set()
+            raise
+
+    monkeypatch.setattr(subscriber, "stop", controlled_stop)
+    value._subscriber_shutdown_seconds = 0.01
+    close = asyncio.create_task(value.close())
+    context = value.database.state_events
+    try:
+        await asyncio.wait_for(first_timeout.wait(), 2)
+        assert entered.is_set() and len(subscriber._driver.pending) == 1
+        assert not close.done() and "sdk:close" not in events
+        assert value.database.state_events is context
+        release.set()
+        await asyncio.wait_for(close, 2)
+        assert calls >= 2 and not subscriber._driver.pending
+        assert subscriber._driver.client is subscriber._driver.executor is None
+        assert "sdk:close" in events and events[-1] == "payloads:closed"
+        assert value.database.state_events is None
+    finally:
+        release.set()
+        await asyncio.gather(close, return_exceptions=True)
+        await stop(grace_seconds=5)
+
+
+async def test_completed_subscriber_rpc_timeout_is_preserved_after_other_resources_drain():
+    value, sdk, events = runtime()
+    subscriber = value.subscribers[0]
+    subscriber.stop = AsyncMock(side_effect=TimeoutError("controlled completed RPC failure"))
+    with pytest.raises(TimeoutError):
+        await value.close()
+    subscriber.stop.assert_awaited_once()
+    assert "acks:stop" in events and "sdk:close" in events
+    assert value.database.state_events is None and events[-1] == "payloads:closed"
