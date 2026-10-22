@@ -145,6 +145,14 @@ class EvaluationWorker:
                             )
                             await db.commit()
                 else:
+                    if (
+                        row["execution_mode"] == "candidate_v2"
+                        and self._prepare_dispatch is not None
+                        and self._candidate_runtime is None
+                    ):
+                        raise ValueError(
+                            "Serial transaction dispatcher cannot own candidate claims"
+                        )
                     await execute_step(
                         self.transactions,
                         run_id,
