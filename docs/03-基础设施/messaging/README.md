@@ -592,6 +592,6 @@ read_candidate_response将已持久化candidate响应绑定到原不可变dispat
 
 [`CandidateCompletionPlanner/Write`](../../../src/qs_ai/infrastructure/workflow_transport/candidate_completion_state.py) 从原不可变dispatch和首个持久化response构造generation或semantic完成计划，冻结首次candidate及所有输入/来源/完成摘要。原根重验锁定来源，调用原终态受理器，再提交claim释放、其他在途候选的原聚合、档案、sequence和witness。只读虚拟记录不能证明提交；其他claim尚未排空时，不提前把整个Run阻断。合法续租不改变首响应身份或完成计划，owner/claim fence/协调版本变化仍被拒绝。
 
-[`CandidateCompletionSender`](../../../src/qs_ai/infrastructure/workflow_transport/candidate_completion_sender.py) 重复读取首次已提交业务结果；LocalCommitted/FinalUnknown仍返回已提交结果并保留Broker确认责任。旧执行必须被精确证明Aborted，宿主才可显式Retry或Replan；重建来源保留首response和首candidate，不能重做模型或Seal。实际工作流先独立持久化模型response，再调用完成发送器；MQ故障留下确定性完成责任，不授予业务或provider重试。
+[`CandidateCompletionSender`](../../../src/qs_ai/infrastructure/workflow_transport/candidate_completion_sender.py) 重复读取首次已提交业务结果；LocalCommitted/FinalUnknown仍返回已提交结果并保留Broker确认责任。旧执行必须被精确证明Aborted，宿主才可显式Retry或Replan；重建来源保留首response和首candidate，不能重做模型；显式授权Replan可以为新的状态版本冻结新wire，旧计划与原消息证据继续保留。实际工作流先独立持久化模型response，再调用完成发送器；MQ故障留下确定性完成责任，不授予业务或provider重试。
 
 本地3862单元和430源类型通过，27个真实MySQL原根用例与38个发布SDK/Broker宿主用例仅完成收集；实际依赖结果另记infra总表。新增入口的存在不表示完整T17、恢复扫描/drain、默认运行装配或生产启用已经完成。
