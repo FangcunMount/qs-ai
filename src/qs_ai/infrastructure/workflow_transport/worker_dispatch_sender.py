@@ -5,7 +5,13 @@ from dataclasses import replace
 from uuid import UUID
 
 from reliable_messaging.rocketmq_transaction import TransactionSendError
-from reliable_messaging.transaction import LocalOutcome, decide_local
+from reliable_messaging.transaction import (
+    Execution,
+    LocalOutcome,
+    ReplanAuthorization,
+    State,
+    decide_local,
+)
 
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict
 from qs_ai.application.execution.model_capacity import ModelCapacity
@@ -15,7 +21,7 @@ from qs_ai.infrastructure.persistence.mysql.database import Transactions
 from qs_ai.infrastructure.persistence.mysql.evaluation_step import PreparedStep
 from qs_ai.infrastructure.persistence.mysql.transaction_archive import TransactionArchive
 from qs_ai.infrastructure.workflow_transport.evaluation_state_root import EvaluationStateRoot
-from qs_ai.infrastructure.workflow_transport.transaction_root import StateTransactions
+from qs_ai.infrastructure.workflow_transport.transaction_root import AuthorizedStateTransactions
 from qs_ai.infrastructure.workflow_transport.worker_dispatch_state import (
     WorkerDispatchPlanner,
     WorkerDispatchWrite,
@@ -33,7 +39,7 @@ class WorkerDispatchSender:
         self,
         transactions: Transactions,
         archives: TransactionArchive,
-        runtime: StateTransactions,
+        runtime: AuthorizedStateTransactions,
         schemas: SchemaAssets,
         owner: str,
         planner: WorkerDispatchPlanner,
@@ -51,12 +57,42 @@ class WorkerDispatchSender:
         )
 
     async def __call__(self, run_id: UUID, version: int, organization_id: int) -> PreparedStep:
+        return await self._send(run_id, version, organization_id, previous=None)
+
+    async def replan(
+        self,
+        run_id: UUID,
+        version: int,
+        organization_id: int,
+        previous: Execution,
+    ) -> PreparedStep:
+        """Only an explicit host decision after exact old abort can acquire a fresh model lease."""
+        return await self._send(run_id, version, organization_id, previous=previous)
+
+    async def _send(
+        self,
+        run_id: UUID,
+        version: int,
+        organization_id: int,
+        *,
+        previous: Execution | None,
+    ) -> PreparedStep:
         intent = worker_dispatch_intent(run_id, version, organization_id, self._owner)
         async with asyncio.timeout(self._planner.database_seconds):
             existing = await self._runtime.store.lookup(intent.request)
-        if existing is not None:
+        if previous is None and existing is not None:
             # A commit is not authorization for this new process to invoke a model again.
             raise WorkerDispatchPending("Existing worker dispatch cannot authorize a model retry")
+        if previous is not None:
+            read_worker_dispatch_plan(intent, previous.plan)
+            if (
+                existing is None
+                or existing.state != State.ABORTED
+                or existing.execution.plan.digest != previous.plan.digest
+                or existing.execution.fence != previous.fence
+                or existing.execution.writer_epoch != previous.writer_epoch
+            ):
+                raise WorkerDispatchPending("Exact old aborted serial dispatch required")
         candidate, inputs = await self._planner.candidate(
             run_id, version, organization_id, self._owner
         )
@@ -66,7 +102,11 @@ class WorkerDispatchSender:
             if token is None:
                 raise CheckpointConflict("Model capacity unavailable; defer without dispatch")
         try:
-            reservation = await self._runtime.reserve(intent.request, candidate)
+            reservation = (
+                await self._runtime.reserve(intent.request, candidate)
+                if previous is None
+                else await self._runtime.replan(ReplanAuthorization(previous, candidate))
+            )
             if not reservation.acquired:
                 raise WorkerDispatchPending("Another worker owns the original dispatch")
             if reservation.execution.plan.digest != candidate.digest:
@@ -120,3 +160,18 @@ class WorkerDispatchSender:
         finally:
             if token is not None:
                 token.release()
+
+
+class WorkerDispatchRecovery:
+    """Explicit host policy for aborted dispatch before domain claim or model invocation."""
+
+    def __init__(self, sender: WorkerDispatchSender) -> None:
+        self.sender = sender
+
+    async def __call__(self, run_id: UUID, version: int, organization_id: int) -> PreparedStep:
+        intent = worker_dispatch_intent(run_id, version, organization_id, self.sender._owner)
+        async with asyncio.timeout(self.sender._planner.database_seconds):
+            old = await self.sender._runtime.store.lookup(intent.request)
+        if old is not None and old.state == State.ABORTED:
+            return await self.sender.replan(run_id, version, organization_id, old.execution)
+        return await self.sender(run_id, version, organization_id)

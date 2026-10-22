@@ -1,9 +1,12 @@
 """Recover expired candidate ownership from evidence; never calls a model."""
 
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass, field
 from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import select, tuple_
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict, CheckpointState
 from qs_ai.application.interpretation.route_assets import RouteAssets
@@ -12,7 +15,10 @@ from qs_ai.application.operations.diagnostics import emit
 from qs_ai.domain.evaluation.failure import ClassifiedFailure
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
 from qs_ai.infrastructure.persistence.mysql.evaluation_checkpoints import decode, save_checkpoint
-from qs_ai.infrastructure.persistence.mysql.evaluation_response_receipts import read_response
+from qs_ai.infrastructure.persistence.mysql.evaluation_response_receipts import (
+    EvaluationResponse,
+    read_response,
+)
 from qs_ai.infrastructure.persistence.mysql.evaluation_scan import RecoveryCursor
 from qs_ai.infrastructure.persistence.mysql.evaluation_slot_claims import (
     SlotClaim,
@@ -29,6 +35,50 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
 )
 
 
+@dataclass(frozen=True)
+class CandidateRecoverySource:
+    version: int
+    run: dict = field(repr=False)
+    claim: SlotClaim = field(repr=False)
+    evidence: EvaluationResponse | None = field(repr=False)
+
+
+CandidateRecoveryDispatch = Callable[[int, SlotClaim, datetime], Awaitable[bool]]
+
+
+async def read_candidate_recovery_source(
+    db: AsyncSession, organization_id: int, claim: SlotClaim, at: datetime, *, lock: bool
+) -> CandidateRecoverySource | None:
+    """Original expired ownership and first evidence; snapshot grants no commit or model right."""
+    from qs_ai.infrastructure.persistence.mysql.evaluation_candidate_completion import (
+        completed_claim_state,
+    )
+
+    if await completed_claim_state(db, organization_id, claim, lock=lock) is not None:
+        return None
+    run, version = await lock_run(db, claim.run_id, organization_id, lock=lock)
+    await active_claims(db, claim.run_id, lock=lock)
+    current = await require_claim(db, claim, lock=lock)
+    cp = current.checkpoint
+    if cp.lease_expires_at != claim.checkpoint.lease_expires_at or at < cp.lease_expires_at:
+        raise CheckpointConflict("Exact expired candidate required")
+    if cp.phase == "prepared":
+        ledger = (
+            await db.execute(
+                select(evaluation_dispatches).where(
+                    evaluation_dispatches.c.run_id == str(claim.run_id),
+                    evaluation_dispatches.c.execution_id == cp.execution_id,
+                )
+            )
+        ).first()
+        if ledger is not None:
+            raise CheckpointConflict("Prepared candidate has dispatch evidence")
+        evidence = None
+    else:
+        evidence = await read_response(db, current)
+    return CandidateRecoverySource(version, run, current, evidence)
+
+
 async def recover_candidate(
     transactions: Transactions,
     organization_id: int,
@@ -38,29 +88,12 @@ async def recover_candidate(
     schemas: SchemaAssets,
 ) -> None:
     async with transactions.open() as db:
-        from qs_ai.infrastructure.persistence.mysql.evaluation_candidate_completion import (
-            completed_claim_state,
-        )
-
-        if await completed_claim_state(db, organization_id, claim) is not None:
+        source = await read_candidate_recovery_source(db, organization_id, claim, at, lock=True)
+        if source is None:
             return
-        _, version = await lock_run(db, claim.run_id, organization_id)
-        await active_claims(db, claim.run_id)
-        current = await require_claim(db, claim)
+        version, current, evidence = source.version, source.claim, source.evidence
         cp = current.checkpoint
-        if cp.lease_expires_at != claim.checkpoint.lease_expires_at or at < cp.lease_expires_at:
-            raise CheckpointConflict("Exact expired candidate required")
         if cp.phase == "prepared":
-            ledger = (
-                await db.execute(
-                    select(evaluation_dispatches).where(
-                        evaluation_dispatches.c.run_id == str(claim.run_id),
-                        evaluation_dispatches.c.execution_id == cp.execution_id,
-                    )
-                )
-            ).first()
-            if ledger is not None:
-                raise CheckpointConflict("Prepared candidate has dispatch evidence")
             await release_claim(db, current)
             await save_checkpoint(db, CheckpointState(claim.run_id, version + 1, None), version)
             await db.commit()
@@ -73,7 +106,6 @@ async def recover_candidate(
                 status="prepared_released",
             )
             return
-        evidence = await read_response(db, current)
     prepared = await prepare_step(
         transactions,
         claim.run_id,
@@ -129,6 +161,8 @@ async def recover_next_candidate(
     schemas: SchemaAssets,
     at: datetime,
     cursor: RecoveryCursor,
+    *,
+    dispatch: CandidateRecoveryDispatch | None = None,
 ) -> bool:
     claims = evaluation_slot_claims
     async with transactions.open() as db:
@@ -156,14 +190,19 @@ async def recover_next_candidate(
         if cp.lease_expires_at > at:
             continue
         try:
-            await recover_candidate(
-                transactions,
-                row["organization_id"],
-                SlotClaim(UUID(row["run_id"]), row["version"], cp),
-                at,
-                routes,
-                schemas,
-            )
+            observed = SlotClaim(UUID(row["run_id"]), row["version"], cp)
+            if dispatch is not None:
+                if not await dispatch(row["organization_id"], observed, at):
+                    continue
+            else:
+                await recover_candidate(
+                    transactions,
+                    row["organization_id"],
+                    observed,
+                    at,
+                    routes,
+                    schemas,
+                )
         except CheckpointConflict:
             continue
         return True

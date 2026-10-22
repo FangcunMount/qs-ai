@@ -601,3 +601,21 @@ read_candidate_response将已持久化candidate响应绑定到原不可变dispat
 首响应/续租根保护：实际整链路验证发现，单纯保存response仍会在EventSession.commit调用宿主旧记录器。修复后的CandidateRuntime为响应持久化与原claim续租安装仅限当前session/根的操作记录保护器；显式校验primary绑定、同一活跃根、无savepoint及无业务事件标记，再执行正常Session提交。保护器拒绝解释状态转录和任何可见业务变更，不把state_events设为None，不修改宿主全局记录器。正常业务/档案/witness仍经各自已冻结的SDK原根提交。原生整链路额外在生成与语义调用期间真实续租，验证两种无消息操作不会调用旧记录器。
 
 当前修复候选3870本地单元、430源类型与1121文件格式通过；f053真实MySQL/Broker失败报告保留，当前源码的27原生及38/95 Broker门禁待验，不把旧独立终态成功作为完整运行链路通过。
+
+### T17 过期恢复与取消排空的事务入口
+
+候选完整运行链路已另行通过真实依赖并合并，当前唯一任务进度与失败历史见 [infra 执行总表](https://github.com/FangcunMount/infra/blob/main/docs/server/rocketmq-m3-execution.md)。本节描述下一批新增契约；源码存在不表示默认运行装配或生产切换已经完成。
+
+`EvaluationWorker` 的串行恢复、候选恢复和取消排空扫描可显式注入事务 dispatcher。扫描只提供有界提示，关闭读取边界后，dispatcher 才准备半消息、重新取得原根事务 guard 并校验精确来源。默认未注入时保留旧入口，不能把部分装配作为事务链路启用。
+
+| 入口 | 原始证据与结果 |
+| --- | --- |
+| `SerialRecoveryRuntime` | 精确过期 checkpoint；有首个持久化 response 时使用原 generation/semantic 完成入口，无 response 时只释放未发送准备或保存原 `result_unknown` 审计 |
+| `CandidateRecoveryRuntime` | 精确原 claim、不可变 dispatch 和首 response；续租不替换首次响应身份，其他活动 claim 继续参与原聚合 |
+| `CancellationDrainRuntime` | 复用已授权的原取消请求、操作者、理由和首次时间；当前协调版本与请求版本分别冻结，排空后才提交 canceled |
+
+这些入口没有模型网关能力。SDK Checker 和扫描本身不授权模型调用；消息故障不生成伪造 response，也不把 `provider_result_unknown` 改成可重试。原业务、sequence、首档案及 witness 仍在同一根事务共同提交或回滚；`LocalCommitted + FinalUnknown` 保留本地成功并等待 Broker 确认。
+
+Sender 普通调用始终拒绝重复 dispatch。宿主必须显式装配 `WorkerDispatchRecovery` / `CandidateDispatchRecovery`，才可对精确 Aborted 且尚未提交业务的 dispatch 通过 SDK Replan 取得新租约；原 ModelCapacity 在半消息之前取得，原根与 witness 证实后只移交一次。已 Committed 或仍 Prepared 的 dispatch 不能重新调用模型。完成/排空 dispatcher 的 `recover_aborted` 默认为 false；显式启用后只对精确旧 Aborted 执行使用 Retry/Replan，保留原 response、业务身份及旧证据。
+
+新增原生 MySQL 测试覆盖共同回滚、协调版本竞争、归档拒绝和客户端丢弃提交回复；后者不是数据库网络故障证明。显式 Broker profile 另覆盖半消息屏障、首响应复用、取消排空、显式重建 dispatch 和客户端丢弃最终确认回复。进程退出、真实数据库断网、默认完整装配、QS 配对业务、真实模型及 system 验收仍须分别记录，不能由这些夹具代替。

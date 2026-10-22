@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
@@ -304,14 +305,27 @@ async def read_cancellation(
     return canonical(record), original
 
 
-async def finish_cancellation(db: AsyncSession, scope: ManagementScope, at: datetime) -> bool:
-    """Finalize only once persistent ownership has drained and all unknowns are resolved."""
+@dataclass(frozen=True)
+class CancellationDrainSource:
+    scope: ManagementScope = field(repr=False)
+    version: int
+    reason: str = field(repr=False)
+    at: datetime
+
+
+async def read_cancel_drain_source(
+    db: AsyncSession, scope: ManagementScope, at: datetime, *, lock: bool
+) -> CancellationDrainSource | None:
+    """Original drain admission; readonly observation grants no completion or commit right."""
     checkpoint = (
         (
             await db.execute(
-                select(evaluation_checkpoints)
-                .where(evaluation_checkpoints.c.run_id == str(scope.run_id))
-                .with_for_update()
+                _read_statement(
+                    select(evaluation_checkpoints).where(
+                        evaluation_checkpoints.c.run_id == str(scope.run_id)
+                    ),
+                    lock,
+                )
             )
         )
         .mappings()
@@ -320,12 +334,13 @@ async def finish_cancellation(db: AsyncSession, scope: ManagementScope, at: date
     run = (
         (
             await db.execute(
-                select(evaluation_runs)
-                .where(
-                    evaluation_runs.c.run_id == str(scope.run_id),
-                    evaluation_runs.c.organization_id == scope.organization_id,
+                _read_statement(
+                    select(evaluation_runs).where(
+                        evaluation_runs.c.run_id == str(scope.run_id),
+                        evaluation_runs.c.organization_id == scope.organization_id,
+                    ),
+                    lock,
                 )
-                .with_for_update()
             )
         )
         .mappings()
@@ -334,24 +349,38 @@ async def finish_cancellation(db: AsyncSession, scope: ManagementScope, at: date
     progress = run["progress_json"]
     intent = progress.get("cancel_requested") if progress else None
     if not intent or progress["status"] == "canceled":
-        return False
+        return None
     if (
         checkpoint["checkpoint_json"] is not None
-        or await active_claims(db, scope.run_id)
+        or (
+            await active_claims(db, scope.run_id)
+            if lock
+            else await active_claims(db, scope.run_id, lock=False)
+        )
         or progress.get("unresolved_result_unknown_count", 0)
     ):
-        return False
+        return None
     requested = datetime.fromisoformat(intent["requested_at"])
     actor_scope = ManagementScope(
         scope.run_id, scope.organization_id, int(intent["actor"].removeprefix("user:"))
     )
+    return CancellationDrainSource(
+        actor_scope, checkpoint["version"], intent["reason"], max(at, requested)
+    )
+
+
+async def finish_cancellation(db: AsyncSession, scope: ManagementScope, at: datetime) -> bool:
+    """Finalize only once persistent ownership has drained and all unknowns are resolved."""
+    source = await read_cancel_drain_source(db, scope, at, lock=True)
+    if source is None:
+        return False
     # Reuse the existing audited terminal cancellation after all evidence has drained.
     await cancel(
         db,
-        actor_scope,
-        checkpoint["version"],
-        intent["reason"],
-        max(at, requested),
+        source.scope,
+        source.version,
+        source.reason,
+        source.at,
         discard=False,
         confirm=True,
     )

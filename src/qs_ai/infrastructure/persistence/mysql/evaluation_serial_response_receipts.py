@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import re
 from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
@@ -162,6 +163,87 @@ async def read_serial_response(
     ):
         raise CheckpointConflict("Serial response ownership differs")
     return decode(reference, row["definition_json"], row["sha256"])
+
+
+async def read_serial_response_reference(
+    db: AsyncSession,
+    run_id: UUID,
+    organization_id: int,
+    invocation_id: str,
+) -> SerialResponseReference | None:
+    """Recover the first scoped reference from its immutable receipt and dispatch ledger."""
+    if (
+        not isinstance(run_id, UUID)
+        or not run_id.int
+        or type(organization_id) is not int
+        or not 0 < organization_id < 2**63
+        or not isinstance(invocation_id, str)
+        or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9:._/-]{0,127}", invocation_id) is None
+    ):
+        raise ValueError("Original bounded serial response scope required")
+    row = (
+        (
+            await db.execute(
+                select(evaluation_response_receipts, evaluation_runs.c.execution_mode)
+                .join(
+                    evaluation_runs,
+                    evaluation_runs.c.run_id == evaluation_response_receipts.c.run_id,
+                )
+                .where(
+                    evaluation_response_receipts.c.run_id == str(run_id),
+                    evaluation_response_receipts.c.invocation_id == invocation_id,
+                    evaluation_runs.c.organization_id == organization_id,
+                )
+            )
+        )
+        .mappings()
+        .one_or_none()
+    )
+    if row is None:
+        return None
+    if row["execution_mode"] != "serial_v1":
+        raise CheckpointConflict("Original serial response in organization required")
+    raw = row["definition_json"]
+    if not isinstance(raw, str) or len(raw.encode()) > _MAX_BYTES:
+        raise ValueError("Bounded original serial response required")
+    try:
+        fields = json.loads(raw, object_pairs_hook=_unique)["reference"]
+        if not isinstance(fields, dict) or set(fields) != {
+            "run_id",
+            "organization_id",
+            "version",
+            "checkpoint",
+        }:
+            raise ValueError
+        checkpoint = decode_checkpoint(fields["checkpoint"])
+        if checkpoint is None:
+            raise ValueError
+        original = SerialResponseReference(
+            UUID(fields["run_id"]),
+            fields["organization_id"],
+            fields["version"],
+            checkpoint,
+        )
+        decode(original, raw, row["sha256"])
+    except (ValueError, KeyError, TypeError, AttributeError, UnicodeError, RecursionError):
+        raise ValueError("Invalid original serial response reference") from None
+    if (
+        original.run_id,
+        original.organization_id,
+        original.checkpoint.invocation_id,
+        original.checkpoint.execution_id,
+        original.version,
+    ) != (run_id, organization_id, invocation_id, row["execution_id"], row["claim_version"]):
+        raise CheckpointConflict("Exact original serial response identity differs")
+    ledger = await db.scalar(
+        select(evaluation_dispatches.c.checkpoint_json).where(
+            evaluation_dispatches.c.run_id == str(run_id),
+            evaluation_dispatches.c.invocation_id == invocation_id,
+        )
+    )
+    if decode_checkpoint(ledger) != original.checkpoint:
+        raise CheckpointConflict("Exact original immutable serial dispatch required")
+    return original
 
 
 async def save_serial_response(
