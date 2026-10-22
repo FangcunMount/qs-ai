@@ -1,6 +1,6 @@
 {
   "schema_version": "qs-ai-document-closure/v1",
-  "source_commit": "59efdb3f1149f59c39a8c5ad7e40397dcdbfe23f",
+  "source_commit": "b51db839828f3c9fa84797461dd826da604699e2",
   "reviewed_on": "2026-10-22",
   "authority": "runtime composition > code > machine contracts/config/migrations > scoped tests > maintained prose > dated evidence/plans/archive",
   "source_catalog": {
@@ -809,7 +809,7 @@
     "tests/probes/finalization_proxy.py": "3c9934f30aedda6674b7282117a1a11f088f6fa9d2e5cc652124516cc6bcd402",
     "tests/probes/finalization_worker.py": "772f6c77a91c4b4acb33618c65ed0c66f0c6019bfc276394d1edcc2efcba877f",
     "tests/test_finalization_provider_probe.py": "c84670234be54e8551e2b1d0af393eaf20de22490e1d3485509b1b2d0bb89df6",
-    "tests/integration/rocketmq_finalization_host.py": "d9fbea256adad4afb133c06e60267e8827e4ecea7b404d817644cb7aad2b41d6",
+    "tests/integration/rocketmq_finalization_host.py": "b6ebc5075dc4cb4a8fccb140df9753d17d111533b93cde9d0e3f2cc4cc44e7da",
     "tests/integration/rocketmq_finalization_matrix.py": "0a4acb4b536d08e19b03ffcd2539840ce3b9a257c95a2d0fd182c71d724aa05e"
   },
   "documents": [
