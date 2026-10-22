@@ -53,6 +53,11 @@ class RPCProxy:
     async def stats(self):
         return await self.command(dict(Action="stats"), "stats")
 
+    async def arm(self, boundary, method):
+        return await self.command(
+            dict(Action="arm", Boundary=boundary, Method=method, Nth=1), "armed"
+        )
+
     async def close(self):
         if self.process is None:
             return

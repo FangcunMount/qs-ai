@@ -1,7 +1,7 @@
-"""Explicit T18-C profile: separate worker/provider processes and real SDK/MySQL/Broker.
+"""Explicit T18-C/D profile: separate workers, real SDK/MySQL/Broker and RPC faults.
 
 Synthetic provider, controlled QS admission and observer; not paired QS/system or
-packet-loss/DB-commit network fault acceptance. Ordinary collection excludes it.
+DB-commit network fault acceptance. Ordinary collection excludes it.
 """
 
 import asyncio
@@ -26,6 +26,16 @@ from qs_ai.infrastructure.persistence.mysql.schema import artifacts, jobs, model
 from qs_ai.infrastructure.persistence.mysql.transaction_schema import execution
 from qs_ai.infrastructure.workflow_transport.messaging import EVENTS, authenticate, parse_body
 from tests.integration.rocketmq_admission_host import required_broker as required_broker
+from tests.integration.rocketmq_finalization_matrix import (
+    PATHS,
+    SCENARIOS,
+)
+from tests.integration.rocketmq_finalization_matrix import (
+    test_independent_five_path_finalization_matrix as matrix_test,
+)
+from tests.integration.test_evaluation_step import persisted_assets as persisted_assets
+from tests.integration.test_evaluation_step import ready as original_evaluation_ready
+from tests.integration.test_evaluation_step import setup_run as setup_run
 from tests.integration.test_finalization_characterization import kit as kit
 from tests.integration.test_interpretation import expire
 from tests.integration.test_transaction_start_admission import host as host
@@ -41,6 +51,13 @@ from tests.test_output_validation import candidate
 pytestmark = pytest.mark.integration
 _CASES = {}
 _OBSERVER = "qs-m3-ai-state-observer"
+test_independent_five_path_finalization_matrix = matrix_test
+
+
+@pytest.fixture
+async def evaluation_ready(setup_run, persisted_assets):
+    async for value in original_evaluation_ready.__wrapped__(setup_run, persisted_assets):
+        yield value
 
 
 def passed(name):
@@ -69,7 +86,17 @@ def finalization_receipt(required_broker, request):
                 system_login_not_claimed=True,
                 paired_qs_business_not_claimed=True,
                 real_external_provider_not_claimed=True,
-                packet_or_database_network_fault_not_claimed=True,
+                database_commit_network_fault_not_claimed=True,
+                real_packet_fault_verified=all(
+                    _CASES.get("matrix_" + path + "_" + scenario, False)
+                    for path in PATHS
+                    for scenario in SCENARIOS[1:3]
+                ),
+                five_path_matrix_verified=all(
+                    _CASES.get("matrix_" + path + "_" + scenario, False)
+                    for path in PATHS
+                    for scenario in SCENARIOS
+                ),
                 real_http_counter_verified=_CASES.get("external_http_counter", False),
                 process_sigkill_verified=_CASES.get("sigkill_after_committed_response", False),
             )

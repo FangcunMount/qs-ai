@@ -18,6 +18,41 @@ from pathlib import Path
 from uuid import UUID
 
 
+def stage_output(body: dict, generation: dict) -> dict:
+    """Synthetic semantic decisions follow this actual request's frozen obligations."""
+    try:
+        text = body["input"][1]["content"][0]["text"]
+        data = json.loads(text.split("\n\n", 1)[-1])
+    except (KeyError, IndexError, TypeError, ValueError):
+        return generation
+    if not isinstance(data, dict) or "candidate_output" not in data:
+        return generation
+    return dict(
+        schema_version="ai-explanation-semantic-evaluation-output/v1",
+        scores={
+            k: 4
+            for k in (
+                "faithfulness",
+                "cross_dimension_quality",
+                "suggestion_actionability",
+                "audience_clarity",
+                "concision",
+            )
+        },
+        rationale="Synthetic semantic acceptance",
+        decisions=[
+            dict(
+                type=a["type"],
+                scope=a["scope"],
+                ordinal=a["ordinal"],
+                status="passed",
+                detail="Synthetic semantic acceptance",
+            )
+            for a in data["assertions"]
+        ],
+    )
+
+
 class ProviderProbe:
     def __init__(self, directory: Path, output: dict) -> None:
         self.directory = directory
@@ -134,7 +169,11 @@ def serve(directory: Path) -> None:
                     output=[
                         dict(
                             type="message",
-                            content=[dict(type="output_text", text=json.dumps(output))],
+                            content=[
+                                dict(
+                                    type="output_text", text=json.dumps(stage_output(body, output))
+                                )
+                            ],
                         )
                     ],
                     usage=dict(input_tokens=2, output_tokens=3),

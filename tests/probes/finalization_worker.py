@@ -6,6 +6,7 @@ import contextvars
 import json
 import logging
 import os
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import httpx
@@ -14,6 +15,7 @@ from reliable_messaging.rocketmq_transaction import (
     TransactionalSender,
     TransactionConfig,
     TransactionRoute,
+    TransactionSendError,
 )
 from reliable_messaging.transaction import Binding, Limits
 from reliable_messaging.transaction_mysql import MySQLTransactionStore
@@ -77,18 +79,52 @@ async def run(config):
         ),
         store,
     )
-    runtime = TransactionRuntime(sender, admitted=True)
+    outcomes = []
+
+    class ObservedRuntime(TransactionRuntime):
+        async def execute(self, owned, local):
+            try:
+                result = await super().execute(owned, local)
+            except TransactionSendError as error:
+                record(owned, error.result)
+                raise
+            record(owned, result)
+            return result
+
+    def record(owned, result):
+        outcomes.append(
+            dict(
+                operation=owned.plan.operation_id,
+                fence=owned.fence,
+                local=str(result.local),
+                branches=[dict(half=str(b.half), final=str(b.final)) for b in result.branches],
+            )
+        )
+        if config.get("outcomes"):
+            Path(config["outcomes"]).write_text(json.dumps(outcomes))
+
+    runtime = ObservedRuntime(sender, admitted=True)
     invocation = contextvars.ContextVar("probe_invocation", default="")
 
     async def correlate(request):
         request.headers["X-Test-Invocation"] = invocation.get()
 
+    async def after_response(invocation_id):
+        if config["pause_after_response"]:
+            progress(marker, "response_committed", invocation_id=invocation_id)
+            resume = config.get("resume_file")
+            if resume is None:
+                await asyncio.Event().wait()  # Parent proves SQL, then SIGKILLs this worker.
+            async with asyncio.timeout(90):
+                # Cross-process file release; asyncio.Event cannot signal this boundary.
+                while not await asyncio.to_thread(Path(resume).exists):  # noqa: ASYNC110
+                    await asyncio.sleep(0.02)
+
     class ResponseStore(MySQLExecutionStore):
         async def record_model_response(self, claim, invocation_id, **kwargs):
             await super().record_model_response(claim, invocation_id, **kwargs)
-            if config["pause_after_response"] and kwargs.get("response_json") is not None:
-                progress(marker, "response_committed", invocation_id=invocation_id)
-                await asyncio.Event().wait()  # Parent verifies SQL, then SIGKILLs this worker.
+            if kwargs.get("response_json") is not None:
+                await after_response(invocation_id)
 
     try:
         async with httpx.AsyncClient(event_hooks={"request": [correlate]}) as client:
@@ -107,6 +143,16 @@ async def run(config):
                     finally:
                         invocation.reset(token)
 
+                async def generate_messages(self, messages, route, schema, invocation_id):
+                    token = invocation.set(invocation_id)
+                    try:
+                        response = await transport.generate_messages(
+                            messages, route, schema, invocation_id
+                        )
+                        return ModelGatewayRouter._with_identity(response, route)
+                    finally:
+                        invocation.reset(token)
+
             original = ResponseStore(tx)
             execution = TransactionalInterpretationExecutionStore(
                 original,
@@ -121,9 +167,50 @@ async def run(config):
                 create_report_workflow,
             )
             worker = ExecuteNext(execution, SyntheticEvidence(), workflow)
+            evaluation = config.get("workflow", "interpretation_report") != "interpretation_report"
+            if evaluation:
+                from qs_ai.application.execution.model_capacity import (
+                    ModelCapacity,
+                    ProviderCapacity,
+                )
+                from qs_ai.bootstrap.evaluation_transactions import transaction_evaluation_worker
+                from qs_ai.infrastructure.persistence.mysql.evaluation_scan import RecoveryCursor
+                from qs_ai.infrastructure.persistence.mysql.route_assets import MySQLRouteAssets
+                from qs_ai.infrastructure.persistence.mysql.schema_assets import MySQLSchemaAssets
+
+                at = datetime(2026, 9, 12, tzinfo=UTC) + timedelta(
+                    seconds=602 if config.get("recover") else 2
+                )
+                worker = transaction_evaluation_worker(
+                    tx,
+                    archives,
+                    runtime,
+                    Gateway(),
+                    MySQLRouteAssets(tx),
+                    MySQLSchemaAssets(tx),
+                    "worker:independent-finalization",
+                    signing_key=config["signing_key_object"],
+                    recipient_key=config["recipient_key_object"],
+                    candidate_limit=1,
+                    capacity=ModelCapacity({config["provider"]: ProviderCapacity(2, 1)}, 1),
+                    recovery_cursor=RecoveryCursor(),
+                    clock=lambda: at,
+                )
+                graph = (
+                    worker._candidate_runtime
+                    if config["workflow"].startswith("candidate_")
+                    else worker._serial_runtime
+                )
+                original_save = graph.save_response
+
+                async def save_response(*args, **kwargs):
+                    await original_save(*args, **kwargs)
+                    await after_response(args[1].invocation_id)
+
+                graph.save_response = save_response
             await runtime.start()
             progress(marker, "ready")
-            worked = await worker.once(60)
+            worked = await worker.once() if evaluation else await worker.once(60)
             progress(marker, "done", worked=worked)
     finally:
         try:

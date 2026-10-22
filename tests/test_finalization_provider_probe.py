@@ -97,6 +97,36 @@ async def test_original_deepseek_adapter_uses_real_http_and_external_invocation_
         assert probe.counts() == {invocation: 1}
 
 
+async def test_semantic_http_reply_matches_frozen_obligations_without_deduplication(tmp_path):
+    from qs_ai.application.interpretation.prompts import PromptMessages
+
+    invocation = str(uuid4())
+    assertions = [dict(type="semantic", scope="dimension:1", ordinal=3)]
+    messages = PromptMessages(
+        "Return JSON",
+        "Evaluate JSON",
+        "Synthetic fixture",
+        json.dumps(dict(candidate_output={"synthetic": True}, assertions=assertions)),
+    )
+    with ProviderProbe(tmp_path / "semantic", {"generation": True}) as probe:
+
+        async def correlate(request):
+            request.headers["X-Test-Invocation"] = invocation
+
+        async with httpx.AsyncClient(event_hooks={"request": [correlate]}) as client:
+            transport = DeepSeekResponses(client, probe.endpoint, "isolated-test-token")
+            for _ in range(2):
+                response = await transport.generate_messages(
+                    messages, route(), schema(), invocation
+                )
+                value = json.loads(response.raw_output)
+                assert value["schema_version"] == "ai-explanation-semantic-evaluation-output/v1"
+                assert value["decisions"] == [
+                    dict(**assertions[0], status="passed", detail="Synthetic semantic acceptance")
+                ]
+        assert probe.counts() == {invocation: 2}
+
+
 def test_unattributed_or_malformed_posts_cannot_disappear_from_the_counter(tmp_path):
     with ProviderProbe(tmp_path / "provider", {"answer": "synthetic"}) as probe:
         request = urllib.request.Request(probe.endpoint, b"not-json")
