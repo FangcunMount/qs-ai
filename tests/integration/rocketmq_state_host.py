@@ -1303,6 +1303,522 @@ async def _actual_serial_dispatch(b, ready, monkeypatch, *, semantic):
         await clean_governance_sequence(b.host, run_id)
 
 
+async def _wait_recovery_barrier(task, event):
+    async with asyncio.timeout(30):
+        while not event.is_set():
+            if task.done():
+                await task
+                raise AssertionError("Recovery ended before its original root barrier")
+            await asyncio.sleep(0.05)
+
+
+async def _recovery_half_gate(b, tx, run_id, invoke, monkeypatch, label, unchanged):
+    """Actual halves and root; deliberately discarded client reply is not packet fault proof."""
+    from qs_ai.infrastructure.workflow_transport.evaluation_state_plan import EvaluationStateFacts
+    from qs_ai.infrastructure.workflow_transport.transaction_archive import decode_branch
+    from tests.integration.test_evaluation_unknowns import snapshot
+
+    before = await snapshot(tx, run_id)
+    b.runtime.entered.clear()
+    b.runtime.release.clear()
+    b.runtime.pause = True
+    count = len(b.runtime.results)
+    task = asyncio.create_task(invoke())
+    try:
+        await _wait_recovery_barrier(task, b.runtime.entered)
+        owned = b.host.executions[-1]
+        facts = EvaluationStateFacts.decode(decode_branch(owned.plan.branches[0]).context)
+        _, archive = read_evaluation_state_plan(facts.intent, owned.plan)
+        b.empty_poll.clear()
+        await asyncio.wait_for(b.empty_poll.wait(), timeout=20)
+        assert archive.envelope().message_id not in b.messages
+        assert await snapshot(tx, run_id) == before
+        unchanged()
+        passed(label + "_half_invisible")
+        actual_end = b.sender._client.end_transaction
+
+        def discard(*args, **kwargs):
+            actual_end(*args, **kwargs)
+            raise TimeoutError("client discarded completed recovery final reply")
+
+        with monkeypatch.context() as patch:
+            patch.setattr(b.sender._client, "end_transaction", discard)
+            b.runtime.release.set()
+            result = await asyncio.wait_for(task, timeout=30)
+        assert len(b.runtime.results) == count + 1
+        outcome = b.runtime.results[-1]
+        assert outcome.local == LocalOutcome.COMMITTED
+        assert outcome.branches and all(x.final == FinalOutcome.UNKNOWN for x in outcome.branches)
+        passed(label + "_committed_final_unknown")
+        await b.consumed(SimpleNamespace(intent=facts.intent))
+        unchanged()
+        passed(label + "_no_new_provider")
+        passed("recovery_first_wire_authenticated")
+        passed("recovery_committed_archive_witness")
+        passed("recovery_no_legacy_commit_hook")
+        return result, facts
+    finally:
+        b.runtime.pause = False
+        b.runtime.release.set()
+        await asyncio.gather(task, return_exceptions=True)
+
+
+async def _clean_recovery(b, tx, run_id):
+    from qs_ai.infrastructure.persistence.mysql.schema import (
+        evaluation_response_receipts,
+        evaluation_slot_claims,
+    )
+
+    async with tx.open() as db:
+        for table in (evaluation_response_receipts, evaluation_slot_claims):
+            await db.execute(delete(table).where(table.c.run_id == str(run_id)))
+        await db.commit()
+    await clean_governance_sequence(b.host, run_id)
+
+
+def _provider_unchanged(gateway, calls):
+    current = gateway.calls if isinstance(gateway.calls, int) else len(gateway.calls)
+    assert current == calls
+
+
+@pytest.mark.parametrize("mode", ["prepared", "generation", "semantic"])
+async def test_actual_serial_expiry_recovery_halves_and_original_unknown(
+    governance_broker, resolution_ready, monkeypatch, mode
+):
+    from qs_ai.infrastructure.workflow_transport.serial_recovery_runtime import (
+        SerialRecoveryRuntime,
+    )
+    from tests.integration.test_evaluation_recovery import EXPIRY, pending
+    from tests.integration.test_evaluation_step import Gateway, step
+
+    b = governance_broker
+    tx, run_id, _, routes, _ = resolution_ready
+    gateway = Gateway(resolution_ready)
+    version = (await step(resolution_ready, gateway)).version if mode == "semantic" else 3
+    cp = await pending(resolution_ready, dispatched=mode != "prepared", version=version)
+    runtime = SerialRecoveryRuntime(
+        b.host.tx,
+        b.host.archives,
+        b.runtime,
+        routes,
+        signing_key=b.host.keys["ai.sign"],
+        recipient_key=b.host.keys["qs.encrypt"],
+        recover_aborted=True,
+    )
+    calls = gateway.calls
+    try:
+        result, facts = await _recovery_half_gate(
+            b,
+            tx,
+            run_id,
+            lambda: runtime(
+                run_id, cp.version, 1, "invocation:dead", EXPIRY, EXPIRY, "system:recovery"
+            ),
+            monkeypatch,
+            "recovery_serial_" + mode,
+            lambda: _provider_unchanged(gateway, calls),
+        )
+        # This codec binds the exact expired checkpoint in expected_version;
+        # source_version is reserved for operations whose coordinator advanced.
+        assert result is True and facts.intent.expected_version == cp.version
+        assert facts.source_version is None
+        run, _, current = await evaluation_rows(tx, run_id)
+        assert current["version"] == cp.version + 1 and current["checkpoint_json"] is None
+        assert run["progress_json"]["status"] == ("collecting" if mode == "prepared" else "blocked")
+        assert run["progress_json"]["recoveries"][-1]["cause_code"] == (
+            "expired_preparation_released"
+            if mode == "prepared"
+            else "expired_dispatch_result_unknown"
+        )
+    finally:
+        await _clean_recovery(b, tx, run_id)
+
+
+async def _candidate_recovery_seed(b, ready, mode, *, response=False, other=False):
+    from qs_ai.infrastructure.persistence.mysql.evaluation_candidate_plan import prepare_candidate
+    from qs_ai.infrastructure.persistence.mysql.evaluation_candidate_response import (
+        read_candidate_response,
+    )
+    from qs_ai.infrastructure.persistence.mysql.evaluation_response_receipts import (
+        EvaluationResponse,
+        save_response,
+    )
+    from qs_ai.infrastructure.persistence.mysql.evaluation_step import prepare_step
+    from qs_ai.infrastructure.workflows.evaluation import execute_step
+    from tests.integration.test_evaluation_candidate_execution import ConcurrentGateway
+    from tests.integration.test_evaluation_step import AT
+
+    tx, run_id, _, routes, schemas = ready
+    async with tx.open() as db:
+        await db.execute(
+            update(evaluation_runs)
+            .where(evaluation_runs.c.run_id == str(run_id))
+            .values(execution_mode="candidate_v2")
+        )
+        await db.commit()
+    gateway = ConcurrentGateway(ready)
+    gateway.release.set()
+    version = 3
+    if mode == "semantic":
+        version = (
+            await execute_step(
+                tx,
+                run_id,
+                version,
+                1,
+                "worker:seed",
+                gateway,
+                routes,
+                schemas,
+                clock=lambda: AT,
+                candidate_limit=3,
+            )
+        ).version
+    if mode == "prepared":
+        async with tx.open() as db:
+            claim = await prepare_candidate(
+                db,
+                run_id,
+                1,
+                "worker:dead",
+                str(uuid4()),
+                str(uuid4()),
+                AT,
+                AT + timedelta(minutes=1),
+                limit=3,
+            )
+            await db.commit()
+    else:
+        prepared = await prepare_step(
+            tx,
+            run_id,
+            version,
+            1,
+            "worker:dead",
+            routes,
+            schemas,
+            clock=lambda: AT + timedelta(seconds=2),
+            candidate_limit=3,
+        )
+        claim = prepared.claim
+        assert claim is not None
+    first = None
+    if response:
+        output = await gateway.generate_messages(
+            prepared.messages, prepared.route, prepared.schema, prepared.invocation_id
+        )
+        result = EvaluationResponse(output, None, AT + timedelta(seconds=3))
+        async with tx.open() as db:
+            await save_response(db, 1, claim, result, at=result.finished_at)
+            await db.commit()
+        async with tx.open() as db:
+            first = await read_candidate_response(db, 1, claim)
+        assert first is not None
+    if other:
+        async with tx.open() as db:
+            await prepare_candidate(
+                db,
+                run_id,
+                1,
+                "worker:other",
+                str(uuid4()),
+                str(uuid4()),
+                AT + timedelta(seconds=2),
+                AT + timedelta(minutes=2),
+                limit=3,
+            )
+            await db.commit()
+    return SimpleNamespace(**locals())
+
+
+@pytest.mark.parametrize("mode", ["prepared", "generation", "semantic"])
+async def test_actual_candidate_expiry_preserves_other_claim_and_original_unknown(
+    governance_broker, resolution_ready, monkeypatch, mode
+):
+    from qs_ai.infrastructure.persistence.mysql.evaluation_slot_claims import active_claims
+    from qs_ai.infrastructure.workflow_transport.candidate_recovery_runtime import (
+        CandidateRecoveryRuntime,
+    )
+
+    b = governance_broker
+    p = await _candidate_recovery_seed(b, resolution_ready, mode, other=True)
+    runtime = CandidateRecoveryRuntime(
+        b.host.tx,
+        b.host.archives,
+        b.runtime,
+        signing_key=b.host.keys["ai.sign"],
+        recipient_key=b.host.keys["qs.encrypt"],
+        recover_aborted=True,
+    )
+    calls = len(p.gateway.calls)
+    try:
+        result, facts = await _recovery_half_gate(
+            b,
+            p.tx,
+            p.run_id,
+            lambda: runtime(1, p.claim, p.claim.checkpoint.lease_expires_at),
+            monkeypatch,
+            "recovery_candidate_" + mode,
+            lambda: _provider_unchanged(p.gateway, calls),
+        )
+        assert result is True
+        run, _, current = await evaluation_rows(p.tx, p.run_id)
+        assert current["version"] == facts.source_version + 1
+        assert run["progress_json"]["status"] == "collecting"
+        async with p.tx.open() as db:
+            remaining = await active_claims(db, p.run_id, lock=False)
+        assert len(remaining) == 1 and remaining[0].checkpoint.owner == "worker:other"
+    finally:
+        await _clean_recovery(b, p.tx, p.run_id)
+
+
+@pytest.mark.parametrize("candidate", [False, True])
+@pytest.mark.parametrize("kind", ["generation", "semantic"])
+async def test_actual_recovery_reuses_first_response_without_provider(
+    governance_broker, resolution_ready, monkeypatch, candidate, kind
+):
+    from qs_ai.infrastructure.persistence.mysql.evaluation_candidate_response import (
+        read_candidate_response,
+    )
+    from qs_ai.infrastructure.persistence.mysql.evaluation_serial_response_receipts import (
+        read_serial_response,
+    )
+    from qs_ai.infrastructure.workflow_transport.candidate_recovery_runtime import (
+        CandidateRecoveryRuntime,
+    )
+    from qs_ai.infrastructure.workflow_transport.serial_recovery_runtime import (
+        SerialRecoveryRuntime,
+    )
+
+    b = governance_broker
+    if candidate:
+        p = await _candidate_recovery_seed(b, resolution_ready, kind, response=True)
+        runtime = CandidateRecoveryRuntime(
+            b.host.tx,
+            b.host.archives,
+            b.runtime,
+            signing_key=b.host.keys["ai.sign"],
+            recipient_key=b.host.keys["qs.encrypt"],
+            recover_aborted=True,
+        )
+
+        def invoke():
+            return runtime(1, p.claim, p.claim.checkpoint.lease_expires_at)
+
+        label = "recovery_first_candidate_" + kind
+        calls = len(p.gateway.calls)
+    else:
+        p = await _serial_terminal_seed(b, resolution_ready, semantic=kind == "semantic")
+        runtime = SerialRecoveryRuntime(
+            b.host.tx,
+            b.host.archives,
+            b.runtime,
+            p.routes,
+            signing_key=b.host.keys["ai.sign"],
+            recipient_key=b.host.keys["qs.encrypt"],
+            recover_aborted=True,
+        )
+        cp = p.reference.checkpoint
+
+        def invoke():
+            return runtime(
+                p.run_id,
+                p.prepared.state.version,
+                1,
+                cp.invocation_id,
+                cp.lease_expires_at,
+                cp.lease_expires_at,
+                "system:recovery",
+            )
+
+        label = "recovery_first_serial_" + kind
+        calls = p.gateway.calls
+    try:
+        result, facts = await _recovery_half_gate(
+            b,
+            p.tx,
+            p.run_id,
+            invoke,
+            monkeypatch,
+            label,
+            lambda: _provider_unchanged(p.gateway, calls),
+        )
+        assert result is True
+        _, _, current = await evaluation_rows(p.tx, p.run_id)
+        assert current["version"] == facts.source_version + 1 and current["checkpoint_json"] is None
+        async with p.tx.open() as db:
+            if candidate:
+                assert await read_candidate_response(db, 1, p.claim) == p.first
+            else:
+                assert await read_serial_response(db, p.reference) == p.result
+    finally:
+        await _clean_recovery(b, p.tx, p.run_id)
+
+
+async def test_actual_cancel_drain_keeps_original_request_and_completed_response(
+    governance_broker, resolution_ready, monkeypatch
+):
+    from qs_ai.application.evaluation.management import ManagementScope
+    from qs_ai.infrastructure.workflow_transport.cancellation_drain_runtime import (
+        CancellationDrainRuntime,
+    )
+
+    b = governance_broker
+    p = await _serial_terminal_seed(b, resolution_ready)
+    scope = ManagementScope(p.run_id, 1, 42)
+    management = MySQLEvaluationManagement(p.tx)
+    at = p.result.finished_at
+    try:
+        requested = await management.cancel(
+            scope,
+            p.prepared.state.version,
+            "original cancel request",
+            at,
+            discard=False,
+            confirm=True,
+        )
+        assert requested.cancel_draining
+        await p.sender(p.reference)
+        await b.consumed(SimpleNamespace(intent=p.intent))
+        runtime = CancellationDrainRuntime(
+            b.host.tx,
+            b.host.archives,
+            b.runtime,
+            signing_key=b.host.keys["ai.sign"],
+            recipient_key=b.host.keys["qs.encrypt"],
+            recover_aborted=True,
+        )
+        calls = p.gateway.calls
+        result, facts = await _recovery_half_gate(
+            b,
+            p.tx,
+            p.run_id,
+            lambda: runtime(scope, at + timedelta(seconds=1)),
+            monkeypatch,
+            "recovery_cancel_drain",
+            lambda: _provider_unchanged(p.gateway, calls),
+        )
+        assert result is True and facts.intent.expected_version == requested.version
+        assert facts.source_version > requested.version
+        view = await management.get(scope)
+        assert view.status == "canceled" and view.version == facts.source_version + 1
+        audit = json.loads(view.cancellation_json)
+        assert audit["actor"] == scope.actor and audit["reason"] == "original cancel request"
+    finally:
+        await _clean_recovery(b, p.tx, p.run_id)
+
+
+@pytest.mark.parametrize("candidate", [False, True])
+async def test_actual_aborted_dispatch_requires_explicit_replan_and_one_capacity_handoff(
+    governance_broker, resolution_ready, monkeypatch, candidate
+):
+    from qs_ai.application.execution.model_capacity import ModelCapacity, ProviderCapacity
+    from qs_ai.infrastructure.workflow_transport.candidate_dispatch_sender import (
+        CandidateDispatchPending,
+        CandidateDispatchRecovery,
+        CandidateDispatchSender,
+    )
+    from qs_ai.infrastructure.workflow_transport.candidate_dispatch_state import (
+        CandidateDispatchPlanner,
+    )
+    from qs_ai.infrastructure.workflow_transport.worker_dispatch_sender import (
+        WorkerDispatchPending,
+        WorkerDispatchRecovery,
+        WorkerDispatchSender,
+    )
+    from qs_ai.infrastructure.workflow_transport.worker_dispatch_state import WorkerDispatchPlanner
+    from tests.integration.test_evaluation_step import AT
+    from tests.integration.test_evaluation_unknowns import snapshot
+
+    b = governance_broker
+    tx, run_id, _, _, schemas = resolution_ready
+    if candidate:
+        async with tx.open() as db:
+            await db.execute(
+                update(evaluation_runs)
+                .where(evaluation_runs.c.run_id == str(run_id))
+                .values(execution_mode="candidate_v2")
+            )
+            await db.commit()
+        planner = CandidateDispatchPlanner(
+            b.host.tx,
+            schemas,
+            signing_key=b.host.keys["ai.sign"],
+            recipient_key=b.host.keys["qs.encrypt"],
+            limit=3,
+            clock=lambda: AT,
+        )
+    else:
+        planner = WorkerDispatchPlanner(
+            b.host.tx,
+            schemas,
+            signing_key=b.host.keys["ai.sign"],
+            recipient_key=b.host.keys["qs.encrypt"],
+            clock=lambda: AT,
+        )
+    _, inputs = await planner.candidate(run_id, 3, 1, "worker:recovery")
+    pool = ModelCapacity({inputs.route.provider: ProviderCapacity(2, 1)}, 1)
+    if candidate:
+        strict = CandidateDispatchSender(
+            b.host.tx, b.host.archives, b.runtime, "worker:recovery", planner, capacity=pool
+        )
+        recovery = CandidateDispatchRecovery(strict)
+    else:
+        strict = WorkerDispatchSender(
+            b.host.tx,
+            b.host.archives,
+            b.runtime,
+            schemas,
+            "worker:recovery",
+            planner,
+            capacity=pool,
+        )
+        recovery = WorkerDispatchRecovery(strict)
+    before = await snapshot(tx, run_id)
+    b.runtime.pause = True
+    old_task = asyncio.create_task(strict(run_id, 3, 1))
+    token = None
+    try:
+        await _wait_recovery_barrier(old_task, b.runtime.entered)
+        old = b.host.executions[-1]
+        assert await b.host.store.abort(old)
+        b.runtime.release.set()
+        with pytest.raises((TransactionSendError, CandidateDispatchPending, WorkerDispatchPending)):
+            await old_task
+        assert b.runtime.results[-1].local == LocalOutcome.ABORTED
+        assert await snapshot(tx, run_id) == before
+        assert await StoreChecker(b.host.store).check(old.references[0]) == Decision.ROLLBACK
+        # A new dispatch lease is an explicit host policy after exact old abort,
+        # never a retry of a committed model dispatch or its provider invocation.
+        planner.clock = lambda: AT + timedelta(seconds=10)
+
+        def unchanged():
+            assert pool.try_acquire(inputs.route.provider, evaluation=True) is None
+
+        label = "recovery_dispatch_candidate" if candidate else "recovery_dispatch_serial"
+        prepared, _ = await _recovery_half_gate(
+            b, tx, run_id, lambda: recovery(run_id, 3, 1), monkeypatch, label, unchanged
+        )
+        token = prepared.capacity_token
+        assert token is not None and prepared.cp.claimed_at == AT + timedelta(seconds=10)
+        assert b.host.executions[-1].plan.digest != old.plan.digest
+        with pytest.raises((CandidateDispatchPending, WorkerDispatchPending)):
+            await recovery(run_id, 3, 1)
+        assert len(b.runtime.results) == 2
+        # Deliberately stop at the original model handoff: this is not a
+        # provider invocation or default serial/candidate composition claim.
+    finally:
+        b.runtime.pause = False
+        b.runtime.release.set()
+        await asyncio.gather(old_task, return_exceptions=True)
+        if token is not None:
+            token.release()
+        available = pool.try_acquire(inputs.route.provider, evaluation=True)
+        assert available is not None
+        available.release()
+        await _clean_recovery(b, tx, run_id)
+
+
 async def test_actual_serial_generation_dispatch_half_gate_first_inputs_and_final_unknown(
     governance_broker, resolution_ready, monkeypatch
 ):

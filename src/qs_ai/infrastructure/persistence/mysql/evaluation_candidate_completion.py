@@ -227,6 +227,8 @@ async def completed_claim_state(
     db: AsyncSession,
     organization_id: int,
     claim: SlotClaim,
+    *,
+    lock: bool = True,
 ) -> CheckpointState | None:
     """A repeated completion/recovery is a read, never a second candidate insertion."""
     from qs_ai.infrastructure.persistence.mysql.evaluation_checkpoints import decode
@@ -234,19 +236,16 @@ async def completed_claim_state(
         evaluation_dispatches,
     )
 
-    _, version = await lock_run(db, claim.run_id, organization_id)
-    await active_claims(db, claim.run_id)
+    _, version = await lock_run(db, claim.run_id, organization_id, lock=lock)
+    await active_claims(db, claim.run_id, lock=lock)
     cp = claim.checkpoint
-    ledger = (
-        await db.execute(
-            select(evaluation_dispatches.c.checkpoint_json)
-            .where(
-                evaluation_dispatches.c.run_id == str(claim.run_id),
-                evaluation_dispatches.c.invocation_id == cp.invocation_id,
-            )
-            .with_for_update()
-        )
-    ).scalar_one_or_none()
+    ledger_query = select(evaluation_dispatches.c.checkpoint_json).where(
+        evaluation_dispatches.c.run_id == str(claim.run_id),
+        evaluation_dispatches.c.invocation_id == cp.invocation_id,
+    )
+    if lock:
+        ledger_query = ledger_query.with_for_update()
+    ledger = (await db.execute(ledger_query)).scalar_one_or_none()
     if ledger is None:
         return None
     original = decode(ledger)
@@ -270,13 +269,12 @@ async def completed_claim_state(
         if cp.kind == "generation"
         else evaluation_semantic_completions
     )
-    record = (
-        await db.execute(
-            select_records(table, table.c.execution_id)
-            .where(table.c.run_id == str(claim.run_id), table.c.invocation_id == cp.invocation_id)
-            .with_for_update()
-        )
-    ).scalar_one_or_none()
+    record_query = select_records(table, table.c.execution_id).where(
+        table.c.run_id == str(claim.run_id), table.c.invocation_id == cp.invocation_id
+    )
+    if lock:
+        record_query = record_query.with_for_update()
+    record = (await db.execute(record_query)).scalar_one_or_none()
     if record is None:
         return None
     if record != cp.execution_id:

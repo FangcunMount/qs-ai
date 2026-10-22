@@ -29,6 +29,7 @@ from qs_ai.infrastructure.workflow_transport.candidate_completion_sender import 
     CandidateCompletionSender,
 )
 from qs_ai.infrastructure.workflow_transport.candidate_dispatch_sender import (
+    CandidateDispatchRecovery,
     CandidateDispatchSender,
 )
 
@@ -64,15 +65,24 @@ class _CandidateLocalEvents:
 
 class CandidateRuntime:
     def __init__(
-        self, dispatch: CandidateDispatchSender, completion: CandidateCompletionSender
+        self,
+        dispatch: CandidateDispatchSender,
+        completion: CandidateCompletionSender,
+        *,
+        dispatch_recovery: CandidateDispatchRecovery | None = None,
     ) -> None:
         if dispatch.transactions is not completion.transactions:
             raise ValueError("Candidate preparation and completion must share the original host")
+        if dispatch_recovery is not None and dispatch_recovery.sender is not dispatch:
+            raise ValueError("Candidate dispatch recovery must own this exact sender")
+        self._dispatch_recovery = dispatch_recovery
         self.dispatch, self.completion = dispatch, completion
         self.transactions = dispatch.transactions
         self.limit = dispatch.planner.limit
 
     async def prepare(self, run_id: UUID, version: int, organization_id: int) -> PreparedStep:
+        if self._dispatch_recovery is not None:
+            return await self._dispatch_recovery(run_id, version, organization_id)
         return await self.dispatch(run_id, version, organization_id)
 
     async def _commit_local(self, write: Callable[[AsyncSession], Awaitable[None]]) -> None:

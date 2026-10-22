@@ -1,5 +1,6 @@
 """Bounded keyset scanning; cursor is an optimization, never execution ownership."""
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID
@@ -22,6 +23,9 @@ class RecoveryCursor:
     after_candidate: tuple[str, str, int] = ("", "", 0)
 
 
+RecoveryDispatch = Callable[[UUID, int, int, str, datetime, datetime, str], Awaitable[bool]]
+
+
 async def recover_next(
     transactions: Transactions,
     routes: RouteAssets,
@@ -31,6 +35,7 @@ async def recover_next(
     cursor: RecoveryCursor,
     *,
     batch_size: int = 64,
+    dispatch: RecoveryDispatch | None = None,
 ) -> bool:
     if type(batch_size) is not int or not 1 <= batch_size <= 256:
         raise ValueError("Invalid recovery scan bound")
@@ -74,9 +79,8 @@ async def recover_next(
         if cp.lease_expires_at > at:
             continue
         try:
-            async with transactions.open() as db:
-                await recover_expired(
-                    db,
+            if dispatch is not None:
+                if not await dispatch(
                     UUID(row["run_id"]),
                     row["version"],
                     row["organization_id"],
@@ -84,10 +88,23 @@ async def recover_next(
                     cp.lease_expires_at,
                     at,
                     actor,
-                    routes,
-                    schemas,
-                )
-                await db.commit()
+                ):
+                    continue
+            else:
+                async with transactions.open() as db:
+                    await recover_expired(
+                        db,
+                        UUID(row["run_id"]),
+                        row["version"],
+                        row["organization_id"],
+                        cp.invocation_id,
+                        cp.lease_expires_at,
+                        at,
+                        actor,
+                        routes,
+                        schemas,
+                    )
+                    await db.commit()
             emit(
                 "evaluation.recovery_committed",
                 "evaluation",

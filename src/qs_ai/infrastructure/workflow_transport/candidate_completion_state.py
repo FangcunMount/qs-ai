@@ -289,6 +289,117 @@ def candidate_source_digest(run_id: UUID, source: _CandidateSource) -> bytes:
     ).digest()
 
 
+async def project_candidate_terminal(
+    db: AsyncSession,
+    run_id: UUID,
+    organization_id: int,
+    run: dict,
+    current: SlotClaim,
+    active: tuple[SlotClaim, ...],
+    completion: GenerationCompletion | SemanticCompletion,
+    *,
+    candidate_id: str = "",
+    lock: bool,
+) -> dict:
+    """Original accepted terminal overlay; proposed records grant no commit or model right."""
+    schemas = AssetSnapshotReader(db, schema_assets, SchemaAsset)
+    routes = AssetSnapshotReader(db, route_assets, RouteAsset)
+    if isinstance(completion, GenerationCompletion):
+        assertions = await evaluated_generation_assertions(
+            db, run_id, organization_id, completion, schemas
+        )
+        proposed = generation_candidate(completion, candidate_id, assertions)
+        gen = await read_generation_acceptance(
+            db,
+            run_id,
+            run,
+            current.checkpoint,
+            current.checkpoint.owner,
+            completion,
+            routes,
+            schemas,
+            proposed,
+            lock=lock,
+        )
+        policy, creation = gen.policy, gen.creation
+        progress = generation_completion_progress(
+            run["progress_json"], completion, policy, current.checkpoint.owner, candidate_claim=True
+        )
+    else:
+        assert isinstance(completion, SemanticCompletion)
+        sem = await read_semantic_acceptance(
+            db,
+            run_id,
+            organization_id,
+            current.checkpoint.owner,
+            completion,
+            run,
+            current.checkpoint,
+            routes,
+            lock=lock,
+        )
+        policy, creation = sem.policy, sem.creation
+        progress = semantic_completion_progress(
+            run["progress_json"], completion, policy, current.checkpoint.owner, candidate_claim=True
+        )
+    records = []
+    for table in (evaluation_dispatches, generation_completions, semantic_completions):
+        statement = select_records(table).where(table.c.run_id == str(run_id))
+        if lock:
+            statement = statement.with_for_update()
+        records.append(list((await db.execute(statement)).mappings().all()))
+    if isinstance(completion, GenerationCompletion):
+        virtual = generation_terminal_records(
+            run_id,
+            current,
+            active,
+            completion,
+            gen,
+            dispatches=records[0],
+            generations=records[1],
+            semantics=records[2],
+        )
+    else:
+        virtual = semantic_terminal_records(
+            run_id,
+            current,
+            active,
+            completion,
+            sem,
+            dispatches=records[0],
+            generations=records[1],
+            semantics=records[2],
+        )
+    plan = await project_candidate_records(
+        creation,
+        progress,
+        policy,
+        virtual.active,
+        32,
+        dispatches=list(virtual.dispatches),
+        generations=list(virtual.generations),
+        semantics=list(virtual.semantics),
+    )
+    target, cause = candidate_completion_target(progress, virtual.active, plan)
+    blocked = (
+        virtual_blocked_execution(virtual, progress, cause, plan.blocked)
+        if target == "blocked"
+        else None
+    )
+    progress = await candidate_completion_progress(
+        db,
+        run_id,
+        current,
+        progress,
+        current.checkpoint.owner,
+        completion.finished_at,
+        active=virtual.active,
+        plan=plan,
+        blocked_evidence=blocked,
+    )
+    return progress
+
+
 async def _load(
     db: AsyncSession,
     reference: CandidateResponseReference,
@@ -348,100 +459,19 @@ async def _load(
         **({"candidate_id": candidate_id} if cp.kind == "generation" else {}),
     )
     completion = value.completion
-    if isinstance(completion, GenerationCompletion):
-        assertions = await evaluated_generation_assertions(
-            db, reference.run_id, reference.organization_id, completion, schemas
-        )
-        proposed = generation_candidate(completion, value.candidate_id, assertions)
-        gen = await read_generation_acceptance(
-            db,
-            reference.run_id,
-            run,
-            current.checkpoint,
-            cp.owner,
-            completion,
-            routes,
-            schemas,
-            proposed,
-            lock=lock,
-        )
-        policy, creation = gen.policy, gen.creation
-        progress = generation_completion_progress(
-            run["progress_json"], completion, policy, cp.owner, candidate_claim=True
-        )
-        first_candidate = value.candidate_id
-    else:
-        assert isinstance(completion, SemanticCompletion)
-        sem = await read_semantic_acceptance(
-            db,
-            reference.run_id,
-            reference.organization_id,
-            cp.owner,
-            completion,
-            run,
-            current.checkpoint,
-            routes,
-            lock=lock,
-        )
-        policy, creation = sem.policy, sem.creation
-        progress = semantic_completion_progress(
-            run["progress_json"], completion, policy, cp.owner, candidate_claim=True
-        )
-        first_candidate = cp.candidate_id
-    records = []
-    for table in (evaluation_dispatches, generation_completions, semantic_completions):
-        statement = select_records(table).where(table.c.run_id == str(reference.run_id))
-        if lock:
-            statement = statement.with_for_update()
-        records.append(list((await db.execute(statement)).mappings().all()))
-    if isinstance(completion, GenerationCompletion):
-        virtual = generation_terminal_records(
-            reference.run_id,
-            current,
-            source.active,
-            completion,
-            gen,
-            dispatches=records[0],
-            generations=records[1],
-            semantics=records[2],
-        )
-    else:
-        virtual = semantic_terminal_records(
-            reference.run_id,
-            current,
-            source.active,
-            completion,
-            sem,
-            dispatches=records[0],
-            generations=records[1],
-            semantics=records[2],
-        )
-    plan = await project_candidate_records(
-        creation,
-        progress,
-        policy,
-        virtual.active,
-        32,
-        dispatches=list(virtual.dispatches),
-        generations=list(virtual.generations),
-        semantics=list(virtual.semantics),
-    )
-    target, cause = candidate_completion_target(progress, virtual.active, plan)
-    blocked = (
-        virtual_blocked_execution(virtual, progress, cause, plan.blocked)
-        if target == "blocked"
-        else None
-    )
-    progress = await candidate_completion_progress(
+    progress = await project_candidate_terminal(
         db,
         reference.run_id,
+        reference.organization_id,
+        run,
         current,
-        progress,
-        cp.owner,
-        completion.finished_at,
-        active=virtual.active,
-        plan=plan,
-        blocked_evidence=blocked,
+        source.active,
+        completion,
+        candidate_id=value.candidate_id,
+        lock=lock,
+    )
+    first_candidate = (
+        value.candidate_id if isinstance(completion, GenerationCompletion) else cp.candidate_id
     )
     operation = CandidateCompletionOperation(
         reference,

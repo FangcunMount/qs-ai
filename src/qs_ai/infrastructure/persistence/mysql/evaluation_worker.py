@@ -16,10 +16,15 @@ from qs_ai.application.operations.diagnostics import attempt_context, operation
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
 from qs_ai.infrastructure.persistence.mysql.evaluation_cancellation import finish_cancellation
 from qs_ai.infrastructure.persistence.mysql.evaluation_candidate_recovery import (
+    CandidateRecoveryDispatch,
     recover_next_candidate,
 )
 from qs_ai.infrastructure.persistence.mysql.evaluation_progress import execute_preflight
-from qs_ai.infrastructure.persistence.mysql.evaluation_scan import RecoveryCursor, recover_next
+from qs_ai.infrastructure.persistence.mysql.evaluation_scan import (
+    RecoveryCursor,
+    RecoveryDispatch,
+    recover_next,
+)
 from qs_ai.infrastructure.persistence.mysql.evaluation_step import PreparedStep
 from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_checkpoints,
@@ -47,6 +52,9 @@ class EvaluationWorker:
         preflight_dispatch: Callable[[UUID, int, int], Awaitable[None]] | None = None,
         prepare_dispatch: Callable[[UUID, int, int], Awaitable[PreparedStep]] | None = None,
         candidate_runtime: CandidateRuntime | None = None,
+        cancel_drain_dispatch: Callable[[ManagementScope, datetime], Awaitable[bool]] | None = None,
+        serial_recovery_dispatch: RecoveryDispatch | None = None,
+        candidate_recovery_dispatch: CandidateRecoveryDispatch | None = None,
     ) -> None:
         if type(candidate_limit) is not int or not 1 <= candidate_limit <= 32:
             raise ValueError("Invalid candidate concurrency")
@@ -63,6 +71,9 @@ class EvaluationWorker:
         ):
             raise ValueError("Candidate runtime must retain the original worker host and limit")
         self._candidate_runtime = candidate_runtime
+        self._cancel_drain_dispatch = cancel_drain_dispatch
+        self._serial_recovery_dispatch = serial_recovery_dispatch
+        self._candidate_recovery_dispatch = candidate_recovery_dispatch
         self.recovery_cursor = recovery_cursor if recovery_cursor is not None else RecoveryCursor()
 
     async def once(self) -> bool:
@@ -75,10 +86,16 @@ class EvaluationWorker:
             self.owner,
             self.clock(),
             self.recovery_cursor,
+            dispatch=self._serial_recovery_dispatch,
         ):
             return True
         if await recover_next_candidate(
-            self.transactions, self.routes, self.schemas, self.clock(), self.recovery_cursor
+            self.transactions,
+            self.routes,
+            self.schemas,
+            self.clock(),
+            self.recovery_cursor,
+            dispatch=self._candidate_recovery_dispatch,
         ):
             return True
         if await self._drain_cancellations():
@@ -227,6 +244,10 @@ class EvaluationWorker:
         scope = ManagementScope(
             UUID(row["run_id"]), row["organization_id"], int(intent["actor"].removeprefix("user:"))
         )
+        if self._cancel_drain_dispatch is not None:
+            # This poll owns only the read hint. The Sender owns its separately
+            # guarded original root, after all half messages are prepared.
+            return await self._cancel_drain_dispatch(scope, self.clock())
         async with self.transactions.open() as db:
             changed = await finish_cancellation(db, scope, self.clock())
             await db.commit()
