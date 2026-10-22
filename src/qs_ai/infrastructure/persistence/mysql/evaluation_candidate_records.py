@@ -6,7 +6,12 @@ from typing import Any
 from uuid import UUID
 
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict
+from qs_ai.domain.evaluation.completion import GenerationCompletion
 from qs_ai.domain.evaluation.semantic_completion import SemanticCompletion
+from qs_ai.infrastructure.persistence.mysql.evaluation_completions import (
+    GenerationAcceptance,
+    generation_terminal_values,
+)
 from qs_ai.infrastructure.persistence.mysql.evaluation_semantic import (
     SemanticAcceptance,
     semantic_terminal_values,
@@ -139,3 +144,49 @@ def virtual_blocked_execution(
             raise CheckpointConflict("Candidate block lacks failed terminal evidence")
         row = rows[0]
     return row["execution_id"], datetime.fromisoformat(row["evidence_json"]["finished_at"])
+
+
+def generation_terminal_records(
+    run_id: UUID,
+    claim: SlotClaim,
+    active: tuple[SlotClaim, ...],
+    completion: GenerationCompletion,
+    accepted: GenerationAcceptance,
+    *,
+    dispatches: list[Any],
+    generations: list[Any],
+    semantics: list[Any],
+) -> CandidateTerminalRecords:
+    """Append the original proposed generation terminal; never claim or commit work."""
+    cp = claim.checkpoint
+    if (
+        claim.run_id != run_id
+        or cp.kind != "generation"
+        or cp.phase != "dispatching"
+        or not completion.matches_checkpoint(cp, cp.owner)
+        or sum(c == claim for c in active) != 1
+        or any(c.run_id != run_id for c in active)
+        or len({(c.checkpoint.case_id, c.checkpoint.slot_ordinal) for c in active}) != len(active)
+        or any(row["run_id"] != str(run_id) for row in dispatches + generations + semantics)
+        or (accepted.candidate is not None) != (completion.status == "succeeded")
+    ):
+        raise CheckpointConflict("Exact scoped candidate generation source required")
+    terminal_dispatches(dispatches, generations + semantics, active)
+    if any(
+        row["execution_id"] == completion.execution_id
+        or row["invocation_id"] == completion.invocation_id
+        for row in generations
+    ):
+        raise CheckpointConflict("Candidate generation terminal already exists")
+    if accepted.candidate is not None and (
+        accepted.candidate["generation_execution_id"] != completion.execution_id
+        or accepted.candidate["normalized_output_fingerprint"] != completion.normalized_fingerprint
+        or accepted.candidate["review_ready"]
+    ):
+        raise CheckpointConflict("Original proposed generation candidate differs")
+    return CandidateTerminalRecords(
+        tuple(c for c in active if c != claim),
+        tuple(dispatches),
+        (*generations, generation_terminal_values(run_id, completion, accepted)),
+        tuple(semantics),
+    )

@@ -33,6 +33,7 @@ from qs_ai.infrastructure.persistence.mysql.evaluation_step import (
     finish_step,
     prepare_step,
 )
+from qs_ai.infrastructure.workflow_transport.candidate_runtime import CandidateRuntime
 
 
 class EvaluationState(TypedDict, total=False):
@@ -56,9 +57,16 @@ async def execute_step(
     candidate_limit: int | None = None,
     capacity: ModelCapacity | None = None,
     prepare_dispatch: Callable[[UUID, int, int], Awaitable[PreparedStep]] | None = None,
+    candidate_runtime: CandidateRuntime | None = None,
 ) -> CheckpointState:
     if prepare_dispatch is not None and candidate_limit is not None:
         raise ValueError("Serial transaction dispatcher cannot own candidate claims")
+    if candidate_runtime is not None and (
+        candidate_limit is None
+        or candidate_limit != candidate_runtime.limit
+        or candidate_runtime.transactions is not transactions
+    ):
+        raise ValueError("Candidate runtime must retain the original host and concurrency budget")
     heartbeat: asyncio.Task[None] | None = None
     token: CapacityToken | None = None
 
@@ -75,7 +83,9 @@ async def execute_step(
     async def prepare(state: EvaluationState) -> EvaluationState:
         nonlocal heartbeat, token
         with operation("graph.evaluation.prepare", "evaluation"):
-            if prepare_dispatch is None:
+            if candidate_runtime is not None:
+                value = await candidate_runtime.prepare(run_id, expected_version, organization_id)
+            elif prepare_dispatch is None:
                 value = await prepare_step(
                     transactions,
                     run_id,
@@ -91,6 +101,21 @@ async def execute_step(
             else:
                 value = await prepare_dispatch(run_id, expected_version, organization_id)
             token = value.capacity_token
+            if candidate_runtime is not None and (
+                value.claim is None
+                or value.state.run_id != run_id
+                or value.claim.run_id != run_id
+                or value.state.version != expected_version + 1
+                or value.claim.version != value.state.version
+                or value.cp != value.state.checkpoint
+                or value.cp != value.claim.checkpoint
+                or value.cp.owner != owner
+                or value.cp.phase != "dispatching"
+                or value.cp.dispatch_started_at != value.at
+                or (value.execution_id, value.invocation_id)
+                != (value.cp.execution_id, value.cp.invocation_id)
+            ):
+                raise CheckpointConflict("Original candidate dispatch handoff differs from worker")
             if prepare_dispatch is not None and (
                 value.state.run_id != run_id
                 or value.state.version != expected_version + 2
@@ -133,16 +158,20 @@ async def execute_step(
             if heartbeat is not None and heartbeat.done():
                 heartbeat.result()
             finished = max(clock(), prepared.at)
+            response = EvaluationResponse(state["response"], state["failure"], finished)
             if prepared.claim is not None:
                 async with transactions.open() as db:
                     await save_response(
                         db,
                         organization_id,
                         prepared.claim,
-                        EvaluationResponse(state["response"], state["failure"], finished),
+                        response,
                         at=clock(),
                     )
                     await db.commit()
+            if candidate_runtime is not None:
+                result = await candidate_runtime.complete(organization_id, prepared, response)
+                return {"result": result}
             result = await finish_step(
                 transactions,
                 run_id,

@@ -2366,3 +2366,203 @@ async def test_actual_serial_semantic_cancel_requires_explicit_old_abort_replan(
         b.runtime.release.set()
         await asyncio.gather(task, *([next_task] if next_task else []), return_exceptions=True)
         await _clean_serial_terminal(p)
+
+
+@pytest.mark.parametrize("outcome", ["success", "unknown"])
+@pytest.mark.parametrize("kind", ["generation", "semantic"])
+async def test_actual_candidate_graph_halves_first_response_and_final_unknown(
+    governance_broker, resolution_ready, monkeypatch, outcome, kind
+):
+    from qs_ai.application.interpretation.provider import ProviderFailure
+    from qs_ai.infrastructure.persistence.mysql.evaluation_candidate_response import (
+        read_candidate_response,
+    )
+    from qs_ai.infrastructure.persistence.mysql.evaluation_slot_claims import active_claims
+    from qs_ai.infrastructure.persistence.mysql.schema import (
+        evaluation_response_receipts,
+        evaluation_slot_claims,
+    )
+    from qs_ai.infrastructure.workflow_transport.candidate_completion_sender import (
+        CandidateCompletionSender,
+    )
+    from qs_ai.infrastructure.workflow_transport.candidate_completion_state import (
+        CandidateCompletionPlanner,
+        read_candidate_completion_plan,
+    )
+    from qs_ai.infrastructure.workflow_transport.candidate_dispatch_sender import (
+        CandidateDispatchPending,
+        CandidateDispatchSender,
+    )
+    from qs_ai.infrastructure.workflow_transport.candidate_dispatch_state import (
+        CandidateDispatchPlanner,
+        candidate_dispatch_intent,
+        read_candidate_dispatch_plan,
+    )
+    from qs_ai.infrastructure.workflow_transport.candidate_runtime import CandidateRuntime
+    from qs_ai.infrastructure.workflows.evaluation import execute_step
+    from tests.integration.test_evaluation_candidate_execution import ConcurrentGateway
+    from tests.integration.test_evaluation_step import AT
+    from tests.integration.test_evaluation_unknowns import snapshot
+
+    b = governance_broker
+    tx, run_id, _, routes, schemas = resolution_ready
+    async with tx.open() as db:
+        await db.execute(
+            update(evaluation_runs)
+            .where(evaluation_runs.c.run_id == str(run_id))
+            .values(execution_mode="candidate_v2")
+        )
+        await db.commit()
+    gateway = ConcurrentGateway(resolution_ready)
+    gateway.release.set()
+    version = 3
+    if kind == "semantic":
+        generated = await execute_step(
+            tx,
+            run_id,
+            version,
+            1,
+            "worker:seed",
+            gateway,
+            routes,
+            schemas,
+            clock=lambda: AT,
+            candidate_limit=3,
+        )
+        version = generated.version
+    calls = len(gateway.calls)
+    if outcome == "unknown":
+        actual_generate = gateway.generate_messages
+
+        async def unknown(*args, **kwargs):
+            await actual_generate(*args, **kwargs)
+            raise ProviderFailure("provider_timeout", retryable=True, result_unknown=True)
+
+        gateway.generate_messages = unknown
+    at = AT + timedelta(seconds=2)
+    dispatch = CandidateDispatchSender(
+        b.host.tx,
+        b.host.archives,
+        b.runtime,
+        "worker:real-candidate",
+        CandidateDispatchPlanner(
+            b.host.tx,
+            schemas,
+            signing_key=b.host.keys["ai.sign"],
+            recipient_key=b.host.keys["qs.encrypt"],
+            limit=3,
+            clock=lambda: at,
+        ),
+    )
+    completion = CandidateCompletionSender(
+        b.host.tx,
+        b.host.archives,
+        b.runtime,
+        CandidateCompletionPlanner(
+            b.host.tx, signing_key=b.host.keys["ai.sign"], recipient_key=b.host.keys["qs.encrypt"]
+        ),
+    )
+    runtime = CandidateRuntime(dispatch, completion)
+    b.runtime.pause = True
+    original_execute = b.runtime.execute
+    terminal_entered = asyncio.Event()
+
+    async def phased(execution, local):
+        if b.runtime.results:
+            b.runtime.entered.clear()
+            b.runtime.release.clear()
+            terminal_entered.set()
+        return await original_execute(execution, local)
+
+    monkeypatch.setattr(b.runtime, "execute", phased)
+    before = await snapshot(tx, run_id)
+    task = asyncio.create_task(
+        execute_step(
+            b.host.tx,
+            run_id,
+            version,
+            1,
+            dispatch.owner,
+            gateway,
+            routes,
+            schemas,
+            clock=lambda: at + timedelta(seconds=1),
+            candidate_limit=3,
+            candidate_runtime=runtime,
+        )
+    )
+    try:
+        await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
+        intent = candidate_dispatch_intent(run_id, version, 1)
+        _, _, first_dispatch = read_candidate_dispatch_plan(intent, b.host.executions[-1].plan)
+        b.empty_poll.clear()
+        await asyncio.wait_for(b.empty_poll.wait(), timeout=20)
+        assert first_dispatch.envelope().message_id not in b.messages
+        assert await snapshot(tx, run_id) == before and len(gateway.calls) == calls
+        passed("candidate_dispatch_half_invisible_" + kind + "_" + outcome)
+        actual_end = b.sender._client.end_transaction
+
+        def discard(*args, **kwargs):
+            actual_end(*args, **kwargs)
+            raise TimeoutError("client discarded completed candidate final reply")
+
+        with monkeypatch.context() as patch:
+            patch.setattr(b.sender._client, "end_transaction", discard)
+            b.runtime.release.set()
+            await asyncio.wait_for(terminal_entered.wait(), timeout=30)
+            await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
+            owned = b.host.executions[-1]
+            # Decode the first frozen intent without rebuilding a candidate or wire.
+            from qs_ai.infrastructure.workflow_transport.evaluation_state_plan import (
+                EvaluationStateFacts,
+            )
+            from qs_ai.infrastructure.workflow_transport.transaction_archive import decode_branch
+
+            facts = EvaluationStateFacts.decode(decode_branch(owned.plan.branches[0]).context)
+            _, operation = read_candidate_completion_plan(facts.intent, owned.plan)
+            _, first = read_evaluation_state_plan(facts.intent, owned.plan)
+            b.empty_poll.clear()
+            await asyncio.wait_for(b.empty_poll.wait(), timeout=20)
+            assert first.envelope().message_id not in b.messages and len(gateway.calls) == calls + 1
+            current = await snapshot(tx, run_id)
+            assert current[0][2]["version"] == version + 1
+            async with tx.open() as db:
+                claims = await active_claims(db, run_id, lock=False)
+                response = await read_candidate_response(db, 1, claims[0])
+            assert response is not None and response.reference == operation.reference
+            assert bool(operation.candidate_id) == (outcome == "success" or kind == "semantic")
+            passed("candidate_completion_half_invisible_" + kind + "_" + outcome)
+            b.runtime.release.set()
+            state = await task
+        assert state.version == version + 2 and state.checkpoint is None
+        assert b.runtime.calls == len(b.host.executions) == len(b.runtime.results) == 2
+        assert all(result.local == LocalOutcome.COMMITTED for result in b.runtime.results)
+        assert all(
+            branch.final == FinalOutcome.UNKNOWN
+            for result in b.runtime.results
+            for branch in result.branches
+        )
+        passed("candidate_final_unknown_preserves_dispatch_and_terminal_commit")
+        await b.consumed(SimpleNamespace(intent=intent))
+        await b.consumed(SimpleNamespace(intent=facts.intent))
+        assert await completion(response.reference) == state
+        with pytest.raises(CandidateDispatchPending):
+            await dispatch(run_id, version, 1)
+        assert len(gateway.calls) == calls + 1 and b.runtime.calls == 2
+        passed("candidate_duplicate_never_reinvokes_provider_or_reseals")
+        after = await snapshot(tx, run_id)
+        assert after[0][0]["progress_json"]["status"] == (
+            "blocked" if outcome == "unknown" else "collecting"
+        )
+        async with tx.open() as db:
+            assert not await active_claims(db, run_id, lock=False)
+        b.recorder.flush.assert_not_called()
+        passed("candidate_original_roots_first_response_archive_and_witness")
+    finally:
+        b.runtime.release.set()
+        await asyncio.gather(task, return_exceptions=True)
+        async with tx.open() as db:
+            for table in (evaluation_response_receipts, evaluation_slot_claims):
+                await db.execute(delete(table).where(table.c.run_id == str(run_id)))
+            await db.commit()
+        await clean_governance_sequence(b.host, run_id)

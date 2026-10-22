@@ -3,7 +3,7 @@
 import asyncio
 import json
 import re
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from uuid import UUID
 
 from sqlalchemy import select, update
@@ -17,6 +17,7 @@ from qs_ai.application.interpretation.schema_assets import SchemaReader
 from qs_ai.domain.evaluation.checkpoint import ExecutionCheckpoint
 from qs_ai.domain.evaluation.completion import GenerationCompletion
 from qs_ai.domain.evaluation.identity import EvidenceReleaseIdentity, FrozenContractRef
+from qs_ai.domain.evaluation.policy import ExecutionPolicy
 from qs_ai.domain.evaluation.preflight import AssertionReceipt
 from qs_ai.infrastructure.persistence.mysql.completion_records import (
     generation_completions as table,
@@ -96,21 +97,18 @@ async def load_serial_generation_source(
     return SerialGenerationSource(expected_version, cp, run)
 
 
-async def complete_generation(
-    db: AsyncSession,
-    run_id: UUID,
-    expected_version: int,
-    organization_id: int,
-    owner: str,
-    completion: GenerationCompletion,
-    routes: RouteReader,
-    schemas: SchemaReader,
-    *,
-    candidate_id: str = "",
-    assertions: tuple[AssertionReceipt, ...] = (),
-    claim: SlotClaim | None = None,
-) -> CheckpointState:
-    """Caller owns commit/rollback and trusted assertion computation; no model call here."""
+@dataclass(frozen=True)
+class GenerationAcceptance:
+    policy: ExecutionPolicy = field(repr=False)
+    candidate: dict | None = field(repr=False)
+    evidence: dict = field(repr=False)
+    creation: dict = field(repr=False)
+
+
+def generation_candidate(
+    completion: GenerationCompletion, candidate_id: str, assertions: tuple[AssertionReceipt, ...]
+) -> dict | None:
+    """Original successful-candidate input boundary, before original source reads."""
     candidate = None
     if completion.status == "succeeded":
         if (
@@ -130,18 +128,29 @@ async def complete_generation(
         }
     elif candidate_id or assertions:
         raise ValueError("Failed generation cannot create candidate evidence")
-    run: dict | RowMapping | None
-    cp: ExecutionCheckpoint | None
-    if claim is not None:
-        run, expected_version, claim = await completion_owner(db, run_id, organization_id, claim)
-        cp = claim.checkpoint
-        if not completion.matches_checkpoint(cp, owner):
-            raise CheckpointConflict("Completion differs from candidate ownership")
-    else:
-        source = await load_serial_generation_source(
-            db, run_id, expected_version, organization_id, owner, completion, lock=True
-        )
-        run, cp, expected_version = source.run, source.checkpoint, source.version
+    return candidate
+
+
+async def read_generation_acceptance(
+    db: AsyncSession,
+    run_id: UUID,
+    run: dict | RowMapping,
+    cp: ExecutionCheckpoint | None,
+    owner: str,
+    completion: GenerationCompletion,
+    routes: RouteReader,
+    schemas: SchemaReader,
+    candidate: dict | None,
+    *,
+    lock: bool,
+) -> GenerationAcceptance:
+    """Original slot/ledger/prior evidence/assets, without writes or model authority.
+
+    Candidate facts come from original deterministic assertion construction;
+    the original writer recomputes and validates them under its root ownership.
+    """
+    if cp is None or not completion.matches_checkpoint(cp, owner):
+        raise CheckpointConflict("Completion differs from candidate ownership")
     creation = json.loads(run["definition_json"])
     policy, _ = await asyncio.to_thread(frozen_policies, creation)
     if creation["execution_policy_json"] != policy.definition_json:
@@ -151,35 +160,28 @@ async def complete_generation(
         for s in creation["slots"]
     ):
         raise CheckpointConflict("Completion target is not a frozen slot")
-    ledger = (
-        await db.execute(
-            select(evaluation_dispatches.c.checkpoint_json)
-            .where(
-                evaluation_dispatches.c.run_id == str(run_id),
-                evaluation_dispatches.c.invocation_id == completion.invocation_id,
-            )
-            .with_for_update()
-        )
-    ).scalar_one_or_none()
+    ledger_query = select(evaluation_dispatches.c.checkpoint_json).where(
+        evaluation_dispatches.c.run_id == str(run_id),
+        evaluation_dispatches.c.invocation_id == completion.invocation_id,
+    )
+    if lock:
+        ledger_query = ledger_query.with_for_update()
+    ledger = (await db.execute(ledger_query)).scalar_one_or_none()
     dispatched = decode(ledger)
     if dispatched is None or not completion.matches_checkpoint(dispatched, owner):
         raise CheckpointConflict("Matching dispatch reservation required")
-    previous = (
-        (
-            await db.execute(
-                table.select()
-                .where(
-                    table.c.run_id == str(run_id),
-                    table.c.case_id == completion.case_id,
-                    table.c.slot_ordinal == completion.slot_ordinal,
-                )
-                .order_by(table.c.execution_ordinal)
-                .with_for_update()
-            )
+    previous_query = (
+        table.select()
+        .where(
+            table.c.run_id == str(run_id),
+            table.c.case_id == completion.case_id,
+            table.c.slot_ordinal == completion.slot_ordinal,
         )
-        .mappings()
-        .all()
+        .order_by(table.c.execution_ordinal)
     )
+    if lock:
+        previous_query = previous_query.with_for_update()
+    previous = (await db.execute(previous_query)).mappings().all()
     if any(r["candidate_id"] is not None for r in previous) or [
         r["execution_ordinal"] for r in previous
     ] != list(range(1, completion.execution_ordinal)):
@@ -195,20 +197,62 @@ async def complete_generation(
         del evidence[name]
     for name in ("started_at", "finished_at"):
         evidence[name] = evidence[name].isoformat()
-    await db.execute(
-        table.insert().values(
-            run_id=str(run_id),
-            execution_id=completion.execution_id,
-            invocation_id=completion.invocation_id,
-            case_id=completion.case_id,
-            slot_ordinal=completion.slot_ordinal,
-            execution_ordinal=completion.execution_ordinal,
-            candidate_id=candidate_id or None,
-            candidate_json=candidate,
-            evidence_json=evidence,
-            raw_output=completion.raw_output,
-            normalized_output=completion.normalized_output,
+    return GenerationAcceptance(policy, candidate, evidence, creation)
+
+
+def generation_terminal_values(
+    run_id: UUID, completion: GenerationCompletion, accepted: GenerationAcceptance
+) -> dict:
+    """Original insert fields for the writer and exact virtual candidate view."""
+    return dict(
+        run_id=str(run_id),
+        execution_id=completion.execution_id,
+        invocation_id=completion.invocation_id,
+        case_id=completion.case_id,
+        slot_ordinal=completion.slot_ordinal,
+        execution_ordinal=completion.execution_ordinal,
+        candidate_id=accepted.candidate["id"] if accepted.candidate is not None else None,
+        candidate_json=accepted.candidate,
+        evidence_json=accepted.evidence,
+        raw_output=completion.raw_output,
+        normalized_output=completion.normalized_output,
+    )
+
+
+async def complete_generation(
+    db: AsyncSession,
+    run_id: UUID,
+    expected_version: int,
+    organization_id: int,
+    owner: str,
+    completion: GenerationCompletion,
+    routes: RouteReader,
+    schemas: SchemaReader,
+    *,
+    candidate_id: str = "",
+    assertions: tuple[AssertionReceipt, ...] = (),
+    claim: SlotClaim | None = None,
+) -> CheckpointState:
+    """Caller owns commit/rollback and trusted assertion computation; no model call here."""
+    candidate = generation_candidate(completion, candidate_id, assertions)
+    run: dict | RowMapping | None
+    cp: ExecutionCheckpoint | None
+    if claim is not None:
+        run, expected_version, claim = await completion_owner(db, run_id, organization_id, claim)
+        cp = claim.checkpoint
+        if not completion.matches_checkpoint(cp, owner):
+            raise CheckpointConflict("Completion differs from candidate ownership")
+    else:
+        source = await load_serial_generation_source(
+            db, run_id, expected_version, organization_id, owner, completion, lock=True
         )
+        run, cp, expected_version = source.run, source.checkpoint, source.version
+    accepted = await read_generation_acceptance(
+        db, run_id, run, cp, owner, completion, routes, schemas, candidate, lock=True
+    )
+    policy = accepted.policy
+    await db.execute(
+        table.insert().values(**generation_terminal_values(run_id, completion, accepted))
     )
     progress = generation_completion_progress(
         run["progress_json"], completion, policy, owner, candidate_claim=claim is not None
@@ -241,6 +285,32 @@ async def complete_evaluated_generation(
     claim: SlotClaim | None = None,
 ) -> CheckpointState:
     """Compute original case assertions; callers cannot supply a passing assertion list."""
+    assertions = await evaluated_generation_assertions(
+        db, run_id, organization_id, completion, schemas
+    )
+    return await complete_generation(
+        db,
+        run_id,
+        expected_version,
+        organization_id,
+        owner,
+        completion,
+        routes,
+        schemas,
+        candidate_id=candidate_id,
+        assertions=assertions,
+        claim=claim,
+    )
+
+
+async def evaluated_generation_assertions(
+    db: AsyncSession,
+    run_id: UUID,
+    organization_id: int,
+    completion: GenerationCompletion,
+    schemas: SchemaReader,
+) -> tuple[AssertionReceipt, ...]:
+    """Original deterministic frozen-case assertions; no model invocation or root commit."""
     from qs_ai.infrastructure.persistence.mysql.evaluation_assets import (
         frozen_output_schema,
         prepare_run_case,
@@ -274,16 +344,4 @@ async def complete_evaluated_generation(
             frozen_suite=await stored_run_suite(db, creation),
             output_schema=await frozen_output_schema(release, schemas),
         )
-    return await complete_generation(
-        db,
-        run_id,
-        expected_version,
-        organization_id,
-        owner,
-        completion,
-        routes,
-        schemas,
-        candidate_id=candidate_id,
-        assertions=assertions,
-        claim=claim,
-    )
+    return assertions

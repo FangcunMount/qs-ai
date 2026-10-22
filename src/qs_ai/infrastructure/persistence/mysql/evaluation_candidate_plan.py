@@ -127,6 +127,24 @@ async def prepare_candidate(
         raise CheckpointConflict("Run is stopping or has no progress")
     active = await active_claims(db, run_id)
     plan = await candidate_plan(db, run_id, run, active, limit)
+    cp = candidate_checkpoint(run, plan, owner, execution_id, invocation_id, at, expires_at)
+    claim = await create_claim(db, run_id, cp, version + 1)
+    await save_checkpoint(db, CheckpointState(run_id, version + 1, None), version)
+    return claim
+
+
+def candidate_checkpoint(
+    run: dict,
+    plan: ParallelPlan,
+    owner: str,
+    execution_id: str,
+    invocation_id: str,
+    at: datetime,
+    expires_at: datetime,
+) -> ExecutionCheckpoint:
+    """Original next action and time rules; this projection creates no claim or permission."""
+    if not run["progress_json"] or run["progress_json"].get("cancel_requested"):
+        raise CheckpointConflict("Run is stopping or has no progress")
     if not plan.ready:
         raise CheckpointConflict("No candidate capacity or ready work")
     creation = json.loads(run["definition_json"])
@@ -136,7 +154,7 @@ async def prepare_candidate(
     if any(at < datetime.fromisoformat(value) for value in times):
         raise ValueError("Preparation cannot precede source evidence")
     action = plan.ready[0]
-    cp = ExecutionCheckpoint(
+    return ExecutionCheckpoint(
         execution_id,
         action.kind,
         action.case_id,
@@ -149,6 +167,3 @@ async def prepare_candidate(
         at,
         expires_at,
     )
-    claim = await create_claim(db, run_id, cp, version + 1)
-    await save_checkpoint(db, CheckpointState(run_id, version + 1, None), version)
-    return claim

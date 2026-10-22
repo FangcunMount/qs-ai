@@ -26,6 +26,7 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
     evaluation_runs,
     evaluation_slot_claims,
 )
+from qs_ai.infrastructure.workflow_transport.candidate_runtime import CandidateRuntime
 from qs_ai.infrastructure.workflows.evaluation import execute_step
 
 
@@ -45,6 +46,7 @@ class EvaluationWorker:
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
         preflight_dispatch: Callable[[UUID, int, int], Awaitable[None]] | None = None,
         prepare_dispatch: Callable[[UUID, int, int], Awaitable[PreparedStep]] | None = None,
+        candidate_runtime: CandidateRuntime | None = None,
     ) -> None:
         if type(candidate_limit) is not int or not 1 <= candidate_limit <= 32:
             raise ValueError("Invalid candidate concurrency")
@@ -55,6 +57,12 @@ class EvaluationWorker:
         self.owner, self.enabled, self.clock = owner, enabled, clock
         self._preflight_dispatch = preflight_dispatch
         self._prepare_dispatch = prepare_dispatch
+        if candidate_runtime is not None and (
+            candidate_runtime.transactions is not transactions
+            or candidate_runtime.limit != candidate_limit
+        ):
+            raise ValueError("Candidate runtime must retain the original worker host and limit")
+        self._candidate_runtime = candidate_runtime
         self.recovery_cursor = recovery_cursor if recovery_cursor is not None else RecoveryCursor()
 
     async def once(self) -> bool:
@@ -148,7 +156,12 @@ class EvaluationWorker:
                         self.schemas,
                         clock=self.clock,
                         capacity=self.capacity,
-                        prepare_dispatch=self._prepare_dispatch,
+                        prepare_dispatch=self._prepare_dispatch
+                        if row["execution_mode"] != "candidate_v2"
+                        else None,
+                        candidate_runtime=self._candidate_runtime
+                        if row["execution_mode"] == "candidate_v2"
+                        else None,
                         candidate_limit=self.candidate_limit
                         if row["execution_mode"] == "candidate_v2"
                         else None,
