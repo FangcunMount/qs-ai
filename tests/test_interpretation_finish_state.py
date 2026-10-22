@@ -179,4 +179,23 @@ async def test_lease_heartbeat_does_not_change_business_source_hash(frozen):
     job["lease_until"] = "extended by original heartbeat"
     assert module._source_hash(claim.session, job) == first
     job["fence_token"] += 1
+    assert module._source_hash(claim.session, job) == first
+    job["attempt"] += 1
     assert module._source_hash(claim.session, job) != first
+
+
+async def test_finish_identity_survives_only_operational_lease_handover(frozen):
+    p = frozen
+    renewed = replace(p.incoming.claim, fence=p.incoming.claim.fence + 1)
+    recovered = module.InterpretationFinishInput(renewed, p.incoming.result)
+    assert recovered.intent(p.intent.request_id) == p.intent
+    assert module.read_finish_plan(recovered, p.intent, p.plan) == module.read_finish_plan(
+        p.incoming, p.intent, p.plan
+    )
+    changed = replace(
+        renewed, session=replace(renewed.session, version=renewed.session.version + 1)
+    )
+    assert (
+        module.InterpretationFinishInput(changed, p.incoming.result).input_hash
+        != recovered.input_hash
+    )

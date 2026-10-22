@@ -58,6 +58,8 @@ class OriginalRootRuntime:
     def __init__(self, host):
         self.host, self.store = host, host.store
         self.terminal_attempts = []
+        self.terminal_refusals = 1
+        self.abort_terminal = True
 
     def stats(self):
         return {"ready": True}
@@ -77,8 +79,9 @@ class OriginalRootRuntime:
     async def execute(self, owned, local):
         if "/finish/" in owned.plan.idempotency_key:
             self.terminal_attempts.append(owned)
-            if len(self.terminal_attempts) == 1:
-                assert await self.store.abort(owned)
+            if len(self.terminal_attempts) <= self.terminal_refusals:
+                if self.abort_terminal:
+                    assert await self.store.abort(owned)
                 raise TransactionSendError(
                     "controlled terminal preparation refusal", Result(LocalOutcome.NOT_STARTED, ())
                 )
@@ -143,7 +146,7 @@ async def terminal_snapshot(p):
     return dict(call=call, job=job, session=session, artifact=artifact)
 
 
-async def first_terminal_refusal(p):
+async def first_terminal_refusal(p, *, state=State.ABORTED):
     with pytest.raises(TransactionSendError):
         await p.worker.once(60)
     before = await terminal_snapshot(p)
@@ -156,7 +159,7 @@ async def first_terminal_refusal(p):
     incoming = InterpretationFinishInput(claim, result)
     request = incoming.intent(await finish_request_id(p.host.kit.store, incoming)).request
     previous = await p.runtime.store.lookup(request)
-    assert previous.state == State.ABORTED
+    assert previous.state == state
     return before, previous
 
 
@@ -167,7 +170,7 @@ async def test_original_worker_live_claim_ordinary_finish_leaves_aborted_termina
     before, previous = await first_terminal_refusal(p)
     args = p.finish.await_args.args
     with pytest.raises(InterpretationFinishPending):
-        await p.adapter.finish(*args)
+        await p.adapter._finish(*args)  # Bare sender retains explicit retry semantics.
     assert await terminal_snapshot(p) == before
     assert p.gateway.calls == 1 and len(p.runtime.terminal_attempts) == 1
     plan = previous.execution.plan
@@ -175,18 +178,18 @@ async def test_original_worker_live_claim_ordinary_finish_leaves_aborted_termina
     assert (await p.runtime.store.lookup(request)).state == State.ABORTED
 
 
-async def test_original_worker_new_lease_reuses_model_response_but_conflicts_with_old_finish(
-    original_worker,
-):
+async def test_original_worker_new_lease_finishes_with_original_response(original_worker):
     p = original_worker
-    before, _ = await first_terminal_refusal(p)
+    before, previous = await first_terminal_refusal(p)
     old_claim, old_result = p.finish.await_args.args
     await expire(p.host.kit, old_claim.session.id)
-    with pytest.raises(ValueError, match="same idempotency key has different business input"):
-        await p.worker.once(60)
+    assert await p.worker.once(60)
     after = await terminal_snapshot(p)
     claim, result = p.finish.await_args.args
-    assert claim.fence > old_claim.fence and claim.session.version > old_claim.session.version
+    assert claim.fence > old_claim.fence and claim.session.version == old_claim.session.version
     assert after["call"] == before["call"] and result.artifact == old_result.artifact
-    assert after["artifact"] is None and after["job"]["attempt"] == before["job"]["attempt"] + 1
-    assert p.gateway.calls == 1 and len(p.runtime.terminal_attempts) == 1
+    assert after["artifact"] == old_result.artifact.id
+    assert after["job"]["attempt"] == before["job"]["attempt"]
+    assert after["session"]["version"] == before["session"]["version"] + 1
+    assert p.gateway.calls == 1 and len(p.runtime.terminal_attempts) == 2
+    assert p.runtime.terminal_attempts[-1].plan == previous.execution.plan

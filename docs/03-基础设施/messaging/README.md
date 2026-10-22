@@ -22,6 +22,14 @@ RocketMQ 终态交接携带 provider、原始 Wire 和实际物理来源，宿�
 
 非空 transactions 现在选择完整事务装配：APP `TransactionServices` 借用同一个 primary engine 和 Sender；REQUEST 保留独立 Transactions。command admission、interpretation 执行、evaluation 管理/创建、Solution 准备及 serial/candidate 工作流使用原根事务适配。普通/旧配置继续使用原 Outbox/Relay。此源码候选的原生和 Broker 门禁仍需单独通过，不能据构造成功宣称业务已迁移。全局进度以 [infra M3 总表](https://github.com/FangcunMount/infra/blob/main/docs/server/rocketmq-m3-execution.md) 为准。
 
+## T18 当前协议的解释终态恢复
+
+事务模式的 [`claim_finalization`](../../../src/qs_ai/infrastructure/persistence/mysql/interpretation_finalization_claim.py) 只接管 `response_received` 且两份租约均过期的当前 Run。它按 Session → Job → Lease 锁定，验证原响应和仍有效的 participant slot，只推进执行 fence/到期时间；不改变业务 version/attempt，不新增 running 事件，不重新占用模型或 participant 配额。普通 claim 的原根也重验响应状态，避免扫描后才保存响应的竞争重新进入业务领取。
+
+解释 finish 的稳定输入排除操作性 lease fence，仍绑定完整业务 Session、Run、答案及结果。当前 Claim 在原根中验证真实 fence；失去租约的旧 writer 不能写入。宿主显式 `resume` 仅在精确 Aborted 后授权 SDK retry，复用首次 plan/wire/事件/Artifact；Prepared/Unknown 保持 Pending，Committed 校验精确 witness/archive。权限、取消或业务事实变化不授权换键、重调模型或发布旧 Artifact。
+
+本批直接收敛尚未投产的宿主协议，不新增中间协议在线兼容；当前版本内的重启恢复继续保留。旧实现清理由 [infra M4](https://github.com/FangcunMount/infra/blob/main/docs/server/rocketmq-m4-execution.md)记录。真实 MySQL/独立进程/Broker 故障证据分别由 infra M3 总表记录，不把本地测试或受控发送失败算作生产验收。
+
 ## 显式事务模式的默认装配与回执
 
 `TransactionProvider` 只在显式 owner 配置下提供共享 Sender、档案和固定进程 owner；构造不连接数据库或 Broker。`transaction_evaluation_worker` 一次绑定 preflight、串行/candidate 派发与终态、首响应恢复、旧 Aborted 的显式恢复及取消排空，保留原 ModelCapacity、游标和每请求事务。串行模型调用前必须通过事务 dispatch；首响应另存原根后才发送终态，MQ 故障不增加 provider invocation。

@@ -67,9 +67,13 @@ class InterpretationFinishInput:
 
     @property
     def input_hash(self) -> bytes:
+        # Execution fencing is checked afresh on the original root. It is not
+        # business input and cannot change the first terminal message on takeover.
+        claim = asdict(self.claim)
+        del claim["fence"]
         return hashlib.sha256(
             b"qs-ai-interpretation-finish/v1\0"
-            + _json({"claim": asdict(self.claim), "result": asdict(self.result)})
+            + _json({"claim": claim, "result": asdict(self.result)})
         ).digest()
 
     def intent(self, request_id: str) -> InterpretationStateIntent:
@@ -84,8 +88,8 @@ class InterpretationFinishInput:
 
 
 def _source_hash(session: Session, job: Any, question_count: int = 0) -> str:
-    # Heartbeats may extend lease_until while halves are prepared. This is not
-    # a business-input change. Authority is freshly checked by the original guard.
+    # Heartbeat expiry and operational fencing do not change business input.
+    # The original live-Claim guard checks the actual fence before every write.
     return hashlib.sha256(
         _json(
             {
@@ -98,7 +102,6 @@ def _source_hash(session: Session, job: Any, question_count: int = 0) -> str:
                         "session_id",
                         "run_id",
                         "status",
-                        "fence_token",
                         "attempt",
                         "answer",
                         "skipped",

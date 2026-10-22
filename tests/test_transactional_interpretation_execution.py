@@ -20,7 +20,13 @@ from qs_ai.infrastructure.workflow_transport.transactional_interpretation_execut
 
 
 @pytest.fixture
-def original():
+def original(monkeypatch):
+    from qs_ai.infrastructure.workflow_transport import (
+        transactional_interpretation_execution as module,
+    )
+
+    finalization = AsyncMock(return_value=None)
+    monkeypatch.setattr(module, "claim_finalization", finalization)
     opened, events = [], []
     db = object()
 
@@ -163,5 +169,25 @@ async def test_original_lease_evidence_and_finalization_keep_their_separate_owne
     assert await p.adapter.evidence(claim) is p.store.evidence.return_value
     await p.adapter.finish(claim, result)
     p.store.renew.assert_awaited_once_with(claim, 30)
-    p.adapter._finish.assert_awaited_once_with(claim, result)
+    p.adapter._finish.resume.assert_awaited_once_with(claim, result)
+    p.adapter._finish.assert_not_called()
+    p.claims.assert_not_called()
+
+
+async def test_finalization_lease_is_not_a_second_running_event_or_business_attempt(original):
+    p = original
+    p.finalization.return_value = object()
+    assert await p.adapter.claim(30) is p.finalization.return_value
+    p.finalization.assert_awaited_once_with(p.store, "job1", "session1", 30)
+    p.claims.source.assert_not_called()
+    p.claims.assert_not_called()
+    p.claims.retry.assert_not_called()
+    p.protocol_store.lookup.assert_not_called()
+
+
+async def test_conflicting_finalization_evidence_cannot_fall_back_to_ordinary_claim(original):
+    p = original
+    p.finalization.side_effect = LeaseLost("exact response or existing capacity conflicts")
+    assert await p.adapter.claim(30) is None
+    p.claims.source.assert_not_called()
     p.claims.assert_not_called()
