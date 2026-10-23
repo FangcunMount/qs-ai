@@ -662,3 +662,5 @@ T23 的[成对宿主夹具](../../../tests/integration/rocketmq_paired_host.py)�
 Broker硬故障门禁采用协调实例恢复：原AI提交已确认、本地结果保留FinalUnknown后，在Broker仍停止时等待旧AI监督器和真实SDK资源排空；Broker与三条认证Proxy路由恢复后，QS以相同主库/schema/owner/epoch/payload地址启动新进程并保持准入关闭，校验原command wire及新half/执行均0。新AI owner暂停完成原两条Reference回查，随后恢复双方默认消费者并验证receipt/state/ACK；QS旧Seal1与新ACK Seal2合计3，模型调用仍0。该路径验证显式新实例恢复，不宣称存活Go消费者在该窗口内自动恢复；固定Go driver仍有5分钟settings周期同步，具名重启与责任核对步骤由T25演练记录。
 
 故障夹具的正常关闭原本删除自有临时schema。协调恢复使用专用close_for_recovery控制命令：旧QS先完成真实组件关闭但移交schema清理责任，新进程必须验证原owner/store/epoch后接管最终删除；常规close仍清理临时数据。该控制仅存在于隔离测试探针，不进入生产运行或业务迁移。
+
+完整成对门禁继续覆盖原重复command/event/ACK语义；重复ACK用例从当前runtime的真实订阅器取得handler，不依赖启动函数提取前的局部变量别名。首次wire、档案/receipt与业务快照不变的断言保持。
