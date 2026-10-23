@@ -1430,6 +1430,7 @@ async def test_actual_default_transport_and_worker_share_sender_root_and_shutdow
     state, stop = RuntimeState(), asyncio.Event()
     intent = preflight_intent(scope.run_id, 2, scope.organization_id)
     tracked = False
+    native_inserted = False
     try:
         services = await container.get(TransactionServices | None)
         assert services is not None and services.runtime is not b.runtime
@@ -1494,10 +1495,31 @@ async def test_actual_default_transport_and_worker_share_sender_root_and_shutdow
                         status["generation"], "native-binding-review"
                     )
                 passed("protection_plain_open_and_unhealthy_review_refused")
+                saved = await host.store.lookup(intent.request)
+                if saved is not None:
+                    # A valid original plan/execution must be denied before any
+                    # SDK duplicate decision or local executor invocation.
+                    with pytest.raises(TransactionAdmissionClosed):
+                        await services.runtime.reserve(intent.request, saved.execution.plan)
+
+                    async def never_business(_):
+                        pytest.fail("Native-protected executor reached business")
+
+                    with pytest.raises(TransactionAdmissionClosed):
+                        await services.runtime.execute(saved.execution, never_business)
                 async with container() as request:
                     worker = await request.get(EvaluationWorker)
-                    with pytest.raises(TransactionAdmissionClosed):
-                        await worker.once()
+                    if saved is None:
+                        with pytest.raises(TransactionAdmissionClosed):
+                            await worker.once()
+                    else:
+                        # The first preflight may leave no due work. No-work is
+                        # a normal result, not an admission bypass or model call.
+                        try:
+                            progressed = await worker.once()
+                        except TransactionAdmissionClosed:
+                            progressed = False
+                        assert progressed is False
                 assert await evaluation_rows(host.tx, scope.run_id) == before
                 passed("protection_worker_cannot_reach_original_business_root")
             finally:
@@ -1603,6 +1625,7 @@ async def test_actual_default_transport_and_worker_share_sender_root_and_shutdow
                 host.store.binding,
                 "m3-1",
             )
+            native_inserted = True
             for _ in range(2):
                 await native.record(evidence)
             async with host.tx.open() as db:
@@ -1674,7 +1697,7 @@ async def test_actual_default_transport_and_worker_share_sender_root_and_shutdow
             passed("native_new_configured_open_default_assembly_keeps_durable_deny")
             passed("native_original_facts_witness_and_host_primary_preserved")
             assert await native.read_native_limit()
-            passed("native_no_governance_resolution_or_deletion")
+            passed("native_no_runtime_governance_resolution_or_deletion")
     finally:
         stop.set()
         if supervisor is not None:
@@ -1686,6 +1709,22 @@ async def test_actual_default_transport_and_worker_share_sender_root_and_shutdow
             assert not services.runtime.protection_stats()["sampler_running"]
             assert services.runtime.stats()["stopped"]
             passed("protection_actual_sampler_shutdown_retains_primary_pool")
+        if native_inserted:
+            # Test isolation only, AFTER both actual default lifecycles joined.
+            # This disposable shared test schema resets its SDK binding between
+            # parametrized roots. Never expose this as production resolution.
+            assert not services.runtime.protection_stats()["sampler_running"]
+            assert services.runtime.stats()["stopped"]
+            async with host.tx.open() as db:
+                await db.execute(
+                    delete(notices).where(
+                        notices.c.owner == host.store.binding.owner.encode(),
+                        notices.c.store_id == host.store.binding.store_id.encode(),
+                        notices.c.writer_epoch == host.store.binding.writer_epoch.encode(),
+                        notices.c.route_revision == b"m3-1",
+                    )
+                )
+                await db.commit()
         owned = await host.store.lookup(intent.request)
         if owned is not None and not tracked:
             host.executions.append(owned.execution)
