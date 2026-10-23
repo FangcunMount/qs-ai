@@ -105,7 +105,11 @@ async def test_go_draft_edit_history_replay_and_receipt(kit, go_client):
     assert second["Code"] == "OK" and not second["Conflict"], second
     assert second["State"]["revision"] == 2
     assert second["State"]["content"] == content
-    assert (await go_client("create", DraftID=draft_id, Create=body))["State"] == original
+    replay = await go_client("create", DraftID=draft_id, Create=body)
+    # Preserve the actual RPC status when a transient failure returns an empty
+    # State. Do not dump draft content merely to diagnose transport failure.
+    assert replay["Code"] == "OK", {"code": replay["Code"]}
+    assert replay["State"] == original
     assert (await go_client("revise", DraftID=draft_id, Revise=edit))["State"] == second["State"]
     assert (await go_client("get", DraftID=draft_id, AuditOnly=True))["State"] == second["State"]
     assert (await go_client("get", DraftID=draft_id, Revision=1, AuditOnly=True))[

@@ -682,3 +682,13 @@ Broker硬故障门禁采用协调实例恢复：原AI提交已确认、本地结
 原生复制可能保留客户端 UNIQ_KEY，完整 v1 物理索引指纹不同的两条记录分别保存；不改变既有指纹或 notice key。宿主导入允许已具备完整非零处置 receipt 与时间的 resolved 行，但不重新封锁、不替换首次 evidence_sha256。未知状态、损坏身份或不完整处置元数据仍拒绝。周期读取按 owner/status 索引只读取未处置责任，避免每轮扫描全部历史；新的物理索引仍建立 blocked 行。
 
 这里只实现治理读取与重导入，不提供解除、业务重试或自动开准入入口。具名恢复工具、真实 RPC 私有审计、受审治理 CAS 与全矩阵仍由 infra T25-C3 完成；健康采样不自动清除宿主已锁住的保护。受控数据库 fixture 仅验证状态读取、首次证据不变及新索引封锁，不当作 Broker 故障、实际 RPC 或生产解除证明。无 schema/SDK codec/业务写入/worker 配额变更。
+
+## M3：显式初始事务绑定（源码候选）
+
+`python -m qs_ai.maintenance.transaction_binding`只安装新的`ai.mysql`绑定，不执行DDL、旧消息交接或业务写入，不创建SDK producer、MQ连接、API、worker或模型调用。先由宿主显式Alembic安装冻结的完整head，再在应用目录使用精确release SHA和原MySQL/TLS配置运行。它不代替全写者冻结、旧链路排空、备份恢复或infra单一协调目录的受审维护步骤。
+
+1. `--action preview --plan <新私有文件> --operation-id <操作标识> --store-id <原库标识> --writer-epoch <冻结epoch>`只读核验当前完整schema及唯一head、MySQL实际UUID/库、迁移资源及七个新对象DDL；要求绑定、SDK及新增档案/回执/notice为空。生成独占0600文件，一小时有效，只公开原始文件摘要。已有旧Outbox仍保留，不由该入口签为排空。
+2. 独立审核原始文件及摘要，通过`--action apply --plan <原文件> --reviewed-sha256 <原始摘要> --writers-excluded`执行。原SERIALIZABLE事务重新读取同一身份、资源、DDL和空范围，最后只INSERT一条owner/store/epoch/schema=1。并发由原库范围锁和主键约束收敛；已有绑定或任何新责任均拒绝，不upsert、不覆盖、不补造witness。
+3. `--action verify --plan <原文件> --reviewed-sha256 <原始摘要>`只读回读精确绑定和同一原库/schema。apply提交回复未知时保留原文件与协调证据、保持业务停止，先核对实际状态，不自动重复apply或删除新事实。
+
+默认总DB预算30秒、显式上限120秒；所属engine关闭另有5秒预算。所有动作始终`cutover_authorized=false`，`writers-excluded`只是声明。工具不签发业务ready，不解除持久保护；生产需T29具体镜像/文件/命令摘要及T30后的原具名批准。隔离CI使用独立进程和真实MySQL安装/拒绝夹具，本地只运行纯测试及收集/编译检查。初始提交时仅完成本地验证，后续真实报告及合并状态以infra总表为准；M3唯一进度仍由[infra执行总表](https://github.com/FangcunMount/infra/blob/main/docs/server/rocketmq-m3-execution.md)维护。

@@ -52,6 +52,7 @@ class Shard:
             json.dumps(
                 {
                     "revision": self.revision,
+                    "run_attempt": int(os.environ.get("GITHUB_RUN_ATTEMPT", "1")),
                     "mysql": self.mysql,
                     "index": self.index,
                     "count": self.count,

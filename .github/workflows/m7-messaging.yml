@@ -9,6 +9,9 @@ on:
       - 'src/qs_ai/application/integration/events.py'
       - 'src/qs_ai/infrastructure/persistence/mysql/result_outbox.py'
       - 'tests/integration/test_m7_delivery.py'
+      - 'src/qs_ai/maintenance/transaction_binding.py'
+      - 'tests/test_transaction_binding.py'
+      - 'tests/integration/test_initial_transaction_binding.py'
       - 'scripts/ci/rehearse_m7_cutover.py'
       - 'docs/m7-messaging.md'
       - '.github/workflows/m7-messaging.yml'
@@ -19,6 +22,9 @@ on:
       - 'src/qs_ai/application/integration/events.py'
       - 'src/qs_ai/infrastructure/persistence/mysql/result_outbox.py'
       - 'tests/integration/test_m7_delivery.py'
+      - 'src/qs_ai/maintenance/transaction_binding.py'
+      - 'tests/test_transaction_binding.py'
+      - 'tests/integration/test_initial_transaction_binding.py'
       - 'scripts/ci/rehearse_m7_cutover.py'
       - 'docs/m7-messaging.md'
       - '.github/workflows/m7-messaging.yml'
@@ -66,7 +72,7 @@ jobs:
       - name: Explicit M3 protocol install and original-root proof
         env:
           QS_AI_SCHEMA_TEST_SERVER: mysql+pymysql://root:m7_root_disposable_only@127.0.0.1:3306/mysql
-        run: uv run pytest -q --junitxml=m7-m3-schema.xml tests/integration/test_transaction_schema.py
+        run: uv run pytest -q --junitxml=m7-m3-schema.xml tests/integration/test_transaction_schema.py tests/integration/test_initial_transaction_binding.py
       - name: Single-process, capacity and frozen receipt regression (synthetic)
         run: >-
           uv run pytest -q --junitxml=m7-unit.xml
