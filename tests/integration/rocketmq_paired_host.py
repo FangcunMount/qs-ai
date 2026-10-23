@@ -195,13 +195,16 @@ class QSProcess:
             # the preceding frame as its own response. Still one owned exchange.
             return await asyncio.shield(self.inflight)
 
-    async def close(self):
+    async def close(self, *, preserve_schema=False):
         if self.inflight is not None:
             async with asyncio.timeout(45):
                 await asyncio.shield(self.inflight)
         if self.process.returncode is None:
-            response = await self.call(mode="close")
-            assert response == {"ok": True, "closed": True}
+            response = await self.call(mode="close_for_recovery" if preserve_schema else "close")
+            expected = {"ok": True, "closed": True}
+            if preserve_schema:
+                expected["schema_retained"] = True
+            assert response == expected
         async with asyncio.timeout(10):
             assert await self.process.wait() == self.expected_exit
 

@@ -342,7 +342,7 @@ async def broker_loss(p):
         )
         assert first["seals"] == 1 and first["counts"]["rm_tx_execution"] == 1
         first_wire = first["command"]["wire_sha256"]
-        await old_qs.close()
+        await old_qs.close(preserve_schema=True)
         replacement = await restore_qs(p, old_pid)
         paused = (await replacement.call(mode="owner_state"))["protocol"]
         assert not paused["ready"] and paused["half_prepared"] == paused["completed_results"] == 0
