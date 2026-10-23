@@ -11,7 +11,7 @@ from contextlib import suppress
 from pathlib import Path
 
 import pytest
-from reliable_messaging.transaction import Decision, LocalOutcome, StoreChecker
+from reliable_messaging.transaction import Decision, LocalOutcome, StoreChecker, execution_key
 from sqlalchemy import text
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import create_async_engine
@@ -246,7 +246,7 @@ async def original_producer_loss(p):
 
 
 async def broker_loss(p):
-    committed, release = asyncio.Event(), asyncio.Event()
+    prepared, release = asyncio.Event(), asyncio.Event()
     original = p.services.runtime.execute
     local_calls = 0
     observation = dict(resources=p.resource_receipt)
@@ -255,13 +255,14 @@ async def broker_loss(p):
     async def observed_execute(owned, local):
         async def real_root(exact):
             nonlocal local_calls
+            # This barrier is before the original local callback, after all half
+            # ACKs. A committed witness must not let a legitimate concurrent
+            # Checker finish the message before the Broker process is killed.
+            prepared.set()
+            await release.wait()
             local_calls += 1
             result = await local(exact)
             assert result == LocalOutcome.COMMITTED
-            committed.set()
-            await (
-                release.wait()
-            )  # Only a fault-point barrier; original root and result are unchanged.
             return result
 
         return await original(owned, real_root)
@@ -270,16 +271,31 @@ async def broker_loss(p):
 
     async def after(_, __):
         async with asyncio.timeout(40):
-            await committed.wait()
-        assert local_calls == 1 and len(p.host.executions) == 1
+            await prepared.wait()
+        assert local_calls == 0 and len(p.host.executions) == 1
         exact = p.host.executions[0]
         assert len(exact.references) == 2
         for reference in exact.references:
-            assert await StoreChecker(p.host.store).check(reference) == Decision.COMMIT
+            assert await StoreChecker(p.host.store).check(reference) == Decision.UNKNOWN
         before_kill = p.services.runtime.stats()
-        assert before_kill["completed_results"] == 0
-        passed("ai_root_witness_committed_before_broker_kill")
-        print('\nM3_PAIRED_FAULT_STATE {"event":"ai_root_committed"}', flush=True)
+        assert before_kill["completed_results"] == before_kill["check_commit"] == 0
+        reference = exact.references[0]
+        key = execution_key(
+            reference.owner, reference.operation_id, reference.writer_epoch, reference.fence
+        )
+        async with p.host.tx.open() as db:
+            halves = await db.scalar(
+                text(
+                    "SELECT COUNT(*) FROM rm_tx_witness WHERE execution_key=:key "
+                    "AND state='prepared' AND half_outcome='prepared' "
+                    "AND LENGTH(broker_message_id)>0 AND LENGTH(broker_transaction_id)>0"
+                ),
+                {"key": key},
+            )
+        assert halves == 2
+        observation.update(half_prepared_before_kill=halves, local_calls_before_kill=local_calls)
+        passed("ai_half_prepared_before_broker_kill")
+        print('\nM3_PAIRED_FAULT_STATE {"event":"ai_half_prepared"}', flush=True)
         await control(p.config, "broker_killed", "broker-killed")
         release.set()
 
@@ -294,6 +310,9 @@ async def broker_loss(p):
             )
 
         await until(final_unknown, seconds=30)
+        assert local_calls == 1
+        for reference in exact.references:
+            assert await StoreChecker(p.host.store).check(reference) == Decision.COMMIT
         passed("actual_final_rpc_unknown_after_committed_root")
         print('\nM3_PAIRED_FAULT_STATE {"event":"final_unknown_observed"}', flush=True)
         await control(p.config, "broker_ready", "broker-ready")
@@ -302,17 +321,19 @@ async def broker_loss(p):
         async def rechecked():
             return p.services.runtime.stats()["check_commit"] >= before_kill["check_commit"] + 2
 
-        await until(rechecked)
-        stats = p.services.runtime.stats()
+        try:
+            await until(rechecked)
+        finally:
+            stats = p.services.runtime.stats()
+            observation.update(
+                local_calls=local_calls,
+                half_prepared=stats["half_prepared_results"],
+                actual_final_unknown=stats["final_unknown_results"],
+                broker_commit_checks=stats["check_commit"] - before_kill["check_commit"],
+                pending_calls=stats["pending_calls"],
+            )
         assert stats["half_prepared_results"] == 2 and stats["completed_results"] == 1
         assert local_calls == 1
-        observation.update(
-            local_calls=local_calls,
-            half_prepared=2,
-            actual_final_unknown=2,
-            broker_commit_checks=stats["check_commit"] - before_kill["check_commit"],
-            pending_calls=0,
-        )
         passed("broker_recheck_original_ai_first_wire")
 
     try:
