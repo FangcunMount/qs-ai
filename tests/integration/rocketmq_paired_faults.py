@@ -279,7 +279,7 @@ async def broker_loss(p):
         before_kill = p.services.runtime.stats()
         assert before_kill["completed_results"] == 0
         passed("ai_root_witness_committed_before_broker_kill")
-        print('M3_PAIRED_FAULT_STATE {"event":"ai_root_committed"}', flush=True)
+        print('\nM3_PAIRED_FAULT_STATE {"event":"ai_root_committed"}', flush=True)
         await control(p.config, "broker_killed", "broker-killed")
         release.set()
 
@@ -295,7 +295,7 @@ async def broker_loss(p):
 
         await until(final_unknown, seconds=30)
         passed("actual_final_rpc_unknown_after_committed_root")
-        print('M3_PAIRED_FAULT_STATE {"event":"final_unknown_observed"}', flush=True)
+        print('\nM3_PAIRED_FAULT_STATE {"event":"final_unknown_observed"}', flush=True)
         await control(p.config, "broker_ready", "broker-ready")
         passed("broker_sigkill_and_same_container_restart")
 
@@ -319,7 +319,7 @@ async def broker_loss(p):
         await start_loop(p, after_start=after)
         assert len(p.host.executions) == 1 and local_calls == 1
         observation["provider_invocations"] = 0
-        passed("pair_both_business_acks_and_idempotent_redelivery")
+        passed("pair_both_business_acks_without_executor_replay")
         passed("no_additional_model_or_old_business_executor")
     finally:
         release.set()
