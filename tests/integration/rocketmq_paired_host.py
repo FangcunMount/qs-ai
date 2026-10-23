@@ -1,7 +1,8 @@
 """Explicit final-version Go QS <-> Python AI host profile.
 
 Real Broker and original default consumers/roots. Synthetic read-side evidence;
-no real model, public HTTP/system login, production or packet-fault claim.
+no real model, public HTTP/system login or production claim. Baseline assertions
+exclude physical faults; explicit fault orchestration is in rocketmq_paired_faults.
 """
 
 import asyncio
@@ -51,6 +52,7 @@ from tests.integration.test_transaction_start_admission import keys as keys
 from tests.integration.test_transaction_start_admission import (
     required_disposable_primary as required_disposable_primary,
 )
+from tests.probes.finalization_proxy import RPCProxy
 from tests.test_input_binding import bound_case
 
 pytestmark = pytest.mark.integration
@@ -102,7 +104,11 @@ def required_pair(request):
             logger.removeHandler(handler)
             handler.close()
         print(
-            "M3_PAIRED_HOST_RECEIPT "
+            (
+                "M3_PAIRED_BASELINE_RECEIPT "
+                if config.get("paired_faults")
+                else "M3_PAIRED_HOST_RECEIPT "
+            )
             + json.dumps(
                 dict(
                     cases=_CASES,
@@ -139,6 +145,15 @@ class QSProcess:
         self.process = process
         self.lock = asyncio.Lock()
         self.inflight = None
+        self.expected_exit = 0
+
+    async def sigkill_after_committed_root(self):
+        assert self.inflight is None or self.inflight.done()
+        assert self.process.returncode is None
+        self.process.kill()
+        async with asyncio.timeout(10):
+            assert await self.process.wait() == -9
+        self.expected_exit = -9
 
     async def read(self):
         try:
@@ -188,7 +203,7 @@ class QSProcess:
             response = await self.call(mode="close")
             assert response == {"ok": True, "closed": True}
         async with asyncio.timeout(10):
-            assert await self.process.wait() == 0
+            assert await self.process.wait() == self.expected_exit
 
 
 def private_files(config, keys):
@@ -211,8 +226,12 @@ def private_files(config, keys):
 
 
 @pytest.fixture
-async def pair(host, required_pair, monkeypatch):
+async def pair(host, required_pair, monkeypatch, request):
     config = required_pair
+    fault_mode = getattr(request, "param", None)
+    if fault_mode is not None:
+        assert config.get("paired_faults") is True
+        assert fault_mode in {"qs_sigkill", "broker_restart"}
     directory, files, ca, ai_cert, ai_key = await asyncio.to_thread(
         private_files, config, host.keys
     )
@@ -279,7 +298,17 @@ async def pair(host, required_pair, monkeypatch):
     ack_deliveries = {}
     ai_payload_reads = []
     recorder = host.tx.database.state_events
+    replacements = []
+    resource_receipt = {"closed": False}
+    qs_proxy = None
     try:
+        if fault_mode == "qs_sigkill":
+            qs_proxy = RPCProxy(config)
+            await qs_proxy.start()
+            private_go = json.loads(go_config.read_text())
+            private_go["Options"]["rocketmq"]["endpoint"] = qs_proxy.address
+            go_config.write_text(json.dumps(private_go))
+            go_config.chmod(0o600)
         env = dict(os.environ)
         env["rocketmq.client.logRoot"] = str(directory / "go-private-client")
         env["rocketmq.client.logLevel"] = "error"
@@ -423,6 +452,8 @@ async def pair(host, required_pair, monkeypatch):
                 await runtime.close()
             if qs is not None:
                 await qs.close()
+            for replacement in reversed(replacements):
+                await replacement.close()
             if container is not None:
                 await container.close()
         finally:
@@ -433,6 +464,12 @@ async def pair(host, required_pair, monkeypatch):
             if process is not None and process.returncode is None:
                 process.kill()
                 await process.wait()
+            for replacement in replacements:
+                if replacement.process.returncode is None:
+                    replacement.process.kill()
+                    await replacement.process.wait()
+            if qs_proxy is not None:
+                await qs_proxy.close()
             stderr.close()
             async with host.tx.open() as db:
                 if request_ids:
@@ -445,10 +482,16 @@ async def pair(host, required_pair, monkeypatch):
                 await db.commit()
             await asyncio.to_thread(shutil.rmtree, directory)
             assert not await asyncio.to_thread(directory.exists)
+        resource_receipt.update(
+            closed=True,
+            private_files_removed=True,
+            original_exit_code=None if process is None else process.returncode,
+            replacement_exit_codes=[item.process.returncode for item in replacements],
+        )
         passed("owned_processes_rpc_and_private_files_closed")
 
 
-async def start_loop(p, *, large=False):
+async def start_loop(p, *, large=False, before_start=None, after_start=None, expected_seals=3):
     identity = str(uuid4())
     p.request_ids.append(identity)
     start = dict(
@@ -466,7 +509,11 @@ async def start_loop(p, *, large=False):
         # exercises the raw-byte reference boundary without corrupting business input.
         fact["value"] += " " * 40000
         assert json.loads(fact["value"]) == snapshot
+    if before_start is not None:
+        await before_start(identity, start)
     assert await p.qs.call(mode="start", start=start) == {"ok": True}
+    if after_start is not None:
+        await after_start(identity, start)
     passed("actual_qs_service_and_command_root")
     async with asyncio.timeout(60):
         while True:
@@ -503,7 +550,7 @@ async def start_loop(p, *, large=False):
     assert facts["counts"]["ai_messaging_outbox"] == 0
     assert facts["counts"]["ai_messaging_archive"] == 3
     assert facts["counts"]["rm_tx_witness"] == 3
-    assert len(facts["archives"]) == 3 and facts["seals"] == 3
+    assert len(facts["archives"]) == 3 and facts["seals"] == expected_seals
     passed("actual_qs_receipt_state_and_first_ack_roots")
     assert len(p.host.executions) == 1 and len(p.host.executions[0].references) == 2
     for ref in p.host.executions[0].references:
