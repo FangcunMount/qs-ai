@@ -247,7 +247,8 @@ async def original_producer_loss(p):
 
 async def broker_loss(p):
     prepared, release = asyncio.Event(), asyncio.Event()
-    original = p.services.runtime.execute
+    original_owner = p.services.runtime
+    original = original_owner.execute
     local_calls = 0
     observation = dict(resources=p.resource_receipt)
     _PROOF["broker_restart"] = observation
@@ -307,6 +308,8 @@ async def broker_loss(p):
                 and value["final_unknown_results"] == 2
                 and value["pending_calls"] == 0
                 and value["active_sends"] == 0
+                and value["pending_checks"] == 0
+                and value["running_checks"] == 0
             )
 
         await until(final_unknown, seconds=30)
@@ -318,22 +321,24 @@ async def broker_loss(p):
         await control(p.config, "broker_ready", "broker-ready")
         passed("broker_sigkill_and_same_container_restart")
 
-        async def rechecked():
-            return p.services.runtime.stats()["check_commit"] >= before_kill["check_commit"] + 2
-
-        try:
-            await until(rechecked)
-        finally:
-            stats = p.services.runtime.stats()
-            observation.update(
-                local_calls=local_calls,
-                half_prepared=stats["half_prepared_results"],
-                actual_final_unknown=stats["final_unknown_results"],
-                broker_commit_checks=stats["check_commit"] - before_kill["check_commit"],
-                pending_calls=stats["pending_calls"],
-            )
-        assert stats["half_prepared_results"] == 2 and stats["completed_results"] == 1
+        old_stats = p.services.runtime.stats()
+        stats = await p.restart_ai_after_failure()
         assert local_calls == 1
+        assert stats["completed_results"] == stats["half_prepared_results"] == 0
+        assert stats["check_commit"] >= 2
+        observation.update(
+            local_calls=local_calls,
+            half_prepared=old_stats["half_prepared_results"],
+            actual_final_unknown=old_stats["final_unknown_results"],
+            broker_commit_checks=stats["check_commit"],
+            pending_calls=stats["pending_calls"],
+            checks_drained_before_restart=True,
+            original_host_failed_and_drained=True,
+            new_host_runtime=True,
+            recovered_half_prepared=0,
+            recovered_completed_results=0,
+            recovered_committed_references=2,
+        )
         passed("broker_recheck_original_ai_first_wire")
 
     try:
@@ -344,7 +349,7 @@ async def broker_loss(p):
         passed("no_additional_model_or_old_business_executor")
     finally:
         release.set()
-        p.services.runtime.execute = original
+        original_owner.execute = original
 
 
 @pytest.mark.parametrize("pair", ["qs_sigkill", "broker_restart"], indirect=True)
