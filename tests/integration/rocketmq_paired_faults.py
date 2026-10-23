@@ -6,6 +6,7 @@ evidence; no real provider/public HTTP/system/production acceptance claim.
 
 import asyncio
 import json
+import os
 import subprocess
 from contextlib import suppress
 from pathlib import Path
@@ -66,7 +67,7 @@ def fault_receipt(required_pair, request):
             replacements = resource.get("replacement_exit_codes")
             if name == "qs_sigkill" and original == -9 and replacements == [0]:
                 passed("recovered_process_resources_drained")
-            if name == "broker_restart" and original == 0 and replacements == []:
+            if name == "broker_restart" and original == 0 and replacements == [0]:
                 passed("broker_fault_resources_drained")
     print(
         "M3_PAIRED_FAULT_RECEIPT "
@@ -94,6 +95,36 @@ def fault_receipt(required_pair, request):
         ),
         flush=True,
     )
+
+
+async def restore_qs(p, old_pid):
+    """Fresh process, exact original DB/binding/port; no DDL or command replay."""
+    data = json.loads(p.go_config.read_text())
+    original_binding = data["Options"]["rocketmq"]["transactions"]
+    data["RecoverExisting"] = True
+    data["PayloadBind"] = p.ready["payload_endpoint"]
+    data["Options"]["rocketmq"]["endpoint"] = p.config["endpoint"]
+    assert data["Options"]["rocketmq"]["transactions"] == original_binding
+    path = p.directory / ("go-recovery-private-" + str(len(p.replacements)) + ".json")
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(descriptor, "w") as stream:
+        json.dump(data, stream)
+    process = await asyncio.create_subprocess_exec(
+        p.config["qs_binary"],
+        str(path),
+        stdin=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=p.stderr,
+        env=p.env,
+        umask=0o077,
+    )
+    replacement = QSProcess(process, p.directory)
+    p.replacements.append(replacement)
+    ready = await replacement.read()
+    assert ready["ready"] and ready["recovered"] and ready["schema"] == p.schema
+    assert ready["payload_endpoint"] == p.ready["payload_endpoint"] and process.pid != old_pid
+    p.qs = replacement
+    return replacement
 
 
 async def original_producer_loss(p):
@@ -176,30 +207,7 @@ async def original_producer_loss(p):
         await old.sigkill_after_committed_root()
         assert old.process.returncode == -9
         passed("producer_sigkill_exit_negative9")
-        data = json.loads(p.go_config.read_text())
-        original_binding = data["Options"]["rocketmq"]["transactions"]
-        data["RecoverExisting"] = True
-        data["PayloadBind"] = p.ready["payload_endpoint"]
-        data["Options"]["rocketmq"]["endpoint"] = p.config["endpoint"]
-        assert data["Options"]["rocketmq"]["transactions"] == original_binding
-        path = p.directory / "go-recovery-private.json"
-        path.write_text(json.dumps(data))
-        path.chmod(0o600)
-        process = await asyncio.create_subprocess_exec(
-            p.config["qs_binary"],
-            str(path),
-            stdin=asyncio.subprocess.PIPE,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=p.stderr,
-            env=p.env,
-            umask=0o077,
-        )
-        replacement = QSProcess(process, p.directory)
-        p.replacements.append(replacement)
-        ready = await replacement.read()
-        assert ready["ready"] and ready["recovered"] and ready["schema"] == p.schema
-        assert ready["payload_endpoint"] == p.ready["payload_endpoint"] and process.pid != old_pid
-        p.qs = replacement
+        replacement = await restore_qs(p, old_pid)
 
         async def checked():
             state = (await replacement.call(mode="owner_state"))["protocol"]
@@ -270,7 +278,7 @@ async def broker_loss(p):
 
     p.services.runtime.execute = observed_execute
 
-    async def after(_, __):
+    async def after(identity, start):
         async with asyncio.timeout(40):
             await prepared.wait()
         assert local_calls == 0 and len(p.host.executions) == 1
@@ -317,11 +325,40 @@ async def broker_loss(p):
         for reference in exact.references:
             assert await StoreChecker(p.host.store).check(reference) == Decision.COMMIT
         passed("actual_final_rpc_unknown_after_committed_root")
+        # The Broker remains down until the old AI owner has really drained;
+        # no old producer can legitimately finish these halves during recovery.
+        await p.drain_ai_after_failure()
         print('\nM3_PAIRED_FAULT_STATE {"event":"final_unknown_observed"}', flush=True)
         await control(p.config, "broker_ready", "broker-ready")
         passed("broker_sigkill_and_same_container_restart")
 
         old_stats = p.services.runtime.stats()
+        old_qs = p.qs
+        old_pid = old_qs.process.pid
+        original_go = (await old_qs.call(mode="owner_state"))["protocol"]
+        assert original_go["completed_results"] == original_go["local_committed"] == 1
+        first = await old_qs.call(
+            mode="facts", request_id=identity, command_id=identity, actor=start["actor"]
+        )
+        assert first["seals"] == 1 and first["counts"]["rm_tx_execution"] == 1
+        first_wire = first["command"]["wire_sha256"]
+        await old_qs.close()
+        replacement = await restore_qs(p, old_pid)
+        paused = (await replacement.call(mode="owner_state"))["protocol"]
+        assert not paused["ready"] and paused["half_prepared"] == paused["completed_results"] == 0
+        recovered = await replacement.call(
+            mode="facts", request_id=identity, command_id=identity, actor=start["actor"]
+        )
+        assert recovered["command"]["wire_sha256"] == first_wire and recovered["seals"] == 0
+        observation.update(
+            qs_consumer_restarted=True,
+            original_go_local_results=1,
+            old_go_seals=1,
+            recovered_go_half_before_open=0,
+            recovered_go_results_before_open=0,
+            original_go_wire_preserved=True,
+            distinct_go_pid=True,
+        )
         try:
             stats = await p.restart_ai_after_failure()
         finally:
@@ -350,10 +387,15 @@ async def broker_loss(p):
             recovered_committed_references=2,
         )
         passed("broker_recheck_original_ai_first_wire")
+        assert await replacement.call(mode="open_recovery") == {"ok": True}
 
     try:
-        await start_loop(p, after_start=after)
+        result = await start_loop(p, after_start=after, expected_seals=2)
         assert len(p.host.executions) == 1 and local_calls == 1
+        assert result.facts["seals"] + observation["old_go_seals"] == 3
+        observation["final_recovered_go_seals"] = result.facts["seals"]
+        observation["checker_callback_errors"] = p.services.runtime.stats()["callback_errors"]
+        assert observation["checker_callback_errors"] == 0
         observation["provider_invocations"] = 0
         passed("pair_both_business_acks_without_executor_replay")
         passed("no_additional_model_or_old_business_executor")

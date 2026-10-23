@@ -658,3 +658,5 @@ Sender 普通调用始终拒绝重复 dispatch。宿主必须显式装配 `Worke
 成对故障夹具遵循现有fail-fast监督器：旧宿主消费者失败后排空，重新构造同数据库/owner/epoch的DI runtime，暂停新准入完成原两条Reference的真实回查，要求新增半消息与业务执行均为0，再恢复默认消费者。该路径是新宿主runtime；实际OS进程SIGKILL由Go生产者故障项单独证明。原业务、模型及历史清理边界不变。新制品的完整成对门禁、源码合并、稳定发布和生产状态回链infra总表，不以SDK探针代替宿主验收。
 
 T23 的[成对宿主夹具](../../../tests/integration/rocketmq_paired_host.py)与[故障编排](../../../tests/integration/rocketmq_paired_faults.py)由原监督器只启动 owner 一次，恢复时暂缓消费者 Start 以观察暂停 owner 的真实回查。该故障夹具的整体启动预算140秒包含100秒回查观察屏障；常规夹具启动仍使用原30秒。生产生命周期与SDK单次Start契约保持既有实现，实际生产启动和切换时长另在T29验证。
+
+Broker硬故障门禁采用协调实例恢复：原AI提交已确认、本地结果保留FinalUnknown后，在Broker仍停止时等待旧AI监督器和真实SDK资源排空；Broker与三条认证Proxy路由恢复后，QS以相同主库/schema/owner/epoch/payload地址启动新进程并保持准入关闭，校验原command wire及新half/执行均0。新AI owner暂停完成原两条Reference回查，随后恢复双方默认消费者并验证receipt/state/ACK；QS旧Seal1与新ACK Seal2合计3，模型调用仍0。该路径验证显式新实例恢复，不宣称存活Go消费者在该窗口内自动恢复；固定Go driver仍有5分钟settings周期同步，具名重启与责任核对步骤由T25演练记录。

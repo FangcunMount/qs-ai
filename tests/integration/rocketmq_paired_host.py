@@ -512,21 +512,29 @@ async def pair(host, required_pair, monkeypatch, request):
                     await asyncio.sleep(0.02)
             assert len(runtime.subscribers) == 2 and runtime.publisher_ready.is_set()
 
-        async def restart_ai_after_failure():
+        async def drain_ai_after_failure():
             nonlocal container, runtime, supervisor, server, prior_ai_client
+            if ai_recovery.get("original_host_failed_and_drained"):
+                return
             async with asyncio.timeout(45):
                 while not state.failed:  # noqa: ASYNC110
                     await asyncio.sleep(0.02)
                 with pytest.raises(RuntimeError, match="Required component exited unexpectedly"):
                     await asyncio.shield(supervisor)
-            assert services.runtime.stats()["stopped"]
-            old_client = services.runtime._sender._client.client_id
-            prior_ai_client = old_client
-            await runtime.close()
-            await server.stop(2)
-            await asyncio.wait_for(server.wait_for_termination(), 5)
-            await container.close()
+            supervisor = None  # Its expected failure and actual drain were observed.
+            prior_ai_client = services.runtime._sender._client.client_id
+            async with asyncio.timeout(15):
+                await runtime.close()
+                assert services.runtime.stats()["stopped"]
+                await server.stop(2)
+                await asyncio.wait_for(server.wait_for_termination(), 5)
+                await container.close()
+            runtime, server, container = None, None, None
             ai_recovery["original_host_failed_and_drained"] = True
+
+        async def restart_ai_after_failure():
+            await drain_ai_after_failure()
+            old_client = prior_ai_client
             await start_ai(recovery=True)
             assert services.runtime._sender._client.client_id != old_client
             # Update the yielded fixture explicitly; finalizers use the same
