@@ -19,9 +19,13 @@ def physical_table(head: str, logical_name: str) -> str:
 
 
 def require_handoff_head(heads: list[str] | None) -> str:
-    # 0041/0042 add protocol/receipt tables; retained history keeps 0040 names.
+    # 0041–0043 add protocol/receipt/governance tables; retained history keeps 0040 names.
     # This does not extend the old full-layout conversion/backup whitelist.
-    if heads in (["0041_transaction_messaging"], ["0042_transaction_event_receipts"]):
+    if heads in (
+        ["0041_transaction_messaging"],
+        ["0042_transaction_event_receipts"],
+        ["0043_native_transaction_limit"],
+    ):
         return heads[0]
     return require_known_head(heads)
 
@@ -43,7 +47,12 @@ def retained_physical_table(head: str, logical_name: str) -> str:
     require_handoff_head([head])
     return physical_table(
         NEW_HEAD
-        if head in ("0041_transaction_messaging", "0042_transaction_event_receipts")
+        if head
+        in (
+            "0041_transaction_messaging",
+            "0042_transaction_event_receipts",
+            "0043_native_transaction_limit",
+        )
         else head,
         logical_name,
     )

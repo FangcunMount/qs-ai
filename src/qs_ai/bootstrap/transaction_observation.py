@@ -3,6 +3,7 @@
 import asyncio
 import math
 from collections.abc import Awaitable, Callable
+from dataclasses import replace
 from time import monotonic
 
 from reliable_messaging.transaction import BindingError, SchemaError, ShutdownIncompleteError
@@ -24,6 +25,7 @@ class ProtocolMonitor:
         queue: int,
         interval: float = 5.0,
         budget: float = 2.0,
+        native_read: Callable[[float], Awaitable[bool]] | None = None,
     ) -> None:
         if (
             workers < 1
@@ -34,7 +36,7 @@ class ProtocolMonitor:
             or budget <= 0
         ):
             raise ValueError("Explicit bounded protocol sampling budgets required")
-        self.read, self.stats = read, stats
+        self.read, self.stats, self.native_read = read, stats, native_read
         self.workers, self.queue = workers, queue
         self.interval, self.budget = interval, budget
         self.freshness = 2 * interval + budget
@@ -86,7 +88,19 @@ class ProtocolMonitor:
             try:
                 # The SDK observer owns the sole database timeout. A second
                 # cancellation scope could interrupt session cleanup early.
-                sample = await self.read(self.budget)
+                budget = self.budget
+                native_blocked = False
+                if self.native_read is not None:
+                    started = monotonic()
+                    native_blocked = await self.native_read(budget)
+                    sample = replace(sample, native_blocked=native_blocked)
+                    budget -= monotonic() - started
+                    if budget <= 0:
+                        raise TimeoutError(
+                            "Native observation exhausted the shared database budget"
+                        )
+                observed = await self.read(budget)
+                sample = replace(observed, native_blocked=native_blocked)
             except asyncio.CancelledError:
                 self.policy.available = False
                 raise

@@ -42,6 +42,9 @@ VALUES = {
         "Aborted branches with no half outcome; may be unsent or have lost their half audit."
     ),
     "unobserved_committed_branches": "Committed branches lacking Prepared half audit.",
+    "native_limit_active": (
+        "Host primary has an unresolved native-limit notice; not Broker backlog."
+    ),
     "metadata_conflicts": "Contradictory terminal audit metadata or missing witnesses.",
     "admission_protected": "Host protection episode is latched until a matching named review.",
     "protection_generation": "Process-local protection episode generation; never a metric label.",
