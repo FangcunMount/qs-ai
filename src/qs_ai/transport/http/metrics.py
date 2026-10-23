@@ -5,7 +5,8 @@ from fastapi import APIRouter
 from fastapi.responses import Response
 
 from qs_ai.application.operations.diagnostics import render_process_metrics
-from qs_ai.application.operations.metrics import OperationalMetrics
+from qs_ai.application.operations.metrics import OperationalMetrics, TransactionMetrics
+from qs_ai.transport.http.transaction_metrics import render_transaction_metrics
 
 router = APIRouter(route_class=DishkaRoute)
 
@@ -71,8 +72,12 @@ def render_metrics(values: dict[str, float]) -> str:
 
 
 @router.get("/metrics", include_in_schema=False)
-async def metrics(reader: FromDishka[OperationalMetrics]) -> Response:
+async def metrics(
+    reader: FromDishka[OperationalMetrics], protocol: FromDishka[TransactionMetrics]
+) -> Response:
     return Response(
-        render_metrics(await reader.collect()) + render_process_metrics(),
+        render_metrics(await reader.collect())
+        + render_process_metrics()
+        + render_transaction_metrics(protocol.transaction_metrics_snapshot()),
         media_type="text/plain; version=0.0.4; charset=utf-8",
     )

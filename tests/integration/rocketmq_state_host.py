@@ -1435,6 +1435,75 @@ async def test_actual_default_transport_and_worker_share_sender_root_and_shutdow
             "ready"
         ]  # Checker lives even when host admission is paused.
         passed("default_assembly_idle_checker_subscriptions")
+
+        if config.get("protocol_protection") is True:
+            from qs_ai.bootstrap.transaction_messaging import TransactionAdmissionClosed
+            from qs_ai.bootstrap.transaction_protection import ProtocolProtectionError
+            from qs_ai.infrastructure.persistence.mysql.transaction_schema import binding
+
+            assert services.runtime._monitor is not None
+            assert services.runtime._monitor._task.get_loop() is asyncio.get_running_loop()
+            passed("protection_sampler_uses_existing_host_loop")
+            before = await evaluation_rows(host.tx, scope.run_id)
+            async with host.tx.open() as db:
+                changed = await db.execute(
+                    update(binding)
+                    .where(binding.c.owner == b"ai.mysql", binding.c.writer_epoch == b"m3-1")
+                    .values(writer_epoch=b"native-invalid-binding")
+                )
+                assert changed.rowcount == 1
+                await db.commit()
+            try:
+                async with asyncio.timeout(15):
+                    while True:
+                        status = services.runtime.protection_stats()
+                        if status["protected"] and status["reason"] == "binding_conflict":
+                            break
+                        await asyncio.sleep(0.05)
+                assert not status["available"] and status["observation_errors"] > 0
+                passed("protection_actual_primary_binding_conflict_latches")
+                assert services.runtime._sender.stats()["ready"]
+                passed("protection_idle_checker_stays_live")
+                with pytest.raises(TransactionAdmissionClosed):
+                    services.runtime.set_admission(True)
+                with pytest.raises(ProtocolProtectionError):
+                    services.runtime.review_protection(
+                        status["generation"], "native-binding-review"
+                    )
+                passed("protection_plain_open_and_unhealthy_review_refused")
+                async with container() as request:
+                    worker = await request.get(EvaluationWorker)
+                    with pytest.raises(TransactionAdmissionClosed):
+                        await worker.once()
+                assert await evaluation_rows(host.tx, scope.run_id) == before
+                passed("protection_worker_cannot_reach_original_business_root")
+            finally:
+                async with host.tx.open() as db:
+                    restored = await db.execute(
+                        update(binding)
+                        .where(
+                            binding.c.owner == b"ai.mysql",
+                            binding.c.writer_epoch == b"native-invalid-binding",
+                        )
+                        .values(writer_epoch=b"m3-1")
+                    )
+                    assert restored.rowcount == 1
+                    await db.commit()
+            async with asyncio.timeout(15):
+                while True:
+                    if services.runtime.protection_stats()["fresh"]:
+                        break
+                    await asyncio.sleep(0.05)
+            assert services.runtime.protection_stats()["protected"]
+            passed("protection_healthy_sampling_does_not_unlatch")
+            with pytest.raises(ProtocolProtectionError):
+                services.runtime.review_protection(
+                    status["generation"] + 1, "native-binding-review"
+                )
+            services.runtime.review_protection(status["generation"], "native-binding-review")
+            services.runtime.set_admission(not paused)
+            assert services.runtime.stats()["ready"] is not paused
+            passed("protection_named_review_preserves_explicit_host_admission")
         async with container() as request:
             worker = await request.get(EvaluationWorker)
             assert worker.transactions.database is host.tx.database
@@ -1497,6 +1566,10 @@ async def test_actual_default_transport_and_worker_share_sender_root_and_shutdow
         if runtime is not None:
             await runtime.close()
         await container.close()
+        if config.get("protocol_protection") is True and runtime is not None:
+            assert not services.runtime.protection_stats()["sampler_running"]
+            assert services.runtime.stats()["stopped"]
+            passed("protection_actual_sampler_shutdown_retains_primary_pool")
         owned = await host.store.lookup(intent.request)
         if owned is not None and not tracked:
             host.executions.append(owned.execution)
