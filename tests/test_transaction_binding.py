@@ -46,12 +46,15 @@ def plan():
         ("identity_sha256", "0" * 64),
         ("ddl_sha256", "bad"),
         ("operation_id", "bad\x00id"),
-        ("expires_at", (datetime.now(UTC) - timedelta(seconds=1)).isoformat()),
-        ("expires_at", (datetime.now(UTC) + timedelta(hours=3)).isoformat()),
+        ("expires_at", "expired"),
+        ("expires_at", "far_future"),
     ],
 )
 def test_exact_initial_plan_refuses_drift(field, value):
     candidate = plan()
+    if field == "expires_at":
+        delta = timedelta(seconds=-1) if value == "expired" else timedelta(hours=3)
+        value = (datetime.now(UTC) + delta).isoformat()
     candidate[field] = value
     with pytest.raises(ValueError):
         validate_plan(candidate, "a" * 40, datetime.now(UTC))

@@ -231,3 +231,33 @@ def test_actual_pytest_producer_records_each_attempt_without_overwriting_history
     assert auditor.verify(proofs, "a" * 40, ["8.0.36"], 1, 2) == 1
     assert (tmp_path / "attempt-1/shard-0.json").is_file()
     assert (tmp_path / "attempt-2/shard-0.json").is_file()
+
+
+def test_real_binding_case_ids_are_stable_across_independent_collections():
+    collections = []
+    for _ in range(2):
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "pytest",
+                "--collect-only",
+                "-q",
+                "tests/test_transaction_binding.py",
+            ],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        assert result.returncode == 0
+        nodeids = [
+            line
+            for line in result.stdout.splitlines()
+            if line.startswith("tests/test_transaction_binding.py::")
+        ]
+        assert nodeids
+        collections.append(nodeids)
+    assert collections[0] == collections[1]
+    assert any("expires_at-expired" in node for node in collections[0])
+    assert any("expires_at-far_future" in node for node in collections[0])
