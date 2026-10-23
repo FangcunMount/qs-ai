@@ -83,7 +83,7 @@ jobs:
       - name: Start disposable NSQ for required MQ tests
         run: |
           docker run -d --name qs-mq-ci -p 127.0.0.1:4150:4150 -p 127.0.0.1:4151:4151 nsqio/nsq:v1.3.0 /nsqd --data-path=/tmp --broadcast-address=127.0.0.1 --mem-queue-size=0
-          for attempt in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             if curl --silent --fail http://127.0.0.1:4151/ping; then exit 0; fi
             sleep 1
           done
@@ -141,7 +141,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: tests-${{ matrix.mysql-version }}-${{ matrix.shard }}
+          name: tests-${{ matrix.mysql-version }}-${{ matrix.shard }}-attempt-${{ github.run_attempt }}
           path: ci-results/
           if-no-files-found: error
           retention-days: 14
@@ -195,7 +195,7 @@ jobs:
       - name: Verify complete execution on both MySQL versions
         run: >-
           python3 scripts/ci/verify_test_shards.py ci-results
-          --revision "$GITHUB_SHA" --count 4 --mysql 8.0.36 8.4
+          --revision "$GITHUB_SHA" --count 4 --mysql 8.0.36 8.4 --attempt "$GITHUB_RUN_ATTEMPT"
   image:
     runs-on: ubuntu-latest
     steps:

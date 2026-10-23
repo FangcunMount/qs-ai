@@ -675,3 +675,14 @@ Broker硬故障门禁采用协调实例恢复：原AI提交已确认、本地结
 `TransactionRuntime` 仍由 APP 生命周期管理；一个采样 Task 使用现有宿主 asyncio loop，调用 SDK 以独立短生命周期 AsyncSession 读取已绑定主库。初次采样先于 Producer 注册，保护关闭新发送时仍启动 Checker。SDK 保留自身 I/O loop，AsyncSession 不传入回查线程。Reserve/Execute/Retry/Replan 统一受宿主准入保护，模型及业务重试权限不变。
 
 观测、复核和实际关闭规则见[日志与指标](../observability/README.md#m3-t24事务协议指标与准入保护)，唯一里程碑进度在 [infra M3 执行总表](https://github.com/FangcunMount/infra/blob/main/docs/server/rocketmq-m3-execution.md)。
+
+
+## M3：显式初始事务绑定（源码候选）
+
+`python -m qs_ai.maintenance.transaction_binding`只安装新的`ai.mysql`绑定，不执行DDL、旧消息交接或业务写入，不创建SDK producer、MQ连接、API、worker或模型调用。先由宿主显式Alembic安装冻结的完整head，再在应用目录使用精确release SHA和原MySQL/TLS配置运行。它不代替全写者冻结、旧链路排空、备份恢复或infra单一协调目录的受审维护步骤。
+
+1. `--action preview --plan <新私有文件> --operation-id <操作标识> --store-id <原库标识> --writer-epoch <冻结epoch>`只读核验当前完整schema及唯一head、MySQL实际UUID/库、迁移资源及七个新对象DDL；要求绑定、SDK及新增档案/回执/notice为空。生成独占0600文件，一小时有效，只公开原始文件摘要。已有旧Outbox仍保留，不由该入口签为排空。
+2. 独立审核原始文件及摘要，通过`--action apply --plan <原文件> --reviewed-sha256 <原始摘要> --writers-excluded`执行。原SERIALIZABLE事务重新读取同一身份、资源、DDL和空范围，最后只INSERT一条owner/store/epoch/schema=1。并发由原库范围锁和主键约束收敛；已有绑定或任何新责任均拒绝，不upsert、不覆盖、不补造witness。
+3. `--action verify --plan <原文件> --reviewed-sha256 <原始摘要>`只读回读精确绑定和同一原库/schema。apply提交回复未知时保留原文件与协调证据、保持业务停止，先核对实际状态，不自动重复apply或删除新事实。
+
+默认总DB预算30秒、显式上限120秒；所属engine关闭另有5秒预算。所有动作始终`cutover_authorized=false`，`writers-excluded`只是声明。工具不签发业务ready，不解除持久保护；生产需T29具体镜像/文件/命令摘要及T30后的原具名批准。隔离CI使用独立进程和真实MySQL安装/拒绝夹具，本地只运行纯测试及收集/编译检查。初始提交时仅完成本地验证，后续真实报告及合并状态以infra总表为准；M3唯一进度仍由[infra执行总表](https://github.com/FangcunMount/infra/blob/main/docs/server/rocketmq-m3-execution.md)维护。

@@ -27,6 +27,7 @@ def records():
     return [
         dict(
             revision="a" * 40,
+            run_attempt=1,
             mysql=mysql,
             index=index,
             count=2,
@@ -105,7 +106,7 @@ def test_gate_rejects_incomplete_or_mixed_proofs(case):
         auditor.verify(values, "a" * 40, ["8.0.36", "8.4"], 2)
 
 
-def run_partition(directory, index, count):
+def run_partition(directory, index, count, run_attempt=1):
     result = subprocess.run(
         [
             sys.executable,
@@ -120,7 +121,12 @@ def run_partition(directory, index, count):
             str(directory / f"shard-{index}.json"),
         ],
         cwd=directory,
-        env={**os.environ, "GITHUB_SHA": "a" * 40, "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1"},
+        env={
+            **os.environ,
+            "GITHUB_SHA": "a" * 40,
+            "GITHUB_RUN_ATTEMPT": str(run_attempt),
+            "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+        },
         capture_output=True,
         text=True,
         timeout=30,
@@ -155,3 +161,103 @@ def test_actual_missing_or_failed_execution_cannot_pass_gate(tmp_path, body):
     assert result.returncode != 0
     with pytest.raises(ValueError):
         auditor.verify([proof], "a" * 40, ["8.0.36"], 1)
+
+
+def test_latest_frozen_attempt_wins_without_discarding_failed_history():
+    values = records()
+    older = copy.deepcopy(values[0])
+    older.update(passed=[], exitstatus=1)
+    values[0]["run_attempt"] = 2
+    values.append(older)
+    assert auditor.verify(values, "a" * 40, ["8.0.36", "8.4"], 2, 2) == 2
+    assert auditor.verify(list(reversed(values)), "a" * 40, ["8.0.36", "8.4"], 2, 2) == 2
+    assert values[-1]["exitstatus"] == 1  # history was not mutated or replaced
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "newer_failure",
+        "newer_skip",
+        "duplicate_attempt",
+        "mixed_source",
+        "changed_collection",
+        "changed_partition",
+        "future",
+        "zero",
+        "boolean",
+        "missing",
+    ],
+)
+def test_history_cannot_hide_newer_failure_or_change_frozen_inventory(case):
+    values = records()
+    later = copy.deepcopy(values[0])
+    later["run_attempt"] = 2
+    if case == "newer_failure":
+        later.update(passed=[], exitstatus=1)
+    elif case == "newer_skip":
+        later["skipped"] = later["selected"]
+    elif case == "duplicate_attempt":
+        values.append(copy.deepcopy(later))
+    elif case == "mixed_source":
+        later["revision"] = "b" * 40
+    elif case == "changed_collection":
+        later["collected"].append("test:unexpected")
+    elif case == "changed_partition":
+        later["selected"] = later["passed"] = ["test:b"]
+    elif case == "future":
+        later["run_attempt"] = 3
+    elif case == "zero":
+        later["run_attempt"] = 0
+    elif case == "boolean":
+        later["run_attempt"] = True
+    else:
+        del later["run_attempt"]
+    values.append(later)
+    with pytest.raises(ValueError):
+        auditor.verify(values, "a" * 40, ["8.0.36", "8.4"], 2, 2)
+
+
+def test_actual_pytest_producer_records_each_attempt_without_overwriting_history(tmp_path):
+    proofs = []
+    for attempt in (1, 2):
+        directory = tmp_path / f"attempt-{attempt}"
+        directory.mkdir()
+        (directory / "test_sample.py").write_text("def test_sample(): assert True\n")
+        result, proof = run_partition(directory, 0, 1, run_attempt=attempt)
+        assert result.returncode == 0
+        assert proof["run_attempt"] == attempt
+        proofs.append(proof)
+    assert auditor.verify(proofs, "a" * 40, ["8.0.36"], 1, 2) == 1
+    assert (tmp_path / "attempt-1/shard-0.json").is_file()
+    assert (tmp_path / "attempt-2/shard-0.json").is_file()
+
+
+def test_real_binding_case_ids_are_stable_across_independent_collections():
+    collections = []
+    for _ in range(2):
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "pytest",
+                "--collect-only",
+                "-q",
+                "tests/test_transaction_binding.py",
+            ],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        assert result.returncode == 0
+        nodeids = [
+            line
+            for line in result.stdout.splitlines()
+            if line.startswith("tests/test_transaction_binding.py::")
+        ]
+        assert nodeids
+        collections.append(nodeids)
+    assert collections[0] == collections[1]
+    assert any("expires_at-expired" in node for node in collections[0])
+    assert any("expires_at-far_future" in node for node in collections[0])
