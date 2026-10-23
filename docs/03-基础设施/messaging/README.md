@@ -2,7 +2,7 @@
 
 qs-ai 通过消息受理命令，把可见状态和成果作为持久事件交给 QS。一次本地提交证明“业务效果与待发消息同时存在”；Broker 的发布确认成功证明 Broker 接收；QS 对原事件返回 `STORED` 才证明其接收事务完成。这三个完成点分别有记录，不能合并成一个“发送成功”。
 
-本文以一次 Start 产生 Session、最终形成 Artifact 并交付 QS 为主线。核对基线：qs-ai `d9c3155`，QS `2ccc2de44`，2026-10-06。上述日期记录原业务链路；2026-10-19 的 M3 接入基础固定依赖 `fangcun-reliable-messaging[nsq,rocketmq]==0.4.0a1`。当前源码固定 `0.4.0a2`（SDK `8de893b367cc797580799abd8325f41dd62356db`），显式事务配置选择完整装配；默认配置及生产尚未切换，测试、部署与真实业务接收仍是独立证据。
+本文以一次 Start 产生 Session、最终形成 Artifact 并交付 QS 为主线。核对基线：qs-ai `d9c3155`，QS `2ccc2de44`，2026-10-06。上述日期记录原业务链路；2026-10-19 的 M3 接入基础固定依赖 `fangcun-reliable-messaging[nsq,rocketmq]==0.4.0a1`。当前源码固定 `0.4.0a3`（SDK `2258ad70275ae974e71fb3ffeaa5ed7def4c2893`），显式事务配置选择完整装配；默认配置及生产尚未切换，测试、部署与真实业务接收仍是独立证据。
 
 ## RocketMQ 普通消息
 
@@ -649,3 +649,20 @@ read_candidate_response将已持久化candidate响应绑定到原不可变dispat
 Sender 普通调用始终拒绝重复 dispatch。宿主必须显式装配 `WorkerDispatchRecovery` / `CandidateDispatchRecovery`，才可对精确 Aborted 且尚未提交业务的 dispatch 通过 SDK Replan 取得新租约；原 ModelCapacity 在半消息之前取得，原根与 witness 证实后只移交一次。已 Committed 或仍 Prepared 的 dispatch 不能重新调用模型。完成/排空 dispatcher 的 `recover_aborted` 默认为 false；显式启用后只对精确旧 Aborted 执行使用 Retry/Replan，保留原 response、业务身份及旧证据。
 
 新增原生 MySQL 测试覆盖共同回滚、协调版本竞争、归档拒绝和客户端丢弃提交回复；后者不是数据库网络故障证明。显式 Broker profile 另覆盖半消息屏障、首响应复用、取消排空、显式重建 dispatch 和客户端丢弃最终确认回复。进程退出、真实数据库断网、默认完整装配、QS 配对业务、真实模型及 system 验收仍须分别记录，不能由这些夹具代替。
+
+
+## T23 存活生产者恢复修订
+
+当前依赖锁定已发布 Python `0.4.0a3`，wheel SHA256 为 `7a0a35438ed6890cff37aea3305e1ee1fcec4b9bcac0667959fbc2cda62c636e`，底层客户端保持 5.1.2。SDK修正已通过双档真实同实例Broker恢复、消费及实际关闭；发布资产重新下载并校验，wheel/sdist隔离安装读取的driver与2258ad70源码相同。既有0.4.0a2报告继续绑定原源码，不作为本次新制品的宿主验收。
+
+成对故障夹具遵循现有fail-fast监督器：旧宿主消费者失败后排空，重新构造同数据库/owner/epoch的DI runtime，暂停新准入完成原两条Reference的真实回查，要求新增半消息与业务执行均为0，再恢复默认消费者。该路径是新宿主runtime；实际OS进程SIGKILL由Go生产者故障项单独证明。原业务、模型及历史清理边界不变。新制品的完整成对门禁、源码合并、稳定发布和生产状态回链infra总表，不以SDK探针代替宿主验收。
+
+T23 的[成对宿主夹具](../../../tests/integration/rocketmq_paired_host.py)与[故障编排](../../../tests/integration/rocketmq_paired_faults.py)由原监督器只启动 owner 一次，恢复时暂缓消费者 Start 以观察暂停 owner 的真实回查。该故障夹具的整体启动预算140秒包含100秒回查观察屏障；常规夹具启动仍使用原30秒。生产生命周期与SDK单次Start契约保持既有实现，实际生产启动和切换时长另在T29验证。
+
+Broker硬故障门禁采用协调实例恢复：原AI提交已确认、本地结果保留FinalUnknown后，在Broker仍停止时等待旧AI监督器和真实SDK资源排空；Broker与三条认证Proxy路由恢复后，QS以相同主库/schema/owner/epoch/payload地址启动新进程并保持准入关闭，校验原command wire及新half/执行均0。新AI owner暂停完成原两条Reference回查，随后恢复双方默认消费者并验证receipt/state/ACK；QS旧Seal1与新ACK Seal2合计3，模型调用仍0。该路径验证显式新实例恢复，不宣称存活Go消费者在该窗口内自动恢复；固定Go driver仍有5分钟settings周期同步，具名重启与责任核对步骤由T25演练记录。
+
+故障夹具的正常关闭原本删除自有临时schema。协调恢复使用专用close_for_recovery控制命令：旧QS先完成真实组件关闭但移交schema清理责任，新进程必须验证原owner/store/epoch后接管最终删除；常规close仍清理临时数据。该控制仅存在于隔离测试探针，不进入生产运行或业务迁移。
+
+完整成对门禁继续覆盖原重复command/event/ACK语义；重复ACK用例从当前runtime的真实订阅器取得handler，不依赖启动函数提取前的局部变量别名。首次wire、档案/receipt与业务快照不变的断言保持。
+
+同一个session fixture在成对模块与故障模块中各自注册时，共享当前pytest session的冻结配置、私有日志及唯一收据归属。重复注册不提前关闭原日志、不产生第二份收据；配置变化明确拒绝且不回显其内容。3项回归测试先失败后通过；完整原生门禁仍须复验，严格单收据解析不放宽。

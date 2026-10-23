@@ -6,6 +6,7 @@ Explicit infra collection only; ordinary discovery does not select this file.
 """
 
 import asyncio
+import importlib.metadata as metadata
 import json
 import shutil
 import sys
@@ -73,7 +74,7 @@ def payload_receipt(request):
                 ),
                 rpc_servers=_SERVERS,
                 root="original_mysql_sqlalchemy",
-                sdk="0.4.0a2",
+                sdk=metadata.version("fangcun-reliable-messaging"),
                 client="5.1.2",
                 python=sys.version.split()[0],
                 system_login_not_claimed=True,

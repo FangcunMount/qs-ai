@@ -1,7 +1,8 @@
 """Explicit final-version Go QS <-> Python AI host profile.
 
 Real Broker and original default consumers/roots. Synthetic read-side evidence;
-no real model, public HTTP/system login, production or packet-fault claim.
+no real model, public HTTP/system login or production claim. Baseline assertions
+exclude physical faults; explicit fault orchestration is in rocketmq_paired_faults.
 """
 
 import asyncio
@@ -25,7 +26,7 @@ from uuid import uuid4
 import grpc
 import pytest
 from dishka import Provider, Scope, provide
-from reliable_messaging.transaction import Decision, StoreChecker
+from reliable_messaging.transaction import Decision, StoreChecker, resolve
 from sqlalchemy import delete, select
 
 from qs_ai.application.evaluation.management import ManagementScope
@@ -51,6 +52,7 @@ from tests.integration.test_transaction_start_admission import keys as keys
 from tests.integration.test_transaction_start_admission import (
     required_disposable_primary as required_disposable_primary,
 )
+from tests.probes.finalization_proxy import RPCProxy
 from tests.test_input_binding import bound_case
 
 pytestmark = pytest.mark.integration
@@ -72,13 +74,16 @@ def passed(name):
     _CASES[name] = True
 
 
+_PAIR_SESSION = pytest.StashKey[dict]()
+
+
 @pytest.fixture(scope="session", autouse=True)
 def required_pair(request):
     path = os.environ.get("QS_AI_M3_BROKER_CONFIG")
     if not path:
         pytest.fail("Required isolated paired host configuration absent")
     config = json.loads(Path(path).read_text())
-    assert metadata.version("fangcun-reliable-messaging") == "0.4.0a2"
+    assert metadata.version("fangcun-reliable-messaging") == config["sdk_python_version"]
     assert metadata.version("rocketmq-python-client") == "5.1.2"
     assert config["endpoint"].startswith("127.0.0.1:")
     assert config["project"].startswith("rocketmq-m2-")
@@ -86,6 +91,15 @@ def required_pair(request):
     assert not config["qs_sdk_module"].get("Replace")
     private = Path(config["private_directory"])
     assert private.is_absolute() and private.stat().st_mode & 0o077 == 0
+    # Imported fixture functions have separate FixtureDefs in two test modules.
+    # Keep one logger/report owner in this pytest session, without relaxing the
+    # strict single-receipt contract or changing a global client factory.
+    shared = request.config.stash.get(_PAIR_SESSION, None)
+    if shared is not None:
+        if config != shared:
+            raise AssertionError("Shared paired session configuration changed")
+        yield shared
+        return
     from rocketmq.v5.log.log_config import logger
 
     for handler in list(logger.handlers):
@@ -95,6 +109,7 @@ def required_pair(request):
     private_log.touch(mode=0o600)
     logger.addHandler(logging.FileHandler(private_log))
     logger.setLevel(logging.ERROR)
+    request.config.stash[_PAIR_SESSION] = config
     try:
         yield config
     finally:
@@ -102,7 +117,11 @@ def required_pair(request):
             logger.removeHandler(handler)
             handler.close()
         print(
-            "M3_PAIRED_HOST_RECEIPT "
+            (
+                "M3_PAIRED_BASELINE_RECEIPT "
+                if config.get("paired_faults")
+                else "M3_PAIRED_HOST_RECEIPT "
+            )
             + json.dumps(
                 dict(
                     cases=_CASES,
@@ -119,7 +138,7 @@ def required_pair(request):
                     ),
                     root="original_go_mysql_and_python_sqlalchemy",
                     sdk_go="v0.5.0-rocketmq-tx.2",
-                    sdk_python="0.4.0a2",
+                    sdk_python=metadata.version("fangcun-reliable-messaging"),
                     client_python="5.1.2",
                     python=sys.version.split()[0],
                     system_login_not_claimed=True,
@@ -139,6 +158,15 @@ class QSProcess:
         self.process = process
         self.lock = asyncio.Lock()
         self.inflight = None
+        self.expected_exit = 0
+
+    async def sigkill_after_committed_root(self):
+        assert self.inflight is None or self.inflight.done()
+        assert self.process.returncode is None
+        self.process.kill()
+        async with asyncio.timeout(10):
+            assert await self.process.wait() == -9
+        self.expected_exit = -9
 
     async def read(self):
         try:
@@ -180,15 +208,18 @@ class QSProcess:
             # the preceding frame as its own response. Still one owned exchange.
             return await asyncio.shield(self.inflight)
 
-    async def close(self):
+    async def close(self, *, preserve_schema=False):
         if self.inflight is not None:
             async with asyncio.timeout(45):
                 await asyncio.shield(self.inflight)
         if self.process.returncode is None:
-            response = await self.call(mode="close")
-            assert response == {"ok": True, "closed": True}
+            response = await self.call(mode="close_for_recovery" if preserve_schema else "close")
+            expected = {"ok": True, "closed": True}
+            if preserve_schema:
+                expected["schema_retained"] = True
+            assert response == expected
         async with asyncio.timeout(10):
-            assert await self.process.wait() == 0
+            assert await self.process.wait() == self.expected_exit
 
 
 def private_files(config, keys):
@@ -211,8 +242,12 @@ def private_files(config, keys):
 
 
 @pytest.fixture
-async def pair(host, required_pair, monkeypatch):
+async def pair(host, required_pair, monkeypatch, request):
     config = required_pair
+    fault_mode = getattr(request, "param", None)
+    if fault_mode is not None:
+        assert config.get("paired_faults") is True
+        assert fault_mode in {"qs_sigkill", "broker_restart"}
     directory, files, ca, ai_cert, ai_key = await asyncio.to_thread(
         private_files, config, host.keys
     )
@@ -272,14 +307,26 @@ async def pair(host, required_pair, monkeypatch):
     stderr_path = directory / "go-private-stderr.log"
     await asyncio.to_thread(stderr_path.touch, mode=0o600)
     stderr = stderr_path.open("wb")
-    process, qs, container, runtime, supervisor, server = None, None, None, None, None, None
+    process, qs, container, runtime, supervisor, server, services = (None,) * 7
     stop, state = asyncio.Event(), RuntimeState()
     request_ids = []
     ack_wires = {}
     ack_deliveries = {}
     ai_payload_reads = []
     recorder = host.tx.database.state_events
+    replacements = []
+    resource_receipt = {"closed": False}
+    ai_recovery = {}
+    prior_ai_client = None
+    qs_proxy = None
     try:
+        if fault_mode == "qs_sigkill":
+            qs_proxy = RPCProxy(config)
+            await qs_proxy.start()
+            private_go = json.loads(go_config.read_text())
+            private_go["Options"]["rocketmq"]["endpoint"] = qs_proxy.address
+            go_config.write_text(json.dumps(private_go))
+            go_config.chmod(0o600)
         env = dict(os.environ)
         env["rocketmq.client.logRoot"] = str(directory / "go-private-client")
         env["rocketmq.client.logLevel"] = "error"
@@ -338,82 +385,191 @@ async def pair(host, required_pair, monkeypatch):
             def source(self) -> EvidenceSource:
                 return host.kit.source
 
-        container = create_container(settings, EvaluationProvider(), Overrides())
-        services = await container.get(TransactionServices | None)
-        assert services is not None
-        reserve = services.runtime.reserve
-
-        async def track(request, candidate):
-            value = await reserve(request, candidate)
-            if value.acquired:
-                host.executions.append(value.execution)
-            return value
-
-        monkeypatch.setattr(services.runtime, "reserve", track)
-        runtime = await MessagingRuntime.create(container, settings, ca, ai_cert, ai_key)
-        command_subscriber = next(
-            sub for sub in runtime.subscribers if sub.route.topic == "qs.ai.commands.v1"
-        )
-        original_command = command_subscriber.handler
-
-        async def observe_command(received):
-            try:
-                await original_command(received)
-            except grpc.RpcError as error:
-                _DELIVERY_ERRORS.add("grpc_" + error.code().name)
-                raise
-            except Exception:
-                _DELIVERY_ERRORS.add("other")
-                raise
-
-        command_subscriber.handler = observe_command
-        acknowledgement = next(
-            subscriber
-            for subscriber in runtime.subscribers
-            if subscriber.route.topic == "qs.ai.acks.v1"
-        )
-        original_ack = acknowledgement.handler
-
-        async def observe_ack(received):
-            await original_ack(received)  # Actual production ACK handler and original commit.
-            identity = received.envelope.message_id
-            digest = hashlib.sha256(received.wire).hexdigest()
-            assert ack_wires.setdefault(identity, digest) == digest
-            ack_deliveries.setdefault(identity, received)
-
-        acknowledgement.handler = observe_ack
-        original_payload_get = runtime.payloads.Get
-
-        async def observe_payload_get(reference, context):
-            response = await original_payload_get(reference, context)
-            ai_payload_reads.append(reference.message_id)
-            return response
-
-        runtime.payloads.Get = observe_payload_get
-        assert runtime.relay is None and not runtime.publishers
-        server = grpc.aio.server()
-        rpc.add_MessagePayloadsServicer_to_server(runtime.payloads, server)
-        assert (
-            server.add_secure_port(
-                f"127.0.0.1:{ai_port}",
-                grpc.ssl_server_credentials(
-                    [(ai_key, ai_cert)], root_certificates=ca, require_client_auth=True
-                ),
+        async def start_ai(*, recovery=False):
+            nonlocal container, runtime, supervisor, server, services, state, stop
+            state, stop = RuntimeState(), asyncio.Event()
+            active_settings = settings.model_copy(
+                update={
+                    "messaging": settings.messaging.model_copy(
+                        update={"publish_enabled": not recovery}
+                    )
+                }
             )
-            == ai_port
-        )
-        await server.start()
-        supervisor = asyncio.create_task(supervise(runtime.components(state, 20), state, stop))
-        async with asyncio.timeout(40):
-            while not state.ready:
-                if supervisor.done():
-                    await supervisor
-                await asyncio.sleep(0.02)
-        assert len(runtime.subscribers) == 2 and runtime.publisher_ready.is_set()
+            container = create_container(active_settings, EvaluationProvider(), Overrides())
+            services = await container.get(TransactionServices | None)
+            assert services is not None
+            reserve = services.runtime.reserve
+
+            async def track(request, candidate):
+                value = await reserve(request, candidate)
+                if value.acquired:
+                    host.executions.append(value.execution)
+                return value
+
+            monkeypatch.setattr(services.runtime, "reserve", track)
+            if recovery:
+                # A new real host owner registers its full route while paused.
+                # No subscriber or business executor is started for this proof.
+                expected = set(host.executions[0].references)
+                checked = set()
+                evidence = services.runtime.store.evidence
+
+                async def exact_evidence(reference):
+                    value = await evidence(reference)
+                    if reference in expected and resolve(reference, value) == Decision.COMMIT:
+                        checked.add(reference)
+                    return value
+
+                monkeypatch.setattr(services.runtime.store, "evidence", exact_evidence)
+            runtime = await MessagingRuntime.create(container, active_settings, ca, ai_cert, ai_key)
+            command_subscriber = next(
+                sub for sub in runtime.subscribers if sub.route.topic == "qs.ai.commands.v1"
+            )
+            original_command = command_subscriber.handler
+
+            async def observe_command(received):
+                try:
+                    await original_command(received)
+                except grpc.RpcError as error:
+                    _DELIVERY_ERRORS.add("grpc_" + error.code().name)
+                    raise
+                except Exception:
+                    _DELIVERY_ERRORS.add("other")
+                    raise
+
+            command_subscriber.handler = observe_command
+            acknowledgement = next(
+                subscriber
+                for subscriber in runtime.subscribers
+                if subscriber.route.topic == "qs.ai.acks.v1"
+            )
+            original_ack = acknowledgement.handler
+
+            async def observe_ack(received):
+                await original_ack(received)  # Actual production ACK handler and original commit.
+                identity = received.envelope.message_id
+                digest = hashlib.sha256(received.wire).hexdigest()
+                assert ack_wires.setdefault(identity, digest) == digest
+                ack_deliveries.setdefault(identity, received)
+
+            acknowledgement.handler = observe_ack
+            original_payload_get = runtime.payloads.Get
+
+            async def observe_payload_get(reference, context):
+                response = await original_payload_get(reference, context)
+                ai_payload_reads.append(reference.message_id)
+                return response
+
+            runtime.payloads.Get = observe_payload_get
+            assert runtime.relay is None and not runtime.publishers
+            recovery_gate = asyncio.Event()
+            if recovery:
+                # Keep default consumers inert while the SAME host supervisor
+                # starts its owner once and the real Broker checks old evidence.
+                for subscriber in runtime.subscribers:
+                    original_start = subscriber.start
+
+                    async def start_after_recovery(start=original_start):
+                        await recovery_gate.wait()
+                        await start()
+
+                    monkeypatch.setattr(subscriber, "start", start_after_recovery)
+            server = grpc.aio.server()
+            rpc.add_MessagePayloadsServicer_to_server(runtime.payloads, server)
+            assert (
+                server.add_secure_port(
+                    f"127.0.0.1:{ai_port}",
+                    grpc.ssl_server_credentials(
+                        [(ai_key, ai_cert)], root_certificates=ca, require_client_auth=True
+                    ),
+                )
+                == ai_port
+            )
+            await server.start()
+            supervisor = asyncio.create_task(
+                supervise(
+                    runtime.components(state, 20),
+                    state,
+                    stop,
+                    # Only this fixture adds a bounded backcheck observation
+                    # barrier before subscriber Start. Normal startup stays30s.
+                    startup_seconds=140 if recovery else 30,
+                )
+            )
+            if recovery:
+                async with asyncio.timeout(30):
+                    await runtime.publisher_ready.wait()
+                async with asyncio.timeout(100):
+                    while not expected.issubset(checked):  # noqa: ASYNC110
+                        await asyncio.sleep(0.05)
+                assert len(expected) == len(checked) == 2
+                recovered = services.runtime.stats()
+                assert not recovered["ready"] and recovered["completed_results"] == 0
+                assert recovered["half_prepared_results"] == 0
+                assert services.runtime._sender._client.client_id != prior_ai_client
+                ai_recovery.update(
+                    recovered_committed_references=len(checked),
+                    recovered_half_prepared=0,
+                    recovered_completed_results=0,
+                    new_host_runtime=True,
+                )
+                services.runtime.set_admission(True)
+                recovery_gate.set()
+            async with asyncio.timeout(40):
+                while not state.ready:
+                    if supervisor.done():
+                        for task in state.tasks.values():
+                            if task.done() and not task.cancelled():
+                                error = task.exception()
+                                code = getattr(error, "code", 0)
+                                if type(code) is int and 0 < code <= 99999:
+                                    ai_recovery["startup_rpc_code"] = code
+                        await supervisor
+                    await asyncio.sleep(0.02)
+            assert len(runtime.subscribers) == 2 and runtime.publisher_ready.is_set()
+
+        async def drain_ai_after_failure():
+            nonlocal container, runtime, supervisor, server, prior_ai_client
+            if ai_recovery.get("original_host_failed_and_drained"):
+                return
+            async with asyncio.timeout(45):
+                while not state.failed:  # noqa: ASYNC110
+                    await asyncio.sleep(0.02)
+                with pytest.raises(RuntimeError, match="Required component exited unexpectedly"):
+                    await asyncio.shield(supervisor)
+            supervisor = None  # Its expected failure and actual drain were observed.
+            prior_ai_client = services.runtime._sender._client.client_id
+            async with asyncio.timeout(15):
+                await runtime.close()
+                assert services.runtime.stats()["stopped"]
+                await server.stop(2)
+                await asyncio.wait_for(server.wait_for_termination(), 5)
+                await container.close()
+            runtime, server, container = None, None, None
+            ai_recovery["original_host_failed_and_drained"] = True
+
+        async def restart_ai_after_failure():
+            await drain_ai_after_failure()
+            old_client = prior_ai_client
+            await start_ai(recovery=True)
+            assert services.runtime._sender._client.client_id != old_client
+            # Update the yielded fixture explicitly; finalizers use the same
+            # nonlocal owners. This is a new host runtime, not a new OS process.
+            current.container, current.runtime, current.supervisor = container, runtime, supervisor
+            current.server, current.services, current.state, current.stop = (
+                server,
+                services,
+                state,
+                stop,
+            )
+            return services.runtime.stats()
+
+        await start_ai()
         passed("actual_ai_default_receivers_and_idle_checker")
         passed("actual_go_command_and_event_runtime")
         passed("no_legacy_relay")
-        yield SimpleNamespace(**locals())
+        current = SimpleNamespace(**locals())
+        yield current
     finally:
         stop.set()
         try:
@@ -423,6 +579,8 @@ async def pair(host, required_pair, monkeypatch):
                 await runtime.close()
             if qs is not None:
                 await qs.close()
+            for replacement in reversed(replacements):
+                await replacement.close()
             if container is not None:
                 await container.close()
         finally:
@@ -433,6 +591,12 @@ async def pair(host, required_pair, monkeypatch):
             if process is not None and process.returncode is None:
                 process.kill()
                 await process.wait()
+            for replacement in replacements:
+                if replacement.process.returncode is None:
+                    replacement.process.kill()
+                    await replacement.process.wait()
+            if qs_proxy is not None:
+                await qs_proxy.close()
             stderr.close()
             async with host.tx.open() as db:
                 if request_ids:
@@ -445,10 +609,16 @@ async def pair(host, required_pair, monkeypatch):
                 await db.commit()
             await asyncio.to_thread(shutil.rmtree, directory)
             assert not await asyncio.to_thread(directory.exists)
+        resource_receipt.update(
+            closed=True,
+            private_files_removed=True,
+            original_exit_code=None if process is None else process.returncode,
+            replacement_exit_codes=[item.process.returncode for item in replacements],
+        )
         passed("owned_processes_rpc_and_private_files_closed")
 
 
-async def start_loop(p, *, large=False):
+async def start_loop(p, *, large=False, before_start=None, after_start=None, expected_seals=3):
     identity = str(uuid4())
     p.request_ids.append(identity)
     start = dict(
@@ -466,7 +636,11 @@ async def start_loop(p, *, large=False):
         # exercises the raw-byte reference boundary without corrupting business input.
         fact["value"] += " " * 40000
         assert json.loads(fact["value"]) == snapshot
+    if before_start is not None:
+        await before_start(identity, start)
     assert await p.qs.call(mode="start", start=start) == {"ok": True}
+    if after_start is not None:
+        await after_start(identity, start)
     passed("actual_qs_service_and_command_root")
     async with asyncio.timeout(60):
         while True:
@@ -503,7 +677,7 @@ async def start_loop(p, *, large=False):
     assert facts["counts"]["ai_messaging_outbox"] == 0
     assert facts["counts"]["ai_messaging_archive"] == 3
     assert facts["counts"]["rm_tx_witness"] == 3
-    assert len(facts["archives"]) == 3 and facts["seals"] == 3
+    assert len(facts["archives"]) == 3 and facts["seals"] == expected_seals
     passed("actual_qs_receipt_state_and_first_ack_roots")
     assert len(p.host.executions) == 1 and len(p.host.executions[0].references) == 2
     for ref in p.host.executions[0].references:
@@ -606,8 +780,13 @@ async def test_actual_qs_ai_first_wire_and_duplicate_command_event_ack(pair):
         assert await p.qs.call(
             mode="replay_event", wire=base64.b64encode(archived.wire).decode()
         ) == {"ok": True}
+    acknowledgement = next(
+        subscriber
+        for subscriber in p.runtime.subscribers
+        if subscriber.route.topic == "qs.ai.acks.v1"
+    )
     for delivery in p.ack_deliveries.values():
-        await p.acknowledgement.handler(delivery)
+        await acknowledgement.handler(delivery)
     after = await p.qs.call(
         mode="facts",
         request_id=case.identity,
