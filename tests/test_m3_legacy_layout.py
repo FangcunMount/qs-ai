@@ -10,7 +10,14 @@ from qs_ai.maintenance.schema_layout import (
 )
 
 
-@pytest.mark.parametrize("head", ["0041_transaction_messaging", "0042_transaction_event_receipts"])
+@pytest.mark.parametrize(
+    "head",
+    [
+        "0041_transaction_messaging",
+        "0042_transaction_event_receipts",
+        "0043_native_transaction_limit",
+    ],
+)
 def test_transaction_history_handoff_does_not_authorize_old_layout_conversion(head):
     assert require_handoff_head([head]) == head
     assert handoff_tables(head) == (result_outbox, outbox)

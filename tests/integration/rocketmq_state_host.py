@@ -1351,9 +1351,29 @@ def default_transport_settings(dsn, binding, config, files, credentials, routes,
     )
 
 
+@pytest.fixture
+def native_limit_audit(required_broker):
+    # Bounded private control material is loaded before the host asyncio loop.
+    if required_broker.get("native_limit") is not True:
+        return None
+    import stat
+    from pathlib import Path
+
+    from qs_ai.infrastructure.workflow_transport.native_limit import parse_native_limit_evidence
+
+    path = Path(required_broker["native_limit_audit"])
+    assert path.is_absolute()
+    info = path.lstat()
+    assert stat.S_ISREG(info.st_mode) and stat.S_IMODE(info.st_mode) == 0o600
+    assert info.st_size <= 65536
+    return parse_native_limit_evidence(
+        path.read_bytes(), bytes.fromhex(required_broker["native_limit_sha256"])
+    )
+
+
 @pytest.mark.parametrize("paused", [False, True])
 async def test_actual_default_transport_and_worker_share_sender_root_and_shutdown(
-    governance_broker, original, required_broker, tmp_path, monkeypatch, paused
+    governance_broker, original, required_broker, tmp_path, monkeypatch, paused, native_limit_audit
 ):
     """Actual default DI/SDK/subscriptions; QS ACK input is controlled, not paired QS."""
     from qs_ai.infrastructure.workflow_transport.messaging import ACKS
@@ -1565,6 +1585,96 @@ async def test_actual_default_transport_and_worker_share_sender_root_and_shutdow
                     assert receipt["event_id"] == event_header.message_id.encode()
                     assert receipt["outcome"] == messaging_pb.MessagingEventAcknowledgement.STORED
                 passed("default_assembly_authenticated_business_ack")
+        if config.get("native_limit") is True:
+            from sqlalchemy.ext.asyncio import async_sessionmaker
+
+            from qs_ai.bootstrap.transaction_messaging import TransactionAdmissionClosed
+            from qs_ai.bootstrap.transaction_protection import ProtocolProtectionError
+            from qs_ai.infrastructure.persistence.mysql.native_limit import MySQLNativeLimits
+            from qs_ai.infrastructure.persistence.mysql.native_limit_schema import notices
+
+            assert config.get("protocol_protection") is not True
+            evidence = native_limit_audit
+            assert evidence is not None
+            assert len(evidence.indices) == 1
+            assert host.tx.database.engine is not None
+            native = MySQLNativeLimits(
+                async_sessionmaker(host.tx.database.engine, expire_on_commit=False),
+                host.store.binding,
+                "m3-1",
+            )
+            for _ in range(2):
+                await native.record(evidence)
+            async with host.tx.open() as db:
+                records = (await db.execute(select(notices))).mappings().all()
+            assert len(records) == 1 and records[0]["evidence_sha256"] == evidence.digest
+            passed("native_actual_sys_index_idempotent_original_primary_governance")
+            before = await evaluation_rows(host.tx, scope.run_id)
+            half_count = services.runtime._sender.stats()["half_prepared_results"]
+
+            async def assert_native_blocked():
+                async with asyncio.timeout(15):
+                    while True:
+                        status = services.runtime.protection_stats()
+                        if status["fresh"] and status["native_limit_active"]:
+                            break
+                        await asyncio.sleep(0.05)
+                assert status["protected"] and status["reason"] == "native_transaction_limit"
+                assert status["sampler_running"] and services.runtime._sender.stats()["ready"]
+                assert not services.runtime._sender.stats()["stopped"]
+                assert services.runtime._monitor._task.get_loop() is asyncio.get_running_loop()
+                with pytest.raises(TransactionAdmissionClosed):
+                    services.runtime.set_admission(True)
+                with pytest.raises(ProtocolProtectionError):
+                    services.runtime.review_protection(
+                        status["generation"], "native-limit-no-resolution"
+                    )
+                async with container() as request:
+                    worker = await request.get(EvaluationWorker)
+                    with pytest.raises(TransactionAdmissionClosed):
+                        await worker.once()
+                assert await evaluation_rows(host.tx, scope.run_id) == before
+
+            await assert_native_blocked()
+            assert services.runtime._sender.stats()["half_prepared_results"] == half_count
+            passed("native_live_sampler_blocks_actual_worker_without_new_half")
+            passed("native_idle_sdk_checker_readiness_existing_host_loop")
+            passed("native_plain_open_and_unresolved_review_refused")
+            stop.set()
+            await supervisor
+            await runtime.close()
+            await container.close()
+            assert not services.runtime.protection_stats()["sampler_running"]
+            assert services.runtime.stats()["stopped"]
+            passed("native_original_sampler_sdk_shutdown_joined")
+            # New configured-open default DI owns a new SDK/client lifecycle;
+            # it borrows the same original primary and sees the persistent deny.
+            settings = default_transport_settings(
+                host.kit.dsn, host.store.binding, config, files, credentials, routes, paused=False
+            )
+            container = create_container(settings, EvaluationProvider(), Overrides())
+            services = await container.get(TransactionServices | None)
+            assert services is not None
+            runtime = await MessagingRuntime.create(
+                container,
+                settings,
+                (tmp_path / "ca.pem").read_bytes(),
+                (tmp_path / "ai.pem").read_bytes(),
+                (tmp_path / "ai.key").read_bytes(),
+            )
+            state, stop = RuntimeState(), asyncio.Event()
+            supervisor = asyncio.create_task(supervise(runtime.components(state, 20), state, stop))
+            async with asyncio.timeout(30):
+                while not state.ready:
+                    if supervisor.done():
+                        await supervisor
+                    await asyncio.sleep(0.01)
+            await assert_native_blocked()
+            assert services.runtime._sender.stats()["half_prepared_results"] == 0
+            passed("native_new_configured_open_default_assembly_keeps_durable_deny")
+            passed("native_original_facts_witness_and_host_primary_preserved")
+            assert await native.read_native_limit()
+            passed("native_no_governance_resolution_or_deletion")
     finally:
         stop.set()
         if supervisor is not None:

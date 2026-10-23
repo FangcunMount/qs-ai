@@ -29,6 +29,7 @@ from qs_ai.bootstrap.messaging_config import read_rocketmq_config
 from qs_ai.bootstrap.transaction_observation import ProtocolMonitor
 from qs_ai.bootstrap.transaction_protection import ProtocolProtectionError, ProtocolSample
 from qs_ai.config import MessagingOptions
+from qs_ai.infrastructure.persistence.mysql.native_limit import MySQLNativeLimits
 from qs_ai.infrastructure.workflow_transport.messaging import EVENTS
 from qs_ai.infrastructure.workflow_transport.transaction_root import (
     TransactionAdmissionClosed as TransactionAdmissionClosed,
@@ -143,6 +144,7 @@ class TransactionRuntime:
                 "observation_errors": 0,
                 "sampler_running": False,
                 "sampler_inflight": False,
+                "native_limit_active": False,
             }
         p = monitor.policy
         return {
@@ -154,6 +156,7 @@ class TransactionRuntime:
             "observation_errors": p.errors,
             "sampler_running": monitor._task is not None and not monitor._task.done(),
             "sampler_inflight": monitor.inflight,
+            "native_limit_active": p.sample.native_blocked,
         }
 
     def transaction_metrics_snapshot(self) -> TransactionMetricsSnapshot | None:
@@ -183,6 +186,7 @@ class TransactionRuntime:
             "untracked_aborted_branches": s.untracked_aborted,
             "unobserved_committed_branches": s.unobserved_committed,
             "metadata_conflicts": s.conflicts,
+            "native_limit_active": int(s.native_blocked),
             "admission_protected": int(bool(p.reason)),
             "protection_generation": p.generation,
             "admission_open": int(self._is_admitted()),
@@ -301,6 +305,7 @@ def make_transaction_sender(
             confirmation_age=observation.oldest_confirmation_observation_age_seconds,
         )
 
+    native = MySQLNativeLimits(sessions, store.binding, binding.route_revision)
     monitor = ProtocolMonitor(
         read,
         sender.stats,
@@ -308,5 +313,6 @@ def make_transaction_sender(
         queue=binding.limits.check_queue,
         interval=binding.limits.reconcile_interval,
         budget=binding.limits.check_timeout,
+        native_read=native.read_native_limit,
     )
     return TransactionRuntime(sender, admitted=options.publish_enabled, monitor=monitor)

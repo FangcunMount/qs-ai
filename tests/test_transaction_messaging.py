@@ -98,13 +98,19 @@ def test_route_manifest_version_cannot_hide_message_type(tmp_path, version):
 def test_sender_constructor_owns_no_session_thread_or_network(tmp_path, monkeypatch):
     value = MessagingOptions.model_validate(options(tmp_path))
     monkeypatch.setenv("GRPC_DEFAULT_SSL_ROOTS_FILE_PATH", value.rocketmq.ca_file)
-    sessions = Mock(side_effect=AssertionError("constructor must not open a session"))
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+    class NeverSession(AsyncSession):
+        def __init__(self, *args, **kwargs):
+            raise AssertionError("constructor must not open a session")
+
+    sessions = async_sessionmaker(class_=NeverSession)
     sender = make_transaction_sender(value, sessions)
     assert sender.config.owner == "ai.mysql"
     assert [r.logical_topic for r in sender.config.routes] == [EVENTS]
     assert sender.store.binding.store_id == "primary-fixture"
     assert not sender.stats()["ready"]
-    sessions.assert_not_called()
+    assert isinstance(sessions, async_sessionmaker)
 
 
 async def test_pause_keeps_checker_running_and_seals_both_send_entries():

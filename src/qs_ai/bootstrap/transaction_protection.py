@@ -1,7 +1,7 @@
 """Host admission policy over current metadata; no message confirmation or retry."""
 
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 WARNING_AGE = 120.0
 PROTECTION_AGE = 300.0
@@ -14,6 +14,7 @@ class ProtocolProtectionError(RuntimeError):
 
 @dataclass(frozen=True)
 class ProtocolSample:
+    native_blocked: bool = False
     reserved: int = 0
     preparing: int = 0
     gaps: int = 0
@@ -66,6 +67,9 @@ class ProtocolProtection:
         full: bool,
         freshness: float,
     ) -> None:
+        if sample.native_blocked:
+            self.sample = replace(self.sample, native_blocked=True)
+            self.latch("native_transaction_limit")
         if self.last_poll is not None and now - self.last_poll > freshness:
             self.saturated_since = None
         self.last_poll = now
@@ -128,6 +132,7 @@ class ProtocolProtection:
             or not self.fresh(now, freshness)
             or not ready
             or full
+            or s.native_blocked
             or s.conflicts
             or s.unaged
             or s.unobserved_committed

@@ -272,15 +272,25 @@ def require_schema(
 
 
 def require_runtime_schema(conn: Connection) -> None:
-    """Validate fixed 0042 runtime without changing frozen conversion layouts."""
-    from qs_ai.infrastructure.persistence.mysql.transaction_schema import metadata
+    """Validate fixed 0043 runtime without changing frozen conversion layouts."""
+    from qs_ai.infrastructure.persistence.mysql.native_limit_schema import (
+        metadata as native_metadata,
+    )
+    from qs_ai.infrastructure.persistence.mysql.transaction_schema import (
+        metadata as transaction_metadata,
+    )
+
+    metadata = sa.MetaData()
+    for source in (transaction_metadata, native_metadata):
+        for table in source.tables.values():
+            table.to_metadata(metadata)
 
     schema = str(conn.scalar(sa.text("SELECT DATABASE()")))
     _require_layout(
         conn,
         NEW_HEAD,
         schema,
-        expected_head="0042_transaction_event_receipts",
+        expected_head="0043_native_transaction_limit",
         extensions=metadata,
     )
     inspector = sa.inspect(conn)
@@ -323,8 +333,16 @@ def require_runtime_schema(conn: Connection) -> None:
         }
         if actual_indexes != expected_indexes:
             raise ValueError("Transaction index drift")
-        if inspector.get_foreign_keys(table.name, schema=schema) or inspector.get_check_constraints(
-            table.name, schema=schema
+        checks = inspector.get_check_constraints(table.name, schema=schema)
+        actual_checks = {c["name"]: _normal(c["sqltext"]).replace("_binary", "") for c in checks}
+        expected_checks = {
+            c.name: _normal(str(c.sqltext)).replace("_binary", "")
+            for c in table.constraints
+            if isinstance(c, sa.CheckConstraint)
+        }
+        if (
+            inspector.get_foreign_keys(table.name, schema=schema)
+            or actual_checks != expected_checks
         ):
             raise ValueError("Unexpected transaction constraint")
 
