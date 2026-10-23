@@ -1649,18 +1649,18 @@ async def test_actual_default_transport_and_worker_share_sender_root_and_shutdow
                         with pytest.raises(TransactionAdmissionClosed):
                             await worker.once()
                     else:
-                        # The first preflight may leave no due work. No-work is
-                        # a normal result, not an admission bypass or model call.
-                        try:
-                            progressed = await worker.once()
-                        except TransactionAdmissionClosed:
-                            progressed = False
-                        assert progressed is False
+                        # This fixture has placeholder model assets/candidate
+                        # mode and covers only the first preflight. Advancing an
+                        # already accepted Run would enter another business
+                        # stage with unsupported inputs. The exact valid-plan
+                        # Reserve/Execute gates above cover this committed case;
+                        # the pending parameter exercises the real preflight.
+                        assert worker._serial_runtime.dispatch._runtime is services.runtime
                 assert await evaluation_rows(host.tx, scope.run_id) == before
 
             await assert_native_blocked()
             assert services.runtime._sender.stats()["half_prepared_results"] == half_count
-            passed("native_live_sampler_blocks_actual_worker_without_new_half")
+            passed("native_live_admission_and_pending_worker_preflight_without_new_half")
             passed("native_idle_sdk_checker_readiness_existing_host_loop")
             passed("native_plain_open_and_unresolved_review_refused")
             stop.set()
