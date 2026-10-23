@@ -370,8 +370,13 @@ async def pair(host, required_pair, monkeypatch, request):
         async def start_ai(*, recovery=False):
             nonlocal container, runtime, supervisor, server, services, state, stop
             state, stop = RuntimeState(), asyncio.Event()
-            active_settings = settings.model_copy(deep=True)
-            active_settings.messaging.publish_enabled = not recovery
+            active_settings = settings.model_copy(
+                update={
+                    "messaging": settings.messaging.model_copy(
+                        update={"publish_enabled": not recovery}
+                    )
+                }
+            )
             container = create_container(active_settings, EvaluationProvider(), Overrides())
             services = await container.get(TransactionServices | None)
             assert services is not None
