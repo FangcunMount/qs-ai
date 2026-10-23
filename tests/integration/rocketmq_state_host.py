@@ -1495,31 +1495,10 @@ async def test_actual_default_transport_and_worker_share_sender_root_and_shutdow
                         status["generation"], "native-binding-review"
                     )
                 passed("protection_plain_open_and_unhealthy_review_refused")
-                saved = await host.store.lookup(intent.request)
-                if saved is not None:
-                    # A valid original plan/execution must be denied before any
-                    # SDK duplicate decision or local executor invocation.
-                    with pytest.raises(TransactionAdmissionClosed):
-                        await services.runtime.reserve(intent.request, saved.execution.plan)
-
-                    async def never_business(_):
-                        pytest.fail("Native-protected executor reached business")
-
-                    with pytest.raises(TransactionAdmissionClosed):
-                        await services.runtime.execute(saved.execution, never_business)
                 async with container() as request:
                     worker = await request.get(EvaluationWorker)
-                    if saved is None:
-                        with pytest.raises(TransactionAdmissionClosed):
-                            await worker.once()
-                    else:
-                        # The first preflight may leave no due work. No-work is
-                        # a normal result, not an admission bypass or model call.
-                        try:
-                            progressed = await worker.once()
-                        except TransactionAdmissionClosed:
-                            progressed = False
-                        assert progressed is False
+                    with pytest.raises(TransactionAdmissionClosed):
+                        await worker.once()
                 assert await evaluation_rows(host.tx, scope.run_id) == before
                 passed("protection_worker_cannot_reach_original_business_root")
             finally:
@@ -1652,10 +1631,31 @@ async def test_actual_default_transport_and_worker_share_sender_root_and_shutdow
                     services.runtime.review_protection(
                         status["generation"], "native-limit-no-resolution"
                     )
+                saved = await host.store.lookup(intent.request)
+                if saved is not None:
+                    # A valid original plan/execution must be denied before any
+                    # SDK duplicate decision or local executor invocation.
+                    with pytest.raises(TransactionAdmissionClosed):
+                        await services.runtime.reserve(intent.request, saved.execution.plan)
+
+                    async def never_business(_):
+                        pytest.fail("Native-protected executor reached business")
+
+                    with pytest.raises(TransactionAdmissionClosed):
+                        await services.runtime.execute(saved.execution, never_business)
                 async with container() as request:
                     worker = await request.get(EvaluationWorker)
-                    with pytest.raises(TransactionAdmissionClosed):
-                        await worker.once()
+                    if saved is None:
+                        with pytest.raises(TransactionAdmissionClosed):
+                            await worker.once()
+                    else:
+                        # The first preflight may leave no due work. No-work is
+                        # a normal result, not an admission bypass or model call.
+                        try:
+                            progressed = await worker.once()
+                        except TransactionAdmissionClosed:
+                            progressed = False
+                        assert progressed is False
                 assert await evaluation_rows(host.tx, scope.run_id) == before
 
             await assert_native_blocked()
