@@ -156,3 +156,60 @@ async def test_invalid_budget_never_opens_primary_session(budget):
         await store.read_native_limit(budget)
     with pytest.raises(ValueError):
         await store.record(parse(report()), budget_seconds=budget)
+
+
+def test_native_recheck_client_id_reuse_preserves_v1_physical_index_vectors():
+    data = report()
+    original = data["records"][0]
+    copy_index = dict(original, queue_offset=2, commitlog_offset=3)
+    data["records"].append(copy_index)
+    evidence = parse(data)
+    assert tuple(v.hex() for v in evidence.indices) == (
+        "61922da276bd4e4b9eced322f30aac9224929b6614dce2205f5fed99df91a878",
+        "c17eef089ffe8dcd195b09d54c8d7af26283362fc173a6226b964a4a4c0968d3",
+    )
+    copy_index.update(queue_offset=1, commitlog_offset=2, broker_message_id="a" * 32)
+    with pytest.raises(ValueError, match=ERROR):
+        parse(data)
+
+
+@pytest.mark.parametrize(
+    "state,at,receipt,valid",
+    [
+        (b"blocked", None, None, True),
+        (b"resolved", "valid", b"r" * 32, True),
+        (b"resolved", None, b"r" * 32, False),
+        (b"resolved", "zero", b"r" * 32, False),
+        (b"resolved", "valid", None, False),
+        (b"resolved", "valid", bytes(32), False),
+        (b"resolved", "valid", b"r", False),
+        (b"blocked", "valid", b"r" * 32, False),
+        (b"ignored", None, None, False),
+    ],
+)
+def test_reviewed_native_resolution_requires_complete_receipt(state, at, receipt, valid):
+    from datetime import datetime
+
+    store = MySQLNativeLimits(
+        async_sessionmaker(class_=NeverSession), Binding("ai.mysql", "primary", "epoch"), "m3-1"
+    )
+    index = b"i" * 32
+    at = datetime(2026, 10, 24) if at == "valid" else datetime.min if at == "zero" else at
+    row = dict(
+        notice_key=native_notice_key("ai.mysql", "primary", "epoch", "m3-1", index),
+        owner=b"ai.mysql",
+        store_id=b"primary",
+        writer_epoch=b"epoch",
+        route_revision=b"m3-1",
+        native_index_sha256=index,
+        evidence_sha256=b"e" * 32,
+        status=state,
+        schema_version=1,
+        resolved_at=at,
+        resolution_receipt_sha256=receipt,
+    )
+    if valid:
+        assert store._validate(row) == index
+        row["native_index_sha256"] = b"x" * 32
+    with pytest.raises(BindingError):
+        store._validate(row)

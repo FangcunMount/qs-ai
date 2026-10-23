@@ -96,7 +96,6 @@ def parse_native_limit_evidence(raw: bytes, expected: bytes) -> NativeLimitEvide
             or value["truncated_possible"] != (len(rows) == 64)
         ):
             raise ValueError(ERROR)
-        seen: set[str] = set()
         indices: list[bytes] = []
         numbers = {"queue_id", "queue_offset", "commitlog_offset", "index_hour"}
         for row in rows:
@@ -110,9 +109,6 @@ def parse_native_limit_evidence(raw: bytes, expected: bytes) -> NativeLimitEvide
             ):
                 raise ValueError(ERROR)
             identity = identity.lower()
-            if identity in seen:
-                raise ValueError(ERROR)
-            seen.add(identity)
             if any(type(row[key]) is not int or not 0 <= row[key] < 2**63 for key in numbers):
                 raise ValueError(ERROR)
             index = hashlib.sha256(b"m3-native-limit-index-v1\x00")
@@ -126,6 +122,8 @@ def parse_native_limit_evidence(raw: bytes, expected: bytes) -> NativeLimitEvide
             for name in ("queue_id", "queue_offset", "commitlog_offset", "index_hour"):
                 index.update(row[name].to_bytes(8, "big"))
             indices.append(index.digest())
+        # Native copies retain UNIQ_KEY. The evidence constructor rejects
+        # duplicate full v1 fingerprints, without treating client IDs as offsets.
         return NativeLimitEvidence(expected, tuple(sorted(indices)))
     except (ValueError, TypeError, KeyError, RecursionError):
         raise ValueError(ERROR) from None

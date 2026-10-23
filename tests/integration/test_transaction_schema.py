@@ -292,3 +292,74 @@ async def test_transaction_archive_shares_original_root_and_never_exposes_prepar
             )
         with pytest.raises(MessagingContractError, match="committed witness"):
             await archive_store.read_committed(identity)
+
+
+async def test_native_governance_resolved_reimport_preserves_first_index(installed):
+    # Controlled schema fixture, not approval, real Broker failure/RPC or release proof.
+    import json
+    from datetime import datetime
+
+    from qs_ai.infrastructure.persistence.mysql.native_limit import MySQLNativeLimits
+    from qs_ai.infrastructure.persistence.mysql.native_limit_schema import notices
+    from qs_ai.infrastructure.workflow_transport.native_limit import parse_native_limit_evidence
+
+    binding = Binding("ai.mysql", "owned-primary", "m3-1")
+    async with installed() as db, db.begin():
+        await db.execute(
+            sa.text("INSERT INTO rm_tx_binding VALUES('ai.mysql','owned-primary','m3-1',1)")
+        )
+    store = MySQLNativeLimits(installed, binding, "m3-1")
+    report = dict(
+        topic="TRANS_CHECK_MAX_TIME_TOPIC",
+        key_sha256="1" * 64,
+        records=[
+            dict(
+                broker_message_id="A" * 32,
+                queue_id=0,
+                queue_offset=1,
+                commitlog_offset=2,
+                index_hour=3,
+            )
+        ],
+        raw_admin_sha256="2" * 64,
+        read_only=True,
+        body_exported=False,
+        truncated_possible=False,
+        alert="native_transaction_check_limit_reached",
+        severity="critical",
+    )
+
+    def evidence():
+        raw = json.dumps(report).encode()
+        return parse_native_limit_evidence(raw, hashlib.sha256(raw).digest())
+
+    first = evidence()
+    assert not await store.read_native_limit()
+    await store.record(first)
+    assert await store.read_native_limit()
+    receipt = hashlib.sha256(b"fixture-only-no-rpc-proof").digest()
+    async with installed() as db, db.begin():
+        result = await db.execute(
+            sa.update(notices)
+            .where(notices.c.owner == b"ai.mysql")
+            .values(
+                status=b"resolved",
+                resolved_at=datetime(2026, 10, 24),
+                resolution_receipt_sha256=receipt,
+            )
+        )
+        assert result.rowcount == 1
+    assert not await store.read_native_limit()
+    report["raw_admin_sha256"] = "3" * 64
+    for _ in range(2):
+        await store.record(evidence())
+    assert not await store.read_native_limit()
+    async with installed() as db:
+        row = (await db.execute(sa.select(notices))).mappings().one()
+        assert row["evidence_sha256"] == first.digest
+        assert row["resolution_receipt_sha256"] == receipt and row["status"] == b"resolved"
+    report["records"][0].update(queue_offset=2, commitlog_offset=3)
+    await store.record(evidence())
+    assert await store.read_native_limit()
+    async with installed() as db:
+        assert await db.scalar(sa.select(sa.func.count()).select_from(notices)) == 2

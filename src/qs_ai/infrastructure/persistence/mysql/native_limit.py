@@ -3,6 +3,7 @@
 import asyncio
 import math
 from collections.abc import Mapping
+from datetime import datetime
 from typing import Any, cast
 
 import sqlalchemy as sa
@@ -63,7 +64,7 @@ class MySQLNativeLimits:
             or type(row["evidence_sha256"]) is not bytes
             or len(row["evidence_sha256"]) != 32
             or not any(row["evidence_sha256"])
-            or row["status"] != b"blocked"
+            or not self._valid_resolution(row)
         ):
             raise BindingError("Native-limit notice binding mismatch")
         expected = native_notice_key(
@@ -78,6 +79,20 @@ class MySQLNativeLimits:
         return cast(bytes, row["native_index_sha256"])
 
     @staticmethod
+    def _valid_resolution(row: Mapping[str, Any]) -> bool:
+        at, receipt = row["resolved_at"], row["resolution_receipt_sha256"]
+        if row["status"] == b"blocked":
+            return at is None and receipt is None
+        return (
+            row["status"] == b"resolved"
+            and type(at) is datetime
+            and at.replace(tzinfo=None) != datetime.min
+            and type(receipt) is bytes
+            and len(receipt) == 32
+            and any(receipt)
+        )
+
+    @staticmethod
     def _budget(value: float) -> float:
         if isinstance(value, bool) or not math.isfinite(value) or value <= 0:
             raise ValueError("Finite positive native-limit database budget required")
@@ -88,6 +103,8 @@ class MySQLNativeLimits:
 
         Approval/provenance is a separate host responsibility. This deny-only
         batch has no automatic resolution, delete or admission-reopen method.
+        A reviewed resolved row keeps its first evidence and stays resolved
+        when the same physical index is imported again.
         """
         budget_seconds = self._budget(budget_seconds)
         if not isinstance(evidence, NativeLimitEvidence):
@@ -147,7 +164,10 @@ class MySQLNativeLimits:
                 (
                     await db.execute(
                         sa.select(notices)
-                        .where(notices.c.owner == self.binding.owner.encode())
+                        .where(
+                            notices.c.owner == self.binding.owner.encode(),
+                            notices.c.status != b"resolved",
+                        )
                         .limit(1)
                     )
                 )

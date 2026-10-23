@@ -677,6 +677,12 @@ Broker硬故障门禁采用协调实例恢复：原AI提交已确认、本地结
 观测、复核和实际关闭规则见[日志与指标](../observability/README.md#m3-t24事务协议指标与准入保护)，唯一里程碑进度在 [infra M3 执行总表](https://github.com/FangcunMount/infra/blob/main/docs/server/rocketmq-m3-execution.md)。
 
 
+### T25-C3 治理处置后的读取边界（候选）
+
+原生复制可能保留客户端 UNIQ_KEY，完整 v1 物理索引指纹不同的两条记录分别保存；不改变既有指纹或 notice key。宿主导入允许已具备完整非零处置 receipt 与时间的 resolved 行，但不重新封锁、不替换首次 evidence_sha256。未知状态、损坏身份或不完整处置元数据仍拒绝。周期读取按 owner/status 索引只读取未处置责任，避免每轮扫描全部历史；新的物理索引仍建立 blocked 行。
+
+这里只实现治理读取与重导入，不提供解除、业务重试或自动开准入入口。具名恢复工具、真实 RPC 私有审计、受审治理 CAS 与全矩阵仍由 infra T25-C3 完成；健康采样不自动清除宿主已锁住的保护。受控数据库 fixture 仅验证状态读取、首次证据不变及新索引封锁，不当作 Broker 故障、实际 RPC 或生产解除证明。无 schema/SDK codec/业务写入/worker 配额变更。
+
 ## M3：显式初始事务绑定（源码候选）
 
 `python -m qs_ai.maintenance.transaction_binding`只安装新的`ai.mysql`绑定，不执行DDL、旧消息交接或业务写入，不创建SDK producer、MQ连接、API、worker或模型调用。先由宿主显式Alembic安装冻结的完整head，再在应用目录使用精确release SHA和原MySQL/TLS配置运行。它不代替全写者冻结、旧链路排空、备份恢复或infra单一协调目录的受审维护步骤。
