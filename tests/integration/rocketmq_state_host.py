@@ -1462,7 +1462,10 @@ async def test_actual_default_transport_and_worker_share_sender_root_and_shutdow
                         await asyncio.sleep(0.05)
                 assert not status["available"] and status["observation_errors"] > 0
                 passed("protection_actual_primary_binding_conflict_latches")
-                assert services.runtime._sender.stats()["ready"]
+                stats = services.runtime._sender.stats()
+                # Database health may close SDK admission without terminating its
+                # bounded Checker workers or maintenance/client ownership.
+                assert not stats["stopping"] and not stats["stopped"]
                 passed("protection_idle_checker_stays_live")
                 with pytest.raises(TransactionAdmissionClosed):
                     services.runtime.set_admission(True)
@@ -1491,7 +1494,10 @@ async def test_actual_default_transport_and_worker_share_sender_root_and_shutdow
                     await db.commit()
             async with asyncio.timeout(15):
                 while True:
-                    if services.runtime.protection_stats()["fresh"]:
+                    if (
+                        services.runtime.protection_stats()["fresh"]
+                        and services.runtime._sender.stats()["ready"]
+                    ):
                         break
                     await asyncio.sleep(0.05)
             assert services.runtime.protection_stats()["protected"]
