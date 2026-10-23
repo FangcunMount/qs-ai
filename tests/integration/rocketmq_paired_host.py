@@ -767,8 +767,13 @@ async def test_actual_qs_ai_first_wire_and_duplicate_command_event_ack(pair):
         assert await p.qs.call(
             mode="replay_event", wire=base64.b64encode(archived.wire).decode()
         ) == {"ok": True}
+    acknowledgement = next(
+        subscriber
+        for subscriber in p.runtime.subscribers
+        if subscriber.route.topic == "qs.ai.acks.v1"
+    )
     for delivery in p.ack_deliveries.values():
-        await p.acknowledgement.handler(delivery)
+        await acknowledgement.handler(delivery)
     after = await p.qs.call(
         mode="facts",
         request_id=case.identity,
