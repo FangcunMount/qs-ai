@@ -6,6 +6,7 @@ or packet-level/process-exit fault acceptance. Ordinary collection excludes this
 
 import asyncio
 import hashlib
+import importlib.metadata as metadata
 import json
 import sys
 from contextlib import AsyncExitStack, aclosing, asynccontextmanager
@@ -170,7 +171,7 @@ def state_receipt(required_broker, request):
                     )
                 ),
                 "root": "original_mysql_sqlalchemy",
-                "sdk": "0.4.0a2",
+                "sdk": metadata.version("fangcun-reliable-messaging"),
                 "client": "5.1.2",
                 "python": sys.version.split()[0],
                 "system_login_not_claimed": True,

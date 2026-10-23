@@ -300,6 +300,8 @@ async def pair(host, required_pair, monkeypatch, request):
     recorder = host.tx.database.state_events
     replacements = []
     resource_receipt = {"closed": False}
+    ai_recovery = {}
+    prior_ai_client = None
     qs_proxy = None
     try:
         if fault_mode == "qs_sigkill":
@@ -411,6 +413,13 @@ async def pair(host, required_pair, monkeypatch, request):
                 recovered = services.runtime.stats()
                 assert not recovered["ready"] and recovered["completed_results"] == 0
                 assert recovered["half_prepared_results"] == 0
+                assert services.runtime._sender._client.client_id != prior_ai_client
+                ai_recovery.update(
+                    recovered_committed_references=len(checked),
+                    recovered_half_prepared=0,
+                    recovered_completed_results=0,
+                    new_host_runtime=True,
+                )
                 services.runtime.set_admission(True)
             runtime = await MessagingRuntime.create(container, active_settings, ca, ai_cert, ai_key)
             command_subscriber = next(
@@ -469,12 +478,18 @@ async def pair(host, required_pair, monkeypatch, request):
             async with asyncio.timeout(40):
                 while not state.ready:
                     if supervisor.done():
+                        for task in state.tasks.values():
+                            if task.done() and not task.cancelled():
+                                error = task.exception()
+                                code = getattr(error, "code", 0)
+                                if type(code) is int and 0 < code <= 99999:
+                                    ai_recovery["startup_rpc_code"] = code
                         await supervisor
                     await asyncio.sleep(0.02)
             assert len(runtime.subscribers) == 2 and runtime.publisher_ready.is_set()
 
         async def restart_ai_after_failure():
-            nonlocal container, runtime, supervisor, server
+            nonlocal container, runtime, supervisor, server, prior_ai_client
             async with asyncio.timeout(45):
                 while not state.failed:  # noqa: ASYNC110
                     await asyncio.sleep(0.02)
@@ -482,10 +497,12 @@ async def pair(host, required_pair, monkeypatch, request):
                     await asyncio.shield(supervisor)
             assert services.runtime.stats()["stopped"]
             old_client = services.runtime._sender._client.client_id
+            prior_ai_client = old_client
             await runtime.close()
             await server.stop(2)
             await asyncio.wait_for(server.wait_for_termination(), 5)
             await container.close()
+            ai_recovery["original_host_failed_and_drained"] = True
             await start_ai(recovery=True)
             assert services.runtime._sender._client.client_id != old_client
             # Update the yielded fixture explicitly; finalizers use the same

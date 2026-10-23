@@ -105,7 +105,7 @@ def required_broker(request):
         pytest.fail("Required private isolated Broker profile missing")
     config = json.loads(Path(path).read_text())
     assert config["endpoint"].startswith("127.0.0.1:")
-    assert metadata.version("fangcun-reliable-messaging") == "0.4.0a2"
+    assert metadata.version("fangcun-reliable-messaging") == config["sdk_python_version"]
     assert metadata.version("rocketmq-python-client") == "5.1.2"
     import reliable_messaging
 
@@ -137,7 +137,7 @@ def required_broker(request):
                         )
                     ),
                     "root": "original_mysql_sqlalchemy",
-                    "sdk": "0.4.0a2",
+                    "sdk": metadata.version("fangcun-reliable-messaging"),
                     "client": "5.1.2",
                     "python": sys.version.split()[0],
                     "system_login_not_claimed": True,

@@ -2,7 +2,7 @@
 
 qs-ai 通过消息受理命令，把可见状态和成果作为持久事件交给 QS。一次本地提交证明“业务效果与待发消息同时存在”；Broker 的发布确认成功证明 Broker 接收；QS 对原事件返回 `STORED` 才证明其接收事务完成。这三个完成点分别有记录，不能合并成一个“发送成功”。
 
-本文以一次 Start 产生 Session、最终形成 Artifact 并交付 QS 为主线。核对基线：qs-ai `d9c3155`，QS `2ccc2de44`，2026-10-06。上述日期记录原业务链路；2026-10-19 的 M3 接入基础固定依赖 `fangcun-reliable-messaging[nsq,rocketmq]==0.4.0a1`。当前源码固定 `0.4.0a2`（SDK `8de893b367cc797580799abd8325f41dd62356db`），显式事务配置选择完整装配；默认配置及生产尚未切换，测试、部署与真实业务接收仍是独立证据。
+本文以一次 Start 产生 Session、最终形成 Artifact 并交付 QS 为主线。核对基线：qs-ai `d9c3155`，QS `2ccc2de44`，2026-10-06。上述日期记录原业务链路；2026-10-19 的 M3 接入基础固定依赖 `fangcun-reliable-messaging[nsq,rocketmq]==0.4.0a1`。当前源码固定 `0.4.0a3`（SDK `2258ad70275ae974e71fb3ffeaa5ed7def4c2893`），显式事务配置选择完整装配；默认配置及生产尚未切换，测试、部署与真实业务接收仍是独立证据。
 
 ## RocketMQ 普通消息
 
@@ -649,3 +649,10 @@ read_candidate_response将已持久化candidate响应绑定到原不可变dispat
 Sender 普通调用始终拒绝重复 dispatch。宿主必须显式装配 `WorkerDispatchRecovery` / `CandidateDispatchRecovery`，才可对精确 Aborted 且尚未提交业务的 dispatch 通过 SDK Replan 取得新租约；原 ModelCapacity 在半消息之前取得，原根与 witness 证实后只移交一次。已 Committed 或仍 Prepared 的 dispatch 不能重新调用模型。完成/排空 dispatcher 的 `recover_aborted` 默认为 false；显式启用后只对精确旧 Aborted 执行使用 Retry/Replan，保留原 response、业务身份及旧证据。
 
 新增原生 MySQL 测试覆盖共同回滚、协调版本竞争、归档拒绝和客户端丢弃提交回复；后者不是数据库网络故障证明。显式 Broker profile 另覆盖半消息屏障、首响应复用、取消排空、显式重建 dispatch 和客户端丢弃最终确认回复。进程退出、真实数据库断网、默认完整装配、QS 配对业务、真实模型及 system 验收仍须分别记录，不能由这些夹具代替。
+
+
+## T23 存活生产者恢复修订
+
+当前依赖锁定已发布 Python `0.4.0a3`，wheel SHA256 为 `7a0a35438ed6890cff37aea3305e1ee1fcec4b9bcac0667959fbc2cda62c636e`，底层客户端保持 5.1.2。SDK修正已通过双档真实同实例Broker恢复、消费及实际关闭；发布资产重新下载并校验，wheel/sdist隔离安装读取的driver与2258ad70源码相同。既有0.4.0a2报告继续绑定原源码，不作为本次新制品的宿主验收。
+
+成对故障夹具遵循现有fail-fast监督器：旧宿主消费者失败后排空，重新构造同数据库/owner/epoch的DI runtime，暂停新准入完成原两条Reference的真实回查，要求新增半消息与业务执行均为0，再恢复默认消费者。该路径是新宿主runtime；实际OS进程SIGKILL由Go生产者故障项单独证明。原业务、模型及历史清理边界不变。新制品的完整成对门禁、源码合并、稳定发布和生产状态回链infra总表，不以SDK探针代替宿主验收。

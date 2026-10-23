@@ -322,7 +322,17 @@ async def broker_loss(p):
         passed("broker_sigkill_and_same_container_restart")
 
         old_stats = p.services.runtime.stats()
-        stats = await p.restart_ai_after_failure()
+        try:
+            stats = await p.restart_ai_after_failure()
+        finally:
+            observation.update(
+                local_calls=local_calls,
+                half_prepared=old_stats["half_prepared_results"],
+                actual_final_unknown=old_stats["final_unknown_results"],
+                pending_calls=old_stats["pending_calls"],
+                checks_drained_before_restart=True,
+                **p.ai_recovery,
+            )
         assert local_calls == 1
         assert stats["completed_results"] == stats["half_prepared_results"] == 0
         assert stats["check_commit"] >= 2
