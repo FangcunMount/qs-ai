@@ -74,6 +74,9 @@ def passed(name):
     _CASES[name] = True
 
 
+_PAIR_SESSION = pytest.StashKey[dict]()
+
+
 @pytest.fixture(scope="session", autouse=True)
 def required_pair(request):
     path = os.environ.get("QS_AI_M3_BROKER_CONFIG")
@@ -88,6 +91,15 @@ def required_pair(request):
     assert not config["qs_sdk_module"].get("Replace")
     private = Path(config["private_directory"])
     assert private.is_absolute() and private.stat().st_mode & 0o077 == 0
+    # Imported fixture functions have separate FixtureDefs in two test modules.
+    # Keep one logger/report owner in this pytest session, without relaxing the
+    # strict single-receipt contract or changing a global client factory.
+    shared = request.config.stash.get(_PAIR_SESSION, None)
+    if shared is not None:
+        if config != shared:
+            raise AssertionError("Shared paired session configuration changed")
+        yield shared
+        return
     from rocketmq.v5.log.log_config import logger
 
     for handler in list(logger.handlers):
@@ -97,6 +109,7 @@ def required_pair(request):
     private_log.touch(mode=0o600)
     logger.addHandler(logging.FileHandler(private_log))
     logger.setLevel(logging.ERROR)
+    request.config.stash[_PAIR_SESSION] = config
     try:
         yield config
     finally:
