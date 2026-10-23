@@ -2,7 +2,7 @@
 
 qs-ai 通过消息受理命令，把可见状态和成果作为持久事件交给 QS。一次本地提交证明“业务效果与待发消息同时存在”；Broker 的发布确认成功证明 Broker 接收；QS 对原事件返回 `STORED` 才证明其接收事务完成。这三个完成点分别有记录，不能合并成一个“发送成功”。
 
-本文以一次 Start 产生 Session、最终形成 Artifact 并交付 QS 为主线。核对基线：qs-ai `d9c3155`，QS `2ccc2de44`，2026-10-06。上述日期记录原业务链路；2026-10-19 的 M3 接入基础固定依赖 `fangcun-reliable-messaging[nsq,rocketmq]==0.4.0a1`。当前源码固定 `0.4.0a3`（SDK `2258ad70275ae974e71fb3ffeaa5ed7def4c2893`），显式事务配置选择完整装配；默认配置及生产尚未切换，测试、部署与真实业务接收仍是独立证据。
+本文以一次 Start 产生 Session、最终形成 Artifact 并交付 QS 为主线。核对基线：qs-ai `d9c3155`，QS `2ccc2de44`，2026-10-06。上述日期记录原业务链路；2026-10-19 的 M3 接入基础固定依赖 `fangcun-reliable-messaging[nsq,rocketmq]==0.4.0a1`。当前源码固定 `0.4.0a4`（SDK `04757bd3212ca961d8eaec22ecd3560101111e18`），显式事务配置选择完整装配；默认配置及生产尚未切换，测试、部署与真实业务接收仍是独立证据。
 
 ## RocketMQ 普通消息
 
@@ -666,3 +666,12 @@ Broker硬故障门禁采用协调实例恢复：原AI提交已确认、本地结
 完整成对门禁继续覆盖原重复command/event/ACK语义；重复ACK用例从当前runtime的真实订阅器取得handler，不依赖启动函数提取前的局部变量别名。首次wire、档案/receipt与业务快照不变的断言保持。
 
 同一个session fixture在成对模块与故障模块中各自注册时，共享当前pytest session的冻结配置、私有日志及唯一收据归属。重复注册不提前关闭原日志、不产生第二份收据；配置变化明确拒绝且不回显其内容。3项回归测试先失败后通过；完整原生门禁仍须复验，严格单收据解析不放宽。
+
+
+### M3 T24：固定事务观测预发布
+
+当前依赖升级至已发布 `0.4.0a4`，以首次下载制品和锁文件为准；先前 `0.4.0a3` 的故障证据仍绑定其原源码。新增 `MySQLStore.observe_protocol` 与真实恢复 RPC 后的正向 audit 支持，不改变业务 wire、协议 schema 或原事务提交归属。宿主接入、隔离实库、生产部署和 system 验收分别记账，当前新宿主原生门禁待验证。
+
+`TransactionRuntime` 仍由 APP 生命周期管理；一个采样 Task 使用现有宿主 asyncio loop，调用 SDK 以独立短生命周期 AsyncSession 读取已绑定主库。初次采样先于 Producer 注册，保护关闭新发送时仍启动 Checker。SDK 保留自身 I/O loop，AsyncSession 不传入回查线程。Reserve/Execute/Retry/Replan 统一受宿主准入保护，模型及业务重试权限不变。
+
+观测、复核和实际关闭规则见[日志与指标](../observability/README.md#m3-t24事务协议指标与准入保护)，唯一里程碑进度在 [infra M3 执行总表](https://github.com/FangcunMount/infra/blob/main/docs/server/rocketmq-m3-execution.md)。

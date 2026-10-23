@@ -117,3 +117,18 @@ qs_ai_mq_observation_available 0
 | [integration/test_evaluation_diagnostics.py](../../../tests/integration/test_evaluation_diagnostics.py) | 列表不取正文、精确回执读取、指纹/版本/组织错误拒绝、不调供应商 |
 
 测试保护口径和隐私边界；现网SLO、积压原因、实际已部署SHA及业务完成需要当时的运行证据。健康、日志、指标、原持久事实与人工验收应分别记录结论。
+
+
+## M3 T24：事务协议指标与准入保护
+
+既有 `/metrics` 通过 `TransactionMetrics` 应用端口取得缓存及 SDK 计数，独立于原业务 receipt/Outbox 的数据库快照。新增前缀 `reliable_messaging_transaction_`；只输出固定 owner `ai.mysql`、阶段和结果标签。抓取不触发协议数据库查询、不创建 Task。未配置事务 runtime 时不凭空输出“零未决”的协议指标。
+
+每 5 秒使用 2 秒 SDK 数据库预算采样。读取失败/缓存过期立即禁止新发送，保留旧计数；确认记录缺口或准备租约过期达到 300 秒、回查容量连续饱和或观测连续失败 120 秒，形成需具名复核的保护。协议绑定冲突、矛盾证据、无时间缺口、Committed 缺少 Prepared 半消息记录及新增 invalid check 同样锁定。Python `pending_checks` 已含运行中的 Future，等待数为 pending 减 running；不能重复相加扩大饱和判定。
+
+`confirmation_gap_branches` 是缺少正向最终 audit 的观测责任，不是精确 Broker 积压。`outcomes_total` 是历史累计结果，不能作为当前未决数。缺少半消息 audit 的 Aborted 单独计量，可能从未发送。Checker 决定 Commit 不等于 RPC 成功；只有实际恢复 RPC 正向确认并保存 audit 才能收敛相应缺口，且它仍不证明消费者业务完成。Python 没有独立 RPC 失败计数，不将范围更广的 callback_errors 冒充它。
+
+恢复先核对精确责任，待样本新鲜、异常解除、容量健康且缺口低于 120 秒告警边界后，以当前保护 generation 和非空具名记录调用 `review_protection`；复核只解锁保护，不打开原本关闭的准入。普通 `set_admission(True)` 不能绕过。当前没有新增公开控制 HTTP API。Broker 已完成且不再回查的 audit 缺口仍需 T25 具名处置；不能伪造正向确认、清空计数或重跑模型解除。
+
+关闭共享同一预算，先排空实际 SDK 工作，再停止并等待宿主采样器；不通过取消 waiter 提前释放仍在执行的数据库容量。Close 超时保留 ShutdownIncomplete，可继续 Wait；池与 loop 由原宿主最终关闭。`sdk_stopped`、`sampler_running` 分别记录资源归属，宿主 stopped 仅在两者都实际结束时成立。
+
+目标测试为 `tests/test_transaction_protection.py`、`tests/test_transaction_metrics.py` 及既有 runtime/生命周期合同。当前本地 4239 项纯测试、450 个源码文件类型检查及 Ruff 通过；1351 项依赖测试被明确 deselect，不能据此宣称实库、Broker、system 或生产通过。唯一进度与原生证据由 [infra 执行总表](https://github.com/FangcunMount/infra/blob/main/docs/server/rocketmq-m3-execution.md) 维护。
