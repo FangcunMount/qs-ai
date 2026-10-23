@@ -656,3 +656,5 @@ Sender 普通调用始终拒绝重复 dispatch。宿主必须显式装配 `Worke
 当前依赖锁定已发布 Python `0.4.0a3`，wheel SHA256 为 `7a0a35438ed6890cff37aea3305e1ee1fcec4b9bcac0667959fbc2cda62c636e`，底层客户端保持 5.1.2。SDK修正已通过双档真实同实例Broker恢复、消费及实际关闭；发布资产重新下载并校验，wheel/sdist隔离安装读取的driver与2258ad70源码相同。既有0.4.0a2报告继续绑定原源码，不作为本次新制品的宿主验收。
 
 成对故障夹具遵循现有fail-fast监督器：旧宿主消费者失败后排空，重新构造同数据库/owner/epoch的DI runtime，暂停新准入完成原两条Reference的真实回查，要求新增半消息与业务执行均为0，再恢复默认消费者。该路径是新宿主runtime；实际OS进程SIGKILL由Go生产者故障项单独证明。原业务、模型及历史清理边界不变。新制品的完整成对门禁、源码合并、稳定发布和生产状态回链infra总表，不以SDK探针代替宿主验收。
+
+T23 的[成对宿主夹具](../../../tests/integration/rocketmq_paired_host.py)与[故障编排](../../../tests/integration/rocketmq_paired_faults.py)由原监督器只启动 owner 一次，恢复时暂缓消费者 Start 以观察暂停 owner 的真实回查。该故障夹具的整体启动预算140秒包含100秒回查观察屏障；常规夹具启动仍使用原30秒。生产生命周期与SDK单次Start契约保持既有实现，实际生产启动和切换时长另在T29验证。

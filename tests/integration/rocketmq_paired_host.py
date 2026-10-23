@@ -405,22 +405,6 @@ async def pair(host, required_pair, monkeypatch, request):
                     return value
 
                 monkeypatch.setattr(services.runtime.store, "evidence", exact_evidence)
-                await services.runtime.start()
-                async with asyncio.timeout(100):
-                    while not expected.issubset(checked):  # noqa: ASYNC110
-                        await asyncio.sleep(0.05)
-                assert len(expected) == len(checked) == 2
-                recovered = services.runtime.stats()
-                assert not recovered["ready"] and recovered["completed_results"] == 0
-                assert recovered["half_prepared_results"] == 0
-                assert services.runtime._sender._client.client_id != prior_ai_client
-                ai_recovery.update(
-                    recovered_committed_references=len(checked),
-                    recovered_half_prepared=0,
-                    recovered_completed_results=0,
-                    new_host_runtime=True,
-                )
-                services.runtime.set_admission(True)
             runtime = await MessagingRuntime.create(container, active_settings, ca, ai_cert, ai_key)
             command_subscriber = next(
                 sub for sub in runtime.subscribers if sub.route.topic == "qs.ai.commands.v1"
@@ -462,6 +446,18 @@ async def pair(host, required_pair, monkeypatch, request):
 
             runtime.payloads.Get = observe_payload_get
             assert runtime.relay is None and not runtime.publishers
+            recovery_gate = asyncio.Event()
+            if recovery:
+                # Keep default consumers inert while the SAME host supervisor
+                # starts its owner once and the real Broker checks old evidence.
+                for subscriber in runtime.subscribers:
+                    original_start = subscriber.start
+
+                    async def start_after_recovery(start=original_start):
+                        await recovery_gate.wait()
+                        await start()
+
+                    monkeypatch.setattr(subscriber, "start", start_after_recovery)
             server = grpc.aio.server()
             rpc.add_MessagePayloadsServicer_to_server(runtime.payloads, server)
             assert (
@@ -474,7 +470,35 @@ async def pair(host, required_pair, monkeypatch, request):
                 == ai_port
             )
             await server.start()
-            supervisor = asyncio.create_task(supervise(runtime.components(state, 20), state, stop))
+            supervisor = asyncio.create_task(
+                supervise(
+                    runtime.components(state, 20),
+                    state,
+                    stop,
+                    # Only this fixture adds a bounded backcheck observation
+                    # barrier before subscriber Start. Normal startup stays30s.
+                    startup_seconds=140 if recovery else 30,
+                )
+            )
+            if recovery:
+                async with asyncio.timeout(30):
+                    await runtime.publisher_ready.wait()
+                async with asyncio.timeout(100):
+                    while not expected.issubset(checked):  # noqa: ASYNC110
+                        await asyncio.sleep(0.05)
+                assert len(expected) == len(checked) == 2
+                recovered = services.runtime.stats()
+                assert not recovered["ready"] and recovered["completed_results"] == 0
+                assert recovered["half_prepared_results"] == 0
+                assert services.runtime._sender._client.client_id != prior_ai_client
+                ai_recovery.update(
+                    recovered_committed_references=len(checked),
+                    recovered_half_prepared=0,
+                    recovered_completed_results=0,
+                    new_host_runtime=True,
+                )
+                services.runtime.set_admission(True)
+                recovery_gate.set()
             async with asyncio.timeout(40):
                 while not state.ready:
                     if supervisor.done():
