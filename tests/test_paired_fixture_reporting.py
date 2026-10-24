@@ -31,6 +31,7 @@ def test_paired_report_and_private_logger_have_one_session_owner(
     lines = [line for line in capsys.readouterr().out.splitlines() if marker in line]
     assert len(lines) == 1
     assert json.loads(lines[0].split(marker, 1)[1])["failed"] == 0
+    assert json.loads(lines[0].split(marker, 1)[1])["sdk_go"] == config["sdk_go_version"]
     assert not logger.handlers
 
 
@@ -51,6 +52,15 @@ def test_shared_paired_fixture_refuses_configuration_replacement(tmp_path, monke
     assert capsys.readouterr().out.count("M3_PAIRED_BASELINE_RECEIPT ") == 1
 
 
+def test_paired_fixture_refuses_module_version_different_from_frozen_profile(tmp_path, monkeypatch):
+    request, config, path, _ = context(tmp_path, monkeypatch, False)
+    config["qs_sdk_module"]["Version"] = "v0.5.0-rocketmq-tx.2"
+    path.write_text(json.dumps(config))
+    fixture = paired.required_pair.__wrapped__(request)
+    with pytest.raises(AssertionError):
+        next(fixture)
+
+
 def context(tmp_path, monkeypatch, faults):
     private = tmp_path / "private"
     private.mkdir(mode=0o700)
@@ -58,7 +68,8 @@ def context(tmp_path, monkeypatch, faults):
         sdk_python_version=metadata.version("fangcun-reliable-messaging"),
         endpoint="127.0.0.1:1",
         project="rocketmq-m2-fixture-report",
-        qs_sdk_module=dict(Version="v0.5.0-rocketmq-tx.2"),
+        sdk_go_version="v0.5.0-rocketmq-tx.4",
+        qs_sdk_module=dict(Version="v0.5.0-rocketmq-tx.4"),
         private_directory=str(private),
         client_log=str(private / "client.log"),
         paired_profile="full",
