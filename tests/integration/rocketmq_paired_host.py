@@ -87,7 +87,7 @@ def required_pair(request):
     assert metadata.version("rocketmq-python-client") == "5.1.2"
     assert config["endpoint"].startswith("127.0.0.1:")
     assert config["project"].startswith("rocketmq-m2-")
-    assert config["qs_sdk_module"]["Version"] == "v0.5.0-rocketmq-tx.2"
+    assert config["qs_sdk_module"]["Version"] == config["sdk_go_version"]
     assert not config["qs_sdk_module"].get("Replace")
     private = Path(config["private_directory"])
     assert private.is_absolute() and private.stat().st_mode & 0o077 == 0
@@ -137,7 +137,7 @@ def required_pair(request):
                         )
                     ),
                     root="original_go_mysql_and_python_sqlalchemy",
-                    sdk_go="v0.5.0-rocketmq-tx.2",
+                    sdk_go=config["qs_sdk_module"]["Version"],
                     sdk_python=metadata.version("fangcun-reliable-messaging"),
                     client_python="5.1.2",
                     python=sys.version.split()[0],
