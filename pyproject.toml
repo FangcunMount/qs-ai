@@ -5,7 +5,7 @@ description = "AI interpretation and conversational workflows for QS"
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
 dependencies = [
-  "fangcun-reliable-messaging[nsq,rocketmq]==0.4.0a4",
+  "fangcun-reliable-messaging[nsq,rocketmq]==0.4.0",
   "fastapi>=0.115,<1",
   "uvicorn[standard]>=0.30,<1",
   "pydantic-settings>=2.6,<3",
@@ -46,7 +46,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.uv.sources]
-fangcun-reliable-messaging = { url = "https://github.com/FangcunMount/reliable-messaging/releases/download/python/v0.4.0a4/fangcun_reliable_messaging-0.4.0a4-py3-none-any.whl" }
+fangcun-reliable-messaging = { url = "https://github.com/FangcunMount/reliable-messaging/releases/download/python/v0.4.0/fangcun_reliable_messaging-0.4.0-py3-none-any.whl" }
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/qs_ai"]
