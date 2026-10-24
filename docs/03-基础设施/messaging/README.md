@@ -692,3 +692,8 @@ Broker硬故障门禁采用协调实例恢复：原AI提交已确认、本地结
 3. `--action verify --plan <原文件> --reviewed-sha256 <原始摘要>`只读回读精确绑定和同一原库/schema。apply提交回复未知时保留原文件与协调证据、保持业务停止，先核对实际状态，不自动重复apply或删除新事实。
 
 默认总DB预算30秒、显式上限120秒；所属engine关闭另有5秒预算。所有动作始终`cutover_authorized=false`，`writers-excluded`只是声明。工具不签发业务ready，不解除持久保护；生产需T29具体镜像/文件/命令摘要及T30后的原具名批准。隔离CI使用独立进程和真实MySQL安装/拒绝夹具，本地只运行纯测试及收集/编译检查。初始提交时仅完成本地验证，后续真实报告及合并状态以infra总表为准；M3唯一进度仍由[infra执行总表](https://github.com/FangcunMount/infra/blob/main/docs/server/rocketmq-m3-execution.md)维护。
+
+
+## 2026-10-24 成对验收的真实 SDK 版本
+
+T26候选仅修正验收夹具：原Go模块必须匹配infra冻结的版本（当前tx.4），由协调器核验正式模块Sum/GoModSum；Python仍锁定a4正式wheel及摘要。夹具receipt报告已经核验的实际Go版本，不再写死早期tx.2。不同模块版本、配置替换、重复报告仍拒绝。目标4项纯测试通过，完整源码及六档实际成对门禁尚待完成；不代表业务或生产已切换。稳定版本改依赖后还须重新验证。
