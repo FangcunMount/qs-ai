@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from tests.test_deployment import (
+    freeze_release_binding,
     image_config,
     inspected_image,
     load,
@@ -34,7 +35,7 @@ def prepare(remote, root, revision, actual):
         "archive_sha256": hashlib.sha256(archive.read_bytes()).hexdigest(),
         "digest": "sha256:" + "f" * 64,
     }
-    (release / "manifest.json").write_text(json.dumps(manifest))
+    freeze_release_binding(release, manifest)
     remote.bind_loaded_image(release, manifest, identity, actual)
     return release, manifest
 
@@ -242,8 +243,13 @@ def test_rollback_uses_pinned_actual_id_before_probe_and_restores_state(
 
     def run(phase, args):
         calls.append(phase)
-        assert phase == "pinned image identity" and args[-1] == target_id
-        return json.dumps([{**inspected_image(manifest), "Id": target_id}])
+        if phase == "pinned image identity":
+            assert args[-1] == target_id
+            return json.dumps([{**inspected_image(manifest), "Id": target_id}])
+        assert phase == "MQ key file preflight"
+        assert str(target / "runtime.json") in args
+        assert args[-1] == "qs_ai.maintenance.messaging_preflight"
+        return ""
 
     monkeypatch.setattr(remote, "run", run)
 
@@ -256,7 +262,14 @@ def test_rollback_uses_pinned_actual_id_before_probe_and_restores_state(
     monkeypatch.setattr(remote, "stop_release", lambda path: calls.append("stop"))
     monkeypatch.setattr(remote, "verify", lambda path: calls.append("verify"))
     remote.restore({"current": current.name, "previous": target.name})
-    assert calls == ["pinned image identity", "probe", "probe", "stop", "verify"]
+    assert calls == [
+        "pinned image identity",
+        "MQ key file preflight",
+        "probe",
+        "probe",
+        "stop",
+        "verify",
+    ]
     assert json.loads((tmp_path / "state.json").read_text())["current"] == target.name
 
 

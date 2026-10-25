@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from tests.deployment_fixtures import transaction_binding
 from tests.test_deployment import (
     image_config,
     inspected_image,
@@ -21,7 +22,6 @@ NEW = "0040_module_table_names"
 def staged_release(tmp_path, monkeypatch):
     remote = load("deploy/serverA/deploy.py")
     release, manifest = setup_release(remote, tmp_path, monkeypatch)
-    (release / "runtime.json").write_text(json.dumps({"services": {"qs-ai": {"environment": {}}}}))
     (release / "compose.yaml").write_text("services: {qs-ai: {image: '${QS_AI_IMAGE}'}}\n")
     state = {"current": "b" * 40 + "-1-1", "previous": "c" * 40 + "-1-1"}
     (tmp_path / "state.json").write_text(json.dumps(state))
@@ -35,7 +35,12 @@ def staged_release(tmp_path, monkeypatch):
             return "qs-ai"
         if phase == "image schema contract":
             return json.dumps([NEW])
-        if phase not in {"image load", "TLS file preflight", "MQ key file preflight"}:
+        if phase not in {
+            "image load",
+            "TLS file preflight",
+            "MQ key file preflight",
+            "mysql CA policy",
+        }:
             pytest.fail(f"Unexpected preparation side effect: {phase}")
         return ""
 
@@ -62,9 +67,11 @@ def test_preparation_never_contacts_source_database_or_running_release(tmp_path,
     assert (release / "image.tar.gz").exists()
     assert not (release / "verification.json").exists()
     assert [phase for phase, _ in calls] == [
+        "mysql CA policy",
         "image load",
         "image identity",
         "compose services",
+        "MQ key file preflight",
         "TLS file preflight",
         "compose services",
         "image schema contract",
@@ -92,7 +99,13 @@ def test_prepared_archive_and_loaded_image_binding_cannot_drift(tmp_path, monkey
     first = remote.stage_prepare(release)
     path = release / material
     path.write_bytes(path.read_bytes() + b"drift")
-    monkeypatch.setattr(remote, "run", lambda *_a: pytest.fail("Reject drift before Docker"))
+
+    def policy_only(phase, args):
+        assert phase == "mysql CA policy", "Reject drift before Docker"
+        assert args == ["python3", "/opt/infra/scripts/mysql/ca.py", "verify", "--ref", "a" * 40]
+        return ""
+
+    monkeypatch.setattr(remote, "run", policy_only)
     with pytest.raises(remote.DeploymentError, match="checksum|binding invalid"):
         remote.stage_prepare(release)
     assert json.loads((release / "prepared.json").read_text()) == first
@@ -115,8 +128,6 @@ def test_prepare_cannot_overwrite_a_successful_release(tmp_path, monkeypatch, pr
 def test_offline_failure_never_marks_release_prepared(tmp_path, monkeypatch, failure):
     remote, release, manifest, _calls = staged_release(tmp_path, monkeypatch)
     original = remote.run
-    if failure == "MQ":
-        monkeypatch.setattr(remote, "messaging_release", lambda *_a: True)
 
     def fail(phase, args):
         if failure == "identity" and phase == "image identity":
@@ -173,6 +184,7 @@ def client_environment(monkeypatch, tmp_path):
         "MYSQL_USERNAME": "app",
         "MYSQL_PASSWORD": "synthetic-app-only",
         "QS_AI_QS_ADDRESS": "qs-apiserver:9090",
+        "QS_AI_MESSAGING_BINDING": json.dumps(transaction_binding()),
     }
     for key, value in env.items():
         monkeypatch.setenv(key, value)
