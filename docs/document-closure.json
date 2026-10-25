@@ -1,6 +1,6 @@
 {
   "schema_version": "qs-ai-document-closure/v1",
-  "source_commit": "30c625385abde8f42832bae80dd593d610037177",
+  "source_commit": "f61925b5f075494f017e45900fdbdce3ac3f148c",
   "reviewed_on": "2026-10-26",
   "authority": "runtime composition > code > machine contracts/config/migrations > scoped tests > maintained prose > dated evidence/plans/archive",
   "source_catalog": {
@@ -423,7 +423,7 @@
     "tests/test_qs_access.py": "f9b3bbfb6da977e69ed5d784ed07b69e30a4eaf99e81e7b34e1abe4ce2fbedd5",
     "tests/test_quality_gates.py": "ab16ceb6f31644ac91633e6667fc9c0bb0e3efc5d42ab30d9cac0ace20163ef0",
     "tests/test_quotas.py": "2668cf6e6af3a5f34620c1e1f009e161356c92e666057d44ffb63608936f386d",
-    "tests/test_release_image_identity.py": "85119afac3caea9531f78a8756cf7839c7ed96eb90e437d11738220a92cdaec5",
+    "tests/test_release_image_identity.py": "81124f2bf64c673289e0322a1c662a37f0cb15f3e9fe4d5c98800607e4381228",
     "tests/test_report_graph.py": "08cb6ecc6253619fcf1c25eb12c4c32a5c0ea7838a80397302ee009217fadc1a",
     "tests/test_retirement_layout_boundary.py": "910cea92691ecb3cd5083e84930746ce2c4065a0469afb2fcca8a299c355e40b",
     "tests/test_runtime_lifecycle.py": "b7b3f5b71658a8ad7234016fdb278f55700afe4e9436b7e467863f52aec2fbec",
@@ -444,7 +444,7 @@
     "deploy/serverA/schema_maintenance.py": "95f68ba26955f02b8139ebdd6f1b5bbf3e1b643e53f44dd18f01cb21907f4c59",
     "src/qs_ai/maintenance/schema_refactor/backup.py": "c9a33818860f36584f62b647763587ffeb3539ebf23f59511212c5e1420ecf25",
     "src/qs_ai/maintenance/schema_refactor/backup_format.py": "d6e7954a645d5d1db5ed5d3e2ccd98a9cdfdc99bd1a7effd8e8e84769b52c119",
-    "tests/test_cd_prepare.py": "59ace7a6d7745eb16f1a6e06d266c21599b84416ffcba37586a66ac3ebba21e6",
+    "tests/test_cd_prepare.py": "eab643a7b25958e22cac2d02ce553fce1cd88a5dceb771d261962ba0d37af3c1",
     "tests/test_schema_maintenance_transport.py": "3c7e01224bbafc825a27894a495511ec7e7c3a624be78a961b7721253111a908",
     "tests/test_schema_maintenance_deployment.py": "22d303c15df3ce82845566ece1b789a66847cd07cfd74e3b42a20e5fc084564c",
     "tests/test_schema_refactor_backup.py": "8ab108689b4734a12ad1cae77db4c3f43d0b53f768a86112708d2d0f72273320",
