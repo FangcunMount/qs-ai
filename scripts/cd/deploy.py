@@ -187,6 +187,9 @@ def bind_messaging(runtime: dict, raw: str) -> None:
             if provider == "nsq"
             else ((fields - {"nsqd"}) | {"provider", "rocketmq", "publish_enabled"})
         )
+        if provider == "rocketmq" and "transactions" in binding:
+            expected |= {"transactions"}
+            release_identity_module().validate_transaction_binding(binding["transactions"])
         if (
             not isinstance(binding, dict)
             or provider not in {"nsq", "rocketmq"}
@@ -265,7 +268,9 @@ def bind_messaging(runtime: dict, raw: str) -> None:
                     raise ValueError
                 rocketmq_paths.append(config[field])
         service = runtime["services"]["qs-ai"]
-        service["environment"]["QS_AI_MESSAGING"] = json.dumps(binding, sort_keys=True)
+        service["environment"]["QS_AI_MESSAGING"] = json.dumps(binding, sort_keys=True).replace(
+            "$", "$$"
+        )
         service["volumes"] = [
             {
                 "type": "bind",

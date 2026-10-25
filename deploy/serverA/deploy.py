@@ -590,6 +590,50 @@ def release_path(name: str) -> Path:
     return ROOT / "releases" / name
 
 
+def validate_transaction_binding(value: dict) -> None:
+    """Host release policy for the frozen ai.mysql budget; no SDK or DB access."""
+    if not isinstance(value, dict) or set(value) != {"ai.mysql"}:
+        raise ValueError("Explicit final AI owner required")
+    owner = value["ai.mysql"]
+    if not isinstance(owner, dict) or set(owner) != {
+        "store_id",
+        "writer_epoch",
+        "route_revision",
+        "limits",
+    }:
+        raise ValueError("Complete final AI binding required")
+    for name in ("store_id", "writer_epoch"):
+        item = owner[name]
+        if (
+            not isinstance(item, str)
+            or not item.strip()
+            or not 1 <= len(item.encode("utf-8")) <= 128
+            or "\x00" in item
+        ):
+            raise ValueError("Invalid original AI identity")
+    if owner["route_revision"] != "m3-1":
+        raise ValueError("Final AI route revision required")
+    expected = {
+        "sends": 4,
+        "branches": 16,
+        "check_workers": 1,
+        "check_queue": 16,
+        "reconcile_batch": 100,
+        "check_timeout": 2,
+        "rpc_timeout": 5,
+        "lease": 60,
+        "reconcile_interval": 5,
+    }
+    limits = owner["limits"]
+    if not isinstance(limits, dict) or set(limits) != set(expected):
+        raise ValueError("Complete frozen AI budget required")
+    integer = {"sends", "branches", "check_workers", "check_queue", "reconcile_batch"}
+    for name, number in expected.items():
+        item = limits[name]
+        if type(item) not in ({int} if name in integer else {int, float}) or item != number:
+            raise ValueError("Frozen AI budget differs")
+
+
 def messaging_release(release: Path, manifest: dict | None = None) -> bool:
     """Read the release's frozen binding; never consult current mutable deployment vars."""
     path = release / "runtime.json"
@@ -601,9 +645,20 @@ def messaging_release(release: Path, manifest: dict | None = None) -> bool:
         raw = service["environment"].get("QS_AI_MESSAGING")
         if raw is None:
             return False
-        options = json.loads(raw)
+        # Compose consumes $$ as one literal $. Reject mutable interpolation
+        # and validate the exact bytes that the application will receive.
+        if "$" in raw.replace("$$", ""):
+            raise ValueError
+        options = json.loads(raw.replace("$$", "$"))
         if options.get("enabled") is not True:
             raise ValueError
+        provider = options.get("provider", "nsq")
+        if provider not in {"nsq", "rocketmq"}:
+            raise ValueError
+        if "transactions" in options:
+            if provider != "rocketmq":
+                raise ValueError
+            validate_transaction_binding(options["transactions"])
         if set(runtime["services"]) != {"qs-ai"}:
             raise ValueError
         if manifest is None:
@@ -620,18 +675,55 @@ def messaging_release(release: Path, manifest: dict | None = None) -> bool:
             *options["decrypt_key_files"].values(),
             *options["qs_signer_files"].values(),
         }
+        rocketmq_paths = set()
+        if provider == "rocketmq":
+            if type(options.get("publish_enabled")) is not bool:
+                raise ValueError
+            config = options["rocketmq"]
+            if not isinstance(config, dict) or set(config) != {
+                "endpoint",
+                "credentials_file",
+                "ca_file",
+                "routes_file",
+            }:
+                raise ValueError
+            if (
+                not isinstance(config["endpoint"], str)
+                or not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9.-]*:[0-9]{1,5}", config["endpoint"])
+                or not 1 <= int(config["endpoint"].rsplit(":", 1)[1]) <= 65535
+            ):
+                raise ValueError
+            for name, filename in [
+                ("credentials_file", "credentials.json"),
+                ("ca_file", "ca.crt"),
+                ("routes_file", "routes.json"),
+            ]:
+                if config[name] != "/run/qs-ai-rocketmq/" + filename:
+                    raise ValueError
+                rocketmq_paths.add(config[name])
+            if service["environment"].get("GRPC_DEFAULT_SSL_ROOTS_FILE_PATH") != config["ca_file"]:
+                raise ValueError
+            paths |= rocketmq_paths
         targets = set()
         revisions = set()
         for mount in service["volumes"]:
             target = mount["target"]
-            if not target.startswith("/run/qs-ai-jose/") or target in targets:
+            if target in targets:
                 raise ValueError
             source = mount["source"]
-            match = re.fullmatch(
-                r"/data/infra/qs-ai-messaging/versions/([a-z0-9][a-z0-9-]{0,63})/([a-z0-9._-]+\.json)",
-                source,
-            )
-            if not match or target != "/run/qs-ai-jose/" + match[2]:
+            if target in rocketmq_paths:
+                match = re.fullmatch(
+                    r"/data/infra/qs-ai-messaging/versions/([a-z0-9][a-z0-9-]{0,63})/rocketmq/(credentials\.json|routes\.json|ca\.crt)",
+                    source,
+                )
+                prefix = "/run/qs-ai-rocketmq/"
+            else:
+                match = re.fullmatch(
+                    r"/data/infra/qs-ai-messaging/versions/([a-z0-9][a-z0-9-]{0,63})/([a-z0-9._-]+\.json)",
+                    source,
+                )
+                prefix = "/run/qs-ai-jose/"
+            if not match or target != prefix + match[2]:
                 raise ValueError
             if (
                 mount["type"] != "bind"

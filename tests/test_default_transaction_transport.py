@@ -111,13 +111,17 @@ async def test_default_assembly_borrows_one_app_sender_without_relay_or_legacy_r
     container = create_container(settings, EvaluationProvider(), Overrides())
     value = None
     try:
-        host = await container.get(TransactionServices | None)
-        database = await container.get(Database)
         if route_fault:
+            # Final file validation now precedes the sender, schema snapshot and
+            # QS channel. An invalid peer owner must not allocate those resources.
             with pytest.raises(ValueError, match="route binding differs"):
-                await MessagingRuntime.create(container, settings, b"", b"", b"")
-            assert database.state_events is None and channel_closed == [True]
+                await container.get(TransactionServices | None)
+            database = await container.get(Database)
+            assert database.state_events is None and channel_closed == []
+            assert checked == []
         else:
+            host = await container.get(TransactionServices | None)
+            database = await container.get(Database)
             value = await MessagingRuntime.create(container, settings, b"", b"", b"")
             assert value.transaction_services is host
             assert value.tx.database is database
@@ -129,11 +133,11 @@ async def test_default_assembly_borrows_one_app_sender_without_relay_or_legacy_r
             assert isinstance(handlers[1].__self__.store, TransactionMessagingStore)
             assert isinstance(value.payloads.access.store, ArchivePayloadReader)
             assert not host.runtime.stats()["ready"]
-        assert checked == ["readonly_schema", "rolled_back"]
+            assert checked == ["readonly_schema", "rolled_back"]
         connect.assert_not_called()
         forbidden.assert_not_called()
     finally:
         if value is not None:
             await value.close()
         await container.close()
-    assert channel_closed == [True]
+    assert channel_closed == ([] if route_fault else [True])

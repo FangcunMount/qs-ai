@@ -234,13 +234,23 @@ def test_real_key_files_are_validated_without_starting_resources(tmp_path, monke
             messaging_preflight.check_keys(options)
 
 
-def test_enabled_compose_keeps_one_service_original_tls_and_stop_budget(tmp_path):
+@pytest.mark.parametrize("transactional", [False, True])
+def test_enabled_compose_keeps_one_service_original_tls_and_stop_budget(tmp_path, transactional):
     import os
     import subprocess
 
     from tests.test_deployment import ROOT
 
-    (tmp_path / "runtime.json").write_text(json.dumps(runtime()))
+    if transactional:
+        from tests.test_transaction_deployment_binding import transaction_binding
+
+        candidate = transaction_binding()
+        candidate["transactions"]["ai.mysql"]["store_id"] = "Original-$Primary"
+        candidate["transactions"]["ai.mysql"]["writer_epoch"] = "Writer-$$-Epoch"
+        config = runtime(candidate)
+    else:
+        config = runtime()
+    (tmp_path / "runtime.json").write_text(json.dumps(config))
     p = subprocess.run(
         [
             "docker",
@@ -261,7 +271,95 @@ def test_enabled_compose_keeps_one_service_original_tls_and_stop_budget(tmp_path
     services = json.loads(p.stdout)["services"]
     assert set(services) == {"qs-ai"}
     service = services["qs-ai"]
-    assert len(service["volumes"]) == 8 and all(v["read_only"] for v in service["volumes"])
+    assert len(service["volumes"]) == (11 if transactional else 8)
+    assert all(v["read_only"] for v in service["volumes"])
+    assert int(service["mem_limit"]) == 805306368 and float(service["cpus"]) == 0.75
+    if transactional:
+        # `compose config` re-escapes literal dollars for a reusable config.
+        # Decode that representation here; prove the actual engine environment
+        # with a stopped, owned container below rather than infer runtime bytes.
+        options = MessagingOptions.model_validate_json(
+            service["environment"]["QS_AI_MESSAGING"].replace("$$", "$")
+        )
+        assert set(options.transactions) == {"ai.mysql"}
+        assert options.transactions["ai.mysql"].limits.check_workers == 1
+        assert options.transactions["ai.mysql"].store_id == "Original-$Primary"
+        assert options.transactions["ai.mysql"].writer_epoch == "Writer-$$-Epoch"
+        from uuid import uuid4
+
+        probe = tmp_path / "environment-probe.json"
+        probe.write_text(
+            json.dumps(
+                {
+                    "services": {
+                        "probe": {
+                            # Required CI already owns this fixed test dependency image. Do not
+                            # pull a new image, start it, add mounts or create a project network.
+                            "image": "nsqio/nsq:v1.3.0",
+                            "network_mode": "none",
+                            "restart": "no",
+                            "environment": {
+                                "QS_AI_MESSAGING": config["services"]["qs-ai"]["environment"][
+                                    "QS_AI_MESSAGING"
+                                ]
+                            },
+                        }
+                    }
+                }
+            )
+        )
+        command = ["docker", "compose", "-p", "ai-env-proof-" + uuid4().hex[:12], "-f", str(probe)]
+        try:
+            subprocess.run(
+                command + ["create", "--pull", "never"],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            owned = subprocess.run(
+                command + ["ps", "--all", "--quiet"],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=15,
+            ).stdout.split()
+            assert len(owned) == 1
+            state = json.loads(
+                subprocess.run(
+                    ["docker", "inspect", owned[0]],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                    timeout=15,
+                ).stdout
+            )[0]
+            assert state["State"]["Status"] == "created"
+            assert state["HostConfig"]["NetworkMode"] == "none"
+            actual = next(
+                v.removeprefix("QS_AI_MESSAGING=")
+                for v in state["Config"]["Env"]
+                if v.startswith("QS_AI_MESSAGING=")
+            )
+            delivered = MessagingOptions.model_validate_json(actual)
+            assert (
+                delivered.transactions["ai.mysql"].store_id
+                == candidate["transactions"]["ai.mysql"]["store_id"]
+            )
+            assert (
+                delivered.transactions["ai.mysql"].writer_epoch
+                == candidate["transactions"]["ai.mysql"]["writer_epoch"]
+            )
+        finally:
+            # Only this UUID-named project and its anonymous image volumes.
+            subprocess.run(
+                command + ["down", "--volumes"],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+
     assert service["stop_grace_period"] == "3m30s"
     assert all(not v["bind"].get("create_host_path", False) for v in service["volumes"])
     assert {"qs-ai-grpc", "qs-ai-api"} <= set(service["networks"]["backend"]["aliases"])

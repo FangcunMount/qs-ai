@@ -60,6 +60,16 @@ def read_rocketmq_config(options: Any) -> RocketMQConfig:
     routes = tuple(r for r in all_routes if r.topic in {COMMANDS, ACKS, EVENTS})
     if {r.topic for r in routes} != {COMMANDS, ACKS, EVENTS}:
         raise ValueError("RocketMQ manifest missing required workflow topics")
+    if options.transactions:
+        # File preflight, sender assembly and subscriber assembly must agree
+        # before a new deployment can replace the running service.
+        for topic, owner in ((COMMANDS, "qs.mysql"), (ACKS, "qs.mysql"), (EVENTS, "ai.mysql")):
+            selected = [r for r in routes if r.topic == topic]
+            if not selected or any(
+                (r.message_type, r.owner, r.route_revision) != ("TRANSACTION", owner, "m3-1")
+                for r in selected
+            ):
+                raise ValueError("Transaction workflow route binding differs")
     return RocketMQConfig(
         config.endpoint,
         account["username"],

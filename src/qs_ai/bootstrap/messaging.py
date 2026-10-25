@@ -35,7 +35,7 @@ from qs_ai.infrastructure.persistence.mysql.transaction_archive import ArchivePa
 from qs_ai.infrastructure.persistence.mysql.transaction_receipts import TransactionMessagingStore
 from qs_ai.infrastructure.qs_server.report_probe import mtls_channel
 from qs_ai.infrastructure.workflow_transport.command_admission import WorkflowCommandAdmission
-from qs_ai.infrastructure.workflow_transport.messaging import ACKS, CHANNELS, COMMANDS, EVENTS
+from qs_ai.infrastructure.workflow_transport.messaging import ACKS, CHANNELS, COMMANDS
 from qs_ai.infrastructure.workflow_transport.mq_failure import FailureTopology
 from qs_ai.infrastructure.workflow_transport.mq_receiver import CommandReceiver
 from qs_ai.infrastructure.workflow_transport.mq_relay import MQRelay
@@ -162,20 +162,7 @@ class MessagingRuntime:
                 command_handler, failed_command = receiver.receive_command, receiver.failed_command
                 if runtime.transaction_services is not None:
                     services = runtime.transaction_services
-                    # Require the final owner/type/revision, including received
-                    # topics, before constructing a subscriber or opening Start.
-                    for topic, owner in (
-                        (COMMANDS, "qs.mysql"),
-                        (ACKS, "qs.mysql"),
-                        (EVENTS, "ai.mysql"),
-                    ):
-                        selected = [r for r in config.routes if r.topic == topic]
-                        if not selected or any(
-                            (r.message_type, r.owner, r.route_revision)
-                            != ("TRANSACTION", owner, "m3-1")
-                            for r in selected
-                        ):
-                            raise ValueError("Transaction workflow route binding differs")
+                    # The shared file reader already enforces final route bindings.
                     commands = TransactionCommandReceiver(
                         receiver,
                         admission,
