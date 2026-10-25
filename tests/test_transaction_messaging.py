@@ -178,7 +178,7 @@ def test_sender_rejects_peer_owner_routes_and_wrong_ca(tmp_path, monkeypatch):
             route["owner"] = "qs.mysql"
             route["physical_topic"] = physical_topic_v2(EVENTS, "TRANSACTION", "qs.mysql", "m3-1")
     manifest.write_text(json.dumps(document))
-    with pytest.raises(ValueError, match="event route absent"):
+    with pytest.raises(ValueError, match="Transaction workflow route binding differs"):
         make_transaction_sender(validated, Mock())
 
 

@@ -273,7 +273,7 @@ def test_enabled_compose_keeps_one_service_original_tls_and_stop_budget(tmp_path
     service = services["qs-ai"]
     assert len(service["volumes"]) == (11 if transactional else 8)
     assert all(v["read_only"] for v in service["volumes"])
-    assert service["mem_limit"] == 805306368 and service["cpus"] == 0.75
+    assert int(service["mem_limit"]) == 805306368 and float(service["cpus"]) == 0.75
     if transactional:
         options = MessagingOptions.model_validate_json(service["environment"]["QS_AI_MESSAGING"])
         assert set(options.transactions) == {"ai.mysql"}

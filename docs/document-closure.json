@@ -118,7 +118,7 @@
     "src/qs_ai/bootstrap/import_evaluation_suites.py": "585f86b5fe3cf3b06af44310a0dbcaec6cb459c8240f6c051de1c04968ec748a",
     "src/qs_ai/bootstrap/import_mbti_assets.py": "7ede442a5243aaf65f07c66cbb00837c9f1a91eac3efd0ad57e04ecfbd75b945",
     "src/qs_ai/bootstrap/lifecycle.py": "27326c4629c3a3b5a57e75270df1c97a6e53f5db700fff62b07c8bc8f1736131",
-    "src/qs_ai/bootstrap/messaging.py": "fea1feb9c21541c51196727bf64512c84f995040b12db253e414c3c4550223ab",
+    "src/qs_ai/bootstrap/messaging.py": "03de872cba2e95e092393e936332ddf7a2f071898d932a1b2e7921533c50252a",
     "src/qs_ai/bootstrap/observe_cutover.py": "69d46c370fad5ef7beb79cd849b88071fbf7283f30ead72f743f05488d00e694",
     "src/qs_ai/bootstrap/providers/core.py": "bfe9911eae43b3d8bd09c2f54451d7851c992a40776bb5967843ccce1461d0e5",
     "src/qs_ai/bootstrap/providers/evaluation.py": "383e89b4acdbc61f72770754e3a85da183c6937a778319252c402179122419f0",
@@ -407,7 +407,7 @@
     "tests/test_model_route_v2.py": "5242918a530511b3dfbaa4d36eada17d5d706a5e13254154378e5018bedf608d",
     "tests/test_model_selection_v2.py": "6cea4296e515d38447670ebb83523f5afa4904f2753401e4ab521e8ee07b6113",
     "tests/test_mq_contract.py": "fbae844f2e84b9de8e6753fc8dca3b0dfb5f44b43a04f4c4cfd313ffde960e21",
-    "tests/test_mq_deployment.py": "f5a3fd2cf79d7ac2a73e30e033e2ccbd1ecdc7d64c2d5b104e7d626da3637644",
+    "tests/test_mq_deployment.py": "4327d8088d1baf37f087e3c90d0633ef5def72eb87bf7581a45469e06493324c",
     "tests/test_mq_failure.py": "07a480efd9e823b68ee835df637684e09818766724982530873170a2f23f8169",
     "tests/test_mq_handoff_cli.py": "5ad7d7fe8b8fecc58423ad9bc344fefcab22838c197bbc8fce9d5416424915e7",
     "tests/test_multi_provider_gateway.py": "c18164a1e6c14a200c86d62bf25e1b244e0e64844d0401bf864fcb1454731211",
@@ -793,7 +793,7 @@
     "src/qs_ai/bootstrap/transaction_services.py": "d1c0fde4c9ea71205d55617db71b977579ce89026a0526771fa0e0068a6dd195",
     "tests/test_default_transaction_transport.py": "1574ebebe179f8af51f1657e9383f8be02f926cbf0179cdd3059aab549e90413",
     "tests/test_transaction_transport_lifecycle.py": "5cae5b2e29785a8e0e831559c68d4dad73fe31531654a7e7606c3cbcfe366941",
-    "src/qs_ai/bootstrap/messaging_config.py": "0a7e60e7e502028ad8e9b797c280cf3883ae66d0779ed27e278f7f5e9b626e9e",
+    "src/qs_ai/bootstrap/messaging_config.py": "88ded9f6416d9230172ed523f7c11eed1a26e968599ff3aeae33927fbd329274",
     "src/qs_ai/bootstrap/evaluation_transactions.py": "3eef8bdcb1956d297fe600ad3ea42310e0f2c55ae6b8372ae1feeb861eaa53b4",
     "src/qs_ai/infrastructure/workflow_transport/serial_runtime.py": "70a64d937a1e450bf7631086f4e15ae15dd17403312803171c0617f9f8bb9e15",
     "src/qs_ai/infrastructure/workflow_transport/transaction_events.py": "0c5b6b98d3357e11b9bb7ad9a77822df62e7e8219bd5de8b159003e4ec3e7643",
@@ -830,7 +830,9 @@
     "tests/test_transaction_binding.py": "a1b178d419ff729b80ac19bc47330d0a31fcc8a1efeff74a5e51786f5ed60d49",
     "tests/integration/test_initial_transaction_binding.py": "3a401b82f785bf423cabbc52c2863d93c8042f1a3ca95d128604ce15a43ee8ef",
     "tests/integration/test_prompt_draft_go.py": "377549d08eba434ca5ecfc4e0ba5be1e423c88d37f571452e7a34e259ec6aaee",
-    "tests/test_transaction_deployment_binding.py": "6fd9bd76d43c802f4d8c136443bbdec28573fb567377ed25c06b2cbe7e1849fe"
+    "tests/test_transaction_deployment_binding.py": "6fd9bd76d43c802f4d8c136443bbdec28573fb567377ed25c06b2cbe7e1849fe",
+    "tests/test_transaction_messaging.py": "98f2b5d5881dc3674179855607d316051a4564db1d9a5fb44550492dc3604106",
+    "tests/test_transaction_route_preflight.py": "22557f43cdccf082b338eea88436b0ed2898a66503f56016f71a894788ff5bf6"
   },
   "documents": [
     {
@@ -2666,7 +2668,11 @@
         "src/qs_ai/infrastructure/persistence/mysql/transaction_schema.py",
         "tests/integration/test_transaction_schema.py",
         "src/qs_ai/infrastructure/persistence/mysql/tls.py",
-        "tests/test_transaction_deployment_binding.py"
+        "tests/test_transaction_deployment_binding.py",
+        "src/qs_ai/bootstrap/messaging_config.py",
+        "src/qs_ai/bootstrap/messaging.py",
+        "tests/test_transaction_route_preflight.py",
+        "tests/test_transaction_messaging.py"
       ],
       "verify": [
         "python scripts/check_docs.py",
