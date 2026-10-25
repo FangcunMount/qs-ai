@@ -407,7 +407,7 @@
     "tests/test_model_route_v2.py": "5242918a530511b3dfbaa4d36eada17d5d706a5e13254154378e5018bedf608d",
     "tests/test_model_selection_v2.py": "6cea4296e515d38447670ebb83523f5afa4904f2753401e4ab521e8ee07b6113",
     "tests/test_mq_contract.py": "fbae844f2e84b9de8e6753fc8dca3b0dfb5f44b43a04f4c4cfd313ffde960e21",
-    "tests/test_mq_deployment.py": "4327d8088d1baf37f087e3c90d0633ef5def72eb87bf7581a45469e06493324c",
+    "tests/test_mq_deployment.py": "502aeaf0df6b9a4040be1539e60104e4fc7ae2c83d4f59f326f7296f07d565a6",
     "tests/test_mq_failure.py": "07a480efd9e823b68ee835df637684e09818766724982530873170a2f23f8169",
     "tests/test_mq_handoff_cli.py": "5ad7d7fe8b8fecc58423ad9bc344fefcab22838c197bbc8fce9d5416424915e7",
     "tests/test_multi_provider_gateway.py": "c18164a1e6c14a200c86d62bf25e1b244e0e64844d0401bf864fcb1454731211",
@@ -791,7 +791,7 @@
     "src/qs_ai/infrastructure/workflow_transport/serial_recovery_runtime.py": "371fa52e6ed9a22836a4247ab45a2f40efe344456a478bf61b1a6c0f5df24f0f",
     "src/qs_ai/bootstrap/providers/transactions.py": "3510b87509267997d77da32856f6582e0c6919da36d480aed45e1187adbdbfe5",
     "src/qs_ai/bootstrap/transaction_services.py": "d1c0fde4c9ea71205d55617db71b977579ce89026a0526771fa0e0068a6dd195",
-    "tests/test_default_transaction_transport.py": "1574ebebe179f8af51f1657e9383f8be02f926cbf0179cdd3059aab549e90413",
+    "tests/test_default_transaction_transport.py": "ecc5bf9d85bc45237a8a9b37305e980394ece65d3d3087a643500b61fc554a73",
     "tests/test_transaction_transport_lifecycle.py": "5cae5b2e29785a8e0e831559c68d4dad73fe31531654a7e7606c3cbcfe366941",
     "src/qs_ai/bootstrap/messaging_config.py": "88ded9f6416d9230172ed523f7c11eed1a26e968599ff3aeae33927fbd329274",
     "src/qs_ai/bootstrap/evaluation_transactions.py": "3eef8bdcb1956d297fe600ad3ea42310e0f2c55ae6b8372ae1feeb861eaa53b4",
@@ -2672,7 +2672,8 @@
         "src/qs_ai/bootstrap/messaging_config.py",
         "src/qs_ai/bootstrap/messaging.py",
         "tests/test_transaction_route_preflight.py",
-        "tests/test_transaction_messaging.py"
+        "tests/test_transaction_messaging.py",
+        "tests/test_default_transaction_transport.py"
       ],
       "verify": [
         "python scripts/check_docs.py",
