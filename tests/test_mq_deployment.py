@@ -13,16 +13,9 @@ from tests.test_deployment import execution_environment, load, setup_release, si
 
 
 def binding():
-    return {
-        "binding_revision": "mq-ai-v1",
-        "enabled": True,
-        "nsqd": {"nsqd:4150": "http://nsqd:4151"},
-        "signing_key_file": "/run/qs-ai-jose/ai.sign.v1.json",
-        "decrypt_key_files": {"ai.encrypt.v1": "/run/qs-ai-jose/ai.encrypt.v1.json"},
-        "qs_signer_files": {"qs.sign.v1": "/run/qs-ai-jose/qs.sign.v1.json"},
-        "qs_recipient_key_file": "/run/qs-ai-jose/qs.encrypt.v1.json",
-        "max_in_flight": 1,
-    }
+    from tests.deployment_fixtures import transaction_binding
+
+    return transaction_binding()
 
 
 def runtime(value=None):
@@ -43,22 +36,21 @@ def freeze(release, manifest, value=None):
 
 def test_binding_adds_only_existing_settings_and_individual_readonly_mounts():
     module = load("scripts/cd/deploy.py")
-    original = module.runtime_config(execution_environment())
-    assert "volumes" not in original["services"]["qs-ai"]
     new = runtime()
     service = new["services"]["qs-ai"]
     assert set(new["services"]) == {"qs-ai"}
-    assert {k: v for k, v in service["environment"].items() if k != "QS_AI_MESSAGING"} == original[
-        "services"
-    ]["qs-ai"]["environment"]
+    original = module.runtime_config(execution_environment())
+    assert service == original["services"]["qs-ai"]
     options = json.loads(service["environment"]["QS_AI_MESSAGING"])
     assert MessagingOptions.model_validate(options).max_in_flight == 1
-    assert len(service["volumes"]) == 4
+    assert len(service["volumes"]) == 7
     for mount in service["volumes"]:
         assert mount["read_only"] and not mount["bind"]["create_host_path"]
-        assert (
-            mount["source"]
-            == "/data/infra/qs-ai-messaging/versions/mq-ai-v1/" + Path(mount["target"]).name
+        subdir = "rocketmq/" if mount["target"].startswith("/run/qs-ai-rocketmq/") else ""
+        assert mount["source"] == (
+            "/data/infra/qs-ai-messaging/versions/m4-final-ai/"
+            + subdir
+            + Path(mount["target"]).name
         )
     assert "private" not in json.dumps(new)
 
@@ -159,7 +151,7 @@ def test_key_preflight_rejects_actual_loader_or_permissions_without_material(mon
 
     monkeypatch.setattr(messaging_preflight, "read_key", read_key)
     with pytest.raises(ValueError, match="material withheld") as error:
-        messaging_preflight.check_keys(options)
+        messaging_preflight.check_jose_keys(options)
     assert "DO_NOT_DISCLOSE" not in str(error.value)
 
 
@@ -228,28 +220,22 @@ def test_real_key_files_are_validated_without_starting_resources(tmp_path, monke
     monkeypatch.setattr(Path, "stat", relocated_stat)
     monkeypatch.setattr(messaging_preflight, "read_key", relocated_read)
     if failure is None:
-        messaging_preflight.check_keys(options)
+        messaging_preflight.check_jose_keys(options)
     else:
         with pytest.raises(ValueError, match="material withheld"):
-            messaging_preflight.check_keys(options)
+            messaging_preflight.check_jose_keys(options)
 
 
-@pytest.mark.parametrize("transactional", [False, True])
-def test_enabled_compose_keeps_one_service_original_tls_and_stop_budget(tmp_path, transactional):
+def test_enabled_compose_keeps_one_service_original_tls_and_stop_budget(tmp_path):
     import os
     import subprocess
 
     from tests.test_deployment import ROOT
 
-    if transactional:
-        from tests.test_transaction_deployment_binding import transaction_binding
-
-        candidate = transaction_binding()
-        candidate["transactions"]["ai.mysql"]["store_id"] = "Original-$Primary"
-        candidate["transactions"]["ai.mysql"]["writer_epoch"] = "Writer-$$-Epoch"
-        config = runtime(candidate)
-    else:
-        config = runtime()
+    candidate = binding()
+    candidate["transactions"]["ai.mysql"]["store_id"] = "Original-$Primary"
+    candidate["transactions"]["ai.mysql"]["writer_epoch"] = "Writer-$$-Epoch"
+    config = runtime(candidate)
     (tmp_path / "runtime.json").write_text(json.dumps(config))
     p = subprocess.run(
         [
@@ -271,94 +257,93 @@ def test_enabled_compose_keeps_one_service_original_tls_and_stop_budget(tmp_path
     services = json.loads(p.stdout)["services"]
     assert set(services) == {"qs-ai"}
     service = services["qs-ai"]
-    assert len(service["volumes"]) == (11 if transactional else 8)
+    assert len(service["volumes"]) == 11
     assert all(v["read_only"] for v in service["volumes"])
     assert int(service["mem_limit"]) == 805306368 and float(service["cpus"]) == 0.75
-    if transactional:
-        # `compose config` re-escapes literal dollars for a reusable config.
-        # Decode that representation here; prove the actual engine environment
-        # with a stopped, owned container below rather than infer runtime bytes.
-        options = MessagingOptions.model_validate_json(
-            service["environment"]["QS_AI_MESSAGING"].replace("$$", "$")
-        )
-        assert set(options.transactions) == {"ai.mysql"}
-        assert options.transactions["ai.mysql"].limits.check_workers == 1
-        assert options.transactions["ai.mysql"].store_id == "Original-$Primary"
-        assert options.transactions["ai.mysql"].writer_epoch == "Writer-$$-Epoch"
-        from uuid import uuid4
+    # `compose config` re-escapes literal dollars for a reusable config.
+    # Decode that representation here; prove the actual engine environment
+    # with a stopped, owned container below rather than infer runtime bytes.
+    options = MessagingOptions.model_validate_json(
+        service["environment"]["QS_AI_MESSAGING"].replace("$$", "$")
+    )
+    assert set(options.transactions) == {"ai.mysql"}
+    assert options.transactions["ai.mysql"].limits.check_workers == 1
+    assert options.transactions["ai.mysql"].store_id == "Original-$Primary"
+    assert options.transactions["ai.mysql"].writer_epoch == "Writer-$$-Epoch"
+    from uuid import uuid4
 
-        probe = tmp_path / "environment-probe.json"
-        probe.write_text(
-            json.dumps(
-                {
-                    "services": {
-                        "probe": {
-                            # Required CI already owns this fixed test dependency image. Do not
-                            # pull a new image, start it, add mounts or create a project network.
-                            "image": "nsqio/nsq:v1.3.0",
-                            "network_mode": "none",
-                            "restart": "no",
-                            "environment": {
-                                "QS_AI_MESSAGING": config["services"]["qs-ai"]["environment"][
-                                    "QS_AI_MESSAGING"
-                                ]
-                            },
-                        }
+    probe = tmp_path / "environment-probe.json"
+    probe.write_text(
+        json.dumps(
+            {
+                "services": {
+                    "probe": {
+                        # Required CI already owns this fixed test dependency image. Do not
+                        # pull a new image, start it, add mounts or create a project network.
+                        "image": "nsqio/nsq:v1.3.0",
+                        "network_mode": "none",
+                        "restart": "no",
+                        "environment": {
+                            "QS_AI_MESSAGING": config["services"]["qs-ai"]["environment"][
+                                "QS_AI_MESSAGING"
+                            ]
+                        },
                     }
                 }
-            )
+            }
         )
-        command = ["docker", "compose", "-p", "ai-env-proof-" + uuid4().hex[:12], "-f", str(probe)]
-        try:
+    )
+    command = ["docker", "compose", "-p", "ai-env-proof-" + uuid4().hex[:12], "-f", str(probe)]
+    try:
+        subprocess.run(
+            command + ["create", "--pull", "never"],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        owned = subprocess.run(
+            command + ["ps", "--all", "--quiet"],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=15,
+        ).stdout.split()
+        assert len(owned) == 1
+        state = json.loads(
             subprocess.run(
-                command + ["create", "--pull", "never"],
-                check=True,
-                capture_output=True,
-                text=True,
-                timeout=30,
-            )
-            owned = subprocess.run(
-                command + ["ps", "--all", "--quiet"],
+                ["docker", "inspect", owned[0]],
                 check=True,
                 capture_output=True,
                 text=True,
                 timeout=15,
-            ).stdout.split()
-            assert len(owned) == 1
-            state = json.loads(
-                subprocess.run(
-                    ["docker", "inspect", owned[0]],
-                    check=True,
-                    capture_output=True,
-                    text=True,
-                    timeout=15,
-                ).stdout
-            )[0]
-            assert state["State"]["Status"] == "created"
-            assert state["HostConfig"]["NetworkMode"] == "none"
-            actual = next(
-                v.removeprefix("QS_AI_MESSAGING=")
-                for v in state["Config"]["Env"]
-                if v.startswith("QS_AI_MESSAGING=")
-            )
-            delivered = MessagingOptions.model_validate_json(actual)
-            assert (
-                delivered.transactions["ai.mysql"].store_id
-                == candidate["transactions"]["ai.mysql"]["store_id"]
-            )
-            assert (
-                delivered.transactions["ai.mysql"].writer_epoch
-                == candidate["transactions"]["ai.mysql"]["writer_epoch"]
-            )
-        finally:
-            # Only this UUID-named project and its anonymous image volumes.
-            subprocess.run(
-                command + ["down", "--volumes"],
-                check=True,
-                capture_output=True,
-                text=True,
-                timeout=30,
-            )
+            ).stdout
+        )[0]
+        assert state["State"]["Status"] == "created"
+        assert state["HostConfig"]["NetworkMode"] == "none"
+        actual = next(
+            v.removeprefix("QS_AI_MESSAGING=")
+            for v in state["Config"]["Env"]
+            if v.startswith("QS_AI_MESSAGING=")
+        )
+        delivered = MessagingOptions.model_validate_json(actual)
+        assert (
+            delivered.transactions["ai.mysql"].store_id
+            == candidate["transactions"]["ai.mysql"]["store_id"]
+        )
+        assert (
+            delivered.transactions["ai.mysql"].writer_epoch
+            == candidate["transactions"]["ai.mysql"]["writer_epoch"]
+        )
+    finally:
+        # Only this UUID-named project and its anonymous image volumes.
+        subprocess.run(
+            command + ["down", "--volumes"],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
 
     assert service["stop_grace_period"] == "3m30s"
     assert all(not v["bind"].get("create_host_path", False) for v in service["volumes"])
@@ -391,6 +376,7 @@ def test_manual_mq_rollback_checks_old_key_files_before_stopping_current(tmp_pat
 def test_messaging_disabled_apply_cannot_replace_confirmed_mq_owner(tmp_path, monkeypatch):
     remote = load("deploy/serverA/deploy.py")
     release, _ = setup_release(remote, tmp_path, monkeypatch)
+    (release / "runtime.json").unlink()
     current = remote.release_path("b" * 40 + "-1-1")
     current.mkdir(parents=True)
     freeze(current, {})

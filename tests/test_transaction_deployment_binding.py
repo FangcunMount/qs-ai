@@ -6,33 +6,9 @@ import json
 import pytest
 
 from qs_ai.config import MessagingOptions
+from tests.deployment_fixtures import transaction_binding
 from tests.test_deployment import load
 from tests.test_mq_deployment import freeze, runtime
-from tests.test_rocketmq_binding import rocketmq_binding
-
-
-def transaction_binding():
-    value = rocketmq_binding()
-    value["binding_revision"] = "m4-final-ai"
-    value["transactions"] = {
-        "ai.mysql": {
-            "store_id": "Original-AI-Primary",
-            "writer_epoch": "Original-Writer-Epoch",
-            "route_revision": "m3-1",
-            "limits": {
-                "sends": 4,
-                "branches": 16,
-                "check_workers": 1,
-                "check_queue": 16,
-                "reconcile_batch": 100,
-                "check_timeout": 2,
-                "rpc_timeout": 5,
-                "lease": 60,
-                "reconcile_interval": 5,
-            },
-        }
-    }
-    return value
 
 
 def test_final_transaction_binding_round_trips_into_actual_options_and_host_verifier(tmp_path):

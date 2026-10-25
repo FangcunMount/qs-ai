@@ -8,6 +8,8 @@ from pathlib import Path
 import pytest
 from sqlalchemy.engine import make_url
 
+from tests.deployment_fixtures import transaction_binding
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -36,6 +38,7 @@ def test_mysql_components_round_trip():
         "MYSQL_DATABASE": "qs_ai",
         "MYSQL_USERNAME": "ai@user",
         "MYSQL_PASSWORD": password,
+        "QS_AI_MESSAGING_BINDING": json.dumps(transaction_binding()),
     }
     url = make_url(module.database_url(env))
     assert url.password == password
@@ -129,7 +132,17 @@ def setup_release(remote, tmp_path, monkeypatch):
     }
     (release / "manifest.json").write_text(json.dumps(manifest))
     (release / "image.env").write_text(f"QS_AI_IMAGE={config_id}\n")
+    freeze_release_binding(release, manifest)
     return release, manifest
+
+
+def freeze_release_binding(release, manifest):
+    release.mkdir(parents=True, exist_ok=True)
+    client = load("scripts/cd/deploy.py")
+    config = client.runtime_config(execution_environment())
+    manifest["messaging_binding_sha256"] = client.messaging_binding_digest(config)
+    (release / "runtime.json").write_text(json.dumps(config))
+    (release / "manifest.json").write_text(json.dumps(manifest))
 
 
 def test_bad_archive_never_loads_or_migrates(remote, tmp_path, monkeypatch):
@@ -147,6 +160,8 @@ def simulate_apply(remote, monkeypatch, manifest, fail_migration=False):
         calls.append(phase)
         if phase == "image identity":
             return json.dumps([inspected_image(manifest)])
+        if phase == "compose services":
+            return "qs-ai"
         if phase == "migration" and fail_migration:
             raise remote.DeploymentError("migration failed")
         return ""
@@ -173,6 +188,8 @@ def test_migration_failure_never_replaces_service(remote, tmp_path, monkeypatch)
         "image load",
         "image identity",
         "compose services",
+        "MQ key file preflight",
+        "TLS file preflight",
         "compose services",
         "migration",
     ]
@@ -186,6 +203,7 @@ def test_failed_start_rolls_back_only_unchanged_schema(
     release, manifest = setup_release(remote, tmp_path, monkeypatch)
     simulate_apply(remote, monkeypatch, manifest)
     old = "b" * 40 + "-1-1"
+    freeze_release_binding(remote.release_path(old), {})
     probes = iter(
         [
             {"current": ["0037_workflow_messaging"], "expected": ["0038_messaging_observations"]},
@@ -256,6 +274,8 @@ def test_manual_rollback_checks_schema_before_switch(remote, tmp_path, monkeypat
     monkeypatch.setattr(remote, "ROOT", tmp_path)
     monkeypatch.setattr(remote, "release_image_id", lambda *args, **kwargs: "sha256:" + "a" * 64)
     state = {"current": "a" * 40 + "-1-1", "previous": "b" * 40 + "-1-1"}
+    freeze_release_binding(remote.release_path(state["previous"]), {})
+    monkeypatch.setattr(remote, "run", lambda *args: "")
 
     def incompatible(*args):
         raise remote.DeploymentError("schema incompatible")
@@ -396,7 +416,7 @@ def test_tls_preflight_failure_preserves_running_release(remote, tmp_path, monke
 
     def run(phase, args):
         if phase == "compose services":
-            return "api\ngrpc\n"
+            return "qs-ai"
         if phase == "TLS file preflight":
             raise remote.DeploymentError("TLS file preflight failed")
         return original(phase, args)
@@ -405,7 +425,7 @@ def test_tls_preflight_failure_preserves_running_release(remote, tmp_path, monke
     monkeypatch.setattr(remote, "probe", lambda *args: pytest.fail("must not access database"))
     with pytest.raises(remote.DeploymentError, match="TLS file"):
         remote.apply(release, {})
-    assert calls == ["image load", "image identity"]
+    assert calls == ["image load", "image identity", "MQ key file preflight"]
     assert not (tmp_path / "state.json").exists()
 
 
@@ -440,6 +460,7 @@ def execution_environment():
         "MYSQL_DATABASE": "qs_ai",
         "MYSQL_USERNAME": "ai",
         "MYSQL_PASSWORD": "synthetic-db-only",
+        "QS_AI_MESSAGING_BINDING": json.dumps(transaction_binding()),
         "QS_AI_EXECUTION_ENABLED": "true",
         "QS_AI_MODEL_ENDPOINT": "https://model.invalid/responses",
         "QS_AI_MODEL_API_KEY": "synthetic-$key-only",
@@ -542,7 +563,7 @@ def test_execution_compose_resolves_isolation_tls_and_health(tmp_path, mode):
     for field, flag in (("GENERATION", "execution"), ("EVALUATION", "evaluation")):
         assert values[f"QS_AI_{field}__ENABLED"] == str(mode in {flag, "all"}).lower()
     assert service["read_only"]
-    assert len(service["volumes"]) == 4
+    assert len(service["volumes"]) == 11
     assert all(v["read_only"] for v in service["volumes"])
     assert {"qs-ai-grpc", "qs-ai-api"} <= set(service["networks"]["backend"]["aliases"])
     assert service["stop_grace_period"] in {"210s", "3m30s"}
@@ -595,7 +616,11 @@ def test_cutover_stops_admission_then_all_consumers_before_start(remote, tmp_pat
     def run(phase, args):
         if phase == "compose services":
             calls.append(phase)
-            return "api\ngrpc\nworker\ndelivery\nevaluation\n"
+            return (
+                "qs-ai"
+                if str(release / "runtime.json") in args
+                else "api\ngrpc\nworker\ndelivery\nevaluation\n"
+            )
         return original(phase, args)
 
     monkeypatch.setattr(remote, "run", run)
@@ -619,6 +644,7 @@ def test_failed_new_release_is_stopped_before_old_restart(remote, tmp_path, monk
     release, manifest = setup_release(remote, tmp_path, monkeypatch)
     simulate_apply(remote, monkeypatch, manifest)
     old = "b" * 40 + "-1-1"
+    freeze_release_binding(remote.release_path(old), {})
     monkeypatch.setattr(
         remote,
         "probe",
@@ -656,6 +682,8 @@ def test_failed_manual_rollback_restores_current_without_changing_state(
     monkeypatch.setattr(remote, "ROOT", tmp_path)
     monkeypatch.setattr(remote, "release_image_id", lambda *args, **kwargs: "sha256:" + "a" * 64)
     state = {"current": "a" * 40 + "-1-1", "previous": "b" * 40 + "-1-1"}
+    freeze_release_binding(remote.release_path(state["previous"]), {})
+    monkeypatch.setattr(remote, "run", lambda *args: "")
     calls = []
 
     def probe(path, *_args):
@@ -715,6 +743,7 @@ def test_v2_write_switch_is_explicit_and_defaults_closed():
         MYSQL_DATABASE="qs_ai",
         MYSQL_USERNAME="test",
         MYSQL_PASSWORD="test-only",
+        QS_AI_MESSAGING_BINDING=json.dumps(transaction_binding()),
     )
 
     def value():

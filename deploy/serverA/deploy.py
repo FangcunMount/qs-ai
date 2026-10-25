@@ -652,13 +652,10 @@ def messaging_release(release: Path, manifest: dict | None = None) -> bool:
         options = json.loads(raw.replace("$$", "$"))
         if options.get("enabled") is not True:
             raise ValueError
-        provider = options.get("provider", "nsq")
-        if provider not in {"nsq", "rocketmq"}:
+        provider = options.get("provider")
+        if provider != "rocketmq":
             raise ValueError
-        if "transactions" in options:
-            if provider != "rocketmq":
-                raise ValueError
-            validate_transaction_binding(options["transactions"])
+        validate_transaction_binding(options["transactions"])
         if set(runtime["services"]) != {"qs-ai"}:
             raise ValueError
         if manifest is None:
@@ -741,8 +738,17 @@ def messaging_release(release: Path, manifest: dict | None = None) -> bool:
 
 
 def messaging_transition(current: Path, target: Path) -> None:
-    if messaging_release(current) and not messaging_release(target):
-        raise DeploymentError("MQ ownership cannot fall back to a messaging-disabled release")
+    # Every target must implement the final owner protocol, including first installs
+    # and rollback candidates. Historical current metadata grants no exception.
+    require_final_messaging(target)
+
+
+def require_final_messaging(release: Path, manifest: dict | None = None) -> bool:
+    if not messaging_release(release, manifest):
+        raise DeploymentError(
+            "MQ ownership cannot fall back; final binding required; contents withheld"
+        )
+    return True
 
 
 def messaging_key_preflight(release: Path) -> None:
@@ -874,7 +880,7 @@ def stage_prepare(release: Path) -> dict:
         raise DeploymentError("Existing successful release cannot be overwritten")
     manifest = json.loads((release / "manifest.json").read_text())
     loaded_image_binding(release)
-    enabled = messaging_release(release, manifest)
+    enabled = require_final_messaging(release, manifest)
     mysql_env = json.loads((release / "runtime.json").read_text())["services"]["qs-ai"][
         "environment"
     ]
@@ -921,7 +927,7 @@ def apply(release: Path, state: dict) -> None:
     ):
         raise DeploymentError("Existing successful release cannot be overwritten")
     loaded_image_binding(release)
-    enabled = messaging_release(release, manifest)
+    enabled = require_final_messaging(release, manifest)
     if state.get("current"):
         messaging_transition(release_path(state["current"]), release)
     actual = _load_release_image(release, manifest)
@@ -954,9 +960,9 @@ def apply(release: Path, state: dict) -> None:
     except Exception:
         if state.get("current") and before["current"] == after["current"]:
             previous = release_path(state["current"])
-            stop_release(release)
             messaging_transition(release, previous)
             messaging_key_preflight(previous)
+            stop_release(release)
             probe(previous, True)
             verify(previous)
             print("Service restored to previous successful release", flush=True)
