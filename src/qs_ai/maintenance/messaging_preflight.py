@@ -32,6 +32,11 @@ def check_keys(options: MessagingOptions) -> None:
 
         ssl.create_default_context(cafile=config.ca_file)
         read_rocketmq_config(options)
+    check_jose_keys(options)
+
+
+def check_jose_keys(options: MessagingOptions) -> None:
+    """Validate JOSE material independently; the full preflight also validates MQ files."""
     assert options.signing_key_file and options.qs_recipient_key_file
     entries = [
         (options.signing_key_file, True, "sig", None),

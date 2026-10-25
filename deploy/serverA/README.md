@@ -28,7 +28,7 @@ production Environment 的维护 Secrets 为 MYSQL_MAINTENANCE_USERNAME、MYSQL_
 
 QS_AI_QS_ADDRESS 提供 QS 授权/正文读取 endpoint。模型执行启用时，打包脚本要求 HTTPS 模型 endpoint 和 DeepSeek 凭据；QS_AI_MODEL_API_KEY 与 QS_AI_DEEPSEEK_API_KEY 同时配置须一致，智谱使用 QS_AI_ZHIPU_API_KEY。凭据不进入资产指纹。
 
-QS_AI_MESSAGING_BINDING 是经审阅的非秘密 JSON。最终事务绑定包含binding_revision、enabled=true、provider=rocketmq、publish_enabled、rocketmq文件路径、transactions.ai.mysql、原JOSE文件路径和max_in_flight=1；身份/完整预算约束见[当前部署契约](../../docs/04-接口与运维/05-部署迁移与兼容回滚.md#m4aimysql-发布绑定c06进行中)。旧NSQ/M1兼容分支仍在M4后续清理范围，不代表当前生产选择它们。打包脚本限定 `/run/qs-ai-jose/` 的角色/kid 文件，从 `/data/infra/qs-ai-messaging/versions/<binding_revision>/` 单文件只读挂载，不自动创建缺失源文件。发布 manifest 固定绑定摘要，目标主机核对文件与运行身份。缺少绑定的历史发布不能满足当前常驻 server 的 MQ 要求。
+QS_AI_MESSAGING_BINDING 是经审阅的非秘密 JSON。最终事务绑定包含binding_revision、enabled=true、provider=rocketmq、publish_enabled、rocketmq文件路径、transactions.ai.mysql、原JOSE文件路径和max_in_flight=1；身份/完整预算约束见[当前部署契约](../../docs/04-接口与运维/05-部署迁移与兼容回滚.md#m4aimysql-发布绑定c06进行中)。生产打包以及主机 prepare、apply、restore 只接受完整最终事务绑定；缺失、禁用、NSQ及无事务owner的M1绑定在镜像加载、迁移和服务替换前拒绝。历史材料保留供取证，不能作为普通部署或回退候选。打包脚本限定 `/run/qs-ai-jose/` 的角色/kid 文件，从 `/data/infra/qs-ai-messaging/versions/<binding_revision>/` 单文件只读挂载，不自动创建缺失源文件。发布 manifest 固定绑定摘要，目标主机核对文件与运行身份。缺少绑定的历史发布不能满足当前常驻 server 的 MQ 要求。
 
 ## 迁移、验收和失败处理
 

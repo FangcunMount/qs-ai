@@ -9,19 +9,7 @@ from tests.test_mq_deployment import binding, runtime
 
 
 def rocketmq_binding():
-    result = binding()
-    del result["nsqd"]
-    result.update(
-        provider="rocketmq",
-        publish_enabled=False,
-        rocketmq={
-            "endpoint": "100.118.164.39:8081",
-            "credentials_file": "/run/qs-ai-rocketmq/credentials.json",
-            "ca_file": "/run/qs-ai-rocketmq/ca.crt",
-            "routes_file": "/run/qs-ai-rocketmq/routes.json",
-        },
-    )
-    return result
+    return binding()
 
 
 def test_rocketmq_deployment_freezes_provider_files_and_ca_environment():

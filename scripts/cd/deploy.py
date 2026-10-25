@@ -157,7 +157,7 @@ def runtime_config(environment: dict) -> dict:
 def bind_messaging(runtime: dict, raw: str) -> None:
     """Only non-secret reviewed options; derive immutable, individual read-only mounts."""
     if not raw:
-        return  # Existing disabled deployments require no JOSE files.
+        raise ValueError("Final transaction binding required; contents withheld")
     try:
         if len(raw.encode()) > 16384:
             raise ValueError
@@ -171,58 +171,32 @@ def bind_messaging(runtime: dict, raw: str) -> None:
             return value
 
         binding = json.loads(raw, object_pairs_hook=unique)
-        fields = {
+        expected = {
             "binding_revision",
             "enabled",
-            "nsqd",
+            "provider",
+            "rocketmq",
+            "publish_enabled",
+            "transactions",
             "signing_key_file",
             "decrypt_key_files",
             "qs_signer_files",
             "qs_recipient_key_file",
             "max_in_flight",
         }
-        provider = binding.get("provider", "nsq") if isinstance(binding, dict) else None
-        expected = (
-            fields
-            if provider == "nsq"
-            else ((fields - {"nsqd"}) | {"provider", "rocketmq", "publish_enabled"})
-        )
-        if provider == "rocketmq" and "transactions" in binding:
-            expected |= {"transactions"}
-            release_identity_module().validate_transaction_binding(binding["transactions"])
         if (
             not isinstance(binding, dict)
-            or provider not in {"nsq", "rocketmq"}
+            or binding.get("provider") != "rocketmq"
             or set(binding) != expected
             or binding["enabled"] is not True
         ):
             raise ValueError
+        release_identity_module().validate_transaction_binding(binding["transactions"])
         revision = binding.pop("binding_revision")
         if not isinstance(revision, str) or not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,63}", revision):
             raise ValueError
         if type(binding["max_in_flight"]) is not int or binding["max_in_flight"] != 1:
             raise ValueError
-        if provider == "nsq":
-            sources = binding["nsqd"]
-            if not isinstance(sources, dict) or not 1 <= len(sources) <= 8:
-                raise ValueError
-            for tcp, http in sources.items():
-                if not isinstance(tcp, str) or not isinstance(http, str):
-                    raise ValueError
-                if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9.-]*:[0-9]{1,5}", tcp):
-                    raise ValueError
-                host, port = tcp.rsplit(":", 1)
-                endpoint = urlsplit(http)
-                if not 1 <= int(port) <= 65535 or endpoint.scheme not in {"http", "https"}:
-                    raise ValueError
-                if (
-                    endpoint.hostname != host.lower()
-                    or not endpoint.port
-                    or endpoint.path not in {"", "/"}
-                ):
-                    raise ValueError
-                if endpoint.username or endpoint.password or endpoint.query or endpoint.fragment:
-                    raise ValueError
         paths = set()
 
         def key_path(path, role, expected=None):
@@ -247,26 +221,25 @@ def bind_messaging(runtime: dict, raw: str) -> None:
             for kid, path in mapping.items():
                 key_path(path, role, kid)
         rocketmq_paths = []
-        if provider == "rocketmq":
-            config = binding["rocketmq"]
-            if (
-                not isinstance(config, dict)
-                or set(config) != {"endpoint", "credentials_file", "ca_file", "routes_file"}
-                or type(binding["publish_enabled"]) is not bool
-            ):
+        config = binding["rocketmq"]
+        if (
+            not isinstance(config, dict)
+            or set(config) != {"endpoint", "credentials_file", "ca_file", "routes_file"}
+            or type(binding["publish_enabled"]) is not bool
+        ):
+            raise ValueError
+        if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9.-]*:[0-9]{1,5}", config["endpoint"]):
+            raise ValueError
+        if not 1 <= int(config["endpoint"].rsplit(":", 1)[1]) <= 65535:
+            raise ValueError
+        for field, filename in (
+            ("credentials_file", "credentials.json"),
+            ("ca_file", "ca.crt"),
+            ("routes_file", "routes.json"),
+        ):
+            if config[field] != "/run/qs-ai-rocketmq/" + filename:
                 raise ValueError
-            if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9.-]*:[0-9]{1,5}", config["endpoint"]):
-                raise ValueError
-            if not 1 <= int(config["endpoint"].rsplit(":", 1)[1]) <= 65535:
-                raise ValueError
-            for field, filename in (
-                ("credentials_file", "credentials.json"),
-                ("ca_file", "ca.crt"),
-                ("routes_file", "routes.json"),
-            ):
-                if config[field] != "/run/qs-ai-rocketmq/" + filename:
-                    raise ValueError
-                rocketmq_paths.append(config[field])
+            rocketmq_paths.append(config[field])
         service = runtime["services"]["qs-ai"]
         service["environment"]["QS_AI_MESSAGING"] = json.dumps(binding, sort_keys=True).replace(
             "$", "$$"
