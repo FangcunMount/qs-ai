@@ -234,13 +234,23 @@ def test_real_key_files_are_validated_without_starting_resources(tmp_path, monke
             messaging_preflight.check_keys(options)
 
 
-def test_enabled_compose_keeps_one_service_original_tls_and_stop_budget(tmp_path):
+@pytest.mark.parametrize("transactional", [False, True])
+def test_enabled_compose_keeps_one_service_original_tls_and_stop_budget(tmp_path, transactional):
     import os
     import subprocess
 
     from tests.test_deployment import ROOT
 
-    (tmp_path / "runtime.json").write_text(json.dumps(runtime()))
+    if transactional:
+        from tests.test_transaction_deployment_binding import transaction_binding
+
+        candidate = transaction_binding()
+        candidate["transactions"]["ai.mysql"]["store_id"] = "Original-$Primary"
+        candidate["transactions"]["ai.mysql"]["writer_epoch"] = "Writer-$$-Epoch"
+        config = runtime(candidate)
+    else:
+        config = runtime()
+    (tmp_path / "runtime.json").write_text(json.dumps(config))
     p = subprocess.run(
         [
             "docker",
@@ -261,7 +271,15 @@ def test_enabled_compose_keeps_one_service_original_tls_and_stop_budget(tmp_path
     services = json.loads(p.stdout)["services"]
     assert set(services) == {"qs-ai"}
     service = services["qs-ai"]
-    assert len(service["volumes"]) == 8 and all(v["read_only"] for v in service["volumes"])
+    assert len(service["volumes"]) == (11 if transactional else 8)
+    assert all(v["read_only"] for v in service["volumes"])
+    assert service["mem_limit"] == 805306368 and service["cpus"] == 0.75
+    if transactional:
+        options = MessagingOptions.model_validate_json(service["environment"]["QS_AI_MESSAGING"])
+        assert set(options.transactions) == {"ai.mysql"}
+        assert options.transactions["ai.mysql"].limits.check_workers == 1
+        assert options.transactions["ai.mysql"].store_id == "Original-$Primary"
+        assert options.transactions["ai.mysql"].writer_epoch == "Writer-$$-Epoch"
     assert service["stop_grace_period"] == "3m30s"
     assert all(not v["bind"].get("create_host_path", False) for v in service["volumes"])
     assert {"qs-ai-grpc", "qs-ai-api"} <= set(service["networks"]["backend"]["aliases"])

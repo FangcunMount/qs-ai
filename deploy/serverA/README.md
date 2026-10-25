@@ -1,6 +1,6 @@
 # serverA 内部基础服务部署
 
-当前 `0040_module_table_names` 工作区的发布目标为单容器、单进程 qs-ai：HTTP 运维端点、mTLS gRPC、生成、评测及 MQ relay/订阅/发布共享生命周期和连接池。常驻入口要求 MQ；readiness 同时检查组件和数据库，部署另核对 schema、镜像版本、TLS 与 MQ 密钥。具体生产运行状态由本次准确版本的部署证据确认。
+当前发布目标为单容器、单进程 qs-ai：HTTP运维端点、mTLS gRPC、生成、评测及事务owner/Checker/订阅共享生命周期和连接池。M3生产已使用最终事务链路；旧Relay备选代码仍待M4清理，不代表当前运行选择。常驻入口要求 MQ；readiness 同时检查组件和数据库，部署另核对 schema、镜像版本、TLS 与 MQ 密钥。具体生产运行状态由本次准确版本的部署证据确认。
 
 ## 工作流
 
@@ -28,7 +28,7 @@ production Environment 的维护 Secrets 为 MYSQL_MAINTENANCE_USERNAME、MYSQL_
 
 QS_AI_QS_ADDRESS 提供 QS 授权/正文读取 endpoint。模型执行启用时，打包脚本要求 HTTPS 模型 endpoint 和 DeepSeek 凭据；QS_AI_MODEL_API_KEY 与 QS_AI_DEEPSEEK_API_KEY 同时配置须一致，智谱使用 QS_AI_ZHIPU_API_KEY。凭据不进入资产指纹。
 
-QS_AI_MESSAGING_BINDING 是经审阅的非秘密 JSON，包含 binding_revision、enabled=true、nsqd、signing_key_file、decrypt_key_files、qs_signer_files、qs_recipient_key_file 和 max_in_flight=1。打包脚本限定 `/run/qs-ai-jose/` 的角色/kid 文件，从 `/data/infra/qs-ai-messaging/versions/<binding_revision>/` 单文件只读挂载，不自动创建缺失源文件。发布 manifest 固定绑定摘要，目标主机核对文件与运行身份。缺少绑定的历史发布不能满足当前常驻 server 的 MQ 要求。
+QS_AI_MESSAGING_BINDING 是经审阅的非秘密 JSON。最终事务绑定包含binding_revision、enabled=true、provider=rocketmq、publish_enabled、rocketmq文件路径、transactions.ai.mysql、原JOSE文件路径和max_in_flight=1；身份/完整预算约束见[当前部署契约](../../docs/04-接口与运维/05-部署迁移与兼容回滚.md#m4aimysql-发布绑定c06进行中)。旧NSQ/M1兼容分支仍在M4后续清理范围，不代表当前生产选择它们。打包脚本限定 `/run/qs-ai-jose/` 的角色/kid 文件，从 `/data/infra/qs-ai-messaging/versions/<binding_revision>/` 单文件只读挂载，不自动创建缺失源文件。发布 manifest 固定绑定摘要，目标主机核对文件与运行身份。缺少绑定的历史发布不能满足当前常驻 server 的 MQ 要求。
 
 ## 迁移、验收和失败处理
 
@@ -44,6 +44,6 @@ state.json 仅在脚本自动部署检查（readiness、准确镜像、mTLS和�
 
 ## 运行范围
 
-一个 qs-ai 容器，上限 1 GiB / 2 CPU，UID 10001、只读根文件系统和有界日志。HTTP 映射 127.0.0.1:18080，gRPC 仅容器网络可达。qs-ai-grpc / qs-ai-api 为网络别名。短维护窗口内先停止旧准入并排空全部旧进程，再启动新服务；回滚也先停止新服务，不允许执行器重叠。停止宽限 210 秒，MQ 发布器保留至业务回执和失败移交完成。
+一个 qs-ai 容器，上限 768 MiB / 0.75 CPU，UID 10001、只读根文件系统和有界日志。HTTP 映射 127.0.0.1:18080，gRPC 仅容器网络可达。qs-ai-grpc / qs-ai-api 为网络别名。短维护窗口内先停止旧准入并排空全部旧进程，再启动新服务；回滚也先停止新服务，不允许执行器重叠。停止宽限 210 秒，MQ 发布器保留至业务回执和失败移交完成。
 
 操作语义与证据分层见 [部署迁移与兼容回滚](../../docs/04-接口与运维/05-部署迁移与兼容回滚.md)。历史发布记录从 [文档总入口](../../docs/README.md)进入，不能把历史健康/验收刷新为当前状态。

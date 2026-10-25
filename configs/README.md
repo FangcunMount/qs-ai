@@ -30,9 +30,9 @@ YAML 禁止 database_url 和模型凭据。数据库 URL、供应商凭据由环
 
 `messaging.nsqd` 明确映射 NSQD TCP 到同主机 HTTP 地址，不推断端口；signing_key_file、decrypt_key_files、qs_signer_files、qs_recipient_key_file 分别配置 AI 签名私钥、AI 解密私钥、QS 签名公钥、QS 接收者公钥。启动核对 kid、角色、EC P-256、文件大小与既有失败拓扑，不创建 Topic/Channel。
 
-M3 新增 `messaging.transactions`，只接受显式 `ai.mysql` 绑定（store_id、writer_epoch、route_revision=m3-1），要求 RocketMQ 和经过校验的 v2 TRANSACTION 路由。预算覆盖必须完整；默认及生命周期见 [事务装配基础](../docs/03-基础设施/messaging/README.md#m3-事务装配基础业务接入进行中)。当前统一业务入口尚未接入此装配，非空 transactions 会拒绝旧 Relay 启动；不能提前写入生产配置。
+M3 新增 `messaging.transactions`，只接受显式 `ai.mysql` 绑定（store_id、writer_epoch、route_revision=m3-1），要求 RocketMQ 和经过校验的 v2 TRANSACTION 路由。预算覆盖必须完整；默认及生命周期见 [事务装配基础](../docs/03-基础设施/messaging/README.md#m3-事务装配基础业务接入进行中)。M3统一业务入口已完成事务装配，最终生产采用显式ai.mysql；非空transactions继续拒绝旧Relay代替事务发送。M4发布绑定已补齐最终owner与7个只读文件挂载校验，见[部署契约](../docs/04-接口与运维/05-部署迁移与兼容回滚.md#m4aimysql-发布绑定c06进行中)；M4配置重建/清理门禁和CD恢复仍单独记录。
 
-`grpc.result_address`、delivery 的旧字段仍有兼容配置定义，但当前 server 使用 MQ relay；它们不能重新启用旧 gRPC result scanner。完整字段以 [config.py](../src/qs_ai/config.py) 为准。
+`grpc.result_address`、delivery 的旧字段仍有兼容配置定义，但当前生产server使用最终事务owner/Checker；旧Relay备选仍待M4清理，它们不能重新启用旧 gRPC result scanner。完整字段以 [config.py](../src/qs_ai/config.py) 为准。
 
 ## 模型与额度
 
