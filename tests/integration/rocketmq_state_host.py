@@ -1442,7 +1442,7 @@ async def test_actual_default_transport_and_worker_share_sender_root_and_shutdow
             (tmp_path / "ai.key").read_bytes(),
         )
         assert runtime.transaction_services is services and runtime.tx.database is host.tx.database
-        assert runtime.relay is None and not runtime.publishers
+        assert not hasattr(runtime, "relay") and not hasattr(runtime, "publishers")
         passed("default_assembly_shared_primary_sender")
         passed("default_assembly_no_legacy_publish_path")
         supervisor = asyncio.create_task(supervise(runtime.components(state, 20), state, stop))

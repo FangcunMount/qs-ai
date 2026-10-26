@@ -1,9 +1,7 @@
 import json
-from unittest.mock import AsyncMock
 
 import pytest
 
-from qs_ai.bootstrap.messaging import MessagingRuntime
 from qs_ai.config import MessagingOptions
 from tests.test_mq_deployment import binding, runtime
 
@@ -31,12 +29,3 @@ def test_rocketmq_binding_rejects_unreviewed_credentials_mount():
     value["rocketmq"]["credentials_file"] = "/tmp/unreviewed.json"
     with pytest.raises(ValueError):
         runtime(value)
-
-
-async def test_maintenance_gate_precedes_outbox_scan():
-    value = MessagingRuntime()
-    value.publish_enabled = False
-    value.publisher_ready.set()
-    value.relay = AsyncMock()
-    assert await value.step() == 0
-    value.relay.step.assert_not_awaited()

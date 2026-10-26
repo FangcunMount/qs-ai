@@ -461,7 +461,7 @@ async def pair(host, required_pair, monkeypatch, request):
                 return response
 
             runtime.payloads.Get = observe_payload_get
-            assert runtime.relay is None and not runtime.publishers
+            assert not hasattr(runtime, "relay") and not hasattr(runtime, "publishers")
             recovery_gate = asyncio.Event()
             if recovery:
                 # Keep default consumers inert while the SAME host supervisor

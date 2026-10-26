@@ -146,16 +146,15 @@ async def test_incomplete_shutdown_and_cancellation_keep_pool_context_until_real
 
 async def test_paused_producer_starts_checker_without_a_legacy_relay_or_normal_publisher():
     value, sdk, events = runtime()
-    value.publish_enabled = False
     sdk.admitted = False
     sdk.started.set()
     stop, state = asyncio.Event(), RuntimeState()
-    task = asyncio.create_task(supervise(value.components(state, 0.1), state, stop))
+    components = value.components(state, 0.1)
+    assert [c.name for c in components] == ["mq_transactions", "mq_subscriber_0", "mq_subscriber_1"]
+    task = asyncio.create_task(supervise(components, state, stop))
     try:
         await wait_ready(state, task)
         assert value.publisher_ready.is_set() and not sdk.admitted
-        assert not value.publishers and value.relay is None
-        assert await value.step() == 0
     finally:
         stop.set()
         await asyncio.wait_for(task, 2)

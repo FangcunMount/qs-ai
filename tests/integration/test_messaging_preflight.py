@@ -1,6 +1,7 @@
 """Real startup read-only enforcement on the application's one disposable MySQL pool."""
 
 import os
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
@@ -46,15 +47,35 @@ async def test_mq_startup_schema_transaction_rejects_write_and_preserves_pool(mo
     monkeypatch.setattr(messaging, "require_recording_schema", check)
     monkeypatch.setattr(messaging, "read_key", lambda *args, **kwargs: object())
     monkeypatch.setattr(messaging, "TrustedSigner", MagicMock())
-    for name in ("StateEventRecorder", "NSQPublisher", "NSQSubscriber", "mtls_channel"):
+    for name in ("TransactionOnlyEvents", "RocketMQSubscriber", "mtls_channel"):
         monkeypatch.setattr(messaging, name, MagicMock())
     container = MagicMock()
-    container.get = AsyncMock(return_value=database)
+    services = SimpleNamespace(
+        signing_key=object(),
+        recipient_key=object(),
+        archives=object(),
+        database_seconds=2,
+        runtime=AsyncMock(),
+    )
+    container.get = AsyncMock(side_effect=[database, services])
     settings = Settings(
         grpc={"access_address": "qs.invalid:9090"},
         messaging={
             "enabled": True,
-            "nsqd": {"nsq.invalid:4150": "http://nsq.invalid:4151"},
+            "provider": "rocketmq",
+            "rocketmq": {
+                "endpoint": "127.0.0.1:1",
+                "credentials_file": "/unused/credentials.json",
+                "ca_file": "/unused/ca.crt",
+                "routes_file": "/unused/routes.json",
+            },
+            "transactions": {
+                "ai.mysql": {
+                    "store_id": "fixture-primary",
+                    "writer_epoch": "m3-1",
+                    "route_revision": "m3-1",
+                }
+            },
             "signing_key_file": "/unused/sign.jwk",
             "decrypt_key_files": {"ai.encrypt": "/unused/decrypt.jwk"},
             "qs_signer_files": {"qs.sign": "/unused/qs-sign.jwk"},
@@ -69,7 +90,7 @@ async def test_mq_startup_schema_transaction_rejects_write_and_preserves_pool(mo
             await db.commit()
         with pytest.raises(VerifiedStartup):
             await messaging.MessagingRuntime.create(container, settings, b"", b"", b"")
-        for name in ("StateEventRecorder", "NSQPublisher", "NSQSubscriber", "mtls_channel"):
+        for name in ("TransactionOnlyEvents", "RocketMQSubscriber", "mtls_channel"):
             getattr(messaging, name).assert_not_called()
         assert database.state_events is None
         async with transactions.open() as db:

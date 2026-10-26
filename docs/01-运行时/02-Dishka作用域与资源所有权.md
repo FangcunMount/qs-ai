@@ -1,5 +1,7 @@
 # Dishka 作用域与资源所有权
 
+M4 C02-03 当前入口只允许显式 `ai.mysql` RocketMQ 事务；原事务、共享池、Checker 与真实在途/取消关闭保持。下文未配置 transactions、NSQ、Publisher/Relay 及外层旧五秒关闭的段落为已退役实现记录，文档全量收敛归 C04；不作为可运行配置或当前发布验收。构造离线容器可继续不分配 owner，运行服务必须通过最终入口校验。
+
 显式事务模式增加 APP TransactionServices：共享固定 SDK Sender、借用 primary pool 的档案、冻结密钥及进程稳定 worker owner；业务 Transactions、适配器和模型 HTTP client 继续为 REQUEST。Sender 构造不启动资源，Close/Wait 完成后才允许父 Database dispose。见[事务装配](../03-基础设施/messaging/README.md#显式事务模式的默认装配与回执)。
 
 一次生成 attempt 会解析执行用例、使用数据库、回查 QS 并调用模型，但这四种动作并不共享一个生命周期。**Dishka 作用域决定对象何时创建和复用；`Transactions.open()` 决定数据库 Session 的生命；业务宿主决定哪次修改可以提交。** 理解这三个边界，才能避免把“同一个 REQUEST”当成“同一笔事务”，或在释放借用资源时关闭整个服务的连接池。
