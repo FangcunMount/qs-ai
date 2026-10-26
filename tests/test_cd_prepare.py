@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.deployment_fixtures import transaction_binding
+from tests.deployment_fixtures import material_reply, transaction_binding
 from tests.test_deployment import (
     image_config,
     inspected_image,
@@ -26,9 +26,16 @@ def staged_release(tmp_path, monkeypatch):
     state = {"current": "b" * 40 + "-1-1", "previous": "c" * 40 + "-1-1"}
     (tmp_path / "state.json").write_text(json.dumps(state))
     calls = []
+    monkeypatch.setattr(
+        remote,
+        "installed_material_tool",
+        lambda: Path("/opt/fangcun-m4/material-tools") / (remote.MATERIAL_TOOL_SHA256 + ".py"),
+    )
 
     def run(phase, args):
         calls.append((phase, args))
+        if phase == "MQ material receipt verification":
+            return json.dumps(material_reply())
         if phase == "image identity":
             return json.dumps([inspected_image(manifest)])
         if phase == "compose services":
@@ -71,6 +78,7 @@ def test_preparation_never_contacts_source_database_or_running_release(tmp_path,
         "image load",
         "image identity",
         "compose services",
+        "MQ material receipt verification",
         "MQ key file preflight",
         "TLS file preflight",
         "compose services",
@@ -124,7 +132,7 @@ def test_prepare_cannot_overwrite_a_successful_release(tmp_path, monkeypatch, pr
     assert not (release / "prepared.json").exists()
 
 
-@pytest.mark.parametrize("failure", ["identity", "TLS", "MQ"])
+@pytest.mark.parametrize("failure", ["identity", "TLS", "MQ", "material"])
 def test_offline_failure_never_marks_release_prepared(tmp_path, monkeypatch, failure):
     remote, release, manifest, _calls = staged_release(tmp_path, monkeypatch)
     original = remote.run
@@ -134,7 +142,11 @@ def test_offline_failure_never_marks_release_prepared(tmp_path, monkeypatch, fai
             inspected = inspected_image(manifest)
             inspected["Config"] = {**image_config(manifest["revision"])["config"], "User": "0"}
             return json.dumps([inspected])
-        if (failure, phase) in {("TLS", "TLS file preflight"), ("MQ", "MQ key file preflight")}:
+        if (failure, phase) in {
+            ("TLS", "TLS file preflight"),
+            ("MQ", "MQ key file preflight"),
+            ("material", "MQ material receipt verification"),
+        }:
             raise remote.DeploymentError("Offline file check failed")
         return original(phase, args)
 
