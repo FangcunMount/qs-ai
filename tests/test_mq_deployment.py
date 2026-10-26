@@ -273,6 +273,16 @@ def test_enabled_compose_keeps_one_service_original_tls_and_stop_budget(tmp_path
     assert options.transactions["ai.mysql"].writer_epoch == "Writer-$$-Epoch"
     from uuid import uuid4
 
+    dependency_image = os.environ["QS_AI_COMPOSE_PROBE_IMAGE"]
+    assert dependency_image in {"mysql:8.0.36", "mysql:8.4"}
+    dependency_id = subprocess.run(
+        ["docker", "image", "inspect", "--format", "{{.Id}}", dependency_image],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=15,
+    ).stdout.strip()
+    assert dependency_id.startswith("sha256:") and len(dependency_id) == 71
     probe = tmp_path / "environment-probe.json"
     probe.write_text(
         json.dumps(
@@ -281,7 +291,7 @@ def test_enabled_compose_keeps_one_service_original_tls_and_stop_budget(tmp_path
                     "probe": {
                         # Required CI already owns this fixed test dependency image. Do not
                         # pull a new image, start it, add mounts or create a project network.
-                        "image": "nsqio/nsq:v1.3.0",
+                        "image": dependency_id,
                         "network_mode": "none",
                         "restart": "no",
                         "environment": {
@@ -320,6 +330,7 @@ def test_enabled_compose_keeps_one_service_original_tls_and_stop_budget(tmp_path
                 timeout=15,
             ).stdout
         )[0]
+        assert state["Image"] == dependency_id
         assert state["State"]["Status"] == "created"
         assert state["HostConfig"]["NetworkMode"] == "none"
         actual = next(

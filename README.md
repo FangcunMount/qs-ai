@@ -13,7 +13,7 @@ qs-ai 是 QS 的独立 AI 后台，负责解读方案与资产、评测审核、
 
 ## 开发与检查
 
-M3 接入基础已固定事务 SDK 预发布 `0.4.0a1`，独立事务运行时尚未接入业务；原消息链路继续保留。装配、准入和后续接入边界见 [消息设计](docs/03-基础设施/messaging/README.md#事务装配与预算)。
+当前使用固定稳定 SDK `0.4.0` 的 RocketMQ 事务运行时和唯一 `ai.mysql` owner；普通发布型 Outbox、MQRelay 和生产 NSQ 装配已退出。当前依赖只启用 `rocketmq` extra，保留同一 wheel 摘要及 JOSE/事务合同，不安装旧 NSQ 客户端。装配、准入和原事务边界见 [消息设计](docs/03-基础设施/messaging/README.md#事务装配与预算)。
 
 Python 和依赖范围以 [pyproject.toml](pyproject.toml)、[uv.lock](uv.lock) 为准。安装 uv 后执行：
 
