@@ -247,7 +247,7 @@ def bind_messaging(runtime: dict, raw: str) -> None:
         service["volumes"] = [
             {
                 "type": "bind",
-                "source": "/data/infra/qs-ai-messaging/versions/"
+                "source": "/var/lib/fangcun-m4-materials/qs-ai-messaging/versions/"
                 + revision
                 + "/"
                 + path.rsplit("/", 1)[1],
@@ -264,7 +264,7 @@ def bind_messaging(runtime: dict, raw: str) -> None:
             service["volumes"].extend(
                 {
                     "type": "bind",
-                    "source": "/data/infra/qs-ai-messaging/versions/"
+                    "source": "/var/lib/fangcun-m4-materials/qs-ai-messaging/versions/"
                     + revision
                     + "/rocketmq/"
                     + path.rsplit("/", 1)[1],

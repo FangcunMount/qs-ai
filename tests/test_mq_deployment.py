@@ -48,7 +48,7 @@ def test_binding_adds_only_existing_settings_and_individual_readonly_mounts():
         assert mount["read_only"] and not mount["bind"]["create_host_path"]
         subdir = "rocketmq/" if mount["target"].startswith("/run/qs-ai-rocketmq/") else ""
         assert mount["source"] == (
-            "/data/infra/qs-ai-messaging/versions/m4-final-ai/"
+            "/var/lib/fangcun-m4-materials/qs-ai-messaging/versions/m4-final-ai/"
             + subdir
             + Path(mount["target"]).name
         )

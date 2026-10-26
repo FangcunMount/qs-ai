@@ -710,13 +710,13 @@ def messaging_release(release: Path, manifest: dict | None = None) -> bool:
             source = mount["source"]
             if target in rocketmq_paths:
                 match = re.fullmatch(
-                    r"/data/infra/qs-ai-messaging/versions/([a-z0-9][a-z0-9-]{0,63})/rocketmq/(credentials\.json|routes\.json|ca\.crt)",
+                    r"/var/lib/fangcun-m4-materials/qs-ai-messaging/versions/([a-z0-9][a-z0-9-]{0,63})/rocketmq/(credentials\.json|routes\.json|ca\.crt)",
                     source,
                 )
                 prefix = "/run/qs-ai-rocketmq/"
             else:
                 match = re.fullmatch(
-                    r"/data/infra/qs-ai-messaging/versions/([a-z0-9][a-z0-9-]{0,63})/([a-z0-9._-]+\.json)",
+                    r"/var/lib/fangcun-m4-materials/qs-ai-messaging/versions/([a-z0-9][a-z0-9-]{0,63})/([a-z0-9._-]+\.json)",
                     source,
                 )
                 prefix = "/run/qs-ai-jose/"
