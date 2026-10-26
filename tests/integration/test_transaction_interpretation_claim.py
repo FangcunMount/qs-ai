@@ -20,12 +20,12 @@ from qs_ai.infrastructure.workflow_transport.interpretation_state_root import (
 )
 from tests.integration.test_interpretation import kit as kit
 from tests.integration.test_interpretation_claim_root import rows
-from tests.integration.test_mq_storage import keys as keys
 from tests.integration.test_transaction_evaluation_admission import trigger_admin as trigger_admin
 from tests.integration.test_transaction_start_admission import host as host
 from tests.integration.test_transaction_start_admission import (
     required_disposable_primary as required_disposable_primary,
 )
+from tests.messaging_fixtures import keys as keys
 
 pytestmark = pytest.mark.integration
 

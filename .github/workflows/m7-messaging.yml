@@ -8,7 +8,11 @@ on:
       - 'uv.lock'
       - 'src/qs_ai/application/integration/events.py'
       - 'src/qs_ai/infrastructure/persistence/mysql/result_outbox.py'
-      - 'tests/integration/test_m7_delivery.py'
+      - 'tests/integration/test_transaction_receipts.py'
+      - 'tests/integration/test_mq_inventory.py'
+      - 'tests/integration/test_transaction_candidate_runtime.py'
+      - 'tests/integration/test_transaction_interpretation_finish_retry.py'
+      - 'tests/integration/test_transaction_command_receiver.py'
       - 'src/qs_ai/maintenance/transaction_binding.py'
       - 'tests/test_transaction_binding.py'
       - 'tests/integration/test_initial_transaction_binding.py'
@@ -21,7 +25,11 @@ on:
       - 'uv.lock'
       - 'src/qs_ai/application/integration/events.py'
       - 'src/qs_ai/infrastructure/persistence/mysql/result_outbox.py'
-      - 'tests/integration/test_m7_delivery.py'
+      - 'tests/integration/test_transaction_receipts.py'
+      - 'tests/integration/test_mq_inventory.py'
+      - 'tests/integration/test_transaction_candidate_runtime.py'
+      - 'tests/integration/test_transaction_interpretation_finish_retry.py'
+      - 'tests/integration/test_transaction_command_receiver.py'
       - 'src/qs_ai/maintenance/transaction_binding.py'
       - 'tests/test_transaction_binding.py'
       - 'tests/integration/test_initial_transaction_binding.py'
@@ -62,8 +70,8 @@ jobs:
           version: '0.12.13'
           python-version: '3.11'
       - run: uv sync --locked
-      - run: uv run ruff check src/qs_ai/application/integration/events.py src/qs_ai/infrastructure/persistence/mysql/result_outbox.py tests/integration/test_m7_delivery.py scripts/ci/rehearse_m7_cutover.py
-      - run: uv run ruff format --check src/qs_ai/application/integration/events.py src/qs_ai/infrastructure/persistence/mysql/result_outbox.py tests/integration/test_m7_delivery.py scripts/ci/rehearse_m7_cutover.py
+      - run: uv run ruff check src/qs_ai/application/integration/events.py src/qs_ai/infrastructure/persistence/mysql/result_outbox.py tests/integration/test_transaction_receipts.py scripts/ci/rehearse_m7_cutover.py
+      - run: uv run ruff format --check src/qs_ai/application/integration/events.py src/qs_ai/infrastructure/persistence/mysql/result_outbox.py tests/integration/test_transaction_receipts.py scripts/ci/rehearse_m7_cutover.py
       - run: uv run mypy src/qs_ai/application/integration/events.py src/qs_ai/infrastructure/persistence/mysql/result_outbox.py
       - run: uv run python scripts/check_docs.py
       - run: uv run alembic upgrade head
@@ -82,10 +90,11 @@ jobs:
       - name: Original transaction, durable MQ receipt and execution recovery (synthetic)
         run: >-
           uv run pytest -q --junitxml=m7-storage.xml
-          tests/integration/test_m7_delivery.py tests/integration/test_result_outbox.py
-          tests/integration/test_mq_admission.py::test_legacy_result_settles_only_with_atomic_original_business_ack
-          tests/integration/test_mq_legacy_handoff.py
-          tests/integration/test_mq_handoff_tool.py tests/integration/test_mq_inventory.py
+          tests/integration/test_transaction_receipts.py tests/integration/test_result_outbox.py
+          tests/integration/test_transaction_command_receiver.py
+          tests/integration/test_transaction_interpretation_finish_retry.py
+          tests/integration/test_transaction_candidate_runtime.py
+          tests/integration/test_mq_inventory.py
           tests/integration/test_schema_refactor_auto_increment.py::test_startup_and_readonly_release_check_share_the_identity_gate
           tests/integration/test_schema_refactor_conversion.py::test_owned_migration_cli_commits_final_head_and_preserves_populated_source
           tests/integration/test_execution_configurations.py tests/integration/test_evaluation_recovery.py

@@ -10,11 +10,7 @@ from uuid import uuid4
 
 import sqlalchemy as sa
 from reliable_messaging.durable import (
-    CONFIRMED,
-    STAGED,
-    Identity,
     MessageConflict,
-    MySQLDurableOutbox,
 )
 from reliable_messaging.sqlalchemy import bind
 from sqlalchemy.dialects import mysql
@@ -22,15 +18,11 @@ from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from qs_ai.contracts.workflow import messaging_pb2 as pb
-from qs_ai.contracts.workflow import workflow_pb2 as workflow
 from qs_ai.infrastructure.persistence.mysql.messaging_observations import (
     observations,
     record_observation,
 )
-from qs_ai.infrastructure.persistence.mysql.schema import result_outbox
 from qs_ai.infrastructure.workflow_transport.messaging import (
-    EVENTS,
-    PreparedMessage,
     parse_body,
     valid_id,
     valid_number,
@@ -127,88 +119,6 @@ quarantine = sa.Table(
 
 
 class MessagingStore:
-    def __init__(self, *, outbox_table: sa.Table = outbox) -> None:
-        # A reviewed one-shot handoff may stage into frozen 0038 storage. Runtime
-        # always uses the default; this does not install schema or own resources.
-        self.outbox_table = outbox_table
-        self.outbox = MySQLDurableOutbox(outbox_table)
-
-    async def stage(
-        self,
-        db: AsyncSession,
-        message: PreparedMessage,
-        *,
-        organization_id: str,
-        sequence: int,
-        ordered: bool = False,
-    ) -> Any:
-        outbox = self.outbox_table
-        envelope = message.envelope
-        parse_body(envelope, message.body)
-        if not valid_number(organization_id) or not 0 < sequence < 2**64:
-            raise MessageConflict("organization and original sequence required")
-        if envelope.producer != "qs-ai" or message.topic != EVENTS or ordered:
-            raise MessageConflict("AI publishes only durable events")
-        if (
-            envelope.HasField("payload_reference")
-            and envelope.payload_reference.organization_id != organization_id
-        ):
-            raise MessageConflict("original reference organization mismatch")
-        statement = mysql.insert(outbox).values(
-            producer=envelope.producer,
-            destination=envelope.destination,
-            message_id=envelope.message_id,
-            body_sha256=envelope.body_sha256,
-            body=message.body,
-            wire=message.wire,
-            wire_sha256=hashlib.sha256(message.wire).hexdigest(),
-            topic=message.topic,
-            kind=envelope.kind,
-            organization_id=int(organization_id),
-            aggregate_key=envelope.aggregate_key,
-            aggregate_sequence=sequence,
-            ordered=False,
-            requires_receipt=True,
-            stage=STAGED,
-            attempts=0,
-            available_at=sa.func.utc_timestamp(6),
-            created_at=sa.func.utc_timestamp(6),
-            error_code="",
-        )
-        await bind(db).append(statement.on_duplicate_key_update(message_id=outbox.c.message_id))
-        row = (
-            (
-                await db.execute(
-                    sa.select(outbox)
-                    .where(
-                        outbox.c.producer == envelope.producer,
-                        outbox.c.destination == envelope.destination,
-                        outbox.c.message_id == envelope.message_id,
-                    )
-                    .with_for_update()
-                )
-            )
-            .mappings()
-            .one()
-        )
-        if (
-            row["body_sha256"],
-            row["body"],
-            row["kind"],
-            row["organization_id"],
-            row["aggregate_key"],
-            row["aggregate_sequence"],
-        ) != (
-            envelope.body_sha256,
-            message.body,
-            envelope.kind,
-            int(organization_id),
-            envelope.aggregate_key,
-            sequence,
-        ):
-            raise MessageConflict("first persisted event identity conflict")
-        return row  # only first wire is retained; repeated identity never overwrites it
-
     async def read_command(
         self, db: AsyncSession, envelope: pb.MessagingEnvelope, raw: bytes
     ) -> Any | None:
@@ -311,25 +221,6 @@ class MessagingStore:
         await record_observation(db, "duplicate_command")
         return row  # duplicate BEFORE business CAS; never execute or refreeze again
 
-    async def decide(
-        self,
-        db: AsyncSession,
-        command: pb.MessagingEnvelope,
-        receipt: PreparedMessage,
-        *,
-        organization_id: str,
-        sequence: int,
-    ) -> None:
-        value = parse_body(receipt.envelope, receipt.body).command_receipt
-        if (
-            receipt.envelope.kind != pb.COMMAND_RECEIPT
-            or value.command_id != command.message_id
-            or value.command_body_sha256 != command.body_sha256
-        ):
-            raise MessageConflict("durable receipt must bind the original command")
-        await self.stage(db, receipt, organization_id=organization_id, sequence=sequence)
-        await self._decide(db, command, receipt.envelope.message_id, value.decision)
-
     async def decide_transaction(
         self,
         db: AsyncSession,
@@ -386,88 +277,6 @@ class MessagingStore:
         )
         if cast(CursorResult[Any], result).rowcount != 1:
             raise MessageConflict("decision requires the original reserved command")
-
-    async def confirm_event(
-        self,
-        db: AsyncSession,
-        envelope: pb.MessagingEnvelope,
-        raw: bytes,
-    ) -> None:
-        value = parse_body(envelope, raw).event_acknowledgement
-        if envelope.kind != pb.EVENT_ACKNOWLEDGEMENT or envelope.producer != "qs-server":
-            raise MessageConflict("authenticated QS acknowledgement required")
-        identity = Identity("qs-ai", "qs-server", value.event_id)
-        await bind(db).validate()
-        # Handoff locks the legacy row before staging the MQ row. Keep that
-        # order here too, including duplicate ACKs, to avoid an ABBA deadlock.
-        legacy = None
-        if value.event_kind == pb.INTERPRETATION_STATE:
-            legacy = (
-                (
-                    await db.execute(
-                        sa.select(result_outbox)
-                        .where(result_outbox.c.event_id == value.event_id)
-                        .with_for_update()
-                    )
-                )
-                .mappings()
-                .one_or_none()
-            )
-        row = (
-            (
-                await db.execute(
-                    sa.select(outbox)
-                    .where(
-                        outbox.c.producer == identity.producer,
-                        outbox.c.destination == identity.destination,
-                        outbox.c.message_id == identity.message_id,
-                    )
-                    .with_for_update()
-                )
-            )
-            .mappings()
-            .one_or_none()
-        )
-        if (
-            row is None
-            or row["kind"] != value.event_kind
-            or row["aggregate_key"] != envelope.aggregate_key
-            or row["body_sha256"] != value.event_body_sha256
-            or not row["requires_receipt"]
-        ):
-            raise MessageConflict("original event confirmation identity mismatch")
-        if value.outcome == pb.MessagingEventAcknowledgement.STORED:
-            if legacy is not None:
-                original = pb.MessagingBody.FromString(row["body"]).interpretation_state
-                try:
-                    same_body = workflow.StateEvent(**legacy["payload"]) == original
-                except (TypeError, ValueError):
-                    same_body = False
-                if (
-                    not legacy["mq_owned"]
-                    or legacy["event_id"] != original.event_id
-                    or legacy["session_id"] != original.session_id
-                    or legacy["version"] != original.version
-                    or row["aggregate_key"] != original.request_id
-                    or not same_body
-                ):
-                    raise MessageConflict("original result confirmation identity mismatch")
-            if row["stage"] == CONFIRMED:
-                # Preserve the first business-confirmation time; the exact hash
-                # and identity were validated on this same locked original row.
-                await record_observation(db, "duplicate_ack")
-            else:
-                await self.outbox.confirm(db, identity, value.event_body_sha256)
-            if legacy is not None and not legacy["delivered"]:
-                await db.execute(
-                    sa.update(result_outbox)
-                    .where(result_outbox.c.event_id == value.event_id)
-                    .values(delivered=True, delivered_at=sa.func.utc_timestamp(6))
-                )
-        else:
-            await self.outbox.hold(
-                db, identity, value.event_body_sha256, error_code="receiver_held"
-            )
 
     async def quarantine_wire(self, db: AsyncSession, wire: bytes, code: str) -> None:
         if len(wire) > 262_144 or code not in (
@@ -551,40 +360,3 @@ class MessagingStore:
             )
         )
         return await self.logical_attempts(db, command)
-
-    async def payload(
-        self,
-        db: AsyncSession,
-        reference: pb.MessagePayloadReference,
-        authenticated_workload: str,
-    ) -> bytes:
-        await bind(db).validate()
-        if (
-            authenticated_workload != "qs-server"
-            or reference.producer != "qs-ai"
-            or reference.destination != authenticated_workload
-            or not valid_number(reference.organization_id)
-        ):
-            raise MessageConflict("payload workload or reference rejected")
-        row = (
-            (
-                await db.execute(
-                    sa.select(outbox).where(
-                        outbox.c.producer == reference.producer,
-                        outbox.c.destination == reference.destination,
-                        outbox.c.message_id == reference.message_id,
-                        outbox.c.organization_id == int(reference.organization_id),
-                        outbox.c.body_sha256 == reference.body_sha256,
-                    )
-                )
-            )
-            .mappings()
-            .one_or_none()
-        )
-        if (
-            row is None
-            or len(row["body"]) != reference.body_length
-            or hashlib.sha256(row["body"]).hexdigest() != reference.body_sha256
-        ):
-            raise MessageConflict("original payload unavailable or mismatched")
-        return bytes(row["body"])

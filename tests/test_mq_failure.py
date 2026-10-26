@@ -1,54 +1,63 @@
+"""Failure wrappers remain untrusted until the caller authenticates original wire."""
+
+import base64
 import json
-from types import SimpleNamespace
+from uuid import uuid4
 
 import pytest
-from reliable_messaging.wire import FAILED_CHANNEL, failed_topic
+from reliable_messaging.transport import physical_topic_v2
+from reliable_messaging.wire import Envelope, encode
 
 from qs_ai.infrastructure.workflow_transport.messaging import CHANNELS, COMMANDS
-from qs_ai.infrastructure.workflow_transport.mq_failure import FailureTopology
+from qs_ai.infrastructure.workflow_transport.mq_failure import failed_original
+
+TOPIC = physical_topic_v2(COMMANDS, "TRANSACTION", "qs.mysql", "m3-1")
 
 
-async def test_failure_topology_is_one_bounded_read_on_configured_origin():
-    calls = []
-    topic = failed_topic(COMMANDS, CHANNELS[COMMANDS])
-
-    class HTTP:
-        async def fetch(self, request):
-            calls.append(request)
-            return SimpleNamespace(
-                code=200,
-                body=json.dumps(
-                    {
-                        "topics": [
-                            {"topic_name": topic, "channels": [{"channel_name": FAILED_CHANNEL}]}
-                        ]
-                    }
-                ).encode(),
-            )
-
-    check = FailureTopology({"node:4150": "http://127.0.0.1:4151"}, HTTP(), (COMMANDS,))
-    assert not calls
-    await check("node:4150", topic, FAILED_CHANNEL)
-    assert len(calls) == 1
-    request = calls[0]
-    assert request.method == "GET" and request.request_timeout == 5
-    assert request.connect_timeout == 5 and not request.follow_redirects
-    assert request.url.startswith("http://127.0.0.1:4151/stats?")
-    for args in (("other:4150", topic, FAILED_CHANNEL), ("node:4150", "bad", FAILED_CHANNEL)):
-        with pytest.raises(ValueError):
-            await check(*args)
-    assert len(calls) == 1  # no endpoint discovery or mutation
+def notice():
+    envelope = Envelope(str(uuid4()), b"opaque signed payload", {"secure_profile": "fixture"})
+    value = dict(
+        type="reliable-messaging.failed.v1",
+        provider="rocketmq",
+        physical_topic=TOPIC,
+        topic=COMMANDS,
+        channel=CHANNELS[COMMANDS],
+        uuid=envelope.message_id,
+        payload=base64.b64encode(envelope.payload).decode(),
+        metadata=envelope.metadata,
+        attempts=65535,
+    )
+    return envelope, value
 
 
-async def test_missing_failure_subscription_fails_once_without_creating_it():
-    calls = []
+def test_current_notice_reconstructs_original_wire_without_trusting_attempts():
+    envelope, value = notice()
+    assert failed_original(json.dumps(value).encode(), COMMANDS, rocketmq_topic=TOPIC) == encode(
+        envelope
+    )
 
-    class HTTP:
-        async def fetch(self, request):
-            calls.append(request)
-            return SimpleNamespace(code=200, body=b'{"topics":[]}')
 
-    check = FailureTopology({"node:4150": "http://127.0.0.1:4151"}, HTTP(), (COMMANDS,))
-    with pytest.raises(ValueError, match="pre-provisioned"):
-        await check("node:4150", failed_topic(COMMANDS, CHANNELS[COMMANDS]), FAILED_CHANNEL)
-    assert len(calls) == 1 and calls[0].method == "GET"
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("provider", "nsq"),
+        ("type", "old.failed.v1"),
+        ("physical_topic", "other"),
+        ("topic", "other"),
+        ("channel", "other"),
+        ("uuid", "wrong"),
+        ("payload", "??"),
+        ("metadata", {"private": 1}),
+    ],
+)
+def test_old_or_wrong_transport_reference_cannot_reconstruct_current_message(field, value):
+    _, data = notice()
+    data[field] = value
+    with pytest.raises(ValueError):
+        failed_original(json.dumps(data).encode(), COMMANDS, rocketmq_topic=TOPIC)
+
+
+@pytest.mark.parametrize("wire", [b"[]", b"invalid", b"x" * 262145])
+def test_invalid_or_oversized_notice_is_rejected(wire):
+    with pytest.raises(ValueError):
+        failed_original(wire, COMMANDS, rocketmq_topic=TOPIC)

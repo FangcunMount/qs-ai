@@ -133,9 +133,9 @@ candidate 的正常完成流程在 claims 排空后才形成可恢复的 blocked
 
 ## 结果已完成时，恢复对象转为原消息
 
-Artifact 与业务终态提交后，如果 QS 页面还看不到结果，先核对原状态事件的交接，不能重开生成来“补发结果”。[`stage_state`](../../../src/qs_ai/infrastructure/persistence/mysql/result_outbox.py) 在同一业务事务保存 Session version 对应的原 StateEvent，重复版本保留首次事件；启用 MQ 时再由 [`StateEventRecorder`](../../../src/qs_ai/infrastructure/workflow_transport/state_events.py) 在原事务保存首次 wire，并移交投递所有权。移交不等于 delivered，也不会重封装已拥有的消息或重置历史预算。
+Artifact与业务终态提交后若QS仍不可见，应核对原冻结计划、Committed witness、首wire、QS接收事实与业务ACK，不能重新生成来补发。`result_outbox`仍保存当前解释状态历史；它不再驱动发布扫描。
 
-[`MQRelay.step`](../../../src/qs_ai/infrastructure/workflow_transport/mq_relay.py) 每次读取最多 20 条可投递记录，重发原 wire。Broker confirmed 只进入等待业务回执；未确认或等待期届满可以继续按原身份重投，达到八次投递预算则 held，拒绝也 held。收费模型调用的 unknown 不能自动再发，而消息在原 Inbox 幂等协议下重投同一 wire，二者适用前提不同。
+当前事务owner维护半消息及精确原证据，跨实例Checker确认原提交；没有MQRelay扫描。原response/checkpoint恢复确定性finalization，不新增模型调用或attempt。缺记录/Unknown不自动换ID、重建计划或重新Seal。
 
 [`MessagingStore.confirm_event`](../../../src/qs_ai/infrastructure/persistence/mysql/messaging.py) 接受受信 QS 的 STORED ACK 前，核对原 event ID/kind、aggregate key、body hash 与 requires_receipt；正常解读路径同事务保存的原结果源行被读取到时，还核对原 legacy StateEvent 和 MQ ownership并同时置 delivered；函数没有单独拒绝缺源行的情况，消息 confirmed 本身不能证明源行完整。通过原业务确认事务后才可认定正常结果 delivered。Publisher 正常关闭、PUB OK 或 Relay 当前无错，都不能证明这条业务回执已经提交。历史移交、held 处置与退役协议见 [可靠消息](../messaging/README.md)。
 
@@ -163,7 +163,7 @@ Artifact 与业务终态提交后，如果 QS 页面还看不到结果，先核�
 | [unknown 领域](../../../tests/test_evaluation_resolution.py)、[数据库 resolution](../../../tests/integration/test_evaluation_resolution.py) | 两类决定、原未知不可变、目标预算、组织/CAS、重复或错误执行拒绝 |
 | [契约恢复领域](../../../tests/test_semantic_contract_recovery.py)、[数据库契约恢复](../../../tests/integration/test_semantic_contract_recovery.py) | 精确原失败与摘要、固定修复授权、原策略保留、禁止 unknown 冒充失败和第三次执行 |
 | [取消领域](../../../tests/test_evaluation_cancellation.py)、[数据库取消](../../../tests/integration/test_evaluation_cancellation.py) | 取消/废弃区分、发送竞争、排空与原准备审计；并发 claims 另见 candidate execution |
-| [test_mq_admission](../../../tests/integration/test_mq_admission.py) | 业务/Inbox/状态原子回滚、首次 wire 保留、旧事件交接不置 delivered、仅原业务 ACK 结算 |
+| [test_mq_admission](../../../tests/integration/test_transaction_start_admission.py) | 业务/Inbox/状态原子回滚、首次 wire 保留、旧事件交接不置 delivered、仅原业务 ACK 结算 |
 
 恢复依赖数据库证据可读且完整、当前授权/接受配置可验证，以及相应 worker 开关、容量和生命周期条件。具体运行参数见 [后台执行与调度](../../01-运行时/03-后台执行与调度.md)；故障取证时应保留原身份、字节和版本，再按上表选择动作。
 

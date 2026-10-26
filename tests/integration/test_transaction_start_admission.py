@@ -50,8 +50,8 @@ from qs_ai.infrastructure.workflow_transport.transaction_command import (
     read_admission_plan,
 )
 from tests.integration.test_interpretation import kit as kit
-from tests.integration.test_mq_admission import admission, start_message
-from tests.integration.test_mq_storage import keys as keys
+from tests.messaging_fixtures import keys as keys
+from tests.transaction_fixtures import admission, start_message
 
 pytestmark = pytest.mark.integration
 

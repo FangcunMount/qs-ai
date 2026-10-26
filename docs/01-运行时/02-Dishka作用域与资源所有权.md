@@ -1,6 +1,6 @@
 # Dishka 作用域与资源所有权
 
-M4 C02-03 当前入口只允许显式 `ai.mysql` RocketMQ 事务；原事务、共享池、Checker 与真实在途/取消关闭保持。下文未配置 transactions、NSQ、Publisher/Relay 及外层旧五秒关闭的段落为已退役实现记录，文档全量收敛归 C04；不作为可运行配置或当前发布验收。构造离线容器可继续不分配 owner，运行服务必须通过最终入口校验。
+M4 C02-03 当前入口只允许显式 `ai.mysql` RocketMQ 事务；原事务、共享池、Checker 与真实在途/取消关闭保持。下文未配置 transactions、RocketMQ、Publisher/Relay 及外层旧五秒关闭的段落为已退役实现记录，文档全量收敛归 C04；不作为可运行配置或当前发布验收。构造离线容器可继续不分配 owner，运行服务必须通过最终入口校验。
 
 显式事务模式增加 APP TransactionServices：共享固定 SDK Sender、借用 primary pool 的档案、冻结密钥及进程稳定 worker owner；业务 Transactions、适配器和模型 HTTP client 继续为 REQUEST。Sender 构造不启动资源，Close/Wait 完成后才允许父 Database dispose。见[事务装配](../03-基础设施/messaging/README.md#显式事务模式的默认装配与回执)。
 
@@ -103,35 +103,11 @@ Transactions 工厂只接受 APP Database。每次 `open()` 都创建新的 Even
 
 ## MQ Start 为什么必须借用原根事务
 
-MQ 接单需要把 Inbox 决定、原业务效果和首回执同时接受。它没有通过 Dishka REQUEST 自动得到这笔大事务：MessagingRuntime 从 APP Database 构造自己的 Transactions，CommandReceiver 对每条消息明确 `open()` 并 `db.begin()`。
+当前TransactionCommandReceiver先完成鉴权、只读规划和首次消息冻结，准备全部半消息后才进入原AsyncSession根。`transaction_admission`安装execution guard，将业务、Inbox、首receipt/state档案与全部witness共同提交；SDK不替换宿主数据库，也不重复调用原业务执行器。
 
-Runtime 创建 admission 时短暂打开容器子作用域，取出 EvidenceSource、容量/配额策略、EditableModelPolicy 和 RuntimeLimits。这些依赖都是 APP 对象；它没有把某个 REQUEST 的 MySQL Session 或模型 AsyncClient 留给所有消息复用。接单本身也不调用模型。
+`MySQLUnitOfWorkFactory`与原Transactions借用协议保持：内层业务commit回调仅确认其原root仍有效，根提交仍归外层原接收器。明确的局部savepoint可以撤销确定失败的局部修改，但release不是根提交证明，不能形成业务/witness不同步窗口。EventSession.commit不做MQ网络I/O；当前业务状态须有其冻结transcription，旧StateEventRecorder及发布队列stager已退役。
 
-一条正常 Start 的事务顺序是：
-
-```mermaid
-sequenceDiagram
-  participant R as CommandReceiver
-  participant DB as 原 EventSession / root transaction
-  participant A as WorkflowCommandAdmission
-  participant U as InterpretationService + UOW
-  R->>DB: begin + reserve Inbox
-  R->>A: admit(db, envelope, body)
-  A->>DB: begin_nested savepoint
-  A->>U: Transactions.borrowed(db)
-  U->>DB: 原请求、Session/Run、EvidenceSet、配置、Job与状态
-  U->>A: uow.commit 仅验证原root
-  A-->>R: AdmissionDecision
-  R->>DB: 验证原root + 记录首回执
-  R->>DB: EventSession.commit：评测flush后root commit
-  R-->>R: 提交后handler才可以成功返回
-```
-
-`BorrowedTransactions` 保存的是 `session.get_transaction()` 的原活动对象。它的 open 返回这个同一 Session，进入和正常返回时验证原事务仍活动且身份未改变；它的 commit 只核对 Session 与原事务，**没有调用原 `session.commit()`**。它也没有创建 Session、退出 rollback 或关闭连接池的职责。
-
-`MySQLUnitOfWorkFactory` 把 `transactions.commit` 作为回调交给 UOW。因此同一个 `uow.commit()` 在普通自有调用中完成提交，在 MQ 借用调用中仅检查边界，由 receiver 保留最终提交权。SDK 的 `bind(db).validate()` 还会在业务处理前后核对原事务边界；业务适配器不能绕过回调直接提交或替换 root。
-
-这里的 savepoint 有独立用途：若 Change 因旧 expected_version 等确定业务规则拒绝，先撤销 savepoint 内的局部预留/修改，再在原 root 中保存 REJECTED 的 Inbox 和回执。它不是另一笔独立数据库事务，不能由内层成功就证明外层已提交。
+UUID、时间、签名加密和半消息都在数据库callback外冻结；callback重入只执行确定性的数据库操作。首wire/业务决定复用原计划，取消或Unknown不能授权模型重做。缺原Committed档案的ACK直接拒绝，当前状态历史仍参与原根核验。
 
 ### 两种异常，最终接受的内容不同
 
@@ -163,7 +139,7 @@ sequenceDiagram
 | 授权 channel 是 APP；HTTP 何时关闭容器 | [InterpretationProvider](../../src/qs_ai/bootstrap/providers/interpretation.py)、[create_app](../../src/qs_ai/bootstrap/api.py)、[serve](../../src/qs_ai/bootstrap/server.py) | [单进程测试](../../tests/test_single_server.py) 检查共享容器和实际 listener；[容器测试](../../tests/test_container.py) 检查自建 HTTP 容器关闭；授权行为另见 [test_qs_access.py](../../tests/test_qs_access.py) |
 | 共享 pool 不共享 Session，也能在连接失效后继续使用 | [Database / Transactions / EventSession](../../src/qs_ai/infrastructure/persistence/mysql/database.py) | [test_shared_runtime_pool.py](../../tests/integration/test_shared_runtime_pool.py)：五种职责模拟共池，100 个不同 Session，退出后连接归还、失效连接后继续查询；需要隔离 MySQL，不是实际五种 listener 的业务压力测试 |
 | MQ runtime 借用 APP pool，自有载荷通道和传输资源 | [MessagingRuntime](../../src/qs_ai/bootstrap/messaging.py) | [test_messaging_runtime.py](../../tests/test_messaging_runtime.py)：替身断言预检先 rollback/close 再建传输、runtime 关闭 channel/移除 recorder，未 dispose engine；[真实预检测试](../../tests/integration/test_messaging_preflight.py) 另验证隔离 MySQL 的只读预检 |
-| UOW commit 如何从自有切到借用 | [事务包装器](../../src/qs_ai/infrastructure/persistence/mysql/database.py)、[UOW 工厂](../../src/qs_ai/infrastructure/persistence/mysql/interpretation.py)、[命令适配](../../src/qs_ai/infrastructure/workflow_transport/command_admission.py) | [test_mq_admission.py](../../tests/integration/test_mq_admission.py)：版本拒绝撤销局部预留但持久 Inbox；首回执失败撤销业务与 Inbox；成功/拒绝原命令重放 |
-| 状态事件与原业务是否共同接受 | [interpretation_result_outbox](../../src/qs_ai/infrastructure/persistence/mysql/result_outbox.py)、[StateEventRecorder](../../src/qs_ai/infrastructure/workflow_transport/state_events.py)、[CommandReceiver](../../src/qs_ai/infrastructure/workflow_transport/mq_receiver.py) | 同一 [MQ 接单测试](../../tests/integration/test_mq_admission.py) 的 `test_failed_evaluation_event_rolls_back_projection_and_sequence` 验证状态、序号、Inbox/Outbox 一起回滚，再以原消息成功提交 |
+| UOW commit 如何从自有切到借用 | [事务包装器](../../src/qs_ai/infrastructure/persistence/mysql/database.py)、[UOW 工厂](../../src/qs_ai/infrastructure/persistence/mysql/interpretation.py)、[命令适配](../../src/qs_ai/infrastructure/workflow_transport/command_admission.py) | [test_mq_admission.py](../../tests/integration/test_transaction_start_admission.py)：版本拒绝撤销局部预留但持久 Inbox；首回执失败撤销业务与 Inbox；成功/拒绝原命令重放 |
+| 状态事件与原业务是否共同接受 | [interpretation_result_outbox](../../src/qs_ai/infrastructure/persistence/mysql/result_outbox.py)、[当前状态序号声明](../../src/qs_ai/infrastructure/workflow_transport/state_events.py)、[CommandReceiver](../../src/qs_ai/infrastructure/workflow_transport/mq_receiver.py) | 同一 [MQ 接单测试](../../tests/integration/test_transaction_start_admission.py) 的 `test_failed_evaluation_event_rolls_back_projection_and_sequence` 验证状态、序号、Inbox/事务档案 一起回滚，再以原消息成功提交 |
 
 这些入口分别证明对象装配、替身清理断言和数据库事务行为。只运行容器单元测试不能证明 MySQL 原子性；集成测试 skip 也不能当成已验证。所有连接类验证需要一次性环境，不应为了补文档证据连接生产。

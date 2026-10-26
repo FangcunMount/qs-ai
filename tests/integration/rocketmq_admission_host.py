@@ -75,9 +75,6 @@ from qs_ai.infrastructure.workflow_transport.transaction_receiver import Transac
 from tests.integration.test_evaluation_runs import setup_run as setup_run
 from tests.integration.test_evaluation_start import requested as requested
 from tests.integration.test_interpretation import kit as kit
-from tests.integration.test_mq_admission import admission, start_message
-from tests.integration.test_mq_storage import keys as keys
-from tests.integration.test_mq_storage import receiver
 from tests.integration.test_participant_retries import blocked, calls
 from tests.integration.test_transaction_change_admission import incoming as change_input
 from tests.integration.test_transaction_change_admission import initial as initial_change
@@ -88,6 +85,9 @@ from tests.integration.test_transaction_start_admission import host as host
 from tests.integration.test_transaction_start_admission import (
     required_disposable_primary as required_disposable_primary,
 )
+from tests.messaging_fixtures import keys as keys
+from tests.messaging_fixtures import receiver
+from tests.transaction_fixtures import admission, start_message
 
 pytestmark = pytest.mark.integration
 _CASES = {}

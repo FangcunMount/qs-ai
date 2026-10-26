@@ -20,7 +20,7 @@ from sqlalchemy import delete, insert, select
 from qs_ai.application.interpretation.ports import WorkflowResult
 from qs_ai.contracts.workflow import messaging_pb2 as pb
 from qs_ai.contracts.workflow import messaging_pb2_grpc as rpc
-from qs_ai.infrastructure.persistence.mysql.messaging import MessagingStore, outbox
+from qs_ai.infrastructure.persistence.mysql.messaging import outbox
 from qs_ai.infrastructure.persistence.mysql.messaging_observations import observations
 from qs_ai.infrastructure.persistence.mysql.schema import model_calls, questions, result_outbox
 from qs_ai.infrastructure.persistence.mysql.transaction_archive import ArchivePayloadReader
@@ -148,14 +148,6 @@ async def payload_rpc(host, tmp_path):
         path.chmod(0o600)
     server, channels = grpc.aio.server(), []
 
-    class ReadLegacy(MessagingStore):
-        calls = 0
-
-        async def payload(self, db, reference, workload):
-            self.calls += 1
-            return await super().payload(db, reference, workload)
-
-    legacy = ReadLegacy()
     access = MySQLPayloadAccess(host.tx, ArchivePayloadReader(host.archives))
     recorded_workload_denial = asyncio.Event()
     record = access.record_failure
@@ -192,9 +184,7 @@ async def payload_rpc(host, tmp_path):
         return rpc.MessagePayloadsStub(channel)
 
     try:
-        yield SimpleNamespace(
-            stub=stub, legacy=legacy, recorded_workload_denial=recorded_workload_denial
-        )
+        yield SimpleNamespace(stub=stub, recorded_workload_denial=recorded_workload_denial)
     finally:
         try:
             for channel in channels:
@@ -333,7 +323,6 @@ async def test_current_payload_mtls_reference_mismatch_diagnostics(
     await committed_body(p, transport)
     before = await counter(p.host, "payload_serve_reference_mismatch")
     storage = await counter(p.host, "payload_serve_storage_unavailable")
-    old_reads = transport.legacy.calls
     reference = pb.MessagePayloadReference()
     reference.CopyFrom(p.reference)
     setattr(reference, field, value)
@@ -342,7 +331,6 @@ async def test_current_payload_mtls_reference_mismatch_diagnostics(
     assert error.value.code() == grpc.StatusCode.NOT_FOUND
     assert await counter(p.host, "payload_serve_reference_mismatch") == before + 1
     assert await counter(p.host, "payload_serve_storage_unavailable") == storage
-    assert transport.legacy.calls == old_reads
     passed("reference_" + field)
 
 
@@ -397,15 +385,11 @@ async def test_current_payload_missing_exact_witness_is_unavailable_without_fall
         # Isolated storage-corruption fixture; never a permitted SDK state transition.
         await db.execute(delete(witness).where(witness.c.execution_key == key))
         await db.commit()
-    before, old_reads = (
-        await counter(p.host, "payload_serve_storage_unavailable"),
-        transport.legacy.calls,
-    )
+    before = await counter(p.host, "payload_serve_storage_unavailable")
     try:
         with pytest.raises(grpc.aio.AioRpcError) as error:
             await transport.stub().Get(p.reference, timeout=3)
         assert error.value.code() == grpc.StatusCode.UNAVAILABLE
-        assert transport.legacy.calls == old_reads
         assert await counter(p.host, "payload_serve_storage_unavailable") == before + 1
         passed("missing_authority_unavailable")
     finally:

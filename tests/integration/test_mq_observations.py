@@ -6,7 +6,6 @@ import sqlalchemy as sa
 from reliable_messaging.durable import MessageConflict
 
 from qs_ai.contracts.workflow import messaging_pb2 as pb
-from qs_ai.contracts.workflow import workflow_pb2 as workflow
 from qs_ai.infrastructure.persistence.mysql.messaging import inbox, outbox
 from qs_ai.infrastructure.persistence.mysql.messaging_observations import (
     collect_observations,
@@ -14,20 +13,16 @@ from qs_ai.infrastructure.persistence.mysql.messaging_observations import (
     record_observation,
     require_recording_schema,
 )
-from qs_ai.infrastructure.workflow_transport.messaging import MessagingContractError, prepare
-from qs_ai.infrastructure.workflow_transport.mq_receiver import AdmissionDecision
+from qs_ai.infrastructure.workflow_transport.messaging import MessagingContractError
 from qs_ai.transport.grpc.message_payloads import MessagePayloads
-from tests.integration.test_mq_storage import (
-    ACK_ID,
-    COMMAND_ID,
+from tests.messaging_fixtures import (
     EVENT_ID,
     command,
     counts,
-    received,
     receiver,
 )
-from tests.integration.test_mq_storage import keys as keys
-from tests.integration.test_mq_storage import storage as storage
+from tests.messaging_fixtures import keys as keys
+from tests.messaging_fixtures import storage as storage
 from tests.test_grpc_commands import Aborted, Context
 
 pytestmark = pytest.mark.integration
@@ -41,107 +36,6 @@ async def counter(transactions, kind):
             )
             or 0
         )
-
-
-async def test_mq_duplicate_observations_share_original_commit_and_conflict_is_not_duplicate(
-    storage, keys
-):
-    _, tx, store, effects = storage
-    calls = []
-
-    class Owner:
-        async def admit(self, db, envelope, body):
-            calls.append(1)
-            return AdmissionDecision("1", 1, pb.REJECTED, "capacity_full", 8)
-
-    transport = receiver(tx, store, keys, Owner())
-    original = command(keys)
-    await transport.receive_command(received(original))
-    async with tx.open() as db:
-        first = (await db.execute(sa.select(outbox))).mappings().one()
-    async with tx.open() as db:
-        await db.begin()
-        await store.reserve_command(db, original.envelope, original.body, original.wire)
-        assert await counter(tx, "duplicate_command") == 0
-        await db.rollback()
-    assert await counter(tx, "duplicate_command") == 0
-    await transport.receive_command(received(original))
-    assert await counter(tx, "duplicate_command") == 1
-    await transport.receive_command(received(command(keys, goal="different original intent")))
-    assert await counter(tx, "duplicate_command") == 1
-    assert calls == [1]
-    assert await counts(tx, effects, inbox, outbox) == [0, 1, 1]
-    async with tx.open() as db:
-        last = (await db.execute(sa.select(outbox))).mappings().one()
-        assert last["wire"] == first["wire"] and last["created_at"] == first["created_at"]
-
-
-async def test_mq_duplicate_ack_records_only_after_exact_confirmation_and_rolls_back(storage, keys):
-    _, tx, store, _ = storage
-    event = prepare(
-        pb.INTERPRETATION_STATE,
-        EVENT_ID,
-        COMMAND_ID,
-        pb.MessagingBody(interpretation_state=workflow.StateEvent(event_id=EVENT_ID)),
-        organization_id="1",
-        signing_key=keys["ai.sign"],
-        recipient_key=keys["qs.encrypt"],
-    )
-    ack = prepare(
-        pb.EVENT_ACKNOWLEDGEMENT,
-        ACK_ID,
-        COMMAND_ID,
-        pb.MessagingBody(
-            event_acknowledgement=pb.MessagingEventAcknowledgement(
-                event_id=EVENT_ID,
-                event_body_sha256=event.envelope.body_sha256,
-                event_kind=pb.INTERPRETATION_STATE,
-                outcome=pb.MessagingEventAcknowledgement.STORED,
-            )
-        ),
-        organization_id="1",
-        signing_key=keys["qs.sign"],
-        recipient_key=keys["ai.encrypt"],
-    )
-    async with tx.open() as db:
-        await db.begin()
-        await store.stage(db, event, organization_id="1", sequence=1)
-        await store.confirm_event(db, ack.envelope, ack.body)
-        await db.commit()
-    assert await counter(tx, "duplicate_ack") == 0
-    async with tx.open() as db:
-        first = (await db.execute(sa.select(outbox))).mappings().one()
-    async with tx.open() as db:
-        await db.begin()
-        await store.confirm_event(db, ack.envelope, ack.body)
-        assert await counter(tx, "duplicate_ack") == 0
-        await db.rollback()
-    assert await counter(tx, "duplicate_ack") == 0
-    async with tx.open() as db:
-        await db.begin()
-        await store.confirm_event(db, ack.envelope, ack.body)
-        await db.commit()
-    assert await counter(tx, "duplicate_ack") == 1
-    body = pb.MessagingBody.FromString(ack.body)
-    body.event_acknowledgement.event_body_sha256 = "0" * 64
-    wrong = prepare(
-        pb.EVENT_ACKNOWLEDGEMENT,
-        ACK_ID,
-        COMMAND_ID,
-        body,
-        organization_id="1",
-        signing_key=keys["qs.sign"],
-        recipient_key=keys["ai.encrypt"],
-    )
-    async with tx.open() as db:
-        await db.begin()
-        with pytest.raises(MessageConflict):
-            await store.confirm_event(db, wrong.envelope, wrong.body)
-        await db.rollback()
-    assert await counter(tx, "duplicate_ack") == 1
-    async with tx.open() as db:
-        last = (await db.execute(sa.select(outbox))).mappings().one()
-        assert last["confirmed_at"] == first["confirmed_at"] and last["wire"] == event.wire
 
 
 class WorkloadDenied(grpc.RpcError):

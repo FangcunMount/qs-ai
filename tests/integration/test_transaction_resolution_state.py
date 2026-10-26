@@ -45,12 +45,12 @@ from tests.integration.test_evaluation_step import Gateway, step
 from tests.integration.test_evaluation_step import ready as ready
 from tests.integration.test_evaluation_unknowns import snapshot
 from tests.integration.test_interpretation import kit as kit
-from tests.integration.test_mq_storage import keys as keys
 from tests.integration.test_transaction_evaluation_admission import trigger_admin as trigger_admin
 from tests.integration.test_transaction_start_admission import host as host
 from tests.integration.test_transaction_start_admission import (
     required_disposable_primary as required_disposable_primary,
 )
+from tests.messaging_fixtures import keys as keys
 from tests.test_grpc_commands import Aborted, Context
 
 pytestmark = pytest.mark.integration

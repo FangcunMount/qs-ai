@@ -3,10 +3,11 @@
 import hashlib
 from dataclasses import replace
 from types import SimpleNamespace
+from uuid import uuid4
 
 import pytest
 from reliable_messaging.transaction import Result, State
-from sqlalchemy import delete
+from sqlalchemy import delete, func, insert
 
 from qs_ai.infrastructure.persistence.mysql.messaging import (
     MessagingStore,
@@ -22,14 +23,14 @@ from qs_ai.infrastructure.workflow_transport.transaction_receiver import (
     TransactionCommandReceiver,
 )
 from tests.integration.test_interpretation import kit as kit
-from tests.integration.test_mq_admission import admission, start_message
-from tests.integration.test_mq_storage import keys as keys
-from tests.integration.test_mq_storage import received, receiver
 from tests.integration.test_transaction_start_admission import host as host
 from tests.integration.test_transaction_start_admission import incoming, planner, reserve, rows
 from tests.integration.test_transaction_start_admission import (
     required_disposable_primary as required_disposable_primary,
 )
+from tests.messaging_fixtures import keys as keys
+from tests.messaging_fixtures import received, receiver
+from tests.transaction_fixtures import admission, start_message
 
 pytestmark = pytest.mark.integration
 
@@ -127,15 +128,33 @@ async def test_committed_legacy_inbox_is_not_resealed_or_adopted_as_sdk_witness(
     handler, boundary, runtime = transport(host)
     message = start_message(host.kit, host.keys)
     try:
-        await boundary.receive_command(received(message))
+        async with host.tx.open() as db:
+            await db.execute(
+                insert(inbox).values(
+                    producer=message.envelope.producer,
+                    message_id=message.envelope.message_id,
+                    destination=message.envelope.destination,
+                    body_sha256=message.envelope.body_sha256,
+                    body=message.body,
+                    wire_sha256=hashlib.sha256(message.wire).hexdigest(),
+                    kind=message.envelope.kind,
+                    aggregate_key=message.envelope.aggregate_key,
+                    reservation_token=str(uuid4()),
+                    decision="accepted",
+                    receipt_id=str(uuid4()),
+                    received_at=func.utc_timestamp(6),
+                )
+            )
+            await db.commit()
         stored = (await rows(host, inbox, inbox.c.message_id == message.envelope.message_id))[0]
         assert stored["decision"] == "accepted"
         await handler.receive_command(delivered(message))
         assert runtime.execute_count == runtime.reserve_count == 0
         assert not host.executions
-        # The receiver only reads compatibility evidence and leaves the original
-        # receipt/Relay responsibility unchanged for coordinated drain.
-        assert len(await rows(host, outbox, outbox.c.message_id == stored["receipt_id"])) == 1
+        assert not await rows(host, outbox, outbox.c.message_id == stored["receipt_id"])
+        assert await rows(
+            host, quarantine, quarantine.c.wire_sha256 == hashlib.sha256(message.wire).hexdigest()
+        )
     finally:
         async with host.tx.open() as db:
             if "stored" in locals():

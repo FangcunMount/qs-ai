@@ -200,9 +200,7 @@ class TransactionCommandReceiver:
                 existing = await self._runtime.store.lookup(incoming.request)
             if existing is None:
                 if await self._existing(incoming) is not None:
-                    # An old committed Inbox remains old evidence. No half,
-                    # witness adoption, resealing or business invocation occurs.
-                    return
+                    raise MessageConflict("Historical Inbox is not current transaction evidence")
                 async with (
                     asyncio.timeout(self._database_seconds),
                     self._boundary.transactions.open() as db,

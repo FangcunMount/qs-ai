@@ -54,12 +54,9 @@ def setup(monkeypatch):
     original.validate = AsyncMock()
     monkeypatch.setattr(module, "bind", lambda db: original)
     archives.read_committed = AsyncMock()
-    legacy = AsyncMock()
-    monkeypatch.setattr(module.MessagingStore, "confirm_event", legacy)
     return SimpleNamespace(
         archives=archives,
         original=original,
-        legacy=legacy,
         store=TransactionMessagingStore(archives),
         db=SimpleNamespace(
             execute=AsyncMock(),
@@ -75,7 +72,6 @@ async def test_absent_identity_rejects_without_legacy_business_confirmation(setu
     p.archives.read_committed.return_value = None
     with pytest.raises(MessageConflict):
         await p.store.confirm_event(p.db, header, raw)
-    p.legacy.assert_not_awaited()
     p.db.execute.assert_not_awaited()
 
 
@@ -86,7 +82,6 @@ async def test_unknown_prepared_or_unavailable_archive_never_selects_legacy(setu
     header, raw = acknowledgement()
     with pytest.raises(type(error)):
         await p.store.confirm_event(p.db, header, raw)
-    p.legacy.assert_not_awaited()
     p.db.execute.assert_not_awaited()
 
 
@@ -102,7 +97,6 @@ async def test_ack_business_evidence_requires_the_original_root_before_archive_r
         await p.store.confirm_event(p.db, header, raw)
     p.archives.read_committed.assert_not_awaited()
     p.db.execute.assert_not_awaited()
-    p.legacy.assert_not_awaited()
 
 
 async def test_archive_database_timeout_preserves_unknown_without_legacy_confirmation(setup):
@@ -121,7 +115,6 @@ async def test_archive_database_timeout_preserves_unknown_without_legacy_confirm
     with pytest.raises(TimeoutError):
         await store.confirm_event(p.db, header, raw)
     assert cancelled.is_set()
-    p.legacy.assert_not_awaited()
     p.db.execute.assert_not_awaited()
 
 
@@ -156,7 +149,6 @@ async def test_new_receipt_is_exact_and_never_stages_legacy_publication(setup, o
     _, _, stored = current(p, header, raw)
     p.db.execute.side_effect = [result(None), result(stored)]
     await p.store.confirm_event(p.db, header, raw)
-    p.legacy.assert_not_awaited()
     assert p.db.execute.await_count == 2
     assert p.db.execute.await_args_list[0].args[0].table.name == "messaging_event_receipts"
     assert p.original.validate.await_count == 3
@@ -175,7 +167,6 @@ async def test_new_archive_mismatch_rejects_without_a_receipt_or_legacy_fallback
         setattr(event, field, "changed")
     with pytest.raises(MessageConflict):
         await p.store.confirm_event(p.db, header, raw)
-    p.legacy.assert_not_awaited()
     p.db.execute.assert_not_awaited()
 
 
@@ -188,7 +179,6 @@ async def test_reusing_ack_identity_cannot_replace_its_original_business_receipt
     p.db.execute.side_effect = [result(None), result(stored)]
     with pytest.raises(MessageConflict):
         await p.store.confirm_event(p.db, header, raw)
-    p.legacy.assert_not_awaited()
 
 
 def test_original_state_comparison_preserves_first_bytes_and_all_other_fields():

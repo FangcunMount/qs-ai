@@ -16,7 +16,6 @@ from qs_ai.infrastructure.persistence.mysql.transaction_schema import event_rece
 from qs_ai.infrastructure.workflow_transport.messaging import prepare
 from qs_ai.infrastructure.workflow_transport.transaction_command import read_admission_plan
 from tests.integration import test_interpretation
-from tests.integration.test_mq_storage import keys as keys
 from tests.integration.test_transaction_start_admission import (
     assert_committed_original_root,
     incoming,
@@ -28,6 +27,7 @@ from tests.integration.test_transaction_start_admission import host as host
 from tests.integration.test_transaction_start_admission import (
     required_disposable_primary as required_disposable_primary,
 )
+from tests.messaging_fixtures import keys as keys
 
 pytestmark = pytest.mark.integration
 

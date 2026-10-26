@@ -19,9 +19,8 @@ from tests.test_admission_plan import fixture
 
 
 @pytest.mark.parametrize("decision", [pb.ACCEPTED, pb.REJECTED, pb.HELD])
-@pytest.mark.parametrize("transactional", [False, True])
 async def test_original_inbox_decision_reuses_first_receipt_without_transaction_outbox(
-    monkeypatch, decision, transactional
+    monkeypatch, decision
 ):
     incoming, receipt, _ = fixture(decision)
     plan = freeze_admission_plan(incoming, str(uuid4()), ((receipt, 2),))
@@ -30,13 +29,8 @@ async def test_original_inbox_decision_reuses_first_receipt_without_transaction_
     monkeypatch.setattr(messaging, "bind", lambda _: root)
     db = SimpleNamespace(execute=AsyncMock(return_value=SimpleNamespace(rowcount=1)))
     store = messaging.MessagingStore()
-    store.stage = AsyncMock()
-    if transactional:
-        await store.decide_transaction(db, incoming.envelope(), archive, organization_id="7")
-        store.stage.assert_not_called()
-    else:
-        await store.decide(db, incoming.envelope(), receipt, organization_id="7", sequence=2)
-        store.stage.assert_awaited_once_with(db, receipt, organization_id="7", sequence=2)
+    await store.decide_transaction(db, incoming.envelope(), archive, organization_id="7")
+    assert not hasattr(store, "stage")
     root.validate.assert_awaited_once_with()
     assert db.execute.await_count == 1
     sql = db.execute.await_args.args[0].compile(dialect=mysql.dialect())

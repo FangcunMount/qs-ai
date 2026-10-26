@@ -8,8 +8,8 @@ from reliable_messaging.transport import physical_topic_v2
 
 from qs_ai.contracts.workflow import messaging_pb2 as pb
 from qs_ai.infrastructure.workflow_transport.transaction_archive import freeze_branch
-from tests.integration.test_mq_admission import command
 from tests.test_transaction_command import command_fixture
+from tests.transaction_fixtures import command
 
 
 @pytest.mark.parametrize(

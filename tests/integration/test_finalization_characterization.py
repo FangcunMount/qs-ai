@@ -34,11 +34,11 @@ from qs_ai.infrastructure.workflows.report import create_report_workflow
 from tests.integration import test_interpretation
 from tests.integration.test_generation import Gateway
 from tests.integration.test_interpretation import expire
-from tests.integration.test_mq_storage import keys as keys
 from tests.integration.test_transaction_start_admission import host as host
 from tests.integration.test_transaction_start_admission import (
     required_disposable_primary as required_disposable_primary,
 )
+from tests.messaging_fixtures import keys as keys
 from tests.test_input_binding import bound_case
 from tests.test_output_validation import candidate
 

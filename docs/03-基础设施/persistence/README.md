@@ -94,15 +94,15 @@ savepoint撤销确定拒绝的局部写入，保留root中的Inbox预留，随�
 
 ## 状态事件在原提交之前形成
 
-参与者 `MySQLUnitOfWork.save` 调用 `stage_state`，保存原result_outbox并经安装的StateEventRecorder在同Session中形成MQ记录。评测变更则用 `changed_evaluation` 标记Session.info中的Run集合；EventSession.commit在root提交前调用recorder.flush，写原状态快照、事件序号和Outbox。
+参与者保存仍将原状态写入result_outbox业务历史；当前可见状态通过其冻结transcription写档案/序号和witness。EventSession.commit只验证/刷新当前事务内证据，不进行MQ网络I/O；旧StateEventRecorder与发布队列方法已退役。评测变更的原序号、root及callback重入限制保持。
 
 recorder失败时，根提交不能继续；rollback清掉evaluation_events标记，避免下次提交带出旧事件。模型响应、评测candidate_v2独立response receipt和业务最终成果不因这个flush变成同一次大事务；它们保持自己的实际提交边界。
 
 正式成果接受时，Artifact、Session/Run completed、Job done、租约/容量释放和状态事件在一个短事务共同接受。模型HTTP早已在事务外；若这个完成事务失败，原模型响应仍可以存在，后续按原记录恢复而不是重新调用。执行恢复见 [恢复设计](../execution-recovery/README.md)。
 
-## 业务Outbox与消息存储共库，声明却有两个metadata
+## 业务历史与事务证据共库，声明保持隔离
 
-[MessagingStore](../../../src/qs_ai/infrastructure/persistence/mysql/messaging.py) 用独立 `sa.MetaData()` 声明 `messaging_outbox / inbox / quarantine` 等，技术observations另复制到该metadata。导入模块不建表、不打开连接，也不把这些表混入业务Base.metadata。
+[MessagingStore](../../../src/qs_ai/infrastructure/persistence/mysql/messaging.py)保留独立metadata声明，当前运行职责是Inbox/事务决定和技术隔离；旧发布表仅为迁移/审计保留声明，导入不建表或打开连接。精确事务表与业务档案仍位于原MySQL。
 
 这种声明隔离不是跨库部署。MessagingRuntime借用APP Database，store方法用SDK `bind(db)`验证调用者原活动事务；原业务和消息共同提交。将Outbox迁到中央数据库会重新引入跨库接受窗口，不能仅更换连接字符串就保留当前保证。
 
@@ -130,7 +130,7 @@ recorder失败时，根提交不能继续；rollback清掉evaluation_events标�
 
 | 要核对的事实 | 现有入口与证明范围 |
 | --- | --- |
-| 新Session/显式commit/借用原root | [database.py](../../../src/qs_ai/infrastructure/persistence/mysql/database.py)、[interpretation.py](../../../src/qs_ai/infrastructure/persistence/mysql/interpretation.py)；原子接单需 [test_mq_admission.py](../../../tests/integration/test_mq_admission.py) 的真实MySQL故障注入 |
+| 新Session/显式commit/借用原root | [database.py](../../../src/qs_ai/infrastructure/persistence/mysql/database.py)、[interpretation.py](../../../src/qs_ai/infrastructure/persistence/mysql/interpretation.py)；原子接单需 [test_mq_admission.py](../../../tests/integration/test_transaction_start_admission.py) 的真实MySQL故障注入 |
 | 共池但不共Session、连接失效后继续 | [test_shared_runtime_pool.py](../../../tests/integration/test_shared_runtime_pool.py)：100份不同Session、模拟五种职责、连接归还和池上限；没有启动五种真实listener或模型负载 |
 | 原资产/Manifest/绑定与调用重建 | [test_execution_configurations.py](../../../tests/integration/test_execution_configurations.py)、[test_evaluation_manifest_freeze.py](../../../tests/integration/test_evaluation_manifest_freeze.py)；不证明自然语言质量 |
 | Artifact与状态/事件回滚和迟到写拒绝 | [test_artifact_acceptance.py](../../../tests/integration/test_artifact_acceptance.py)，实现 [execution.py](../../../src/qs_ai/infrastructure/persistence/mysql/execution.py)、[result_outbox.py](../../../src/qs_ai/infrastructure/persistence/mysql/result_outbox.py) |

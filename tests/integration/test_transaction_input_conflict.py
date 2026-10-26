@@ -11,11 +11,11 @@ from qs_ai.infrastructure.persistence.mysql.transaction_input import input_confl
 from qs_ai.infrastructure.persistence.mysql.transaction_schema import binding
 from qs_ai.infrastructure.persistence.mysql.transaction_schema import request as requests
 from tests.integration.test_interpretation import kit as kit
-from tests.integration.test_mq_storage import keys as keys
 from tests.integration.test_transaction_start_admission import host as host
 from tests.integration.test_transaction_start_admission import (
     required_disposable_primary as required_disposable_primary,
 )
+from tests.messaging_fixtures import keys as keys
 from tests.test_review_state_plan import fixture as plan_fixture
 
 pytestmark = pytest.mark.integration

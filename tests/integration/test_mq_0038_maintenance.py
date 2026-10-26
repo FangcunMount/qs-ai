@@ -7,14 +7,10 @@ from uuid import uuid4
 
 import pytest
 import sqlalchemy as sa
-from jwcrypto import jwk
 
 from qs_ai.application.integration.events import StateEvent
 from qs_ai.domain.interpretation.model import Actor
 from qs_ai.infrastructure.persistence.mysql.database import Database, Transactions
-from qs_ai.infrastructure.persistence.mysql.messaging import MessagingStore
-from qs_ai.infrastructure.workflow_transport.state_events import StateEventRecorder
-from qs_ai.maintenance.legacy_results import HandoffError, ResultHandoff
 from qs_ai.maintenance.messaging_audit import inventory
 from qs_ai.maintenance.schema_layout import handoff_tables
 from qs_ai.maintenance.schema_refactor.layouts import OLD_HEAD
@@ -53,7 +49,7 @@ async def old_storage():
         await database.close()
 
 
-async def test_original_0038_handoff_retains_host_transaction_and_first_wire(old_storage):
+async def test_retained_0038_inventory_does_not_change_original_rows(old_storage):
     _, transactions, _ = old_storage
     result, mq_outbox = handoff_tables(OLD_HEAD)
     sessions = metadata.tables["interpretation_sessions"]
@@ -88,43 +84,13 @@ async def test_original_0038_handoff_retains_host_transaction_and_first_wire(old
             )
         )
         await db.commit()
-    recorder = StateEventRecorder(
-        MessagingStore(outbox_table=mq_outbox),
-        jwk.JWK.generate(kty="EC", crv="P-256", kid="ai.sign"),
-        jwk.JWK.generate(kty="EC", crv="P-256", kid="qs.encrypt"),
-        result_table=result,
-    )
-    tool = ResultHandoff(transactions, recorder)
-    manifest = await tool.dry_run([event_id])
-    assert manifest["header"]["schema_head"] == OLD_HEAD
-    wrong = StateEventRecorder(MessagingStore(), recorder.signing_key, recorder.recipient_key)
-    with pytest.raises(HandoffError, match="bind the reviewed storage layout"):
-        await ResultHandoff(transactions, wrong).apply(
-            manifest, manifest["digest"], all_claimers_stopped_and_admission_closed=True
-        )
-    applied = await tool.apply(
-        manifest, manifest["digest"], all_claimers_stopped_and_admission_closed=True
-    )
-    assert applied["rows"][0]["event_id"] == event_id
-    assert applied["rows"][0]["status"] == "transferred"
-    async with transactions.open() as db:
-        first = (await db.execute(sa.select(mq_outbox))).mappings().one()
-        source = (await db.execute(sa.select(result))).mappings().one()
-        assert first["attempts"] == 8 and first["stage"] == "held"
-        assert first["available_at"] == at and source["created_at"] is None
-        assert source["mq_owned"] and not source["delivered"]
-    repeated = await tool.apply(
-        manifest, manifest["digest"], all_claimers_stopped_and_admission_closed=True
-    )
-    assert repeated["rows"][0]["event_id"] == event_id
-    assert repeated["rows"][0]["status"] == "retained"
-    assert repeated["rows"][0]["wire_sha256"] == applied["rows"][0]["wire_sha256"]
-    async with transactions.open() as db:
-        assert (await db.execute(sa.select(mq_outbox))).mappings().one() == first
     report = await inventory(transactions)
     assert report["complete"] and report["schema_heads"] == [OLD_HEAD]
     assert report["sections"]["result_outbox"]["physical_table"] == "result_outbox"
-    assert report["sections"]["ai_messaging_outbox"]["total"] == 1
+    assert report["sections"]["ai_messaging_outbox"]["total"] == 0
+    async with transactions.open() as db:
+        source = (await db.execute(sa.select(result))).mappings().one()
+        assert source["attempts"] == 8 and source["created_at"] is None and not source["mq_owned"]
     assert report["sections"]["evaluation_generation_completions"]["physical_table"] == (
         "evaluation_generation_completions"
     )
@@ -137,8 +103,6 @@ async def test_unrecognized_head_refuses_old_audit_and_handoff_before_any_write(
         await db.commit()
     with pytest.raises(ValueError, match="recognized complete schema"):
         await inventory(transactions)
-    with pytest.raises(ValueError, match="recognized complete schema"):
-        await ResultHandoff(transactions).dry_run([str(uuid4())])
     result, mq_outbox = handoff_tables(OLD_HEAD)
     async with transactions.open() as db:
         assert await db.scalar(sa.select(sa.func.count()).select_from(result)) == 0
