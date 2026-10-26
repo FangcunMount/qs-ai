@@ -530,7 +530,7 @@
     "tests/test_frozen_evidence_authorization.py": "caa915bf80777ba27a4e607ed2291d8c5823f726fb2404477ccbb98631d5c12a",
     "tests/test_frozen_job_identity.py": "d952b0d123b7de6f3a38b1b2bd2ad7acaa5a27443f10d63f21b2f977bd0c65de",
     "tests/test_read_only_start_admission.py": "84d1f1a51ffe65e9e1b84ae11d55071473ad0cd65ddc0fea984fda80b7383619",
-    "tests/test_transaction_admission_decision.py": "9adbe03061483ef78ce3428e3595ba62b3b5925d9e9cbbb017c4fa8e8c695251",
+    "tests/test_transaction_admission_decision.py": "c7943b2a0f06af3ecd77f16a78ff3ed1fe36bae29339241197f7303fc2d1d499",
     "tests/test_transaction_command.py": "5b00febff93bd70c36e8901c1363b2153e06089d2db1d3c5fcda4cbaa50731e7",
     "docs/03-基础设施/messaging/README.md": "4de840fce820ceb92655750c8a302fbe6f0ba1be3ea9d8e8584fbd7d51aac33c",
     "src/qs_ai/infrastructure/workflow_transport/change_planner.py": "4eb6bc873363c4612d8b28c16453b3104a907616c319edb81b518b6974403b6f",
