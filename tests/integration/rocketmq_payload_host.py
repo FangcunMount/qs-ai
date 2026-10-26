@@ -156,7 +156,7 @@ async def payload_rpc(host, tmp_path):
             return await super().payload(db, reference, workload)
 
     legacy = ReadLegacy()
-    access = MySQLPayloadAccess(host.tx, ArchivePayloadReader(host.archives, legacy))
+    access = MySQLPayloadAccess(host.tx, ArchivePayloadReader(host.archives))
     recorded_workload_denial = asyncio.Event()
     record = access.record_failure
 

@@ -174,7 +174,7 @@ class MessagingRuntime:
                     )
                 )
             runtime.tx = tx
-            payload_reader: PayloadReader = ArchivePayloadReader(services.archives, store)
+            payload_reader: PayloadReader = ArchivePayloadReader(services.archives)
             runtime.payloads = MessagePayloads(MySQLPayloadAccess(tx, payload_reader))
             return runtime
         except BaseException:
