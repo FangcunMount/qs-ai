@@ -2,6 +2,8 @@
 
 当前发布目标为单容器、单进程 qs-ai：HTTP运维端点、mTLS gRPC、生成、评测及事务owner/Checker/订阅共享生命周期和连接池。M3生产已使用最终事务链路；旧Relay备选代码仍待M4清理，不代表当前运行选择。常驻入口要求 MQ；readiness 同时检查组件和数据库，部署另核对 schema、镜像版本、TLS 与 MQ 密钥。具体生产运行状态由本次准确版本的部署证据确认。
 
+M4 的主机部署及恢复入口在密钥/数据库预检、迁移和停止服务前，先按冻结 revision 调用已安装的固定摘要 root 材料验证器。缺工具、审核计划、文件或权限/角色/版本/内容冲突直接拒绝；原 state 和运行服务保留。只读验证不复制文件、不切换指针、不再次获取父部署锁，也不依赖旧 M3 来源目录。root 只执行 `/opt/fangcun-m4/material-tools/<固定摘要>.py --verify-installed`，上传的主机脚本仍以部署用户运行。工具和原材料须由 infra 先行准备；源码合并不代表生产安装或恢复自动 CD，进度见 [M4 总表](https://github.com/FangcunMount/infra/blob/main/docs/server/rocketmq-m4-execution.md)。
+
 ## 工作流
 
 [Deploy serverA](../../.github/workflows/deploy.yml) 使用 GitHub runner 构建 linux/amd64 镜像并发布 ACR，qlume 组 Mac mini runner 导出镜像，以固定主机公钥验证 SSH 后上传 serverA。服务器校验镜像归档摘要、镜像 ID、架构与提交标签，再迁移、启动并核对运行版本。
