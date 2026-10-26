@@ -34,6 +34,7 @@ jobs:
       QS_AI_DATABASE_URL: mysql+asyncmy://qs_ai:qs_ai_local@127.0.0.1:3306/qs_ai
       QS_AI_TEST_MYSQL_DSN: mysql://qs_ai:qs_ai_local@127.0.0.1:3306/qs_ai
       QS_AI_SCHEMA_TEST_SERVER: mysql+pymysql://root:qs_ai_local_root@127.0.0.1:3306/mysql
+      QS_AI_COMPOSE_PROBE_IMAGE: mysql:${{ matrix.mysql-version }}
       QS_AI_LEGACY_SOURCE: ${{ github.workspace }}/.interop/qs-ai-0038
       QS_MQ_MYSQL_URL: mysql+asyncmy://qs_ai:qs_ai_local@127.0.0.1:3306/qs_mq
       QS_MQ_FAULT_DDL_MYSQL_URL: mysql+asyncmy://root:qs_ai_local_root@127.0.0.1:3306/qs_ai

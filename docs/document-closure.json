@@ -4,7 +4,7 @@
   "reviewed_on": "2026-10-26",
   "authority": "runtime composition > code > machine contracts/config/migrations > scoped tests > maintained prose > dated evidence/plans/archive",
   "source_catalog": {
-    ".github/workflows/ci.yml": "86c340f1b81e6c7af34f77c38df02b859a3c174026f5e1ed65d92de9cdb4e06d",
+    ".github/workflows/ci.yml": "db3039a736829d851c00362d285728d419a0c7c813032a69eb6d7e390828c71c",
     ".github/workflows/deploy.yml": "3b2890bfa20ad734bcd97f3c24d3ea3a2a9e3724c723bb5bf8df908d5e4280bc",
     ".github/workflows/m7-messaging.yml": "e9b73769948db5c81da115c12d3f666768668db3c004e73556bce479ef738398",
     "Dockerfile": "a228b397109b1627bee2c2cb66b3d33d3a2c7d4238a726c5b7e1a61503accf8a",
@@ -395,7 +395,7 @@
     "tests/test_model_route_v2.py": "5242918a530511b3dfbaa4d36eada17d5d706a5e13254154378e5018bedf608d",
     "tests/test_model_selection_v2.py": "6cea4296e515d38447670ebb83523f5afa4904f2753401e4ab521e8ee07b6113",
     "tests/test_mq_contract.py": "fbae844f2e84b9de8e6753fc8dca3b0dfb5f44b43a04f4c4cfd313ffde960e21",
-    "tests/test_mq_deployment.py": "fe6705ac46499a82fced604717537ab4d7341522ebac15ef48b2426a99b5b46e",
+    "tests/test_mq_deployment.py": "f7be5a4fb39470f2dbd031e98fb18953ca4155122930ec1ee2ffa06953914c65",
     "tests/test_mq_failure.py": "d7b3e419bf596bea4b286eb1a06bb16114f70be143060b96a53f24c7876d67cb",
     "tests/test_mq_handoff_cli.py": "388a83b628ed5a971b9c889cb8f8d915905a3b647965fe1ad9d0023286186ee9",
     "tests/test_multi_provider_gateway.py": "c18164a1e6c14a200c86d62bf25e1b244e0e64844d0401bf864fcb1454731211",
