@@ -69,12 +69,13 @@ def setup(monkeypatch):
     )
 
 
-async def test_absent_identity_alone_selects_legacy_business_confirmation(setup):
+async def test_absent_identity_rejects_without_legacy_business_confirmation(setup):
     p = setup
     header, raw = acknowledgement()
     p.archives.read_committed.return_value = None
-    await p.store.confirm_event(p.db, header, raw)
-    p.legacy.assert_awaited_once_with(p.db, header, raw)
+    with pytest.raises(MessageConflict):
+        await p.store.confirm_event(p.db, header, raw)
+    p.legacy.assert_not_awaited()
     p.db.execute.assert_not_awaited()
 
 

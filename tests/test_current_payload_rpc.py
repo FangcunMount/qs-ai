@@ -41,7 +41,7 @@ def current_payload():
     legacy = Mock(
         payload=AsyncMock(side_effect=AssertionError("Current RPC must not read old data"))
     )
-    reader = ArchivePayloadReader(current, legacy)
+    reader = ArchivePayloadReader(current)
     validator = MySQLPayloadAccess(Mock(), reader)
 
     async def read(incoming, workload):
@@ -128,3 +128,13 @@ async def test_internal_workload_binding_error_retains_original_contract(current
         await p.current.payload(p.reference, "wrong")
     p.current.read_committed.assert_not_awaited()
     p.legacy.payload.assert_not_awaited()
+
+
+async def test_absent_current_archive_is_not_found_without_reading_historical_body(current_payload):
+    p = current_payload
+    p.current.read_committed.return_value = None
+    with pytest.raises(Aborted) as error:
+        await p.rpc.Get(p.reference, Context())
+    assert error.value.args[0] == grpc.StatusCode.NOT_FOUND
+    p.legacy.payload.assert_not_awaited()
+    p.access.record_failure.assert_awaited_once_with("payload_serve_reference_mismatch")

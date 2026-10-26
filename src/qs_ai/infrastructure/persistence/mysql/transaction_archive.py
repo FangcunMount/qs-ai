@@ -2,7 +2,7 @@
 
 import hashlib
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import sqlalchemy as sa
 from reliable_messaging.durable import MessageConflict
@@ -29,9 +29,6 @@ from qs_ai.infrastructure.workflow_transport.transaction_archive import (
     decode_archive,
     decode_branch,
 )
-
-if TYPE_CHECKING:
-    from qs_ai.infrastructure.persistence.mysql.messaging import MessagingStore
 
 
 def _values(e: Execution, branch_id: str) -> dict[str, Any]:
@@ -122,7 +119,7 @@ class TransactionArchive:
             )
         if row is None:
             return None
-        # Presence blocks legacy fallback even if proof is prepared or damaged.
+        # An existing archive still requires precise committed evidence.
         value, reference = self._validate_row(dict(row), message_id)
         evidence = await self._store.evidence(reference)
         if resolve(reference, evidence) != Decision.COMMIT:
@@ -158,7 +155,7 @@ class TransactionArchive:
     async def payload(
         self, reference: pb.MessagePayloadReference, authenticated_workload: str
     ) -> bytes | None:
-        """Only None permits legacy fallback; invalid/uncommitted rows raise."""
+        """Read only the current exact archive; invalid/uncommitted rows raise."""
         if authenticated_workload != "qs-server":
             raise MessagingContractError("archive payload workload rejected")
         if reference.producer != "qs-ai" or reference.destination != "qs-server":
@@ -177,15 +174,15 @@ class TransactionArchive:
 
 
 class ArchivePayloadReader:
-    """Explicit versioned reader; legacy data never becomes transaction evidence."""
+    """Current archive only; absent data never selects historical publication rows."""
 
-    def __init__(self, current: TransactionArchive, legacy: "MessagingStore") -> None:
-        self._current, self._legacy = current, legacy
+    def __init__(self, current: TransactionArchive) -> None:
+        self._current = current
 
     async def payload(
         self, db: AsyncSession, reference: pb.MessagePayloadReference, workload: str
     ) -> bytes:
         value = await self._current.payload(reference, workload)
-        if value is not None:
-            return value
-        return await self._legacy.payload(db, reference, workload)
+        if value is None:
+            raise MessageConflict("Current message archive not found")
+        return value

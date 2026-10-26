@@ -110,22 +110,20 @@ def test_archive_refuses_changed_scope_route_wire_and_incomplete_original_time()
         replace(a, header=header.SerializeToString(deterministic=True)).message()
 
 
-async def test_versioned_payload_reader_falls_back_only_when_new_identity_is_absent():
+async def test_current_payload_reader_rejects_absence_and_preserves_unknown():
     from unittest.mock import AsyncMock, Mock
+
+    from reliable_messaging.durable import MessageConflict
 
     from qs_ai.infrastructure.persistence.mysql.transaction_archive import ArchivePayloadReader
 
-    current, legacy = Mock(), Mock()
-    current.payload = AsyncMock(return_value=None)
-    legacy.payload = AsyncMock(return_value=b"original legacy body")
-    reader = ArchivePayloadReader(current, legacy)
+    current = Mock(payload=AsyncMock(return_value=None))
+    reader = ArchivePayloadReader(current)
     db, reference = Mock(), Mock()
-    assert await reader.payload(db, reference, "qs-server") == b"original legacy body"
-    legacy.payload.assert_awaited_once_with(db, reference, "qs-server")
+    with pytest.raises(MessageConflict):
+        await reader.payload(db, reference, "qs-server")
     current.payload.return_value = b"committed original body"
     assert await reader.payload(db, reference, "qs-server") == b"committed original body"
-    assert legacy.payload.await_count == 1
     current.payload.side_effect = MessagingContractError("prepared or damaged")
     with pytest.raises(MessagingContractError):
         await reader.payload(db, reference, "qs-server")
-    assert legacy.payload.await_count == 1

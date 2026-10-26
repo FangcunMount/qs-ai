@@ -55,8 +55,7 @@ class TransactionMessagingStore(MessagingStore):
         archived = await self.archives.read_committed(value.event_id)
         await original.validate()
         if archived is None:
-            await super().confirm_event(db, envelope, raw)
-            return
+            raise MessageConflict("Original transaction event archive not found")
         event = archived.envelope()
         if (
             not archived.requires_receipt
