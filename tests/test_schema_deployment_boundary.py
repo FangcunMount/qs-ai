@@ -1,9 +1,11 @@
 """Ordinary release paths cannot cross the data conversion boundary."""
 
 import json
+from pathlib import Path
 
 import pytest
 
+from tests.deployment_fixtures import material_reply
 from tests.test_deployment import freeze_release_binding, load, setup_release, simulate_apply
 
 OLD = "0038_messaging_observations"
@@ -68,7 +70,18 @@ def test_cross_schema_rollback_checks_target_contract_without_old_database_probe
     monkeypatch.setattr(remote, "ROOT", tmp_path)
     state = {"current": "a" * 40 + "-1-1", "previous": "b" * 40 + "-1-1"}
     freeze_release_binding(remote.release_path(state["previous"]), {})
-    monkeypatch.setattr(remote, "run", lambda *args: "")
+    monkeypatch.setattr(
+        remote,
+        "installed_material_tool",
+        lambda: Path("/opt/fangcun-m4/material-tools") / (remote.MATERIAL_TOOL_SHA256 + ".py"),
+    )
+    monkeypatch.setattr(
+        remote,
+        "run",
+        lambda phase, _args: (
+            json.dumps(material_reply()) if phase == "MQ material receipt verification" else ""
+        ),
+    )
     monkeypatch.setattr(remote, "release_image_id", lambda *_a, **_kw: "sha256:" + "a" * 64)
     calls = []
 

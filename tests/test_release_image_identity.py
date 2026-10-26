@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from tests.deployment_fixtures import material_reply
 from tests.test_deployment import (
     freeze_release_binding,
     image_config,
@@ -45,9 +46,16 @@ def test_index_id_is_verified_by_raw_config_and_pinned_for_start(remote, tmp_pat
     actual = "sha256:" + "d" * 64
     inspected = {**inspected_image(manifest), "Id": actual}
     calls = []
+    monkeypatch.setattr(
+        remote,
+        "installed_material_tool",
+        lambda: Path("/opt/fangcun-m4/material-tools") / (remote.MATERIAL_TOOL_SHA256 + ".py"),
+    )
 
     def run(phase, args):
         calls.append((phase, args))
+        if phase == "MQ material receipt verification":
+            return json.dumps(material_reply())
         if phase in {"image identity", "pinned image identity"}:
             return json.dumps([inspected])
         if phase == "loaded image archive":
@@ -240,9 +248,16 @@ def test_rollback_uses_pinned_actual_id_before_probe_and_restores_state(
     target_id = "sha256:" + "b" * 64
     target, manifest = prepare(remote, tmp_path, "b" * 40, target_id)
     calls = []
+    monkeypatch.setattr(
+        remote,
+        "installed_material_tool",
+        lambda: Path("/opt/fangcun-m4/material-tools") / (remote.MATERIAL_TOOL_SHA256 + ".py"),
+    )
 
     def run(phase, args):
         calls.append(phase)
+        if phase == "MQ material receipt verification":
+            return json.dumps(material_reply())
         if phase == "pinned image identity":
             assert args[-1] == target_id
             return json.dumps([{**inspected_image(manifest), "Id": target_id}])
@@ -264,6 +279,7 @@ def test_rollback_uses_pinned_actual_id_before_probe_and_restores_state(
     remote.restore({"current": current.name, "previous": target.name})
     assert calls == [
         "pinned image identity",
+        "MQ material receipt verification",
         "MQ key file preflight",
         "probe",
         "probe",
