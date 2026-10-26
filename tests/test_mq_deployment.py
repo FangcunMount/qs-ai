@@ -9,6 +9,7 @@ import pytest
 
 from qs_ai.config import MessagingOptions
 from qs_ai.maintenance import messaging_preflight
+from tests.deployment_fixtures import material_reply
 from tests.test_deployment import execution_environment, load, setup_release, simulate_apply
 
 
@@ -354,6 +355,11 @@ def test_manual_mq_rollback_checks_old_key_files_before_stopping_current(tmp_pat
     remote = load("deploy/serverA/deploy.py")
     monkeypatch.setattr(remote, "ROOT", tmp_path)
     monkeypatch.setattr(remote, "release_image_id", lambda *args, **kwargs: "sha256:" + "b" * 64)
+    monkeypatch.setattr(
+        remote,
+        "installed_material_tool",
+        lambda: Path("/opt/fangcun-m4/material-tools") / (remote.MATERIAL_TOOL_SHA256 + ".py"),
+    )
     state = {"current": "a" * 40 + "-1-1", "previous": "b" * 40 + "-1-1"}
     for name in state.values():
         release = remote.release_path(name)
@@ -364,6 +370,8 @@ def test_manual_mq_rollback_checks_old_key_files_before_stopping_current(tmp_pat
     )
 
     def run(phase, args):
+        if phase == "MQ material receipt verification":
+            return json.dumps(material_reply())
         assert phase == "MQ key file preflight"
         raise remote.DeploymentError("old MQ key files unavailable")
 

@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from sqlalchemy.engine import make_url
 
-from tests.deployment_fixtures import transaction_binding
+from tests.deployment_fixtures import material_reply, transaction_binding
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -155,6 +155,11 @@ def test_bad_archive_never_loads_or_migrates(remote, tmp_path, monkeypatch):
 
 def simulate_apply(remote, monkeypatch, manifest, fail_migration=False):
     calls = []
+    monkeypatch.setattr(
+        remote,
+        "installed_material_tool",
+        lambda: Path("/opt/fangcun-m4/material-tools") / (remote.MATERIAL_TOOL_SHA256 + ".py"),
+    )
 
     def run(phase, args):
         calls.append(phase)
@@ -162,6 +167,8 @@ def simulate_apply(remote, monkeypatch, manifest, fail_migration=False):
             return json.dumps([inspected_image(manifest)])
         if phase == "compose services":
             return "qs-ai"
+        if phase == "MQ material receipt verification":
+            return json.dumps(material_reply())
         if phase == "migration" and fail_migration:
             raise remote.DeploymentError("migration failed")
         return ""
@@ -188,6 +195,7 @@ def test_migration_failure_never_replaces_service(remote, tmp_path, monkeypatch)
         "image load",
         "image identity",
         "compose services",
+        "MQ material receipt verification",
         "MQ key file preflight",
         "TLS file preflight",
         "compose services",
@@ -275,7 +283,18 @@ def test_manual_rollback_checks_schema_before_switch(remote, tmp_path, monkeypat
     monkeypatch.setattr(remote, "release_image_id", lambda *args, **kwargs: "sha256:" + "a" * 64)
     state = {"current": "a" * 40 + "-1-1", "previous": "b" * 40 + "-1-1"}
     freeze_release_binding(remote.release_path(state["previous"]), {})
-    monkeypatch.setattr(remote, "run", lambda *args: "")
+    monkeypatch.setattr(
+        remote,
+        "installed_material_tool",
+        lambda: Path("/opt/fangcun-m4/material-tools") / (remote.MATERIAL_TOOL_SHA256 + ".py"),
+    )
+    monkeypatch.setattr(
+        remote,
+        "run",
+        lambda phase, *args: (
+            json.dumps(material_reply()) if phase == "MQ material receipt verification" else ""
+        ),
+    )
 
     def incompatible(*args):
         raise remote.DeploymentError("schema incompatible")
@@ -425,7 +444,12 @@ def test_tls_preflight_failure_preserves_running_release(remote, tmp_path, monke
     monkeypatch.setattr(remote, "probe", lambda *args: pytest.fail("must not access database"))
     with pytest.raises(remote.DeploymentError, match="TLS file"):
         remote.apply(release, {})
-    assert calls == ["image load", "image identity", "MQ key file preflight"]
+    assert calls == [
+        "image load",
+        "image identity",
+        "MQ material receipt verification",
+        "MQ key file preflight",
+    ]
     assert not (tmp_path / "state.json").exists()
 
 
@@ -683,7 +707,18 @@ def test_failed_manual_rollback_restores_current_without_changing_state(
     monkeypatch.setattr(remote, "release_image_id", lambda *args, **kwargs: "sha256:" + "a" * 64)
     state = {"current": "a" * 40 + "-1-1", "previous": "b" * 40 + "-1-1"}
     freeze_release_binding(remote.release_path(state["previous"]), {})
-    monkeypatch.setattr(remote, "run", lambda *args: "")
+    monkeypatch.setattr(
+        remote,
+        "installed_material_tool",
+        lambda: Path("/opt/fangcun-m4/material-tools") / (remote.MATERIAL_TOOL_SHA256 + ".py"),
+    )
+    monkeypatch.setattr(
+        remote,
+        "run",
+        lambda phase, *args: (
+            json.dumps(material_reply()) if phase == "MQ material receipt verification" else ""
+        ),
+    )
     calls = []
 
     def probe(path, *_args):

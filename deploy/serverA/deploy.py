@@ -8,6 +8,7 @@ import importlib.util
 import json
 import os
 import re
+import stat
 import subprocess
 import sys
 import tarfile
@@ -22,6 +23,75 @@ class DeploymentError(RuntimeError):
 
 ROOT = Path("/opt/qs-ai")
 RETENTION_ROOT = Path("/var/lib/fangcun-image-retention")
+MATERIAL_TOOL_SHA256 = "36f3046ed453dfbf8beae684269c94d1a6db0abaa23de51e09d41e462c6a3d5c"
+
+
+def installed_material_tool() -> Path:
+    tool = Path("/opt/fangcun-m4/material-tools") / (MATERIAL_TOOL_SHA256 + ".py")
+    try:
+        if tool.resolve() != tool:
+            raise ValueError
+        for parent in tool.parents:
+            info = parent.lstat()
+            if not stat.S_ISDIR(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022:
+                raise ValueError
+        info = tool.lstat()
+        if (
+            not stat.S_ISREG(info.st_mode)
+            or info.st_uid != 0
+            or stat.S_IMODE(info.st_mode) != 0o555
+            or not 0 < info.st_size <= 65536
+            or hashlib.sha256(tool.read_bytes()).hexdigest() != MATERIAL_TOOL_SHA256
+        ):
+            raise ValueError
+        return tool
+    except (OSError, ValueError):
+        raise DeploymentError("Reviewed material tool unavailable; contents withheld") from None
+
+
+def material_preflight(release: Path) -> None:
+    try:
+        runtime = json.loads((release / "runtime.json").read_text())["services"]["qs-ai"]
+        revisions = {
+            m["source"].split("/versions/", 1)[1].split("/", 1)[0] for m in runtime["volumes"]
+        }
+        if len(revisions) != 1:
+            raise ValueError
+        revision = revisions.pop()
+        if not re.fullmatch(r"m4-[a-z0-9][a-z0-9-]{0,59}", revision):
+            raise ValueError
+        tool = installed_material_tool()
+        raw = run(
+            "MQ material receipt verification",
+            [
+                "sudo",
+                "-n",
+                "/usr/bin/python3",
+                "-I",
+                str(tool),
+                "--verify-installed",
+                "--host",
+                "serverA",
+                "--expect-role",
+                "ai",
+                "--expect-revision",
+                revision,
+            ],
+        )
+        if not 0 < len(raw.encode()) <= 32768:
+            raise ValueError
+        value = json.loads(raw)
+        if (
+            value["status"] != "verified"
+            or value["read_only"] is not True
+            or value["activated"] is not False
+            or (value["role"], value["revision"], value["host"]) != ("ai", revision, "serverA")
+            or value["material_root"] != "/var/lib/fangcun-m4-materials"
+            or not re.fullmatch("[a-f0-9]{64}", value["receipt_sha256"])
+        ):
+            raise ValueError
+    except (OSError, ValueError, TypeError, KeyError, IndexError):
+        raise DeploymentError("Installed MQ materials not verified; contents withheld") from None
 
 
 class FollowupDeployment:
@@ -753,6 +823,7 @@ def require_final_messaging(release: Path, manifest: dict | None = None) -> bool
 
 def messaging_key_preflight(release: Path) -> None:
     if messaging_release(release):
+        material_preflight(release)
         run(
             "MQ key file preflight",
             compose(

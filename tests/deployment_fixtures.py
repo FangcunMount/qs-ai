@@ -1,6 +1,19 @@
 """Non-secret final production binding shared by offline deployment tests."""
 
 
+def material_reply(revision="m4-final-ai"):
+    return {
+        "status": "verified",
+        "read_only": True,
+        "activated": False,
+        "role": "ai",
+        "host": "serverA",
+        "revision": revision,
+        "material_root": "/var/lib/fangcun-m4-materials",
+        "receipt_sha256": "d" * 64,
+    }
+
+
 def transaction_binding():
     value = {
         "binding_revision": "m4-final-ai",
