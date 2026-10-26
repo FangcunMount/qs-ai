@@ -19,12 +19,32 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
 )
 from qs_ai.maintenance.messaging_audit import inventory
 from tests.integration.test_interpretation import kit as kit
-from tests.integration.test_mq_admission import mq_env as mq_env
-from tests.integration.test_mq_admission import saved
-from tests.integration.test_mq_legacy_handoff import legacy as legacy
-from tests.integration.test_mq_storage import keys as keys
+from tests.messaging_fixtures import keys as keys
+from tests.transaction_fixtures import saved
 
 pytestmark = pytest.mark.integration
+
+
+@pytest.fixture
+async def legacy(kit, keys):
+    from tests.test_input_binding import bound_case
+
+    tx = kit.transactions
+    original = tx.database.state_events
+    tx.database.state_events = None
+    try:
+        await kit.service.start_external(
+            kit.actor, "7", ("42",), "Retained audit fixture", str(uuid4()), bound_case()[1].items
+        )
+        row = next(
+            r
+            for r in await saved(tx, result_outbox)
+            if r["payload"]["actor"]
+            == {"org_id": kit.actor.org_id, "subject_id": kit.actor.subject_id}
+        )
+        yield tx, row["event_id"], None, keys
+    finally:
+        tx.database.state_events = original
 
 
 async def test_messaging_inventory_is_read_only_and_borrowed_pool_survives(legacy, monkeypatch):

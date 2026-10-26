@@ -50,13 +50,13 @@ from tests.integration.test_evaluation_step import persisted_assets as persisted
 from tests.integration.test_evaluation_step import ready as ready
 from tests.integration.test_evaluation_unknowns import snapshot
 from tests.integration.test_interpretation import kit as kit
-from tests.integration.test_mq_storage import keys as keys
 from tests.integration.test_transaction_evaluation_admission import trigger_admin as trigger_admin
 from tests.integration.test_transaction_start_admission import host as host
 from tests.integration.test_transaction_start_admission import (
     required_disposable_primary as required_disposable_primary,
 )
 from tests.integration.test_transaction_worker_dispatch import original as original
+from tests.messaging_fixtures import keys as keys
 
 pytestmark = pytest.mark.integration
 

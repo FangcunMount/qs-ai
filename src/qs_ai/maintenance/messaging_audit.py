@@ -5,16 +5,26 @@ import asyncio
 import json
 import os
 import sys
+from datetime import UTC, datetime
 from typing import Any
 
 import sqlalchemy as sa
 
 from qs_ai.infrastructure.persistence.mysql.database import Database, Transactions
 from qs_ai.infrastructure.workflow_transport.messaging import INLINE_BODY
-from qs_ai.maintenance.legacy_results import timestamp
 from qs_ai.maintenance.schema_layout import require_handoff_head as require_known_head
 from qs_ai.maintenance.schema_layout import retained_physical_table as physical_table
 from qs_ai.maintenance.schema_refactor.layouts import OLD_HEAD
+
+
+def timestamp(value: datetime | None) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, datetime) or (
+        value.tzinfo is not None and value.utcoffset() != UTC.utcoffset(value)
+    ):
+        raise ValueError("Original result time is invalid")
+    return value.replace(tzinfo=UTC).isoformat(timespec="microseconds")
 
 
 async def inventory(transactions: Transactions, *, max_rows: int = 1000) -> dict[str, Any]:

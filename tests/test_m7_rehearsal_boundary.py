@@ -39,7 +39,7 @@ def test_same_layout_is_checked_offline_but_archived_grpc_flow_is_disabled(tmp_p
     monkeypatch.setattr(
         script, "archived_grpc_rehearsal", lambda *_args: pytest.fail("archived flow must not run")
     )
-    with pytest.raises(RuntimeError, match="mq_fault_acceptance"):
+    with pytest.raises(RuntimeError, match="infra current RocketMQ"):
         script.main()
     assert [args[6] for args in calls] == ["old-image", "new-image"]
     assert all(args[4] == "none" for args in calls)

@@ -1378,7 +1378,7 @@ async def test_actual_default_transport_and_worker_share_sender_root_and_shutdow
     """Actual default DI/SDK/subscriptions; QS ACK input is controlled, not paired QS."""
     from qs_ai.infrastructure.workflow_transport.messaging import ACKS
     from tests.integration.test_delivery import certificates
-    from tests.integration.test_mq_storage import received
+    from tests.messaging_fixtures import received
 
     b = governance_broker
     host, scope, management = original

@@ -131,6 +131,7 @@ async def test_legacy_committed_inbox_is_not_adopted_as_transaction_witness():
     f.runtime.reserve.assert_not_called()
     f.runtime.execute.assert_not_called()
     f.sdk_store.evidence.assert_not_called()
+    f.boundary.isolate.assert_awaited_once_with(f.received.wire, "identity_conflict")
 
 
 @pytest.mark.parametrize("state", [State.PREPARED, State.ABORTED])

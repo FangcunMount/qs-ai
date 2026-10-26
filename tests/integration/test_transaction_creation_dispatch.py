@@ -28,12 +28,12 @@ from qs_ai.infrastructure.workflow_transport.transactional_evaluation_requests i
 from tests.integration.test_evaluation_runs import rows
 from tests.integration.test_evaluation_runs import setup_run as setup_run
 from tests.integration.test_interpretation import kit as kit
-from tests.integration.test_mq_storage import keys as keys
 from tests.integration.test_transaction_evaluation_admission import trigger_admin as trigger_admin
 from tests.integration.test_transaction_start_admission import host as host
 from tests.integration.test_transaction_start_admission import (
     required_disposable_primary as required_disposable_primary,
 )
+from tests.messaging_fixtures import keys as keys
 from tests.test_generation_manifest import assets as assets
 from tests.test_generation_manifest import complete_release as complete_release
 from tests.test_generation_manifest import evaluation_release as evaluation_release

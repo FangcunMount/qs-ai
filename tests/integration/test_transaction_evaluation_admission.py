@@ -37,13 +37,13 @@ from tests.integration.test_evaluation_runs import create
 from tests.integration.test_evaluation_runs import setup_run as setup_run
 from tests.integration.test_evaluation_start import requested as requested
 from tests.integration.test_interpretation import kit as kit
-from tests.integration.test_mq_admission import admission, command
-from tests.integration.test_mq_storage import keys as keys
 from tests.integration.test_transaction_start_admission import host as host
 from tests.integration.test_transaction_start_admission import (
     required_disposable_primary as required_disposable_primary,
 )
 from tests.integration.test_transaction_start_admission import reserve, rows
+from tests.messaging_fixtures import keys as keys
+from tests.transaction_fixtures import admission, command
 
 pytestmark = pytest.mark.integration
 

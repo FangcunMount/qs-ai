@@ -2,7 +2,7 @@
 
 The retained probe documents the historical synthetic gRPC receiver. Current
 runtime requires MQ, so this entry point cannot certify current delivery behavior.
-Use tests/probes/mq_fault_acceptance.py for MQ and maintenance.schema_refactor for
+Use infra current RocketMQ host acceptance for MQ and maintenance.schema_refactor for
 the full 0038/0040 forward/reverse storage rehearsal. Images are inspected offline
 before rejecting this entry point; no database, migration or network action runs.
 """
@@ -217,7 +217,7 @@ def main() -> None:
     require_same_layout(old, new)
     raise RuntimeError(
         "Archived gRPC M7 rehearsal is disabled for the MQ runtime; use "
-        "tests/probes/mq_fault_acceptance.py and maintenance.schema_refactor"
+        "infra current RocketMQ host acceptance and maintenance.schema_refactor"
     )
 
 
