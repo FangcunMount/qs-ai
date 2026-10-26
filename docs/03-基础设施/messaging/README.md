@@ -1,10 +1,12 @@
 # 消息接单、事务档案与业务确认
 
+当前唯一服务装配要求显式 RocketMQ 和唯一 `ai.mysql` owner，旧 NSQ、普通 Outbox/MQRelay 启动路径已退出。事务提交/关闭规则见“显式事务模式的默认装配与回执”；下文 M1 普通消息、NSQ/Relay 和 M3“尚未接入/未投产”字样属于历史阶段记录，待 M4 C04 收敛，不表示当前仍提供兼容运行入口。源码清理、镜像、部署及 system 验收分别由 infra 总表登记。
+
 qs-ai 通过消息受理命令，把可见状态和成果作为持久事件交给 QS。一次本地提交证明“业务效果与待发消息同时存在”；Broker 的发布确认成功证明 Broker 接收；QS 对原事件返回 `STORED` 才证明其接收事务完成。这三个完成点分别有记录，不能合并成一个“发送成功”。
 
 本文以一次 Start 产生 Session、最终形成 Artifact 并交付 QS 为主线。核对基线：qs-ai `d9c3155`，QS `2ccc2de44`，2026-10-06。上述日期记录原业务链路；2026-10-19 的 M3 接入基础固定依赖 `fangcun-reliable-messaging[nsq,rocketmq]==0.4.0a1`。当前源码固定已发布稳定版 `0.4.0`（SDK `1345266aa0e864c46de5d1e3e3c939dd8002a890`），显式事务配置选择完整装配；默认配置及生产尚未切换，测试、部署与真实业务接收仍是独立证据。
 
-## RocketMQ 普通消息
+## 历史 M1 普通消息（运行入口已退役）
 
 `messaging.provider=rocketmq` 显式选择普通消息；默认仍为 `nsq`。RocketMQ endpoint、私有凭据、CA 与 version1 逻辑/物理路由清单由宿主冻结并只读挂载到 `/run/qs-ai-rocketmq/`。Python 的 `GRPC_DEFAULT_SSL_ROOTS_FILE_PATH` 必须在进程启动前绑定同一 CA。Docker 部署脚本与离线 preflight 校验路径、权限、内容摘要与路由，SDK 不发现生产配置或创建资源。
 
@@ -12,7 +14,7 @@ qs-ai 通过消息受理命令，把可见状态和成果作为持久事件交�
 
 RocketMQ 终态交接携带 provider、原始 Wire 和实际物理来源，宿主仍先验证受保护的原命令或 ACK，再提交原持久失败记录，成功后才允许消费 ACK。NSQ 的 failure topic 中转只用于 NSQ 分支。当前业务尚未接入事务发送器，发布型 Outbox 继续存在。源码与测试通过不代表生产已经切换，生产版本、有效绑定和 `system` 账号业务验收需独立记录。
 
-## M3 事务装配基础（业务接入进行中）
+## 事务装配与预算
 
 [`transaction_messaging.py`](../../../src/qs_ai/bootstrap/transaction_messaging.py) 提供独立的 `make_transaction_sender` 和 `TransactionRuntime`，借用宿主 primary `async_sessionmaker`，构造不创建 session、线程、客户端或表。必须显式配置 `messaging.transactions["ai.mysql"]` 的 `store_id`、`writer_epoch`、`route_revision=m3-1`，并校验同一可信 CA。v2 manifest 中只选择本 owner 的 TRANSACTION 事件路由；v1 不得夹带 v2 字段。
 
@@ -20,7 +22,7 @@ RocketMQ 终态交接携带 provider、原始 Wire 和实际物理来源，宿�
 
 宿主迁移 `0041_transaction_messaging` 显式安装独立 schema v1；owner binding 必须由冻结清单另行安装，不由构造/Start 推断。Down 保留证据并拒绝回退；隔离原事务安装测试见 `tests/integration/test_transaction_schema.py`。
 
-非空 transactions 现在选择完整事务装配：APP `TransactionServices` 借用同一个 primary engine 和 Sender；REQUEST 保留独立 Transactions。command admission、interpretation 执行、evaluation 管理/创建、Solution 准备及 serial/candidate 工作流使用原根事务适配。普通/旧配置继续使用原 Outbox/Relay。此源码候选的原生和 Broker 门禁仍需单独通过，不能据构造成功宣称业务已迁移。全局进度以 [infra M3 总表](https://github.com/FangcunMount/infra/blob/main/docs/server/rocketmq-m3-execution.md) 为准。
+非空 transactions 现在选择完整事务装配：APP `TransactionServices` 借用同一个 primary engine 和 Sender；REQUEST 保留独立 Transactions。command admission、interpretation 执行、evaluation 管理/创建、Solution 准备及 serial/candidate 工作流使用原根事务适配。普通/旧配置现由最终入口明确拒绝。此源码候选的原生和 Broker 门禁仍需单独通过，不能据构造成功宣称业务已迁移。全局进度以 [infra M3 总表](https://github.com/FangcunMount/infra/blob/main/docs/server/rocketmq-m3-execution.md) 为准。
 
 ## T18 当前协议的解释终态恢复
 
@@ -52,7 +54,7 @@ T18-D 在同一隔离入口增加五条实际宿主路径的20组核心情景，
 
 验证入口为 `tests/test_default_transaction_transport.py`、`tests/test_transaction_transport_lifecycle.py`、`tests/integration/test_transaction_serial_runtime.py`、`tests/integration/test_transaction_receipts.py` 与隔离 Broker 的 `rocketmq_state_host.py`。收集不算通过；完整门禁、合并、部署、system 及48小时观察仍按 infra 总表分别登记。
 
-## command 冻结与原根执行器（生产装配尚未启用）
+## command 冻结与原根执行器
 
 `transaction_command.py` 在认证和正文解析之后持有原始 command bytes，以 owner、组织、原 command ID 和稳定 input hash 标识请求。完整计划保存首次 receipt/state 的 ID、正文、wire 和 v2 路由。无本地上下文时 archive/v1 的 bytes 和摘要不变；带上下文时显式采用宿主 archive/v2，最多 16 KiB，上下文计入本地计划与消息指纹，原业务 wire 不变。SDK codec/schema 保持原版本。读取持久化赢家时，逐分支校验原 command、组织、路由以及业务 receipt/state 的版本和关联；同一计划所有分支的上下文必须相同。
 
@@ -100,7 +102,7 @@ worker 预检通过显式 `preflight_dispatch` 借用 [`PreflightStateDispatcher
 
 显式事务模式已接入上述 worker、治理与终态适配，普通配置保留旧实现。MySQL 原状态根、实际 worker 及固定 SDK/Broker profile 分别验证；进度和失败记录回链 infra 总表，不据单项通过标记 T17 或生产完成。
 
-## 兼容配置怎样装配原 Outbox 链路
+## 历史兼容配置的 Outbox 装配（已退役）
 
 统一入口 `bootstrap.server.serve()` 要求 `messaging.enabled=true`；缺少时直接启动失败。配置模型的默认值仍为 false，意味着调用方必须显式绑定所选 Broker、JOSE 密钥和 QS mTLS 载荷端点，不会自动启用开发传输。旧 `bootstrap.integration` 入口已经退役，当前没有并行运行的 gRPC 结果扫描器。
 
@@ -259,7 +261,7 @@ apply 是逐条提交，不是整批一个事务。第一条已提交而第二�
 | 保护与载荷 | [保护契约](../../../src/qs_ai/infrastructure/workflow_transport/messaging.py)、[载荷解析](../../../src/qs_ai/infrastructure/workflow_transport/payloads.py)、[协议](../../../integrations/workflow/proto/messaging.proto) | [契约单元](../../../tests/test_mq_contract.py)、[失败交接单元](../../../tests/test_mq_failure.py)、存储集成：错 topic/key/kind、原大载荷、精确 ACK；Go/Python 互操作需要其显式环境 |
 | 所有权、启动和迁移 | [运行时装配](../../../src/qs_ai/bootstrap/messaging.py)、[统一入口](../../../src/qs_ai/bootstrap/server.py)、[SDK 原事务校验](https://github.com/FangcunMount/reliable-messaging/blob/8633ba585b5a1c8f95fb16b19469fbd0097611c7/python/src/reliable_messaging/sqlalchemy.py)、[维护移交](../../../src/qs_ai/maintenance/legacy_results.py) | [旧入口退役](../../../tests/test_legacy_delivery_retirement.py)、[部署约束](../../../tests/test_mq_deployment.py)、[单记录移交集成](../../../tests/integration/test_mq_legacy_handoff.py)、[维护工具集成](../../../tests/integration/test_mq_handoff_tool.py)：原池保留、预算/首 wire 不改、源漂移拒绝、部分提交和进程中断 |
 
-[ai-messaging CI](../../../.github/workflows/ai-messaging.yml) 与 [M7 perimeter CI](../../../.github/workflows/m7-messaging.yml) 分别覆盖存储、传输及原成果边界，必需验收报告拒绝 skip/空报告。文件里有测试入口不表示当前环境已运行；合成模型、假传输和一次性数据库也不证明线上 Broker 持久性或某个真实报告已经被 QS 接受。实际交付要保留原 event ID/hash、两侧接收记录、STORED 及运行版本，技术连通和人工业务验收继续分开。
+[主 CI](../../../.github/workflows/ci.yml) 与 [M7 perimeter CI](../../../.github/workflows/m7-messaging.yml) 覆盖存储与保留业务边界；原 NSQ 生产装配专项 workflow 已退役，当前事务宿主原生证明由 infra 维护，最终镜像启动与生产验收归 M4 C08。必需验收报告拒绝 skip/空报告。文件里有测试入口不表示当前环境已运行；合成模型、假传输和一次性数据库也不证明线上 Broker 持久性或某个真实报告已经被 QS 接受。实际交付要保留原 event ID/hash、两侧接收记录、STORED 及运行版本，技术连通和人工业务验收继续分开。
 
 
 ## M3 事务档案基础尚未接入生产业务
@@ -702,3 +704,9 @@ T26候选仅修正验收夹具：原Go模块必须匹配infra冻结的版本（�
 ## T28 稳定制品依赖候选
 
 当前依赖固定GitHub正式Release的Python `0.4.0` wheel，SHA256 `f236674c3de81970af923992d337e2903d05ddbb401a735aad443d482ec95dc1`，SDK源码1345266aa0e864c46de5d1e3e3c939dd8002a890；uv.lock其他101个外部包记录逐项不变。不使用editable或工作区SDK导入，不修改业务执行、模型恢复、schema或生产provider。T26当前预发布六档宿主门禁已通过；稳定依赖的完整源码与真实宿主重验属于T28，不以旧预发布结果代替。
+
+## M4 当前生产入口
+
+单进程 `serve` 与 `MessagingRuntime.create` 均先要求显式 RocketMQ 和唯一 `ai.mysql` owner，旧 NSQ、普通发布 Outbox/MQRelay 与无 owner 模式在 TLS/密钥/数据库/transport 资源前拒绝。维护暂停的 owner 仍启动 Checker。原事务提交、状态/ACK 证据、既有关闭与真实在途等待继续保留；构造和启动不安装 DDL。
+
+旧 NSQ 镜像 smoke 在外部操作前退出，其原 workflow 和 bootstrap 专项用例已退出。当前主 CI 保留隔离存储、监听器与关闭测试，infra 对正式事务宿主验证；不能将镜像导入/配置检查当作完整启动或生产验收。历史 reader、业务状态与 result/outbox 责任以及孤立工具分别由 M4 C03/C04/C05 后续收口，当前任务进度见 [infra M4 总表](https://github.com/FangcunMount/infra/blob/main/docs/server/rocketmq-m4-execution.md)。

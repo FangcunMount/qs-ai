@@ -2,7 +2,8 @@
 
 import asyncio
 from contextlib import asynccontextmanager
-from unittest.mock import AsyncMock, MagicMock
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock, call
 
 import pytest
 from jwcrypto import jwk
@@ -12,6 +13,7 @@ from sqlalchemy.exc import ProgrammingError
 from qs_ai.bootstrap import messaging
 from qs_ai.bootstrap.lifecycle import RuntimeState, supervise
 from qs_ai.bootstrap.messaging import MessagingRuntime, read_key
+from qs_ai.bootstrap.transaction_services import TransactionServices
 from qs_ai.config import Settings
 from qs_ai.infrastructure.persistence.mysql import database as database_module
 from qs_ai.infrastructure.persistence.mysql.database import Database
@@ -58,10 +60,15 @@ class Transport:
 
 
 @pytest.mark.parametrize("fail", [False, True])
-async def test_publisher_starts_before_subscribers_and_stops_after_their_drain(fail):
+async def test_owner_starts_before_subscribers_and_closes_after_their_drain(fail):
     events = []
+
+    class Owner(Transport):
+        async def close(self, **kwargs):
+            await self.stop(**kwargs)
+
     runtime = MessagingRuntime()
-    runtime.publishers = {"a": Transport("pub", events, fail=fail)}
+    runtime.transaction_services = SimpleNamespace(runtime=Owner("owner", events, fail=fail))
     runtime.subscribers = [Transport("commands", events), Transport("acks", events)]
     stop, state = asyncio.Event(), RuntimeState()
     task = asyncio.create_task(supervise(runtime.components(state, 0.1), state, stop))
@@ -69,36 +76,28 @@ async def test_publisher_starts_before_subscribers_and_stops_after_their_drain(f
         with pytest.raises(RuntimeError):
             await asyncio.wait_for(task, 2)
         assert not state.ready and state.failed
+        assert "commands:start" not in events and "acks:start" not in events
     else:
         async with asyncio.timeout(2):
             while not state.ready:  # noqa: ASYNC110 - observe supervisor readiness
                 await asyncio.sleep(0.01)
         stop.set()
         await asyncio.wait_for(task, 2)
-        assert events[0] == "pub:start"
-        assert events.index("pub:stop") > events.index("commands:stop")
-        assert events.index("pub:stop") > events.index("acks:stop")
+        assert events[0] == "owner:start"
+        assert events.index("owner:stop") > events.index("commands:stop")
+        assert events.index("owner:stop") > events.index("acks:stop")
         assert not state.ready
     await runtime.close()
 
 
-async def test_partial_assembly_failure_closes_owned_clients():
+async def test_partial_assembly_failure_closes_only_owned_resources():
     runtime = MessagingRuntime()
-    runtime.publishers = {"a": AsyncMock()}
     runtime.subscribers = [AsyncMock()]
-    runtime.http = type("HTTP", (), {"close": lambda self: None})()
+    resource = AsyncMock()
+    runtime.resources.push_async_callback(resource)
     await runtime.close()
     runtime.subscribers[0].stop.assert_awaited_once_with(grace_seconds=0)
-    runtime.publishers["a"].stop.assert_awaited_once_with(grace_seconds=0)
-
-
-async def test_relay_cannot_publish_or_handoff_before_publishers_ready():
-    runtime = MessagingRuntime()
-    runtime.tx = AsyncMock()
-    runtime.relay = AsyncMock()
-    assert await runtime.step() == 0
-    runtime.tx.open.assert_not_called()
-    runtime.relay.step.assert_not_awaited()
+    resource.assert_awaited_once_with()
 
 
 @pytest.mark.parametrize("schema", ["missing", "incomplete", "complete", "canceled"])
@@ -130,19 +129,23 @@ async def test_recording_preflight_precedes_transport_and_borrows_shared_pool(mo
     sessionmaker = MagicMock(return_value=factory)
     monkeypatch.setattr(database_module, "async_sessionmaker", sessionmaker)
     container = MagicMock()
-    container.get = AsyncMock(return_value=database)
+    services = SimpleNamespace(
+        signing_key=object(),
+        recipient_key=object(),
+        archives=object(),
+        database_seconds=2,
+        runtime=AsyncMock(),
+    )
+    container.get = AsyncMock(side_effect=[database, services])
     scope = container.return_value.__aenter__.return_value
     scope.get = AsyncMock(return_value=object())
     monkeypatch.setattr(messaging, "read_key", lambda *args, **kwargs: object())
     for name in (
         "TrustedSigner",
-        "StateEventRecorder",
         "WorkflowCommandAdmission",
         "PayloadResolver",
         "CommandReceiver",
-        "AsyncHTTPClient",
-        "FailureTopology",
-        "MQRelay",
+        "TransactionCommandReceiver",
         "MessagePayloads",
     ):
         monkeypatch.setattr(messaging, name, MagicMock())
@@ -165,15 +168,28 @@ async def test_recording_preflight_precedes_transport_and_borrows_shared_pool(mo
         factory.return_value.__aexit__.assert_awaited_once()
         return AsyncMock()
 
-    publisher = MagicMock(side_effect=lambda *args, **kwargs: transport())
     subscriber = MagicMock(side_effect=lambda *args, **kwargs: transport())
-    monkeypatch.setattr(messaging, "NSQPublisher", publisher)
-    monkeypatch.setattr(messaging, "NSQSubscriber", subscriber)
+    monkeypatch.setattr(messaging, "RocketMQSubscriber", subscriber)
+    monkeypatch.setattr(messaging, "read_rocketmq_config", MagicMock(return_value=object()))
+    monkeypatch.setenv("GRPC_DEFAULT_SSL_ROOTS_FILE_PATH", "/unused/ca.crt")
     settings = Settings(
         grpc={"access_address": "qs.invalid:9090"},
         messaging={
             "enabled": True,
-            "nsqd": {"nsq.invalid:4150": "http://nsq.invalid:4151"},
+            "provider": "rocketmq",
+            "rocketmq": {
+                "endpoint": "127.0.0.1:1",
+                "credentials_file": "/unused/credentials.json",
+                "ca_file": "/unused/ca.crt",
+                "routes_file": "/unused/routes.json",
+            },
+            "transactions": {
+                "ai.mysql": {
+                    "store_id": "fixture-primary",
+                    "writer_epoch": "m3-1",
+                    "route_revision": "m3-1",
+                }
+            },
             "signing_key_file": "/unused/sign.jwk",
             "decrypt_key_files": {"ai.encrypt": "/unused/decrypt.jwk"},
             "qs_signer_files": {"qs.sign": "/unused/qs-sign.jwk"},
@@ -182,9 +198,8 @@ async def test_recording_preflight_precedes_transport_and_borrows_shared_pool(mo
     )
     if schema == "complete":
         runtime = await MessagingRuntime.create(container, settings, b"", b"", b"")
-        publisher.assert_called_once()
         assert subscriber.call_count == 2
-        for client in [*runtime.publishers.values(), *runtime.subscribers]:
+        for client in runtime.subscribers:
             client.start.assert_not_awaited()
         assert database.state_events is runtime.recorder
         await runtime.close()
@@ -195,11 +210,10 @@ async def test_recording_preflight_precedes_transport_and_borrows_shared_pool(mo
             await MessagingRuntime.create(container, settings, b"", b"", b"")
         if schema != "canceled":
             assert str(failure.value) == "MQ required technical observation schema unavailable"
-        publisher.assert_not_called()
         subscriber.assert_not_called()
         channel_factory.assert_not_called()
-        messaging.StateEventRecorder.assert_not_called()
-    container.get.assert_awaited_once_with(Database)
+    container.get.assert_has_awaits([call(Database), call(TransactionServices | None)])
+    assert container.get.await_count == 2
     sessionmaker.assert_called_once()
     assert sessionmaker.call_args.args == (database.engine,)
     session.begin.assert_not_awaited()
@@ -221,19 +235,7 @@ async def test_disabled_messaging_never_checks_recording_schema(monkeypatch):
     monkeypatch.setattr(messaging, "require_recording_schema", require)
     container = MagicMock()
     container.get = AsyncMock()
-    with pytest.raises(ValueError, match="MQ requires"):
+    with pytest.raises(ValueError, match="MQ runtime is required"):
         await MessagingRuntime.create(container, Settings(), b"", b"", b"")
     require.assert_not_awaited()
     container.get.assert_not_awaited()
-
-
-async def test_ready_relay_does_not_scan_or_transfer_historical_results():
-    runtime = MessagingRuntime()
-    runtime.tx = AsyncMock()
-    runtime.recorder = AsyncMock()
-    runtime.relay = AsyncMock()
-    runtime.publisher_ready.set()
-    assert await runtime.step() == 0
-    runtime.relay.step.assert_awaited_once_with()
-    runtime.tx.open.assert_not_called()
-    runtime.recorder.handoff.assert_not_awaited()

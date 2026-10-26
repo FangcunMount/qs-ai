@@ -111,8 +111,9 @@ def background(
 
 
 async def serve(settings: Settings, stop: asyncio.Event) -> None:
-    if not settings.messaging.enabled:
-        raise ValueError("MQ runtime is required; legacy gRPC delivery is retired")
+    from qs_ai.bootstrap.messaging import MessagingRuntime, require_final_messaging
+
+    require_final_messaging(settings)
     await asyncio.to_thread(validate_tls, settings)
     ca, cert, key = await tls_bytes(settings)
     container = create_container(settings, EvaluationProvider())
@@ -121,8 +122,6 @@ async def serve(settings: Settings, stop: asyncio.Event) -> None:
     messaging = None
     try:
         await preflight(container, settings)
-        from qs_ai.bootstrap.messaging import MessagingRuntime
-
         messaging = await MessagingRuntime.create(container, settings, ca, cert, key)
 
         def component_status() -> dict[str, str]:
@@ -201,11 +200,6 @@ async def serve(settings: Settings, stop: asyncio.Event) -> None:
                 components.append(background(name, attempt, stop, values))
 
         if messaging is not None:
-            # Replaces the old gRPC scanner; no dual result delivery owner.
-            if not settings.messaging.transactions:
-                values = settings.delivery.model_dump(exclude={"batch_size", "max_retry_seconds"})
-                values["concurrency"] = 1
-                components.append(background("mq_relay", messaging.step, stop, values))
             components.extend(
                 messaging.components(
                     state, max(component.shutdown_seconds for component in components)

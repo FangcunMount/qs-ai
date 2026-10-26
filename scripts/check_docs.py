@@ -162,6 +162,59 @@ def function(tree: ast.AST, name: str) -> ast.FunctionDef | ast.AsyncFunctionDef
     )
 
 
+def final_messaging_before_resources(
+    server: ast.FunctionDef | ast.AsyncFunctionDef, messaging: ast.AST
+) -> bool:
+    """Follow the explicit shared entry predicate, not its former inline spelling."""
+    try:
+        guard = function(messaging, "require_final_messaging")
+    except StopIteration:
+        return False
+    calls = [
+        i
+        for i, statement in enumerate(server.body)
+        if isinstance(statement, ast.Expr)
+        and isinstance(statement.value, ast.Call)
+        and ast.unparse(statement.value) == "require_final_messaging(settings)"
+    ]
+    resources = [
+        i
+        for i, statement in enumerate(server.body)
+        if any(
+            isinstance(node, ast.Call)
+            and (
+                isinstance(node.func, ast.Name)
+                and node.func.id in {"tls_bytes", "create_container"}
+                or isinstance(node.func, ast.Attribute)
+                and node.func.attr == "to_thread"
+                and node.args
+                and isinstance(node.args[0], ast.Name)
+                and node.args[0].id == "validate_tls"
+            )
+            for node in ast.walk(statement)
+        )
+    ]
+    enabled = any(
+        isinstance(node, ast.If)
+        and ast.unparse(node.test) == "not options.enabled"
+        and any(isinstance(child, ast.Raise) for child in node.body)
+        for node in ast.walk(guard)
+    )
+    bindings = [
+        node
+        for node in ast.walk(guard)
+        if isinstance(node, ast.If) and any(isinstance(child, ast.Raise) for child in node.body)
+    ]
+    bound = any(
+        "options.provider != 'rocketmq'" in ast.unparse(node.test)
+        and "set(options.transactions) != {'ai.mysql'}" in ast.unparse(node.test)
+        for node in bindings
+    )
+    return bool(
+        calls and resources and len(calls) == 1 and calls[0] < min(resources) and enabled and bound
+    )
+
+
 def check_facts(root: Path) -> list[str]:
     errors = []
 
@@ -190,13 +243,8 @@ def check_facts(root: Path) -> list[str]:
         )
         server = function(parse("src/qs_ai/bootstrap/server.py"), "serve")
         require(
-            any(
-                isinstance(node, ast.If)
-                and ast.unparse(node.test) == "not settings.messaging.enabled"
-                and any(isinstance(child, ast.Raise) for child in node.body)
-                for node in ast.walk(server)
-            ),
-            "unified server no longer requires MQ",
+            final_messaging_before_resources(server, parse("src/qs_ai/bootstrap/messaging.py")),
+            "unified server no longer requires final MQ before resources",
         )
         require("执行命令使用 MQ" in readme, "root MQ admission statement missing")
         cutoff = parse("src/qs_ai/transport/grpc/mq_cutover.py")

@@ -121,11 +121,13 @@ def test_repository_runtime_facts_match_current_design():
     assert CHECK.check_facts(ROOT) == []
 
 
-def test_removing_mq_requirement_is_detected(tmp_path):
+@pytest.mark.parametrize("damage", ["call", "enabled", "owner", "ordering", "tls-ordering"])
+def test_removing_mq_requirement_is_detected(tmp_path, damage):
     names = [
         "README.md",
         "pyproject.toml",
         "src/qs_ai/bootstrap/server.py",
+        "src/qs_ai/bootstrap/messaging.py",
         "src/qs_ai/transport/grpc/mq_cutover.py",
         "src/qs_ai/application/execution/generation.py",
         "src/qs_ai/infrastructure/workflows/report.py",
@@ -136,5 +138,21 @@ def test_removing_mq_requirement_is_detected(tmp_path):
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes((ROOT / name).read_bytes())
     server = tmp_path / "src/qs_ai/bootstrap/server.py"
-    server.write_text(server.read_text().replace("if not settings.messaging.enabled:", "if False:"))
-    assert any("no longer requires MQ" in error for error in CHECK.check_facts(tmp_path))
+    messaging = tmp_path / "src/qs_ai/bootstrap/messaging.py"
+    if damage == "call":
+        server.write_text(server.read_text().replace("    require_final_messaging(settings)\n", ""))
+    elif damage == "enabled":
+        messaging.write_text(messaging.read_text().replace("if not options.enabled:", "if False:"))
+    elif damage == "owner":
+        messaging.write_text(
+            messaging.read_text().replace('set(options.transactions) != {"ai.mysql"}', "False")
+        )
+    else:
+        raw = server.read_text().replace("    require_final_messaging(settings)\n", "")
+        anchor = (
+            "    await asyncio.to_thread(validate_tls, settings)"
+            if damage == "tls-ordering"
+            else "    container = create_container(settings, EvaluationProvider())"
+        )
+        server.write_text(raw.replace(anchor, anchor + "\n    require_final_messaging(settings)"))
+    assert any("no longer requires final MQ" in error for error in CHECK.check_facts(tmp_path))

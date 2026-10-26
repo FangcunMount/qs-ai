@@ -103,11 +103,6 @@ async def test_default_assembly_borrows_one_app_sender_without_relay_or_legacy_r
     monkeypatch.setattr(Transactions, "open", open_session)
     monkeypatch.setattr(messaging, "require_recording_schema", schema)
     monkeypatch.setattr(messaging, "mtls_channel", channel)
-    forbidden = Mock(
-        side_effect=AssertionError("Transaction assembly cannot create legacy publishers")
-    )
-    for name in ("StateEventRecorder", "MQRelay", "RocketMQPublisher", "NSQPublisher"):
-        monkeypatch.setattr(messaging, name, forbidden)
     container = create_container(settings, EvaluationProvider(), Overrides())
     value = None
     try:
@@ -126,7 +121,6 @@ async def test_default_assembly_borrows_one_app_sender_without_relay_or_legacy_r
             assert value.transaction_services is host
             assert value.tx.database is database
             assert isinstance(database.state_events, TransactionOnlyEvents)
-            assert value.relay is None and not value.publishers
             assert len(value.subscribers) == 2
             handlers = [subscriber.handler for subscriber in value.subscribers]
             assert isinstance(handlers[0].__self__, TransactionCommandReceiver)
@@ -135,7 +129,6 @@ async def test_default_assembly_borrows_one_app_sender_without_relay_or_legacy_r
             assert not host.runtime.stats()["ready"]
             assert checked == ["readonly_schema", "rolled_back"]
         connect.assert_not_called()
-        forbidden.assert_not_called()
     finally:
         if value is not None:
             await value.close()

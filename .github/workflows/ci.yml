@@ -212,8 +212,22 @@ jobs:
       - name: Check restricted production image
         run: |
           set -euo pipefail
-          docker run --rm --network none --read-only --tmpfs /tmp -e QS_AI_ENVIRONMENT=production qs-ai:ci /app/.venv/bin/python -c 'import os; from qs_ai.config import Settings; from qs_ai.bootstrap.container import create_container; assert os.getuid() != 0; create_container(Settings())'
-          python3 scripts/ci/smoke_single_process.py qs-ai:ci
+          # Actual final image startup and business checks belong to infra C08.
+          docker run --rm -i --network none --read-only --tmpfs /tmp -e QS_AI_ENVIRONMENT=production qs-ai:ci /app/.venv/bin/python - <<'PY'
+          import os
+          from qs_ai.config import Settings
+          from qs_ai.bootstrap.container import create_container
+          from qs_ai.bootstrap.messaging import require_final_messaging
+          assert os.getuid() != 0
+          settings = Settings()
+          create_container(settings)
+          try:
+              require_final_messaging(settings)
+          except ValueError:
+              pass
+          else:
+              raise AssertionError("Missing owner must not select a runtime")
+          PY
 
   retirement-tools:
     name: Retirement backup and restore (${{ matrix.mysql-version }})

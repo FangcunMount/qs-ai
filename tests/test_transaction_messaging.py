@@ -184,6 +184,8 @@ def test_sender_rejects_peer_owner_routes_and_wrong_ca(tmp_path, monkeypatch):
 
 async def test_legacy_relay_assembly_cannot_silently_accept_transaction_owners(tmp_path):
     settings = Mock()
-    settings.messaging = MessagingOptions.model_validate(options(tmp_path))
+    settings.messaging = MessagingOptions.model_validate(options(tmp_path)).model_copy(
+        update={"enabled": True}
+    )
     with pytest.raises(ValueError, match="transaction-bound workflow assembly"):
         await MessagingRuntime.create(None, settings, b"", b"", b"")

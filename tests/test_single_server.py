@@ -3,7 +3,8 @@
 import asyncio
 import socket
 from collections.abc import AsyncIterator
-from unittest.mock import AsyncMock, MagicMock
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock, Mock
 
 import httpx
 import pytest
@@ -14,10 +15,26 @@ from qs_ai.application.operations.health import CheckReadiness, Readiness
 from qs_ai.bootstrap import server
 from qs_ai.bootstrap.container import create_container
 from qs_ai.bootstrap.grpc_probe import probe
+from qs_ai.bootstrap.messaging import MessagingRuntime
 from qs_ai.config import Settings
 from qs_ai.infrastructure.persistence.mysql.database import Database
 from qs_ai.infrastructure.persistence.mysql.evaluation_worker import EvaluationWorker
 from tests.integration.test_delivery import certificates
+from tests.test_transaction_services_container import transaction_settings
+
+
+def final_settings(settings, tmp_path):
+    return settings.model_copy(update={"messaging": transaction_settings(tmp_path).messaging})
+
+
+def ready_messaging():
+    value = AsyncMock(spec=MessagingRuntime)
+    value.payloads = None
+    value.components.return_value = []
+    value.publisher_ready = asyncio.Event()
+    value.publisher_ready.set()
+    value.transaction_services = SimpleNamespace(runtime=Mock(stats=lambda: {"ready": True}))
+    return value
 
 
 def port():
@@ -34,7 +51,7 @@ async def test_shared_container_real_listeners_and_independent_loops(
 ):
     certificates(tmp_path)
     http_port, grpc_port = port(), port()
-    counts = dict(generation=0, evaluation=0, mq=0)
+    counts = dict(generation=0, evaluation=0)
     instances = []
     pool_events = []
 
@@ -99,21 +116,9 @@ async def test_shared_container_real_listeners_and_independent_loops(
             "key_file": str(tmp_path / "ai.key"),
         },
     )
-    from qs_ai.bootstrap.messaging import MessagingRuntime
-
-    fake = AsyncMock(spec=MessagingRuntime)
-    fake.payloads = None
-    fake.components.return_value = []
-
-    async def relay():
-        counts["mq"] += 1
-        return 0
-
-    fake.step.side_effect = relay
+    fake = ready_messaging()
     monkeypatch.setattr(MessagingRuntime, "create", AsyncMock(return_value=fake))
-    settings = settings.model_copy(
-        update={"messaging": settings.messaging.model_copy(update={"enabled": True})}
-    )
+    settings = final_settings(settings, tmp_path)
     stop = asyncio.Event()
     task = asyncio.create_task(server.serve(settings, stop))
     try:
@@ -140,7 +145,7 @@ async def test_shared_container_real_listeners_and_independent_loops(
             assert len(containers) == 1
             assert bool(counts["generation"]) == generation
             assert bool(counts["evaluation"]) == evaluation
-            assert bool(counts["mq"])
+            fake.components.assert_called_once()
     finally:
         stop.set()
         await asyncio.wait_for(task, 5)
@@ -166,15 +171,8 @@ async def test_occupied_port_stops_other_components_and_closes_container(
             },
             delivery={"shutdown_seconds": 0.1},
         )
-        settings = settings.model_copy(
-            update={"messaging": settings.messaging.model_copy(update={"enabled": True})}
-        )
-        from qs_ai.bootstrap.messaging import MessagingRuntime
-
-        fake = AsyncMock(spec=MessagingRuntime)
-        fake.payloads = None
-        fake.components.return_value = []
-        fake.step.return_value = 0
+        settings = final_settings(settings, tmp_path)
+        fake = ready_messaging()
         monkeypatch.setattr(MessagingRuntime, "create", AsyncMock(return_value=fake))
         container = MagicMock()
         container.close = AsyncMock()
@@ -200,9 +198,7 @@ async def test_invalid_certificate_fails_before_creating_dependencies(tmp_path, 
         server, "create_container", lambda *args: pytest.fail("must not create resources")
     )
     settings = Settings(grpc={"ca_file": str(bad), "cert_file": str(bad), "key_file": str(bad)})
-    settings = settings.model_copy(
-        update={"messaging": settings.messaging.model_copy(update={"enabled": True})}
-    )
+    settings = final_settings(settings, tmp_path)
     import ssl
 
     with pytest.raises(ssl.SSLError):
