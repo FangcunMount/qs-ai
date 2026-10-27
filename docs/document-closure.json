@@ -1,6 +1,6 @@
 {
   "schema_version": "qs-ai-document-closure/v1",
-  "source_commit": "680242726fad43db7b6625422f7b38ec5da8f15f",
+  "source_commit": "42bda2aa2b2956f9d7adfad6bc27b2b61aeb753d",
   "reviewed_on": "2026-10-28",
   "authority": "runtime composition > code > machine contracts/config/migrations > scoped tests > maintained prose > dated evidence/plans/archive",
   "source_catalog": {
@@ -427,7 +427,7 @@
     "tests/integration/rocketmq_finalization_host.py": "3d3bb420c56b865ded36e77c1326ad5bdf85a76f4c2faf28eee40fdc351dd29e",
     "tests/integration/rocketmq_finalization_matrix.py": "957835812ff2e241427b2a110f28291db5d5b1193fec401c21ee5b63d5edb9cf",
     "tests/integration/rocketmq_paired_faults.py": "20e9337be493c07a719b05f4b60c4689698103c1e47c785c921ba825f3287a85",
-    "tests/integration/rocketmq_paired_host.py": "525139d210480a2029db32fba5a5df317966bb1a22faba13f1115862e40944f2",
+    "tests/integration/rocketmq_paired_host.py": "1322a26e416b4177a104c72c3a0dc6d12285aa992ea4484e406a71226a80dea4",
     "tests/integration/rocketmq_payload_host.py": "d9e906b60e67635c2dc8b4e288f7d61dfed078a1d9a01fd6096d63ff2573dc15",
     "tests/integration/rocketmq_state_host.py": "819961ac8fce19d086c8ebea0ccc881bf9badf0dec0578bef5e3ab991859afd3",
     "tests/integration/test_artifact_acceptance.py": "357dd73f4a563f881386554b49e30719a9a207c013aa57fe5a37345a142ecddd",
@@ -2368,7 +2368,7 @@
         "M3 T24: uv run --locked pytest -m \"not integration and not interop\": 4239 passed,1351 deselected; Ruff and mypy450 passed; actual host native gates pending",
         "pytest -q tests/test_transaction_binding.py (13 pure PASS); native initial-binding CLI collection only, required GitHub MySQL pending; no production or M3 completion claim"
       ],
-      "review_scope": "2026-10-26 M4 current source review: explicit ai.mysql runtime, archive-only payload/ACK, original transaction/state facts, bounded real-call shutdown, no publisher Outbox/Relay/legacy transfer. Unit/type/docs gates recorded separately from hosted native and production evidence; model/retry/checkpoint and unrelated business behavior unchanged."
+      "review_scope": "2026-10-26 M4 current source review: explicit ai.mysql runtime, archive-only payload/ACK, original transaction/state facts, bounded real-call shutdown, no publisher Outbox/Relay/legacy transfer. Unit/type/docs gates recorded separately from hosted native and production evidence; model/retry/checkpoint and unrelated business behavior unchanged.; 2026-10-28 reviewed paired test fixture v3 manifest selection while retaining v2 default. No production implementation change. Prior source-baseline-drift retained as CI failure; actual paired native evidence is independently recorded in infra."
     },
     {
       "path": "docs/03-基础设施/model-gateway/README.md",
