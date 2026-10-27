@@ -34,6 +34,7 @@ from qs_ai.infrastructure.workflow_transport.messaging import EVENTS, authentica
 from qs_ai.infrastructure.workflow_transport.state_events import evaluation_sequences
 from tests.integration.broker_routes import (
     owned_broker_route,
+    owned_broker_routes,
 )
 
 PATHS = (
@@ -241,6 +242,7 @@ async def test_independent_five_path_finalization_matrix(
             probe,
             probe.directory.parent / label,
             pause=pause,
+            routes=owned_broker_routes(),
         )
         config = json.loads(path.read_text())
         config.update(

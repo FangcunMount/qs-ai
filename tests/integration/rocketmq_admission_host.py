@@ -230,7 +230,7 @@ async def broker(host, required_broker):
             )
         )
     owner = admission(host.kit.source)
-    boundary = receiver(host.tx, MessagingStore(), host.keys, owner)
+    boundary = receiver(host.tx, MessagingStore(), host.keys, owner, routes=owned_broker_routes())
     limits = Limits(sends=4, check_workers=1, check_queue=16)
     ai_credentials, qs_credentials, observer_credentials = (
         config[role] for role in ("ai", "input", "observer")

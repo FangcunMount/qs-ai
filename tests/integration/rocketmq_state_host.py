@@ -1617,7 +1617,14 @@ async def test_actual_default_transport_and_worker_share_sender_root_and_shutdow
                     recipient_key=host.keys["ai.encrypt"],
                 )
                 acknowledgement = next(s for s in runtime.subscribers if s.route.topic == ACKS)
-                await acknowledgement.handler(received(ack))
+                await acknowledgement.handler(
+                    replace(
+                        received(ack),
+                        provider="rocketmq",
+                        logical_topic=ACKS,
+                        physical_topic=acknowledgement.route.physical_topic,
+                    )
+                )
                 async with host.tx.open() as db:
                     receipt = (
                         (
