@@ -39,6 +39,7 @@ async def original(host, exhausted=False, *, abort=True, conflict=False):
         assert await host.store.abort(old.execution)
 
     class Runtime:
+        routing = legacy_routes()
         store = host.store
         calls = 0
 
