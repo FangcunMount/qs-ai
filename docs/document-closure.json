@@ -1,6 +1,6 @@
 {
   "schema_version": "qs-ai-document-closure/v1",
-  "source_commit": "0a9077e8a10d5bc204717f839577940c777691ad",
+  "source_commit": "680242726fad43db7b6625422f7b38ec5da8f15f",
   "reviewed_on": "2026-10-28",
   "authority": "runtime composition > code > machine contracts/config/migrations > scoped tests > maintained prose > dated evidence/plans/archive",
   "source_catalog": {
@@ -525,7 +525,7 @@
     "tests/integration/test_storage_query_plans.py": "b5814aae1f2b2a54bf90dd4eefe70323ac31fd2f8e1c904ece48f44f8c73977c",
     "tests/integration/test_suite_registration_readonly.py": "38e2d7f9568ca607379516e7ef487652138909526b19aa09a798f5f338cb0695",
     "tests/integration/test_transaction_admission_root.py": "d741693e216da950668226d5ce26fad0eb682d4906696e1962e3e2e60cfe3688",
-    "tests/integration/test_transaction_candidate_runtime.py": "c8260ea33bb54b2fcff0bd825047bae0f7168fd1e33a8284aff018a2a75b21c8",
+    "tests/integration/test_transaction_candidate_runtime.py": "e02c18747706cfd6a315c680213fa70e086ffb3763c25e8594e0dc5e6f6023dc",
     "tests/integration/test_transaction_change_admission.py": "c315c3e3fe85386e407fff4fc407b316f5268ef93ca2641699d7d8da71c281d3",
     "tests/integration/test_transaction_command_receiver.py": "aa590fa154badcda4e262a3e7e807d3d0012c54bdf5d0165b240296be6986002",
     "tests/integration/test_transaction_contract_recovery.py": "23f951b8302d4dd41570bc9adf5cf2b4445e31f70c5ca7babd0debef6b5310e0",
@@ -538,9 +538,9 @@
     "tests/integration/test_transaction_governance_state.py": "fb941b90b4eb45e176aad026978f694053d149b6ac9f041fc2d058dca30c81ca",
     "tests/integration/test_transaction_input_conflict.py": "653e9e7e72f5a57d856a7468f4c11b8dc9cb924c86d883cf683770801c233a2a",
     "tests/integration/test_transaction_interpretation_claim.py": "df0856c86156d76d8f7c86de329a713f23979105f7898d6a82b570d662b65b7d",
-    "tests/integration/test_transaction_interpretation_claim_retry.py": "f23abf42a9ffb7d802e44f0cbb40ce93d72bd2b3b04d2b13b32ded3162866898",
+    "tests/integration/test_transaction_interpretation_claim_retry.py": "315dd6b09fc6ab6b7e40a5a34563cf970de9229b7316713bad3d6e24211da8f8",
     "tests/integration/test_transaction_interpretation_finish.py": "b807bf7f63bd9c4ac5b26f1eabde0b2ebef86d0dfe625b8933a967d39a7662f2",
-    "tests/integration/test_transaction_interpretation_finish_retry.py": "8c33d8ef600b28310e00b256cbee263ef4f8add6daaac69f0c433e0a0b76482c",
+    "tests/integration/test_transaction_interpretation_finish_retry.py": "3b56ad052c2ac10b834957a2e39ec6374372ec66ec731310ad285e1827ff3b3a",
     "tests/integration/test_transaction_interpretation_state.py": "7501d1a33a8e518cf6c208560fe2328b2c0a9ecce2b241e42ddcbbaf6f9d5f9c",
     "tests/integration/test_transaction_receipts.py": "1c67e3939f6b29dfab28829ceb84647dd3a939156f62794add10ae2ff6b1e51d",
     "tests/integration/test_transaction_resolution_state.py": "b1f9b7ceede1830e579166c574596938919d84df8737b8e7234786078ea8c288",
