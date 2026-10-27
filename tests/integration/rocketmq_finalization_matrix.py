@@ -15,7 +15,6 @@ import pytest
 from reliable_messaging.protected import TrustedSigner
 from reliable_messaging.rocketmq import Config, RocketMQSubscriber
 from reliable_messaging.transaction import Decision, StoreChecker
-from reliable_messaging.transport import RouteBinding, consumer_group_v2, physical_topic_v2
 from sqlalchemy import delete, select, update
 
 from qs_ai.application.interpretation.route_assets import executable_route
@@ -33,6 +32,9 @@ from qs_ai.infrastructure.persistence.mysql.schema import (
 )
 from qs_ai.infrastructure.workflow_transport.messaging import EVENTS, authenticate, parse_body
 from qs_ai.infrastructure.workflow_transport.state_events import evaluation_sequences
+from tests.integration.broker_routes import (
+    owned_broker_route,
+)
 
 PATHS = (
     "interpretation_report",
@@ -191,7 +193,6 @@ async def test_independent_five_path_finalization_matrix(
                 )
 
     probe, messages, failures, processes = counting_provider, {}, [], []
-    physical = physical_topic_v2(EVENTS, "TRANSACTION", "ai.mysql", "m3-1")
     subscription = "qs-m3-ai-state-observer"
 
     async def observe(delivery):
@@ -221,17 +222,7 @@ async def test_independent_five_path_finalization_matrix(
             required_broker["endpoint"],
             required_broker["observer"]["username"],
             required_broker["observer"]["password"],
-            (
-                RouteBinding(
-                    EVENTS,
-                    subscription,
-                    physical,
-                    consumer_group_v2(EVENTS, subscription),
-                    "TRANSACTION",
-                    "ai.mysql",
-                    "m3-1",
-                ),
-            ),
+            (owned_broker_route(EVENTS, subscription, "ai.mysql"),),
             max_in_flight=1,
         ),
         EVENTS,

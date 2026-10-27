@@ -20,7 +20,6 @@ import pytest
 from reliable_messaging.protected import TrustedSigner
 from reliable_messaging.rocketmq import Config, RocketMQSubscriber
 from reliable_messaging.transaction import Decision, Execution, StoreChecker, decode_plan
-from reliable_messaging.transport import RouteBinding, consumer_group_v2, physical_topic_v2
 from sqlalchemy import select
 
 from qs_ai.infrastructure.persistence.mysql.messaging import outbox
@@ -28,6 +27,10 @@ from qs_ai.infrastructure.persistence.mysql.schema import artifacts, jobs, model
 from qs_ai.infrastructure.persistence.mysql.transaction_schema import execution
 from qs_ai.infrastructure.workflow_transport.messaging import EVENTS, authenticate, parse_body
 from tests.integration import test_evaluation_step as evaluation_fixtures
+from tests.integration.broker_routes import (
+    owned_broker_physical,
+    owned_broker_route,
+)
 from tests.integration.rocketmq_admission_host import required_broker as required_broker
 from tests.integration.rocketmq_finalization_matrix import (
     PATHS,
@@ -135,7 +138,7 @@ def inputs(host, broker, probe, directory, *, pause):
         provider_endpoint=probe.endpoint,
         signing_key=str(directory / "sign.jwk"),
         recipient_key=str(directory / "recipient.jwk"),
-        physical_topic=physical_topic_v2(EVENTS, "TRANSACTION", "ai.mysql", "m3-1"),
+        physical_topic=owned_broker_physical(EVENTS, "ai.mysql"),
         pause_after_response=pause,
         progress=str(directory / "progress.json"),
         client_log=str(directory / "driver-private.log"),
@@ -217,7 +220,6 @@ async def test_actual_independent_report_worker_http_counter_and_broker(
     probe = counting_provider
     worker_broker = dict(required_broker, endpoint=routing_proxy.address)
     processes, messages, failures = [], {}, []
-    physical = physical_topic_v2(EVENTS, "TRANSACTION", "ai.mysql", "m3-1")
 
     async def observe(delivery):
         header = authenticate(
@@ -246,17 +248,7 @@ async def test_actual_independent_report_worker_http_counter_and_broker(
             required_broker["endpoint"],
             required_broker["observer"]["username"],
             required_broker["observer"]["password"],
-            (
-                RouteBinding(
-                    EVENTS,
-                    _OBSERVER,
-                    physical,
-                    consumer_group_v2(EVENTS, _OBSERVER),
-                    "TRANSACTION",
-                    "ai.mysql",
-                    "m3-1",
-                ),
-            ),
+            (owned_broker_route(EVENTS, _OBSERVER, "ai.mysql"),),
             max_in_flight=1,
         ),
         EVENTS,

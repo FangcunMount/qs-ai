@@ -34,7 +34,7 @@ from reliable_messaging.transaction import (
     StoreChecker,
     execution_key,
 )
-from reliable_messaging.transport import RouteBinding, consumer_group_v2, physical_topic_v2
+from reliable_messaging.transport import RouteKey
 from sqlalchemy import delete, event, select, text, update
 
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict
@@ -102,6 +102,11 @@ from qs_ai.infrastructure.workflow_transport.transactional_evaluation_management
 from qs_ai.infrastructure.workflow_transport.transactional_solutions import TransactionalSolutions
 from qs_ai.transport.grpc.evaluation import EvaluationManagement
 from qs_ai.transport.grpc.solutions import response as solution_response
+from tests.integration.broker_routes import (
+    owned_broker_physical,
+    owned_broker_route,
+    owned_broker_routes,
+)
 from tests.integration.rocketmq_admission_host import required_broker as required_broker
 from tests.integration.test_evaluation_completions import dispatched as dispatched
 from tests.integration.test_evaluation_creation_interop import persisted_assets as persisted_assets
@@ -139,7 +144,6 @@ from tests.integration.test_transaction_evaluation_admission import (
 )
 from tests.integration.test_transaction_resolution_state import unknown as resolution_seed
 from tests.integration.test_transaction_solution_dispatch import service_request
-from tests.route_fixtures import legacy_routes
 from tests.test_generation_manifest import assets as assets
 from tests.test_generation_manifest import complete_release as complete_release
 from tests.test_generation_manifest import evaluation_release as evaluation_release
@@ -188,7 +192,7 @@ def state_receipt(required_broker, request):
 
 class WorkerRuntime(TransactionRuntime):
     def __init__(self, sender, host):
-        super().__init__(sender, admitted=True, routing=legacy_routes())
+        super().__init__(sender, admitted=True, routing=owned_broker_routes())
         self.host, self.results, self.calls, self.pause = host, [], 0, False
         self.entered, self.release, self.completed = (
             asyncio.Event(),
@@ -253,7 +257,7 @@ async def broker(original, required_broker):
         scope, 1, "explicit isolated worker state seed", datetime.now(UTC), confirm=True
     )
     config = required_broker
-    physical = physical_topic_v2(EVENTS, "TRANSACTION", "ai.mysql", "m3-1")
+    physical = owned_broker_physical(EVENTS, "ai.mysql")
     credentials, observer_credentials = config["ai"], config["observer"]
     messages, failures, statements = {}, [], []
     empty_poll = asyncio.Event()
@@ -276,7 +280,23 @@ async def broker(original, required_broker):
                 credentials["username"],
                 credentials["password"],
                 "ai.mysql",
-                (TransactionRoute(EVENTS, physical, "m3-1"),),
+                (
+                    TransactionRoute(
+                        EVENTS,
+                        physical,
+                        "m3-1",
+                        naming_scheme=owned_broker_routes()
+                        .publish_route(
+                            RouteKey(
+                                EVENTS,
+                                "TRANSACTION",
+                                "ai.mysql" if EVENTS == EVENTS else "qs.mysql",
+                                "m3-1",
+                            )
+                        )
+                        .naming_scheme,
+                    ),
+                ),
                 Limits(sends=4, check_workers=1, check_queue=16),
             ),
             host.store,
@@ -333,17 +353,7 @@ async def broker(original, required_broker):
             config["endpoint"],
             observer_credentials["username"],
             observer_credentials["password"],
-            (
-                RouteBinding(
-                    EVENTS,
-                    _OBSERVER,
-                    physical,
-                    consumer_group_v2(EVENTS, _OBSERVER),
-                    "TRANSACTION",
-                    "ai.mysql",
-                    "m3-1",
-                ),
-            ),
+            (owned_broker_route(EVENTS, _OBSERVER, "ai.mysql"),),
             max_in_flight=1,
         ),
         EVENTS,
@@ -362,7 +372,7 @@ async def broker(original, required_broker):
                 reserved = await host.store.lookup(intent.request)
                 if reserved is not None and reserved.state.value == "committed":
                     facts, value = read_evaluation_state_plan(
-                        intent, reserved.execution.plan, route_resolver=legacy_routes()
+                        intent, reserved.execution.plan, route_resolver=owned_broker_routes()
                     )
                     if value.envelope().message_id in messages:
                         assert (
@@ -526,7 +536,7 @@ async def test_actual_worker_preflight_source_conflict_rolls_back_prepared_half(
 async def governance_broker(host, required_broker):
     """Actual transport with no pre-seeded Run; review fixtures own business evidence."""
     config = required_broker
-    physical = physical_topic_v2(EVENTS, "TRANSACTION", "ai.mysql", "m3-1")
+    physical = owned_broker_physical(EVENTS, "ai.mysql")
     credentials, observer_credentials = config["ai"], config["observer"]
     messages, failures = {}, []
     empty_poll = asyncio.Event()
@@ -537,7 +547,23 @@ async def governance_broker(host, required_broker):
             credentials["username"],
             credentials["password"],
             "ai.mysql",
-            (TransactionRoute(EVENTS, physical, "m3-1"),),
+            (
+                TransactionRoute(
+                    EVENTS,
+                    physical,
+                    "m3-1",
+                    naming_scheme=owned_broker_routes()
+                    .publish_route(
+                        RouteKey(
+                            EVENTS,
+                            "TRANSACTION",
+                            "ai.mysql" if EVENTS == EVENTS else "qs.mysql",
+                            "m3-1",
+                        )
+                    )
+                    .naming_scheme,
+                ),
+            ),
             Limits(sends=4, check_workers=1, check_queue=16),
         ),
         host.store,
@@ -584,17 +610,7 @@ async def governance_broker(host, required_broker):
             config["endpoint"],
             observer_credentials["username"],
             observer_credentials["password"],
-            (
-                RouteBinding(
-                    EVENTS,
-                    _OBSERVER,
-                    physical,
-                    consumer_group_v2(EVENTS, _OBSERVER),
-                    "TRANSACTION",
-                    "ai.mysql",
-                    "m3-1",
-                ),
-            ),
+            (owned_broker_route(EVENTS, _OBSERVER, "ai.mysql"),),
             max_in_flight=1,
         ),
         EVENTS,
@@ -609,7 +625,7 @@ async def governance_broker(host, required_broker):
         reserved = await host.store.lookup(operation.intent.request)
         assert reserved is not None
         _, value = read_evaluation_state_plan(
-            operation.intent, reserved.execution.plan, route_resolver=legacy_routes()
+            operation.intent, reserved.execution.plan, route_resolver=owned_broker_routes()
         )
         message_id = value.envelope().message_id
         async with asyncio.timeout(60):
@@ -690,7 +706,7 @@ async def test_actual_governance_finalize_reopen_halves_and_lost_final_reply(
                 await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
                 owned = b.host.executions[-1]
                 _, first = read_evaluation_state_plan(
-                    operation.intent, owned.plan, route_resolver=legacy_routes()
+                    operation.intent, owned.plan, route_resolver=owned_broker_routes()
                 )
                 b.empty_poll.clear()
                 await asyncio.wait_for(b.empty_poll.wait(), timeout=20)
@@ -776,7 +792,7 @@ async def test_actual_review_full35_rpc_half_gate_first_clocks_and_wire(
         await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
         owned = b.host.executions[-1]
         _, first_facts, first = read_review_state_plan(
-            incoming, owned.plan, route_resolver=legacy_routes()
+            incoming, owned.plan, route_resolver=owned_broker_routes()
         )
         b.empty_poll.clear()
         await asyncio.wait_for(b.empty_poll.wait(), timeout=20)
@@ -816,7 +832,9 @@ async def test_actual_review_source_conflict_rolls_back_prepared_half(
     try:
         await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
         owned = b.host.executions[-1]
-        _, _, first = read_review_state_plan(incoming, owned.plan, route_resolver=legacy_routes())
+        _, _, first = read_review_state_plan(
+            incoming, owned.plan, route_resolver=owned_broker_routes()
+        )
         async with tx.open() as db:
             await db.connection(execution_options={"isolation_level": "REPEATABLE READ"})
             await accept_reviews(db, scope, version, incoming.values)
@@ -853,7 +871,9 @@ async def test_actual_correction_first_wire_final_unknown_and_replay_after_final
     try:
         await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
         owned = b.host.executions[-1]
-        facts, first = read_correction_plan(operation, owned.plan, route_resolver=legacy_routes())
+        facts, first = read_correction_plan(
+            operation, owned.plan, route_resolver=owned_broker_routes()
+        )
         b.empty_poll.clear()
         await asyncio.wait_for(b.empty_poll.wait(), timeout=20)
         assert first.envelope().message_id not in b.messages
@@ -919,7 +939,7 @@ async def test_actual_correction_source_conflict_rolls_back_prepared_half(
     try:
         await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
         owned = b.host.executions[-1]
-        _, first = read_correction_plan(operation, owned.plan, route_resolver=legacy_routes())
+        _, first = read_correction_plan(operation, owned.plan, route_resolver=owned_broker_routes())
         await original.correct_review(**{**args, "command_id": str(uuid4())})
         competing = await evaluation_rows(tx, scope.run_id)
         b.runtime.release.set()
@@ -979,7 +999,7 @@ async def test_actual_solution_prepare_rpc_half_gate_first_receipt_and_final_unk
         await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
         owned = b.host.executions[-1]
         _, facts, first = read_preparation_plan(
-            incoming, owned.plan, route_resolver=legacy_routes()
+            incoming, owned.plan, route_resolver=owned_broker_routes()
         )
         b.empty_poll.clear()
         await asyncio.wait_for(b.empty_poll.wait(), timeout=20)
@@ -1048,7 +1068,9 @@ async def test_actual_solution_source_conflict_rolls_back_prepared_half(
     try:
         await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
         owned = b.host.executions[-1]
-        _, _, first = read_preparation_plan(incoming, owned.plan, route_resolver=legacy_routes())
+        _, _, first = read_preparation_plan(
+            incoming, owned.plan, route_resolver=owned_broker_routes()
+        )
         competing = await previous.apply(
             scope, solution_id, replace(command, command_id=uuid4(), reason="并发旧准备"), at
         )
@@ -1141,7 +1163,9 @@ async def test_actual_resolution_rpc_half_gate_first_audit_and_final_unknown(
     try:
         await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
         owned = b.host.executions[-1]
-        facts, first = read_resolution_plan(operation, owned.plan, route_resolver=legacy_routes())
+        facts, first = read_resolution_plan(
+            operation, owned.plan, route_resolver=owned_broker_routes()
+        )
         frozen, _ = ResolutionStateOperation.from_facts(facts)
         b.empty_poll.clear()
         await asyncio.wait_for(b.empty_poll.wait(), timeout=20)
@@ -1203,7 +1227,7 @@ async def test_actual_resolution_source_conflict_rolls_back_prepared_half(
     try:
         await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
         owned = b.host.executions[-1]
-        _, first = read_resolution_plan(operation, owned.plan, route_resolver=legacy_routes())
+        _, first = read_resolution_plan(operation, owned.plan, route_resolver=owned_broker_routes())
         await MySQLEvaluationManagement(p.tx).resolve(
             p.scope, p.state.version, replace(value, decision="cancel_run"), confirm=True
         )
@@ -1253,7 +1277,7 @@ async def _actual_serial_dispatch(b, ready, monkeypatch, *, semantic):
         signing_key=b.host.keys["ai.sign"],
         recipient_key=b.host.keys["qs.encrypt"],
         clock=lambda: AT + timedelta(seconds=1),
-        route_resolver=legacy_routes(),
+        route_resolver=owned_broker_routes(),
     )
     _, expected = await planner.candidate(run_id, version, 1, "worker:real-serial")
     pool = ModelCapacity({expected.route.provider: ProviderCapacity(2, 1)}, 1)
@@ -1268,7 +1292,7 @@ async def _actual_serial_dispatch(b, ready, monkeypatch, *, semantic):
         await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
         owned = b.host.executions[-1]
         _, operation, first = read_worker_dispatch_plan(
-            intent, owned.plan, route_resolver=legacy_routes()
+            intent, owned.plan, route_resolver=owned_broker_routes()
         )
         b.empty_poll.clear()
         await asyncio.wait_for(b.empty_poll.wait(), timeout=20)
@@ -1422,7 +1446,14 @@ async def test_actual_default_transport_and_worker_share_sender_root_and_shutdow
         files[name] = str(path)
     credentials, routes = tmp_path / "credentials.json", tmp_path / "routes.json"
     credentials.write_text(json.dumps(config["ai"]))
-    routes.write_text(json.dumps({"version": 2, "routes": config["routes"]}))
+    routes.write_text(
+        json.dumps(
+            {
+                "version": 3 if any(r.get("naming_scheme") for r in config["routes"]) else 2,
+                "routes": config["routes"],
+            }
+        )
+    )
     credentials.chmod(0o600)
     routes.chmod(0o600)
     settings = default_transport_settings(
@@ -1566,7 +1597,7 @@ async def test_actual_default_transport_and_worker_share_sender_root_and_shutdow
                 passed("default_assembly_original_worker_preflight")
                 passed("default_assembly_exact_archive_witness")
                 _, event_value = read_evaluation_state_plan(
-                    intent, owned.execution.plan, route_resolver=legacy_routes()
+                    intent, owned.execution.plan, route_resolver=owned_broker_routes()
                 )
                 event_header = event_value.envelope()
                 ack = prepare(
@@ -1869,7 +1900,7 @@ async def _recovery_half_gate(b, tx, run_id, invoke, monkeypatch, label, unchang
         owned = b.host.executions[-1]
         facts = EvaluationStateFacts.decode(decode_branch(owned.plan.branches[0]).context)
         _, archive = read_evaluation_state_plan(
-            facts.intent, owned.plan, route_resolver=legacy_routes()
+            facts.intent, owned.plan, route_resolver=owned_broker_routes()
         )
         b.empty_poll.clear()
         await asyncio.wait_for(b.empty_poll.wait(), timeout=20)
@@ -2289,7 +2320,7 @@ async def test_actual_aborted_dispatch_requires_explicit_replan_and_one_capacity
             recipient_key=b.host.keys["qs.encrypt"],
             limit=3,
             clock=lambda: AT,
-            route_resolver=legacy_routes(),
+            route_resolver=owned_broker_routes(),
         )
     else:
         planner = WorkerDispatchPlanner(
@@ -2298,7 +2329,7 @@ async def test_actual_aborted_dispatch_requires_explicit_replan_and_one_capacity
             signing_key=b.host.keys["ai.sign"],
             recipient_key=b.host.keys["qs.encrypt"],
             clock=lambda: AT,
-            route_resolver=legacy_routes(),
+            route_resolver=owned_broker_routes(),
         )
     _, inputs = await planner.candidate(run_id, 3, 1, "worker:recovery")
     pool = ModelCapacity({inputs.route.provider: ProviderCapacity(2, 1)}, 1)
@@ -2399,7 +2430,7 @@ async def test_actual_serial_dispatch_source_conflict_rolls_back_without_model_c
         signing_key=b.host.keys["ai.sign"],
         recipient_key=b.host.keys["qs.encrypt"],
         clock=lambda: AT + timedelta(seconds=1),
-        route_resolver=legacy_routes(),
+        route_resolver=owned_broker_routes(),
     )
     dispatch = WorkerDispatchSender(
         b.host.tx, b.host.archives, b.runtime, schemas, "worker:real-serial", planner
@@ -2410,7 +2441,9 @@ async def test_actual_serial_dispatch_source_conflict_rolls_back_without_model_c
     try:
         await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
         owned = b.host.executions[-1]
-        _, _, first = read_worker_dispatch_plan(intent, owned.plan, route_resolver=legacy_routes())
+        _, _, first = read_worker_dispatch_plan(
+            intent, owned.plan, route_resolver=owned_broker_routes()
+        )
         await MySQLEvaluationManagement(tx).cancel(
             ManagementScope(run_id, 1, 42),
             3,
@@ -2519,7 +2552,7 @@ async def _actual_interpretation_finish(b, kind, monkeypatch):
         await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
         owned = b.host.executions[-1]
         facts, first, question_id = read_finish_plan(
-            p.incoming, p.intent, owned.plan, route_resolver=legacy_routes()
+            p.incoming, p.intent, owned.plan, route_resolver=owned_broker_routes()
         )
         message_id = first.envelope().message_id
         b.empty_poll.clear()
@@ -2646,7 +2679,7 @@ async def test_actual_interpretation_finish_source_conflict_rolls_back_without_n
         await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
         owned = b.host.executions[-1]
         _, first, _ = read_finish_plan(
-            p.incoming, p.intent, owned.plan, route_resolver=legacy_routes()
+            p.incoming, p.intent, owned.plan, route_resolver=owned_broker_routes()
         )
         previous = b.host.tx.database.state_events
         b.host.tx.database.state_events = None
@@ -2719,7 +2752,7 @@ async def _actual_interpretation_claim(b, exhausted, monkeypatch):
     try:
         await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
         owned = b.host.executions[-1]
-        facts, first = read_claim_plan(source, 60, owned.plan, route_resolver=legacy_routes())
+        facts, first = read_claim_plan(source, 60, owned.plan, route_resolver=owned_broker_routes())
         message_id = first.envelope().message_id
         b.empty_poll.clear()
         await asyncio.wait_for(b.empty_poll.wait(), timeout=20)
@@ -2811,7 +2844,7 @@ async def _actual_claim_rollback(b, *, quota):
     try:
         await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
         owned = b.host.executions[-1]
-        _, first = read_claim_plan(source, 60, owned.plan, route_resolver=legacy_routes())
+        _, first = read_claim_plan(source, 60, owned.plan, route_resolver=owned_broker_routes())
         if not quota:
             previous = b.host.tx.database.state_events
             b.host.tx.database.state_events = None
@@ -2902,7 +2935,7 @@ async def test_actual_original_claim_scanner_first_plan_and_explicit_abort_retry
     try:
         await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
         owned = b.host.executions[-1]
-        _, first = read_claim_plan(source, 60, owned.plan, route_resolver=legacy_routes())
+        _, first = read_claim_plan(source, 60, owned.plan, route_resolver=owned_broker_routes())
         message_id = first.envelope().message_id
         b.empty_poll.clear()
         await asyncio.wait_for(b.empty_poll.wait(), timeout=20)
@@ -2956,7 +2989,7 @@ async def test_actual_original_claim_scanner_quota_defers_without_running_event(
     )
     assert await worker.claim(60) is None
     owned = b.host.executions[-1]
-    _, first = read_claim_plan(source, 60, owned.plan, route_resolver=legacy_routes())
+    _, first = read_claim_plan(source, 60, owned.plan, route_resolver=owned_broker_routes())
     assert await StoreChecker(b.host.store).check(owned.references[0]) == Decision.ROLLBACK
     after = await rows(b.host.kit, source.session.id)
     assert after[0] == before[0] and after[2:] == before[2:]
@@ -3010,7 +3043,7 @@ async def test_actual_explicit_finalization_retry_preserves_first_wire_and_durab
         owned = b.host.executions[-1]
         assert owned.plan == previous.execution.plan and owned.fence == previous.execution.fence + 1
         _, first, question_id = read_finish_plan(
-            p.incoming, p.intent, owned.plan, route_resolver=legacy_routes()
+            p.incoming, p.intent, owned.plan, route_resolver=owned_broker_routes()
         )
         message_id = first.envelope().message_id
         b.empty_poll.clear()
@@ -3114,7 +3147,7 @@ async def _serial_terminal_seed(b, ready, *, unknown=False, semantic=False):
             b.host.tx,
             signing_key=b.host.keys["ai.sign"],
             recipient_key=b.host.keys["qs.encrypt"],
-            route_resolver=legacy_routes(),
+            route_resolver=owned_broker_routes(),
         )
         sender = SerialSemanticSender(b.host.tx, b.host.archives, b.runtime, planner)
     else:
@@ -3123,7 +3156,7 @@ async def _serial_terminal_seed(b, ready, *, unknown=False, semantic=False):
             routes,
             signing_key=b.host.keys["ai.sign"],
             recipient_key=b.host.keys["qs.encrypt"],
-            route_resolver=legacy_routes(),
+            route_resolver=owned_broker_routes(),
         )
         sender = SerialGenerationSender(b.host.tx, b.host.archives, b.runtime, planner)
     intent = await planner.intent(reference)
@@ -3167,9 +3200,11 @@ async def test_actual_serial_generation_terminal_half_gate_and_first_response(
         await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
         owned = b.host.executions[-1]
         facts, operation = read_serial_generation_plan(
-            p.intent, owned.plan, route_resolver=legacy_routes()
+            p.intent, owned.plan, route_resolver=owned_broker_routes()
         )
-        _, first = read_evaluation_state_plan(p.intent, owned.plan, route_resolver=legacy_routes())
+        _, first = read_evaluation_state_plan(
+            p.intent, owned.plan, route_resolver=owned_broker_routes()
+        )
         b.empty_poll.clear()
         await asyncio.wait_for(b.empty_poll.wait(), timeout=20)
         assert first.envelope().message_id not in b.messages
@@ -3237,10 +3272,10 @@ async def test_actual_serial_terminal_cancel_requires_explicit_old_abort_replan(
         await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
         previous = b.host.executions[-1]
         _, original_op = read_serial_generation_plan(
-            p.intent, previous.plan, route_resolver=legacy_routes()
+            p.intent, previous.plan, route_resolver=owned_broker_routes()
         )
         _, old_wire = read_evaluation_state_plan(
-            p.intent, previous.plan, route_resolver=legacy_routes()
+            p.intent, previous.plan, route_resolver=owned_broker_routes()
         )
         await MySQLEvaluationManagement(p.tx).cancel(
             ManagementScope(p.run_id, 1, 42),
@@ -3263,10 +3298,10 @@ async def test_actual_serial_terminal_cancel_requires_explicit_old_abort_replan(
         await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
         current = b.host.executions[-1]
         facts, operation = read_serial_generation_plan(
-            p.intent, current.plan, route_resolver=legacy_routes()
+            p.intent, current.plan, route_resolver=owned_broker_routes()
         )
         _, first = read_evaluation_state_plan(
-            p.intent, current.plan, route_resolver=legacy_routes()
+            p.intent, current.plan, route_resolver=owned_broker_routes()
         )
         assert current.plan.digest != previous.plan.digest and facts.source_version == 6
         assert (
@@ -3325,9 +3360,11 @@ async def test_actual_serial_semantic_terminal_half_gate_and_first_response(
         await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
         owned = b.host.executions[-1]
         facts, operation = read_serial_semantic_plan(
-            p.intent, owned.plan, route_resolver=legacy_routes()
+            p.intent, owned.plan, route_resolver=owned_broker_routes()
         )
-        _, first = read_evaluation_state_plan(p.intent, owned.plan, route_resolver=legacy_routes())
+        _, first = read_evaluation_state_plan(
+            p.intent, owned.plan, route_resolver=owned_broker_routes()
+        )
         b.empty_poll.clear()
         await asyncio.wait_for(b.empty_poll.wait(), timeout=20)
         assert first.envelope().message_id not in b.messages
@@ -3395,10 +3432,10 @@ async def test_actual_serial_semantic_cancel_requires_explicit_old_abort_replan(
         await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
         previous = b.host.executions[-1]
         _, original_op = read_serial_semantic_plan(
-            p.intent, previous.plan, route_resolver=legacy_routes()
+            p.intent, previous.plan, route_resolver=owned_broker_routes()
         )
         _, old_wire = read_evaluation_state_plan(
-            p.intent, previous.plan, route_resolver=legacy_routes()
+            p.intent, previous.plan, route_resolver=owned_broker_routes()
         )
         await MySQLEvaluationManagement(p.tx).cancel(
             ManagementScope(p.run_id, 1, 42),
@@ -3421,10 +3458,10 @@ async def test_actual_serial_semantic_cancel_requires_explicit_old_abort_replan(
         await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
         current = b.host.executions[-1]
         facts, operation = read_serial_semantic_plan(
-            p.intent, current.plan, route_resolver=legacy_routes()
+            p.intent, current.plan, route_resolver=owned_broker_routes()
         )
         _, first = read_evaluation_state_plan(
-            p.intent, current.plan, route_resolver=legacy_routes()
+            p.intent, current.plan, route_resolver=owned_broker_routes()
         )
         assert current.plan.digest != previous.plan.digest and facts.source_version == 9
         assert (
@@ -3541,7 +3578,7 @@ async def test_actual_candidate_graph_halves_first_response_and_final_unknown(
             recipient_key=b.host.keys["qs.encrypt"],
             limit=3,
             clock=lambda: at,
-            route_resolver=legacy_routes(),
+            route_resolver=owned_broker_routes(),
         ),
     )
     completion = CandidateCompletionSender(
@@ -3552,7 +3589,7 @@ async def test_actual_candidate_graph_halves_first_response_and_final_unknown(
             b.host.tx,
             signing_key=b.host.keys["ai.sign"],
             recipient_key=b.host.keys["qs.encrypt"],
-            route_resolver=legacy_routes(),
+            route_resolver=owned_broker_routes(),
         ),
     )
     runtime = CandidateRuntime(dispatch, completion)
@@ -3598,7 +3635,7 @@ async def test_actual_candidate_graph_halves_first_response_and_final_unknown(
         await barrier(b.runtime.entered)
         intent = candidate_dispatch_intent(run_id, version, 1)
         _, _, first_dispatch = read_candidate_dispatch_plan(
-            intent, b.host.executions[-1].plan, route_resolver=legacy_routes()
+            intent, b.host.executions[-1].plan, route_resolver=owned_broker_routes()
         )
         b.empty_poll.clear()
         await asyncio.wait_for(b.empty_poll.wait(), timeout=20)
@@ -3625,10 +3662,10 @@ async def test_actual_candidate_graph_halves_first_response_and_final_unknown(
 
             facts = EvaluationStateFacts.decode(decode_branch(owned.plan.branches[0]).context)
             _, operation = read_candidate_completion_plan(
-                facts.intent, owned.plan, route_resolver=legacy_routes()
+                facts.intent, owned.plan, route_resolver=owned_broker_routes()
             )
             _, first = read_evaluation_state_plan(
-                facts.intent, owned.plan, route_resolver=legacy_routes()
+                facts.intent, owned.plan, route_resolver=owned_broker_routes()
             )
             b.empty_poll.clear()
             await asyncio.wait_for(b.empty_poll.wait(), timeout=20)
