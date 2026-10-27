@@ -20,6 +20,7 @@ from qs_ai.infrastructure.workflow_transport.messaging import (
 )
 from qs_ai.infrastructure.workflow_transport.mq_receiver import CommandReceiver
 from qs_ai.infrastructure.workflow_transport.payloads import PayloadResolver
+from tests.route_fixtures import legacy_routes
 
 COMMAND_ID = "b1941896-e7df-4b9d-9417-b80bd05276b9"
 EVENT_ID = "279e6c52-5519-49ec-80a0-4b63122de9cb"
@@ -86,12 +87,13 @@ def received(message):
     return Received(decode(message.wire), message.wire, "physical", "127.0.0.1:4150", 1, 0)
 
 
-def receiver(transactions, store, keys, owner):
+def receiver(transactions, store, keys, owner, *, routes=None):
     return CommandReceiver(
         transactions,
         store,
         owner,
         PayloadResolver({"qs-server": object()}),
+        routes=routes if routes is not None else legacy_routes(),
         decrypt_keys={"ai.encrypt": keys["ai.encrypt"]},
         trusted_signers={"qs.sign": TrustedSigner("qs-server", keys["qs.sign"])},
         signing_key=keys["ai.sign"],

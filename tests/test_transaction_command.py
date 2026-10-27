@@ -16,6 +16,7 @@ from qs_ai.infrastructure.workflow_transport.messaging import (
     MessagingContractError,
 )
 from qs_ai.infrastructure.workflow_transport.transaction_command import FrozenCommandInput
+from tests.route_fixtures import legacy_routes
 
 
 def command_fixture(kind=pb.START):
@@ -59,7 +60,7 @@ def command_fixture(kind=pb.START):
 )
 def test_all_original_command_families_bind_the_same_canonical_owner_scope(kind):
     envelope, body, wire = command_fixture(kind)
-    frozen = FrozenCommandInput.from_authenticated(envelope, body, wire)
+    frozen = FrozenCommandInput.from_authenticated(envelope, body, wire, routes=legacy_routes())
     assert frozen.organization_id == "7"
     assert frozen.request.owner == "ai.mysql" and frozen.request.scope == "org:7"
     assert frozen.body_message().WhichOneof("value") == FIELDS[kind]
@@ -68,7 +69,7 @@ def test_all_original_command_families_bind_the_same_canonical_owner_scope(kind)
 def test_original_command_owns_bytes_and_has_no_generated_receipt_input():
     envelope, body, wire = command_fixture()
     mutable = bytearray(body)
-    frozen = FrozenCommandInput.from_authenticated(envelope, mutable, wire)
+    frozen = FrozenCommandInput.from_authenticated(envelope, mutable, wire, routes=legacy_routes())
     request = frozen.request
     assert (request.owner, request.scope, request.key) == (
         "ai.mysql",
@@ -86,9 +87,9 @@ def test_original_command_owns_bytes_and_has_no_generated_receipt_input():
 
 def test_changed_original_wire_keeps_business_key_but_conflicts_in_input_hash():
     envelope, body, wire = command_fixture()
-    first = FrozenCommandInput.from_authenticated(envelope, body, wire)
+    first = FrozenCommandInput.from_authenticated(envelope, body, wire, routes=legacy_routes())
     other = encode(Envelope(envelope.message_id, b"different protected wire", dict(METADATA)))
-    changed = FrozenCommandInput.from_authenticated(envelope, body, other)
+    changed = FrozenCommandInput.from_authenticated(envelope, body, other, routes=legacy_routes())
     assert first.request.key_digest == changed.request.key_digest
     assert first.request.input_hash != changed.request.input_hash
 
@@ -124,13 +125,13 @@ def test_invalid_command_input_cannot_be_frozen(bad):
     else:
         wire = encode(Envelope(envelope.message_id, b"opaque", {}))
     with pytest.raises(MessagingContractError):
-        FrozenCommandInput.from_authenticated(envelope, body, wire)
+        FrozenCommandInput.from_authenticated(envelope, body, wire, routes=legacy_routes())
 
 
 @pytest.mark.parametrize("field", ["header", "body", "wire"])
 def test_original_command_refuses_empty_persisted_input(field):
     envelope, body, wire = command_fixture()
-    frozen = FrozenCommandInput.from_authenticated(envelope, body, wire)
+    frozen = FrozenCommandInput.from_authenticated(envelope, body, wire, routes=legacy_routes())
     with pytest.raises(MessagingContractError):
         replace(frozen, **{field: b""})
     with pytest.raises(MessagingContractError, match="original command bytes required"):

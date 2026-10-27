@@ -10,6 +10,7 @@ from reliable_messaging.wire import Envelope
 
 from qs_ai.infrastructure.workflow_transport.messaging import ACKS
 from qs_ai.infrastructure.workflow_transport.mq_receiver import CommandReceiver
+from tests.route_fixtures import legacy_routes
 
 
 def boundary():
@@ -18,6 +19,7 @@ def boundary():
         object(),
         object(),
         object(),
+        routes=legacy_routes(),
         decrypt_keys={},
         trusted_signers={},
         signing_key=object(),

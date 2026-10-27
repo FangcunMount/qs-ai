@@ -39,6 +39,7 @@ from tests.integration.test_transaction_start_admission import (
 )
 from tests.integration.test_transaction_start_admission import reserve, rows
 from tests.messaging_fixtures import keys as keys
+from tests.route_fixtures import legacy_routes
 from tests.transaction_fixtures import admission, command
 
 pytestmark = pytest.mark.integration
@@ -108,7 +109,9 @@ def incoming(host, initial, action, *, original_occurred_at=""):
         decrypt_keys={"ai.encrypt": host.keys["ai.encrypt"]},
         trusted_signers={"qs.sign": TrustedSigner("qs-server", host.keys["qs.sign"])},
     )
-    value = FrozenCommandInput.from_authenticated(header, prepared.body, prepared.wire)
+    value = FrozenCommandInput.from_authenticated(
+        header, prepared.body, prepared.wire, routes=legacy_routes()
+    )
     host.messages.append(value)
     return value
 

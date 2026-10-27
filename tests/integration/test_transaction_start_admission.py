@@ -51,6 +51,7 @@ from qs_ai.infrastructure.workflow_transport.transaction_command import (
 )
 from tests.integration.test_interpretation import kit as kit
 from tests.messaging_fixtures import keys as keys
+from tests.route_fixtures import legacy_routes
 from tests.transaction_fixtures import admission, start_message
 
 pytestmark = pytest.mark.integration
@@ -142,7 +143,9 @@ def incoming(host):
         decrypt_keys={"ai.encrypt": host.keys["ai.encrypt"]},
         trusted_signers={"qs.sign": TrustedSigner("qs-server", host.keys["qs.sign"])},
     )
-    value = FrozenCommandInput.from_authenticated(header, message.body, message.wire)
+    value = FrozenCommandInput.from_authenticated(
+        header, message.body, message.wire, routes=legacy_routes()
+    )
     host.messages.append(value)
     return value
 

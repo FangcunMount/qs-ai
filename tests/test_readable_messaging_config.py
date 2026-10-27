@@ -126,3 +126,35 @@ def test_v3_sender_registers_only_active_owner_topics_and_keeps_history_passive(
         == "qs-ai-acks-v1--tx--qs-mysql--m3-1"
     )
     assert not runtime.stats()["ready"]
+
+
+def test_admission_first_wire_and_input_identity_survive_exact_historical_mapping(tmp_path):
+    from reliable_messaging.transport import RouteResolver
+
+    from qs_ai.infrastructure.workflow_transport.transaction_command import (
+        freeze_admission_plan,
+        read_admission_plan,
+    )
+    from tests.test_admission_plan import fixture
+
+    incoming, receipt, state = fixture()
+    old = freeze_admission_plan(
+        incoming, "353a53c4-9ede-4701-88c5-7e626b8cec30", ((receipt, 2), (state, 2))
+    )
+    config = read_rocketmq_config(readable_options(tmp_path))
+    routes = RouteResolver(config.routes, config.historical_routes)
+    current_input = replace(incoming, routes=routes)
+    assert current_input.request == incoming.request
+    assert current_input == incoming  # route capability is not business input
+    current = freeze_admission_plan(current_input, old.operation_id, ((receipt, 2), (state, 2)))
+    assert all(b.physical_topic == "qs-ai-events-v1--tx--ai-mysql--m3-1" for b in current.branches)
+    assert [b.wire for b in current.branches] == [b.wire for b in old.branches]
+    assert current.digest != old.digest
+    assert [a.wire for a in read_admission_plan(current_input, old)] == [receipt.wire, state.wire]
+    assert [a.wire for a in read_admission_plan(current_input, current)] == [
+        receipt.wire,
+        state.wire,
+    ]
+    active_only = replace(current_input, routes=RouteResolver(config.routes))
+    with pytest.raises(ValueError):
+        read_admission_plan(active_only, old)

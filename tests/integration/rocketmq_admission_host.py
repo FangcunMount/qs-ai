@@ -87,6 +87,7 @@ from tests.integration.test_transaction_start_admission import (
 )
 from tests.messaging_fixtures import keys as keys
 from tests.messaging_fixtures import receiver
+from tests.route_fixtures import legacy_routes
 from tests.transaction_fixtures import admission, start_message
 
 pytestmark = pytest.mark.integration
@@ -472,7 +473,9 @@ def frozen_start(host):
         decrypt_keys={"ai.encrypt": host.keys["ai.encrypt"]},
         trusted_signers={"qs.sign": TrustedSigner("qs-server", host.keys["qs.sign"])},
     )
-    return FrozenCommandInput.from_authenticated(header, value.body, value.wire)
+    return FrozenCommandInput.from_authenticated(
+        header, value.body, value.wire, routes=legacy_routes()
+    )
 
 
 @pytest.mark.usefixtures("published_configuration")

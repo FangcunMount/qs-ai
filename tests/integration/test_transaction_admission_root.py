@@ -27,6 +27,7 @@ from qs_ai.infrastructure.workflow_transport.transaction_command import (
     freeze_admission_plan,
 )
 from tests.integration.test_transaction_schema import installed as installed
+from tests.route_fixtures import legacy_routes
 
 pytestmark = pytest.mark.integration
 
@@ -55,7 +56,9 @@ def frozen_held(context=b""):
         signing_key=qs_sign,
         recipient_key=ai_key,
     )
-    incoming = FrozenCommandInput.from_authenticated(command.envelope, command.body, command.wire)
+    incoming = FrozenCommandInput.from_authenticated(
+        command.envelope, command.body, command.wire, routes=legacy_routes()
+    )
     receipt = prepare(
         pb.COMMAND_RECEIPT,
         str(uuid4()),

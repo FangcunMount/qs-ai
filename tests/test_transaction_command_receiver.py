@@ -33,10 +33,10 @@ from qs_ai.infrastructure.workflow_transport.transaction_command import (
     read_admission_plan,
 )
 from qs_ai.infrastructure.workflow_transport.transaction_receiver import (
-    COMMAND_TOPIC,
     CommandTransactionPending,
     TransactionCommandReceiver,
 )
+from tests.route_fixtures import COMMAND_TOPIC, legacy_routes
 from tests.test_admission_plan import fixture as messages
 
 
@@ -64,6 +64,7 @@ def fixture():
         technical_failure=AsyncMock(),
     )
     boundary = SimpleNamespace(
+        routes=legacy_routes(),
         transactions=SimpleNamespace(open=opened),
         store=store,
         admission=base,

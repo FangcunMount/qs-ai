@@ -140,6 +140,7 @@ class MessagingRuntime:
                 store,
                 admission,
                 resolver,
+                routes=services.runtime.routing,
                 decrypt_keys=decrypt,
                 trusted_signers=signers,
                 signing_key=signing,

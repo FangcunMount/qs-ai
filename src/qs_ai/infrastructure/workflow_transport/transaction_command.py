@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 
 from google.protobuf.message import DecodeError  # type: ignore[import-untyped]
 from reliable_messaging.transaction import FrozenPlan, Request
-from reliable_messaging.transport import physical_topic_v2
+from reliable_messaging.transport import RouteKey, RouteResolver
 from reliable_messaging.wire import decode
 
 from qs_ai.contracts.workflow import messaging_pb2 as pb
@@ -59,8 +59,12 @@ class FrozenCommandInput:
     header: bytes = field(repr=False)
     body: bytes = field(repr=False)
     wire: bytes = field(repr=False)
+    # Host-owned transient capability, excluded from identity, repr and codecs.
+    routes: RouteResolver = field(repr=False, compare=False)
 
     def __post_init__(self) -> None:
+        if not isinstance(self.routes, RouteResolver):
+            raise MessagingContractError("Explicit trusted command routes required")
         # Own even a caller's bytearray/memoryview; never retain mutable protobuf.
         for name in ("header", "body", "wire"):
             value = getattr(self, name)
@@ -83,9 +87,9 @@ class FrozenCommandInput:
 
     @classmethod
     def from_authenticated(
-        cls, envelope: pb.MessagingEnvelope, body: bytes, wire: bytes
+        cls, envelope: pb.MessagingEnvelope, body: bytes, wire: bytes, *, routes: RouteResolver
     ) -> "FrozenCommandInput":
-        return cls(envelope.SerializeToString(deterministic=True), body, wire)
+        return cls(envelope.SerializeToString(deterministic=True), body, wire, routes)
 
     def envelope(self) -> pb.MessagingEnvelope:
         envelope = pb.MessagingEnvelope()
@@ -136,7 +140,9 @@ def freeze_admission_plan(
     The v1 archive remains byte-compatible. This function never creates IDs,
     clocks, connections, half messages or a local executor.
     """
-    physical = physical_topic_v2(EVENTS, "TRANSACTION", "ai.mysql", "m3-1")
+    physical = incoming.routes.publish_route(
+        RouteKey(EVENTS, "TRANSACTION", "ai.mysql", "m3-1")
+    ).physical_topic
     request = incoming.request
     branches = tuple(
         freeze_branch(
@@ -164,7 +170,6 @@ def read_admission_plan(
 ) -> tuple[FrozenArchive, ...]:
     """Read the durable winner, binding every first wire to the original command."""
     incoming.request.match(plan)
-    physical = physical_topic_v2(EVENTS, "TRANSACTION", "ai.mysql", "m3-1")
     command = incoming.envelope()
     expected_state = (
         pb.EVALUATION_STATE
@@ -175,11 +180,16 @@ def read_admission_plan(
     receipts: list[pb.MessagingCommandReceipt] = []
     states: list[tuple[FrozenArchive, pb.MessagingBody]] = []
     for branch in plan.branches:
+        try:
+            incoming.routes.recorded_route(
+                RouteKey(EVENTS, "TRANSACTION", "ai.mysql", "m3-1"), branch.physical_topic
+            )
+        except ValueError:
+            raise MessagingContractError("Admission plan route outside trusted manifest") from None
         value = decode_branch(branch)
         envelope = value.envelope()
         if (
-            branch.physical_topic != physical
-            or branch.branch_id != envelope.message_id
+            branch.branch_id != envelope.message_id
             or str(value.organization_id) != incoming.organization_id
             or value.ordered
             or not value.requires_receipt

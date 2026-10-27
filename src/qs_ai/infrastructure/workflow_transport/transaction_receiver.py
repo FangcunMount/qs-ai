@@ -22,7 +22,7 @@ from reliable_messaging.transaction import (
     decide_local,
 )
 from reliable_messaging.transaction_mysql import MySQLTransactionStore
-from reliable_messaging.transport import Received, physical_topic_v2
+from reliable_messaging.transport import Received, RouteKey
 
 from qs_ai.contracts.workflow import messaging_pb2 as pb
 from qs_ai.infrastructure.persistence.mysql.transaction_archive import TransactionArchive
@@ -47,8 +47,6 @@ from qs_ai.infrastructure.workflow_transport.transaction_command import (
     FrozenCommandInput,
     read_admission_plan,
 )
-
-COMMAND_TOPIC = physical_topic_v2(COMMANDS, "TRANSACTION", "qs.mysql", "m3-1")
 
 
 class CommandTransactions(Protocol):
@@ -84,6 +82,9 @@ class TransactionCommandReceiver:
             runtime,
             archives,
         )
+        self._command_topic = boundary.routes.publish_route(
+            RouteKey(COMMANDS, "TRANSACTION", "qs.mysql", "m3-1")
+        ).physical_topic
         self._database_seconds = database_seconds
         # Constructors are inert. Host lifecycle owns clients/pool/loop and worker budgets.
         common: dict[str, Any] = {
@@ -186,7 +187,7 @@ class TransactionCommandReceiver:
         if (
             received.provider != "rocketmq"
             or received.logical_topic != COMMANDS
-            or received.physical_topic != COMMAND_TOPIC
+            or received.physical_topic != self._command_topic
         ):
             await self._boundary.isolate(received.wire, "transaction_route_mismatch")
             return
@@ -194,7 +195,9 @@ class TransactionCommandReceiver:
         if resolved is None:
             return
         envelope, raw, _ = resolved
-        incoming = FrozenCommandInput.from_authenticated(envelope, raw, received.wire)
+        incoming = FrozenCommandInput.from_authenticated(
+            envelope, raw, received.wire, routes=self._boundary.routes
+        )
         try:
             async with asyncio.timeout(self._database_seconds):
                 existing = await self._runtime.store.lookup(incoming.request)
@@ -258,7 +261,7 @@ class TransactionCommandReceiver:
         # An untrusted physical delivery count never authorizes a new plan,
         # retry, business call or technical-budget hold. Preserve for audit only.
         try:
-            original = failed_original(wire, COMMANDS, rocketmq_topic=COMMAND_TOPIC)
+            original = failed_original(wire, COMMANDS, rocketmq_topic=self._command_topic)
         except ValueError:
             await self._boundary.isolate(wire, "invalid_failure_wire")
             return
