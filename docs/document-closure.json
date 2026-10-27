@@ -1,6 +1,6 @@
 {
   "schema_version": "qs-ai-document-closure/v1",
-  "source_commit": "eaaf5a6b68d62fc12f60cdd2d0c0b952b9e27cc5",
+  "source_commit": "c00f6927efb1bf2d5c5b731a73bd2b5c7eda490a",
   "reviewed_on": "2026-10-27",
   "authority": "runtime composition > code > machine contracts/config/migrations > scoped tests > maintained prose > dated evidence/plans/archive",
   "source_catalog": {
@@ -429,7 +429,7 @@
     "tests/integration/rocketmq_paired_faults.py": "20e9337be493c07a719b05f4b60c4689698103c1e47c785c921ba825f3287a85",
     "tests/integration/rocketmq_paired_host.py": "525139d210480a2029db32fba5a5df317966bb1a22faba13f1115862e40944f2",
     "tests/integration/rocketmq_payload_host.py": "d9e906b60e67635c2dc8b4e288f7d61dfed078a1d9a01fd6096d63ff2573dc15",
-    "tests/integration/rocketmq_state_host.py": "03a6b7d895dc9cdf86435645a16761f991ff72ca0185979566db85bde58cf169",
+    "tests/integration/rocketmq_state_host.py": "819961ac8fce19d086c8ebea0ccc881bf9badf0dec0578bef5e3ab991859afd3",
     "tests/integration/test_artifact_acceptance.py": "357dd73f4a563f881386554b49e30719a9a207c013aa57fe5a37345a142ecddd",
     "tests/integration/test_artifact_identity.py": "434ecd5de77e4a20ec847c5c3c988f87116f625fe33e5ba51b3a96cc0fffcca2",
     "tests/integration/test_candidate_completion_gates.py": "2892859507b054bf79cc92384d903a69a1efceeb717ff11865bc0c5e24dcb43b",
