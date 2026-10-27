@@ -143,6 +143,7 @@ def test_worker_key_export_preserves_jwk_identity_and_recipient_public_boundary(
     from reliable_messaging.transaction import Binding
 
     from tests.integration.rocketmq_finalization_host import inputs
+    from tests.route_fixtures import legacy_routes
 
     keys = {k: jwk.JWK.generate(kty="EC", crv="P-256", kid=k) for k in ("ai.sign", "qs.encrypt")}
     host = SimpleNamespace(
@@ -157,6 +158,7 @@ def test_worker_key_export_preserves_jwk_identity_and_recipient_public_boundary(
         SimpleNamespace(endpoint="http://127.0.0.1:12346/responses"),
         tmp_path / "worker",
         pause=False,
+        routes=legacy_routes(),
     )
     value = json.loads(config.read_text())
     signing = jwk.JWK.from_json(Path(value["signing_key"]).read_text())
