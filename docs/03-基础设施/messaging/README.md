@@ -1,10 +1,10 @@
 # 事务消息、原业务事实与确认
 
-当前服务只接受RocketMQ和唯一`ai.mysql` owner；SDK固定已发布稳定版0.4.0。宿主持有数据库池、业务根事务和生命周期，构造/启动不执行DDL。旧NSQ provider、普通发布Outbox、MQRelay及历史结果转移执行器均已退役，开发隔离依赖和SDK通用兼容包不在生产清理范围内。
+当前服务只接受RocketMQ和唯一`ai.mysql` owner；本次可读命名候选固定已发布预发布0.5.0rc1，生产升级状态另由infra登记。宿主持有数据库池、业务根事务和生命周期，构造/启动不执行DDL。旧NSQ provider、普通发布Outbox、MQRelay及历史结果转移执行器均已退役，开发隔离依赖和SDK通用兼容包不在生产清理范围内。
 
 ## 事务装配与预算
 
-[MessagingRuntime](../../../src/qs_ai/bootstrap/messaging.py)先校验最终配置，再借用APP TransactionServices和原primary pool；JOSE、CA、凭据、v2 manifest和明确QS正文RPC地址均由宿主配置提供，不从消息属性选择数据库或动态发现端点。固定Python客户端要求原显式CA环境与配置一致；不能创建全局factory或跨线程共享AsyncSession。
+[MessagingRuntime](../../../src/qs_ai/bootstrap/messaging.py)先校验最终配置，再借用APP TransactionServices和原primary pool；JOSE、CA、凭据、固定v2/v3 manifest和明确QS正文RPC地址均由宿主配置提供，不从消息属性选择数据库或动态发现端点。固定Python客户端要求原显式CA环境与配置一致；不能创建全局factory或跨线程共享AsyncSession。
 
 | 逻辑方向 | 消息类型及owner | 原事务职责 |
 | --- | --- | --- |
@@ -12,7 +12,15 @@
 | AI→QS receipt/state | TRANSACTION，`ai.mysql` | AI业务事实、Inbox/状态、首次档案和witness |
 | QS→AI event ACK | TRANSACTION，`qs.mysql` | QS Inbox、业务投影、首次ACK及witness |
 
-三者使用显式v2物理路由和`m3-1` revision。普通通知不能占用这些事务Topic；owner预算、原store/epoch及资源以infra冻结配置为准。启动会登记完整owner事务Topic，空闲/暂停实例也运行Checker；`publisher_ready`是历史命名的owner启动Event，不代表新写准入或业务已交付。
+三者使用manifest指定的活动物理路由和`m3-1` revision。v3逐条固定`naming_scheme=readable-v1`，v2哈希规则保持原行为。普通通知不能占用这些事务Topic；owner预算、原store/epoch及资源以infra冻结配置为准。启动会登记完整owner事务Topic，空闲/暂停实例也运行Checker；`publisher_ready`是历史命名的owner启动Event，不代表新写准入或业务已交付。
+
+## 可读路由与历史证据
+
+[路由装配](../../../src/qs_ai/bootstrap/messaging_config.py)使用SDK统一解析器；[事务运行时](../../../src/qs_ai/bootstrap/transaction_messaging.py)持有该不可变解析器。command admission、ACK接收及解释/评估状态计划从同一可信配置选择活动Topic，不在宿主运行路径重算哈希。新计划仅选择活动路由；旧冻结计划只在精确登记的历史映射中读取，正文、上下文、原消息ID、first-wire和witness不改写。
+
+历史映射不增加发送、订阅、回查Topic或自动重试资格。缺映射、错误owner/正文/Topic均拒绝；Committed继续读取原结果，Unknown不授权重做模型。已中止执行若需跨路由继续，仍须宿主显式授权SDK Replan；本批真实故障及跨路由完整验收完成前，不把源码接入视为生产迁移已通过。
+
+本次[可读命名执行总表](https://github.com/FangcunMount/infra/blob/main/docs/server/rocketmq-readable-names-execution.md)单独登记实现、CI、制品、生产切换和system验收；M2/M3/M4原计数保持。
 
 ## 显式事务模式的默认装配与回执
 
