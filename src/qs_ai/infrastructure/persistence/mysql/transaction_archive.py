@@ -19,6 +19,7 @@ from reliable_messaging.transaction import (
     resolve,
 )
 from reliable_messaging.transaction_mysql import MySQLTransactionGuard, MySQLTransactionStore
+from reliable_messaging.transport import RouteKey, RouteResolver
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from qs_ai.contracts.workflow import messaging_pb2 as pb
@@ -92,9 +93,18 @@ class ArchiveGuard:
 
 
 class TransactionArchive:
-    def __init__(self, sessions: async_sessionmaker[AsyncSession], binding: Binding) -> None:
+    def __init__(
+        self,
+        sessions: async_sessionmaker[AsyncSession],
+        binding: Binding,
+        *,
+        routes: RouteResolver | None = None,
+    ) -> None:
         if binding.owner != "ai.mysql":
             raise BindingError("archive owner must be ai.mysql")
+        if routes is not None and not isinstance(routes, RouteResolver):
+            raise BindingError("trusted archive route resolver required")
+        self._routes = routes
         self._sessions = sessions
         self._store = MySQLTransactionStore(sessions, binding)
 
@@ -150,6 +160,14 @@ class TransactionArchive:
             or bytes(row["branch_key"]) != branch_key(ref.branch_id)
         ):
             raise MessagingContractError("archive exact reference differs")
+        if self._routes is not None:
+            try:
+                self._routes.recorded_route(
+                    RouteKey(ref.logical_topic, "TRANSACTION", ref.owner, ref.route_revision),
+                    ref.physical_topic,
+                )
+            except ValueError:
+                raise MessagingContractError("archive route outside trusted manifest") from None
         return value, ref
 
     async def payload(

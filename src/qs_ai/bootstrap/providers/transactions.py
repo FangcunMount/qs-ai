@@ -50,7 +50,7 @@ class TransactionProvider(Provider):
         try:
             yield TransactionServices(
                 runtime,
-                TransactionArchive(sessions, runtime.store.binding),
+                TransactionArchive(sessions, runtime.store.binding, routes=runtime.routing),
                 signing,
                 recipient,
                 "evaluation:" + str(uuid4()),

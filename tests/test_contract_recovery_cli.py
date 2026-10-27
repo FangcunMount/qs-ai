@@ -166,7 +166,7 @@ async def test_transaction_cli_closes_source_before_sender_and_drains_before_pri
     factory = Mock(side_effect=construct)
     monkeypatch.setattr(cli, "async_sessionmaker", lambda engine, **kw: sessions)
     monkeypatch.setattr(cli, "make_transaction_sender", factory)
-    monkeypatch.setattr(cli, "TransactionArchive", lambda *values: object())
+    monkeypatch.setattr(cli, "TransactionArchive", lambda *values, **kwargs: object())
 
     def key(path, *, private):
         assert path == ("signing-test-key" if private else "recipient-test-key")
