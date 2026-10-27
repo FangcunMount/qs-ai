@@ -40,7 +40,7 @@
 
 ## 正文RPC与不可公开的计划
 
-[ArchivePayloadReader](../../../src/qs_ai/infrastructure/persistence/mysql/transaction_archive.py)只读取当前精确Committed档案。RPC验证mTLS工作负载、收件方、组织、原消息ID、正文hash/长度；Prepared不公开。缺业务档案返回NotFound；已有档案但精确权威证明不可用，或数据库错误，保持Unavailable，不公开历史正文。原wire按bytes保留，不经JSON重建或重新加密。
+[ArchivePayloadReader](../../../src/qs_ai/infrastructure/persistence/mysql/transaction_archive.py)只读取当前精确Committed档案。RPC验证mTLS工作负载、收件方、组织、原消息ID、正文hash/长度；Prepared不公开。缺业务档案返回NotFound；已有档案但精确权威证明不可用，或数据库错误，保持Unavailable，不公开历史正文。原wire按bytes保留，不经JSON重建或重新加密。运行时的TransactionArchive另外绑定同一可信路由解析器，正文/回执的精确Reference必须命中活动或显式历史物理Topic；即使数据库行与witness结构完整，未登记的物理地址也不构成合法读取依据。底层不带解析器的构造仅供显式存储夹具，生产DI和维护装配均提供解析器。
 
 错误路由、NSQ或错误物理Topic不能进入当前ACK处理。RocketMQ物理failure只做受保护原消息校验与隔离，不能当作业务ACK；包装中的attempts不是逻辑业务预算。原始failure仍未被签名，必须继续验证内部JOSE正文。
 
