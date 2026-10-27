@@ -50,7 +50,7 @@ def calls_digest(values):
     return hashlib.sha256(raw.encode()).digest()
 
 
-async def incoming(host, value, *, original_occurred_at=""):
+async def incoming(host, value, *, original_occurred_at="", routes=None):
     async with host.tx.open() as db:
         original_request = await db.scalar(
             select(sessions.c.request_id).where(sessions.c.id == value.session_id)
@@ -85,7 +85,7 @@ async def incoming(host, value, *, original_occurred_at=""):
         trusted_signers={"qs.sign": TrustedSigner("qs-server", host.keys["qs.sign"])},
     )
     result = FrozenCommandInput.from_authenticated(
-        header, prepared.body, prepared.wire, routes=legacy_routes()
+        header, prepared.body, prepared.wire, routes=legacy_routes() if routes is None else routes
     )
     host.messages.append(result)
     return result

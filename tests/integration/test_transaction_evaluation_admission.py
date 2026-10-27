@@ -87,7 +87,9 @@ async def trigger_admin(host):
         await engine.dispose()
 
 
-def incoming(host, scope, kind=pb.EVALUATION_START, version=1, *, original_occurred_at=""):
+def incoming(
+    host, scope, kind=pb.EVALUATION_START, version=1, *, original_occurred_at="", routes=None
+):
     body = pb.MessagingBody()
     request = body.evaluation_start if kind == pb.EVALUATION_START else body.evaluation_cancel
     request.scope.CopyFrom(
@@ -114,7 +116,7 @@ def incoming(host, scope, kind=pb.EVALUATION_START, version=1, *, original_occur
         trusted_signers={"qs.sign": TrustedSigner("qs-server", host.keys["qs.sign"])},
     )
     value = FrozenCommandInput.from_authenticated(
-        header, prepared.body, prepared.wire, routes=legacy_routes()
+        header, prepared.body, prepared.wire, routes=legacy_routes() if routes is None else routes
     )
     host.messages.append(value)
     return value

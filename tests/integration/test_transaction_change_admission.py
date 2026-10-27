@@ -81,7 +81,7 @@ async def initial(host):
     return SimpleNamespace(**locals())
 
 
-def incoming(host, initial, action, *, original_occurred_at=""):
+def incoming(host, initial, action, *, original_occurred_at="", routes=None):
     command_id = str(uuid4())
     prepared = command(
         host.keys,
@@ -110,7 +110,7 @@ def incoming(host, initial, action, *, original_occurred_at=""):
         trusted_signers={"qs.sign": TrustedSigner("qs-server", host.keys["qs.sign"])},
     )
     value = FrozenCommandInput.from_authenticated(
-        header, prepared.body, prepared.wire, routes=legacy_routes()
+        header, prepared.body, prepared.wire, routes=legacy_routes() if routes is None else routes
     )
     host.messages.append(value)
     return value

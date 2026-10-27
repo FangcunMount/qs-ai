@@ -536,6 +536,7 @@ async def test_actual_change_original_root_over_broker(broker, action):
         first,
         action,
         original_occurred_at=datetime.now(UTC).isoformat(timespec="microseconds"),
+        routes=owned_broker_routes(),
     )
     await broker.send(incoming)
     await broker.complete(incoming)
@@ -550,6 +551,7 @@ async def test_actual_participant_retry_does_not_add_model_invocations(broker):
         broker.host,
         value,
         original_occurred_at=datetime.now(UTC).isoformat(timespec="microseconds"),
+        routes=owned_broker_routes(),
     )
     await broker.send(incoming)
     await broker.complete(incoming)
@@ -566,6 +568,7 @@ async def test_actual_evaluation_original_root_over_broker(broker, requested, ki
             scope,
             kind,
             original_occurred_at=datetime.now(UTC).isoformat(timespec="microseconds"),
+            routes=owned_broker_routes(),
         )
         await broker.send(incoming)
         await broker.complete(incoming)
