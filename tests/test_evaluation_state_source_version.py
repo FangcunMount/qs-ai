@@ -16,6 +16,7 @@ from qs_ai.infrastructure.workflow_transport.evaluation_state_plan import (
     freeze_evaluation_state_plan,
     read_evaluation_state_plan,
 )
+from tests.route_fixtures import legacy_routes
 from tests.test_evaluation_state_plan import fixture
 
 
@@ -31,7 +32,7 @@ def later():
     state = pb.EvaluationRuntimeState.FromString(f.state.SerializeToString())
     state.version, state.event_sequence = 4, 10
     first = f.seal(value=state, at=facts.at)
-    plan = freeze_evaluation_state_plan(facts, str(uuid4()), first)
+    plan = freeze_evaluation_state_plan(facts, str(uuid4()), first, route_resolver=legacy_routes())
     return f, facts, state, first, plan
 
 
@@ -59,7 +60,9 @@ def test_existing_v1_and_v2_context_bytes_remain_exact():
 def test_later_source_owns_frozen_final_version_and_exact_sequence_without_changing_request():
     f, facts, state, first, plan = later()
     assert facts.encode().startswith(b"qs-ai-evaluation-state/v3\0")
-    restored, archived = read_evaluation_state_plan(f.intent, decode_plan(encode_plan(plan)))
+    restored, archived = read_evaluation_state_plan(
+        f.intent, decode_plan(encode_plan(plan)), route_resolver=legacy_routes()
+    )
     assert restored == facts and restored.source_version == 3 and restored.sequence == 10
     assert facts.intent.request == f.facts.intent.request
     assert archived.wire == first.wire and archived.body == first.body
@@ -72,7 +75,9 @@ def test_changed_authoritative_source_is_a_different_plan_for_the_same_business_
     f, facts, state, first, old = later()
     changed = replace(facts, source_version=4, previous_sequence=10, previous_version=4)
     state.version, state.event_sequence = 5, 11
-    new = freeze_evaluation_state_plan(changed, str(uuid4()), f.seal(value=state, at=changed.at))
+    new = freeze_evaluation_state_plan(
+        changed, str(uuid4()), f.seal(value=state, at=changed.at), route_resolver=legacy_routes()
+    )
     assert old.digest != new.digest and old.branches[0].wire == first.wire
     f.intent.request.match(old)
     f.intent.request.match(new)
@@ -91,10 +96,14 @@ def test_previous_version_and_wire_target_must_match_explicit_source():
     with pytest.raises(ValueError):
         replace(facts, previous_version=4)
     with pytest.raises(ValueError):
-        freeze_evaluation_state_plan(replace(facts, source_version=4), str(uuid4()), first)
+        freeze_evaluation_state_plan(
+            replace(facts, source_version=4), str(uuid4()), first, route_resolver=legacy_routes()
+        )
     state.version = 3
     with pytest.raises(ValueError):
-        freeze_evaluation_state_plan(facts, str(uuid4()), f.seal(value=state, at=facts.at))
+        freeze_evaluation_state_plan(
+            facts, str(uuid4()), f.seal(value=state, at=facts.at), route_resolver=legacy_routes()
+        )
 
 
 @pytest.mark.parametrize(
@@ -128,15 +137,19 @@ def test_explicit_source_stops_before_signed_target_version_overflow():
     facts = replace(f.facts, source_version=2**63 - 2, previous_version=2**63 - 2)
     state = pb.EvaluationRuntimeState.FromString(f.state.SerializeToString())
     state.version, state.event_sequence = 2**63 - 1, facts.sequence
-    plan = freeze_evaluation_state_plan(facts, str(uuid4()), f.seal(value=state, at=facts.at))
-    assert read_evaluation_state_plan(f.intent, plan)[0] == facts
+    plan = freeze_evaluation_state_plan(
+        facts, str(uuid4()), f.seal(value=state, at=facts.at), route_resolver=legacy_routes()
+    )
+    assert read_evaluation_state_plan(f.intent, plan, route_resolver=legacy_routes())[0] == facts
 
 
 def test_source_binding_allows_frozen_multiple_original_checkpoint_advances_in_one_root():
     f, facts, state, first, plan = later()
     state.version = 5  # source3 -> original prepare4 -> original final5, one state event
-    multi = freeze_evaluation_state_plan(facts, str(uuid4()), f.seal(value=state, at=facts.at))
-    restored, archived = read_evaluation_state_plan(f.intent, multi)
+    multi = freeze_evaluation_state_plan(
+        facts, str(uuid4()), f.seal(value=state, at=facts.at), route_resolver=legacy_routes()
+    )
+    restored, archived = read_evaluation_state_plan(f.intent, multi, route_resolver=legacy_routes())
     assert restored.source_version == 3 and archived.sequence == 10
     assert pb.MessagingBody.FromString(archived.body).evaluation_state.version == 5
     f.intent.request.match(multi)
@@ -147,6 +160,11 @@ def test_explicit_source_with_empty_business_context_is_canonical_and_request_st
     facts = replace(f.facts, source_version=2)
     assert EvaluationStateFacts.decode(facts.encode()) == facts
     assert facts.encode().startswith(b"qs-ai-evaluation-state/v3\0")
-    plan = freeze_evaluation_state_plan(facts, str(uuid4()), f.prepared)
+    plan = freeze_evaluation_state_plan(
+        facts, str(uuid4()), f.prepared, route_resolver=legacy_routes()
+    )
     f.intent.request.match(plan)
-    assert read_evaluation_state_plan(f.intent, plan)[1].wire == f.prepared.wire
+    assert (
+        read_evaluation_state_plan(f.intent, plan, route_resolver=legacy_routes())[1].wire
+        == f.prepared.wire
+    )

@@ -32,6 +32,7 @@ from tests.integration.test_transaction_start_admission import (
     required_disposable_primary as required_disposable_primary,
 )
 from tests.messaging_fixtures import keys as keys
+from tests.route_fixtures import legacy_routes
 
 pytestmark = pytest.mark.integration
 
@@ -56,13 +57,16 @@ async def test_review_business_first_clocks_sequence_archive_and_witness_share_o
     trigger = None
     try:
         candidate = await ReviewStatePlanner(
-            host.tx, signing_key=host.keys["ai.sign"], recipient_key=host.keys["qs.encrypt"]
+            host.tx,
+            signing_key=host.keys["ai.sign"],
+            recipient_key=host.keys["qs.encrypt"],
+            route_resolver=legacy_routes(),
         ).candidate(incoming, value.reviewed_at)
         reserved = await host.store.reserve(incoming.intent.request, candidate)
         assert reserved.acquired
         owned = reserved.execution
         host.executions.append(owned)
-        _, _, first = read_review_state_plan(incoming, owned.plan)
+        _, _, first = read_review_state_plan(incoming, owned.plan, route_resolver=legacy_routes())
         if fault == "archive_rejected":
             trigger = "review_fault_" + uuid4().hex
             async with trigger_admin.begin() as db:
@@ -85,7 +89,9 @@ async def test_review_business_first_clocks_sequence_archive_and_witness_share_o
                 replace(v, reviewed_at=v.reviewed_at + timedelta(seconds=10)) for v in values
             ),
         )
-        root = ReviewStateRoot(host.tx, host.archives, host.store, later, owned.plan)
+        root = ReviewStateRoot(
+            host.tx, host.archives, host.store, later, owned.plan, route_resolver=legacy_routes()
+        )
         with monkeypatch.context() as patch:
             if fault == "client_reply_discarded":
                 original_commit = EventSession.commit
@@ -175,6 +181,8 @@ async def test_actual_review_rpc_requires_preparation_before_original_business(
     before = await rows(tx, scope.run_id)
 
     class DatabaseOnlyRuntime:
+        routing = legacy_routes()
+
         store = host.store
         local_calls = 0
 

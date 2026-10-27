@@ -16,6 +16,7 @@ from uuid import UUID, uuid4, uuid5
 
 from reliable_messaging.durable import MessageConflict
 from reliable_messaging.transaction import FrozenPlan
+from reliable_messaging.transport import RouteResolver
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -224,9 +225,12 @@ class CandidateCompletionOperation:
 
 
 def read_candidate_completion_plan(
-    intent: EvaluationStateIntent, winner: FrozenPlan
+    intent: EvaluationStateIntent,
+    winner: FrozenPlan,
+    *,
+    route_resolver: RouteResolver,
 ) -> tuple[EvaluationStateFacts, CandidateCompletionOperation]:
-    facts, archive = read_evaluation_state_plan(intent, winner)
+    facts, archive = read_evaluation_state_plan(intent, winner, route_resolver=route_resolver)
     operation = CandidateCompletionOperation.decode(facts.business_context)
     state = pb.MessagingBody.FromString(archive.body).evaluation_state
     if (
@@ -492,7 +496,9 @@ class CandidateCompletionPlanner:
         signing_key: Any,
         recipient_key: Any,
         database_seconds: float = 2,
+        route_resolver: RouteResolver,
     ) -> None:
+        self._route_resolver = route_resolver
         if not math.isfinite(database_seconds) or database_seconds <= 0:
             raise ValueError("Finite positive candidate completion database budget required")
         self.transactions = transactions
@@ -553,13 +559,19 @@ class CandidateCompletionPlanner:
             recipient_key=self.recipient_key,
             original_occurred_at=facts.at.isoformat(timespec="microseconds"),
         )
-        winner = freeze_evaluation_state_plan(facts, str(uuid4()), first)
-        read_candidate_completion_plan(operation.intent, winner)
+        winner = freeze_evaluation_state_plan(
+            facts, str(uuid4()), first, route_resolver=self._route_resolver
+        )
+        read_candidate_completion_plan(
+            operation.intent, winner, route_resolver=self._route_resolver
+        )
         return winner
 
     async def verify(self, reference: CandidateResponseReference, winner: FrozenPlan) -> None:
         intent = await self.intent(reference)
-        facts, expected = read_candidate_completion_plan(intent, winner)
+        facts, expected = read_candidate_completion_plan(
+            intent, winner, route_resolver=self._route_resolver
+        )
         if expected.reference != reference:
             raise MessageConflict("Original candidate response reference changed")
         async with asyncio.timeout(self.database_seconds), self.transactions.open() as db:

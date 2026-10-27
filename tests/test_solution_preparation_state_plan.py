@@ -22,6 +22,7 @@ from qs_ai.infrastructure.workflow_transport.solution_preparation_plan import (
     SolutionPreparationInput,
     read_preparation_plan,
 )
+from tests.route_fixtures import legacy_routes
 from tests.test_generation_manifest import assets as assets
 from tests.test_generation_manifest import complete_release as complete_release
 from tests.test_generation_manifest import evaluation_release as evaluation_release
@@ -86,7 +87,9 @@ async def frozen(original):
         )
 
     first = seal()
-    winner = freeze_evaluation_state_plan(facts, str(incoming.command.command_id), first)
+    winner = freeze_evaluation_state_plan(
+        facts, str(incoming.command.command_id), first, route_resolver=legacy_routes()
+    )
     return locals()
 
 
@@ -99,7 +102,7 @@ def executable_model(p):
 async def test_exact_first_solution_plan_round_trip_keeps_wire_and_bounded_opaque_facts(frozen):
     f = frozen
     facts, original, first = read_preparation_plan(
-        f["incoming"], decode_plan(encode_plan(f["winner"]))
+        f["incoming"], decode_plan(encode_plan(f["winner"])), route_resolver=legacy_routes()
     )
     assert facts == f["facts"] and original == f["original_facts"]
     original.validate_assets(f["incoming"], f["assets"])
@@ -133,7 +136,7 @@ async def test_original_public_intent_never_adopts_a_different_preparation(froze
         )
     assert changed.intent.request.input_hash != incoming.intent.request.input_hash
     with pytest.raises(ValueError):
-        read_preparation_plan(changed, f["winner"])
+        read_preparation_plan(changed, f["winner"], route_resolver=legacy_routes())
 
 
 @pytest.mark.parametrize("damage", ["mode", "first_at", "assets_digest", "scope"])
@@ -201,6 +204,8 @@ async def test_durable_plan_requires_exact_initial_state_and_original_operation(
                 f["original_facts"], first_at=f["original_facts"].first_at + timedelta(seconds=1)
             ).encode(),
         )
-    winner = freeze_evaluation_state_plan(facts, operation, f["seal"](state))
+    winner = freeze_evaluation_state_plan(
+        facts, operation, f["seal"](state), route_resolver=legacy_routes()
+    )
     with pytest.raises(ValueError):
-        read_preparation_plan(f["incoming"], winner)
+        read_preparation_plan(f["incoming"], winner, route_resolver=legacy_routes())

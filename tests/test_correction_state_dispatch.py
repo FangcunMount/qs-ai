@@ -19,13 +19,14 @@ from reliable_messaging.transaction import (
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict
 from qs_ai.infrastructure.workflow_transport import evaluation_governance_dispatch as dispatch
 from qs_ai.infrastructure.workflow_transport.evaluation_state_plan import read_evaluation_state_plan
+from tests.route_fixtures import legacy_routes
 from tests.test_correction_state_planner import fixture as planning
 
 
 async def fixture(monkeypatch):
     f = planning(monkeypatch)
     plan = await f.planner.candidate(f.operation, f.at)
-    _, value = read_evaluation_state_plan(f.operation.intent, plan)
+    _, value = read_evaluation_state_plan(f.operation.intent, plan, route_resolver=legacy_routes())
     owned = Execution(plan, 1, "m3-1", b"x" * 32, f.at + timedelta(seconds=60))
     store = SimpleNamespace(
         binding=Binding("ai.mysql", "original", "m3-1"),
@@ -36,6 +37,7 @@ async def fixture(monkeypatch):
         store=store,
         reserve=AsyncMock(return_value=Reservation(owned, True, State.PREPARED)),
         execute=AsyncMock(return_value=Result(LocalOutcome.COMMITTED, ())),
+        routing=legacy_routes(),
     )
     expected = object()
     root = SimpleNamespace(view=expected, business_error=None)

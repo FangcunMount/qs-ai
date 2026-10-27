@@ -17,6 +17,7 @@ from qs_ai.infrastructure.workflow_transport.transaction_root import Transaction
 from qs_ai.infrastructure.workflow_transport.transactional_interpretation_execution import (
     TransactionalInterpretationExecutionStore,
 )
+from tests.route_fixtures import legacy_routes
 
 
 @pytest.fixture
@@ -49,7 +50,9 @@ def original(monkeypatch):
     protocol_store = SimpleNamespace(
         binding=Binding("ai.mysql", "fixture", "m3-1"), lookup=AsyncMock(return_value=None)
     )
-    runtime = SimpleNamespace(store=protocol_store, stats=Mock(return_value={"ready": True}))
+    runtime = SimpleNamespace(
+        store=protocol_store, stats=Mock(return_value={"ready": True}), routing=legacy_routes()
+    )
     adapter = TransactionalInterpretationExecutionStore(
         store,
         SimpleNamespace(),

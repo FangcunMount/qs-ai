@@ -16,6 +16,7 @@ from qs_ai.contracts.workflow import messaging_pb2 as pb
 from qs_ai.infrastructure.qs_server.evaluation_suite import V6_PUBLISHED, load_suite
 from qs_ai.infrastructure.workflow_transport import evaluation_preflight_state as preflight
 from qs_ai.infrastructure.workflow_transport.evaluation_state_plan import read_evaluation_state_plan
+from tests.route_fixtures import legacy_routes
 from tests.test_evaluation_preflight_plan import fixture as source
 
 
@@ -79,6 +80,7 @@ def fixture(monkeypatch, previous=None):
         clock=lambda: f.at,
         new_id=identity,
         database_seconds=0.05,
+        route_resolver=legacy_routes(),
     )
     return SimpleNamespace(**locals())
 
@@ -89,7 +91,7 @@ async def test_original_preflight_plan_freezes_evidence_and_state_without_writes
 ):
     f = fixture(monkeypatch, previous)
     plan = await f.planner.candidate(f.intent)
-    facts, value = read_evaluation_state_plan(f.intent, plan)
+    facts, value = read_evaluation_state_plan(f.intent, plan, route_resolver=legacy_routes())
     original = preflight.PreflightOperation.from_facts(facts)
     assert original.evidence.provider_call_count == 0 and original.evidence.status == "passed"
     assert original.evidence.evaluated_at == facts.at == f.f.at
@@ -139,7 +141,7 @@ async def test_original_executor_uses_winning_preflight_evidence_and_rechecks_sn
 ):
     f = fixture(monkeypatch)
     plan = await f.planner.candidate(f.intent)
-    facts, _ = read_evaluation_state_plan(f.intent, plan)
+    facts, _ = read_evaluation_state_plan(f.intent, plan, route_resolver=legacy_routes())
     operation = preflight.PreflightOperation.from_facts(facts)
     if changed:
         f.f.run["progress_json"] = {"status": "blocked"}

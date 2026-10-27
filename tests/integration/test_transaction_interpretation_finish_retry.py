@@ -28,6 +28,7 @@ from tests.integration.test_transaction_start_admission import (
     required_disposable_primary as required_disposable_primary,
 )
 from tests.messaging_fixtures import keys as keys
+from tests.route_fixtures import legacy_routes
 
 pytestmark = pytest.mark.integration
 
@@ -92,7 +93,9 @@ async def test_exact_aborted_finalization_reuses_first_wire_question_identity_an
     assert (
         await StoreChecker(p.host.store).check(current.execution.references[0]) == Decision.COMMIT
     )
-    facts, first, question_id = read_finish_plan(value, intent, old.plan)
+    facts, first, question_id = read_finish_plan(
+        value, intent, old.plan, route_resolver=legacy_routes()
+    )
     assert await p.host.archives.read_committed(first.envelope().message_id) == first
     after = await snapshot(p.host.kit, value.claim)
     assert after[0][0]["version"] == value.claim.session.version + 1

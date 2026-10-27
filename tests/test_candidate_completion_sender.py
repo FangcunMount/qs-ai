@@ -10,6 +10,7 @@ from reliable_messaging.transaction import LocalOutcome, Result, State
 
 from qs_ai.application.evaluation.checkpoints import CheckpointState
 from qs_ai.infrastructure.workflow_transport import candidate_completion_sender as module
+from tests.route_fixtures import legacy_routes
 from tests.test_candidate_completion_state import frozen as frozen
 from tests.test_evaluation_serial_response_receipts import original as original
 
@@ -33,6 +34,7 @@ def rig(p, monkeypatch):
         execute=AsyncMock(return_value=Result(LocalOutcome.COMMITTED, ())),
         retry=AsyncMock(return_value=acquired),
         replan=AsyncMock(return_value=acquired),
+        routing=legacy_routes(),
     )
     root = object()
     monkeypatch.setattr(module, "EvaluationStateRoot", lambda *a, **k: root)

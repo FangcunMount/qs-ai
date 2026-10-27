@@ -37,6 +37,7 @@ from tests.integration.test_transaction_start_admission import (
 )
 from tests.integration.test_transaction_worker_dispatch import original as original
 from tests.messaging_fixtures import keys as keys
+from tests.route_fixtures import legacy_routes
 
 pytestmark = pytest.mark.integration
 
@@ -53,6 +54,8 @@ async def test_paired_serial_graph_and_first_response_recovery_keep_original_mod
     keys = dict(signing_key=p.host.keys["ai.sign"], recipient_key=p.host.keys["qs.encrypt"])
 
     class OriginalRootRuntime:
+        routing = legacy_routes()
+
         store = p.host.store
         executed = 0
 
@@ -91,7 +94,11 @@ async def test_paired_serial_graph_and_first_response_recovery_keep_original_mod
             p.schemas,
             "worker:original",
             WorkerDispatchPlanner(
-                p.host.tx, p.schemas, clock=lambda: AT + timedelta(seconds=2), **keys
+                p.host.tx,
+                p.schemas,
+                clock=lambda: AT + timedelta(seconds=2),
+                **keys,
+                route_resolver=legacy_routes(),
             ),
             capacity=capacity,
         ),
@@ -99,10 +106,13 @@ async def test_paired_serial_graph_and_first_response_recovery_keep_original_mod
             p.host.tx,
             p.host.archives,
             transport,
-            SerialGenerationPlanner(p.host.tx, p.routes, **keys),
+            SerialGenerationPlanner(p.host.tx, p.routes, **keys, route_resolver=legacy_routes()),
         ),
         SerialSemanticSender(
-            p.host.tx, p.host.archives, transport, SerialSemanticPlanner(p.host.tx, **keys)
+            p.host.tx,
+            p.host.archives,
+            transport,
+            SerialSemanticPlanner(p.host.tx, **keys, route_resolver=legacy_routes()),
         ),
     )
     p.host.tx.database.state_events = SimpleNamespace(

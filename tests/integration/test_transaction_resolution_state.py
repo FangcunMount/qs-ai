@@ -51,6 +51,7 @@ from tests.integration.test_transaction_start_admission import (
     required_disposable_primary as required_disposable_primary,
 )
 from tests.messaging_fixtures import keys as keys
+from tests.route_fixtures import legacy_routes
 from tests.test_grpc_commands import Aborted, Context
 
 pytestmark = pytest.mark.integration
@@ -86,13 +87,16 @@ async def test_original_resolution_audit_unknown_evidence_and_witness_commit_or_
     value = replace(decision(), actor=p.scope.actor, decision=kind)
     operation = ResolutionStateOperation(p.scope, uuid4(), p.state.version, value, True)
     winner = await ResolutionStatePlanner(
-        p.original, signing_key=p.host.keys["ai.sign"], recipient_key=p.host.keys["qs.encrypt"]
+        p.original,
+        signing_key=p.host.keys["ai.sign"],
+        recipient_key=p.host.keys["qs.encrypt"],
+        route_resolver=legacy_routes(),
     ).candidate(operation, value.resolved_at)
     reserved = await p.host.store.reserve(operation.intent.request, winner)
     assert reserved.acquired
     owned = reserved.execution
     p.host.executions.append(owned)
-    _, first = read_resolution_plan(operation, winner)
+    _, first = read_resolution_plan(operation, winner, route_resolver=legacy_routes())
     trigger = None
     try:
         if fault in ("archive_rejected", "witness_rejected"):
@@ -107,7 +111,14 @@ async def test_original_resolution_audit_unknown_evidence_and_witness_commit_or_
             )
             async with trigger_admin.begin() as db:
                 await db.execute(text(statement))
-        root = ResolutionStateRoot(p.original, p.host.archives, p.host.store, operation, winner)
+        root = ResolutionStateRoot(
+            p.original,
+            p.host.archives,
+            p.host.store,
+            operation,
+            winner,
+            route_resolver=legacy_routes(),
+        )
         with monkeypatch.context() as patch:
             if fault == "client_reply_discarded":
                 actual_commit = EventSession.commit
@@ -158,6 +169,8 @@ async def test_actual_resolve_handler_waits_for_preparation_and_never_invokes_a_
     p = unknown
 
     class DatabaseOnlyRuntime:
+        routing = legacy_routes()
+
         store = p.host.store
         calls = 0
 
@@ -234,13 +247,16 @@ async def test_prepared_resolution_cannot_override_later_decision_or_bypass_host
     value = replace(decision(), actor=p.scope.actor)
     operation = ResolutionStateOperation(p.scope, uuid4(), p.state.version, value, True)
     winner = await ResolutionStatePlanner(
-        p.original, signing_key=p.host.keys["ai.sign"], recipient_key=p.host.keys["qs.encrypt"]
+        p.original,
+        signing_key=p.host.keys["ai.sign"],
+        recipient_key=p.host.keys["qs.encrypt"],
+        route_resolver=legacy_routes(),
     ).candidate(operation, value.resolved_at)
     reserved = await p.host.store.reserve(operation.intent.request, winner)
     assert reserved.acquired
     owned = reserved.execution
     p.host.executions.append(owned)
-    _, first = read_resolution_plan(operation, winner)
+    _, first = read_resolution_plan(operation, winner, route_resolver=legacy_routes())
     other = None
     try:
         if competing == "resolution":
@@ -267,7 +283,14 @@ async def test_prepared_resolution_cannot_override_later_decision_or_bypass_host
                 other, 1, "原宿主并发准入", value.resolved_at, confirm=True
             )
         expected = await snapshot(p.tx, p.run_id)
-        root = ResolutionStateRoot(p.original, p.host.archives, p.host.store, operation, winner)
+        root = ResolutionStateRoot(
+            p.original,
+            p.host.archives,
+            p.host.store,
+            operation,
+            winner,
+            route_resolver=legacy_routes(),
+        )
         assert await root(owned) == LocalOutcome.ABORTED
         assert isinstance(
             root.business_error,

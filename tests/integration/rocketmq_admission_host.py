@@ -157,7 +157,7 @@ def required_broker(request):
 
 class ObservedRuntime(TransactionRuntime):
     def __init__(self, sender, host):
-        super().__init__(sender, admitted=True)
+        super().__init__(sender, admitted=True, routing=legacy_routes())
         self.host, self.results, self.executions = host, [], []
         self.pause = False
         self.entered, self.release = asyncio.Event(), asyncio.Event()

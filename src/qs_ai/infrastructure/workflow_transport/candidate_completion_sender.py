@@ -74,8 +74,12 @@ class CandidateCompletionSender:
     async def _committed(
         self, intent: EvaluationStateIntent, execution: Execution
     ) -> CheckpointState:
-        _, operation = read_candidate_completion_plan(intent, execution.plan)
-        _, first = read_evaluation_state_plan(intent, execution.plan)
+        _, operation = read_candidate_completion_plan(
+            intent, execution.plan, route_resolver=self._runtime.routing
+        )
+        _, first = read_evaluation_state_plan(
+            intent, execution.plan, route_resolver=self._runtime.routing
+        )
         ref = operation.reference
         table = (
             generation_completions if ref.checkpoint.kind == "generation" else semantic_completions
@@ -157,7 +161,9 @@ class CandidateCompletionSender:
     ) -> CheckpointState:
         """Host-authorized new source plan after an exact old abort; preserve first candidate."""
         intent = await self._planner.intent(reference)
-        _, first = read_candidate_completion_plan(intent, previous.plan)
+        _, first = read_candidate_completion_plan(
+            intent, previous.plan, route_resolver=self._runtime.routing
+        )
         candidate = await self._planner.candidate(reference, candidate_id=first.candidate_id)
         reservation = await self._runtime.replan(ReplanAuthorization(previous, candidate))
         if not reservation.acquired:
@@ -170,7 +176,7 @@ class CandidateCompletionSender:
         self, intent: EvaluationStateIntent, execution: Execution
     ) -> CheckpointState:
         # Do not let a public runtime substitute a plan bound to another original input.
-        read_candidate_completion_plan(intent, execution.plan)
+        read_candidate_completion_plan(intent, execution.plan, route_resolver=self._runtime.routing)
         business = CandidateCompletionWrite()
         root = EvaluationStateRoot(
             self._transactions,
@@ -181,6 +187,7 @@ class CandidateCompletionSender:
             business,
             database_seconds=self._planner.database_seconds,
             isolation_level="REPEATABLE READ",
+            route_resolver=self._runtime.routing,
         )
         try:
             result = await self._runtime.execute(execution, root)

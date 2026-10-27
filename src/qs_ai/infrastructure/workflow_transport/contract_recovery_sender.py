@@ -38,12 +38,15 @@ class ContractRecoverySender:
             signing_key=signing_key,
             recipient_key=recipient_key,
             database_seconds=database_seconds,
+            route_resolver=runtime.routing,
         )
         self._transactions, self._archives, self._runtime = transactions, archives, runtime
         self._database_seconds = database_seconds
 
     async def _committed(self, incoming: ContractRecoveryInput, owned: Execution) -> dict[str, Any]:
-        _, first, _, archive = read_contract_recovery_plan(incoming, owned.plan)
+        _, first, _, archive = read_contract_recovery_plan(
+            incoming, owned.plan, route_resolver=self._runtime.routing
+        )
         async with asyncio.timeout(self._database_seconds):
             evidence = tuple([await self._runtime.store.evidence(ref) for ref in owned.references])
             if decide_local(owned.references, evidence) != LocalOutcome.COMMITTED:
@@ -64,7 +67,9 @@ class ContractRecoverySender:
             raise ContractRecoveryPending(
                 "Original policy exception is already owned or unresolved"
             )
-        read_contract_recovery_plan(incoming, reserved.execution.plan)
+        read_contract_recovery_plan(
+            incoming, reserved.execution.plan, route_resolver=self._runtime.routing
+        )
         root = EvaluationStateRoot(
             self._transactions,
             self._archives,
@@ -74,6 +79,7 @@ class ContractRecoverySender:
             apply_contract_recovery_state,
             database_seconds=self._database_seconds,
             isolation_level="REPEATABLE READ",
+            route_resolver=self._runtime.routing,
         )
         try:
             result = await self._runtime.execute(reserved.execution, root)

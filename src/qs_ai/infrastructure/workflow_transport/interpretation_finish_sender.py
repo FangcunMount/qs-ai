@@ -56,6 +56,7 @@ class InterpretationFinishSender:
             signing_key=signing_key,
             recipient_key=recipient_key,
             database_seconds=database_seconds,
+            route_resolver=runtime.routing,
         )
 
     async def _committed(
@@ -64,7 +65,9 @@ class InterpretationFinishSender:
         intent: InterpretationStateIntent,
         owned: Execution,
     ) -> None:
-        _, first, _ = read_finish_plan(incoming, intent, owned.plan)
+        _, first, _ = read_finish_plan(
+            incoming, intent, owned.plan, route_resolver=self._runtime.routing
+        )
         async with asyncio.timeout(self._database_seconds):
             evidence = tuple([await self._runtime.store.evidence(ref) for ref in owned.references])
             if decide_local(owned.references, evidence) != LocalOutcome.COMMITTED:
@@ -112,7 +115,9 @@ class InterpretationFinishSender:
         intent: InterpretationStateIntent,
         owned: Execution,
     ) -> None:
-        business = InterpretationFinishWrite(self._store, incoming, intent, owned.plan)
+        business = InterpretationFinishWrite(
+            self._store, incoming, intent, owned.plan, route_resolver=self._runtime.routing
+        )
         root = InterpretationStateRoot(
             self._store.transactions,
             self._archives,
@@ -121,6 +126,7 @@ class InterpretationFinishSender:
             owned.plan,
             business,
             database_seconds=self._database_seconds,
+            route_resolver=self._runtime.routing,
         )
         try:
             outcome = await self._runtime.execute(owned, root)

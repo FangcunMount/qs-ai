@@ -33,6 +33,7 @@ from tests.integration.test_transaction_start_admission import (
     required_disposable_primary as required_disposable_primary,
 )
 from tests.messaging_fixtures import keys as keys
+from tests.route_fixtures import legacy_routes
 
 pytestmark = pytest.mark.integration
 
@@ -78,7 +79,9 @@ async def test_two_domain_transitions_transcribe_only_one_frozen_final_history_o
         recipient_key=host.keys["qs.encrypt"],
         original_occurred_at=facts.at.isoformat(timespec="microseconds"),
     )
-    plan = freeze_interpretation_state_plan(facts, str(uuid4()), message)
+    plan = freeze_interpretation_state_plan(
+        facts, str(uuid4()), message, route_resolver=legacy_routes()
+    )
     owned = await host.store.reserve(intent.request, plan)
     assert owned.acquired
     host.executions.append(owned.execution)
@@ -95,7 +98,9 @@ async def test_two_domain_transitions_transcribe_only_one_frozen_final_history_o
         current.block("attempts_exhausted")
         await uow.save(current)
 
-    root = InterpretationStateRoot(host.tx, host.archives, host.store, intent, plan, write)
+    root = InterpretationStateRoot(
+        host.tx, host.archives, host.store, intent, plan, write, route_resolver=legacy_routes()
+    )
     trigger = None
     try:
         if fault in ("archive_rejected", "witness_rejected"):
@@ -143,7 +148,7 @@ async def test_two_domain_transitions_transcribe_only_one_frozen_final_history_o
             assert history[0]["mq_owned"] and history[0]["event_id"] == event_id
         else:
             assert current == original and not history
-        _, first = read_interpretation_state_plan(intent, plan)
+        _, first = read_interpretation_state_plan(intent, plan, route_resolver=legacy_routes())
         assert await host.archives.read_committed(event_id) == (first if committed else None)
     finally:
         if trigger is not None:

@@ -92,6 +92,7 @@ class GovernanceStateDispatcher:
                 signing_key=signing_key,
                 recipient_key=recipient_key,
                 database_seconds=database_seconds,
+                route_resolver=runtime.routing,
             )
             if resolution_management is not None
             else None
@@ -101,6 +102,7 @@ class GovernanceStateDispatcher:
             signing_key=signing_key,
             recipient_key=recipient_key,
             database_seconds=database_seconds,
+            route_resolver=runtime.routing,
         )
         self._review_planner = ReviewStatePlanner(
             transactions,
@@ -108,6 +110,7 @@ class GovernanceStateDispatcher:
             recipient_key=recipient_key,
             database_seconds=database_seconds,
             runtime_limits=runtime_limits,
+            route_resolver=runtime.routing,
         )
 
         self._correction_planner = CorrectionStatePlanner(
@@ -116,6 +119,7 @@ class GovernanceStateDispatcher:
             recipient_key=recipient_key,
             database_seconds=database_seconds,
             runtime_limits=runtime_limits,
+            route_resolver=runtime.routing,
         )
 
     async def __call__(self, operation: StateOperation, at: datetime) -> EvaluationView:
@@ -168,6 +172,7 @@ class GovernanceStateDispatcher:
                 operation,
                 reservation.execution.plan,
                 database_seconds=self._database_seconds,
+                route_resolver=self._runtime.routing,
             )
         elif isinstance(operation, CorrectionStateOperation):
             local = CorrectionStateRoot(
@@ -178,6 +183,7 @@ class GovernanceStateDispatcher:
                 reservation.execution.plan,
                 database_seconds=self._database_seconds,
                 runtime_limits=self._runtime_limits,
+                route_resolver=self._runtime.routing,
             )
         elif isinstance(operation, ReviewStateInput):
             local = ReviewStateRoot(
@@ -188,6 +194,7 @@ class GovernanceStateDispatcher:
                 reservation.execution.plan,
                 database_seconds=self._database_seconds,
                 runtime_limits=self._runtime_limits,
+                route_resolver=self._runtime.routing,
             )
         else:
             local = GovernanceStateRoot(
@@ -198,6 +205,7 @@ class GovernanceStateDispatcher:
                 reservation.execution.plan,
                 database_seconds=self._database_seconds,
                 runtime_limits=self._runtime_limits,
+                route_resolver=self._runtime.routing,
             )
         try:
             result = await self._runtime.execute(reservation.execution, local)
@@ -256,7 +264,9 @@ class GovernanceStateDispatcher:
                 return replay  # Historical legacy responsibility remains legacy.
         if existing.state != State.COMMITTED:
             raise GovernanceTransactionPending("Original correction execution is unresolved")
-        read_correction_plan(operation, existing.execution.plan)
+        read_correction_plan(
+            operation, existing.execution.plan, route_resolver=self._runtime.routing
+        )
         await self._verify_commit(operation.intent, existing.execution)
         if replay is None:
             replay = await self._correction_planner.replay(operation)
@@ -265,7 +275,9 @@ class GovernanceStateDispatcher:
         return replay
 
     async def _verify_commit(self, intent: EvaluationStateIntent, execution: Execution) -> None:
-        _, value = read_evaluation_state_plan(intent, execution.plan)
+        _, value = read_evaluation_state_plan(
+            intent, execution.plan, route_resolver=self._runtime.routing
+        )
         async with asyncio.timeout(self._database_seconds):
             evidence = tuple(
                 [await self._runtime.store.evidence(ref) for ref in execution.references]

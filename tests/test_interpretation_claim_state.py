@@ -17,6 +17,7 @@ from qs_ai.contracts.workflow import messaging_pb2 as pb
 from qs_ai.domain.interpretation.model import Actor, Session, Status
 from qs_ai.infrastructure.persistence.mysql.execution import ClaimStage
 from qs_ai.infrastructure.workflow_transport import interpretation_claim_state as module
+from tests.route_fixtures import legacy_routes
 from tests.test_evaluation_state_plan import fixture as state_fixture
 
 
@@ -54,7 +55,7 @@ async def frozen(request, monkeypatch):
         return seal(*args, **kwargs)
 
     monkeypatch.setattr(module, "prepare", prepare)
-    planner = module.InterpretationClaimPlanner(store, **keys)
+    planner = module.InterpretationClaimPlanner(store, **keys, route_resolver=legacy_routes())
     plan = await planner.candidate(source, 30)
     return SimpleNamespace(**locals())
 
@@ -62,7 +63,7 @@ async def frozen(request, monkeypatch):
 async def test_claim_keeps_first_wire_clock_identity_and_original_version_transitions(frozen):
     p = frozen
     restored = decode_plan(encode_plan(p.plan))
-    facts, archive = module.read_claim_plan(p.source, 30, restored)
+    facts, archive = module.read_claim_plan(p.source, 30, restored, route_resolver=legacy_routes())
     assert facts.version_delta == (2 if p.source.exhausted else 1)
     assert archive.sequence == p.source.session.version + facts.version_delta
     state = pb.MessagingBody.FromString(archive.body).interpretation_state
@@ -72,7 +73,10 @@ async def test_claim_keeps_first_wire_clock_identity_and_original_version_transi
     p.source.intent(30).request.match(candidate)
     assert candidate.digest != restored.digest
     assert candidate.branches[0].wire != restored.branches[0].wire
-    assert module.read_claim_plan(p.source, 30, restored) == (facts, archive)
+    assert module.read_claim_plan(p.source, 30, restored, route_resolver=legacy_routes()) == (
+        facts,
+        archive,
+    )
     assert p.session.status == Status.QUEUED
     assert "original goal" not in repr(p.source)
 
@@ -90,7 +94,7 @@ async def test_changed_original_claim_input_cannot_adopt_first_execution(frozen,
         value = {"fence": 8, "attempt": p.source.attempt + 1, "source": b"x" * 32}[damage]
         source = replace(source, **{field: value})
     with pytest.raises(ValueError):
-        module.read_claim_plan(source, ttl, p.plan)
+        module.read_claim_plan(source, ttl, p.plan, route_resolver=legacy_routes())
 
 
 async def test_source_change_before_freeze_never_seals_or_writes(frozen, monkeypatch):
@@ -106,7 +110,7 @@ async def test_source_change_before_freeze_never_seals_or_writes(frozen, monkeyp
 
 async def test_write_rechecks_source_then_borrows_original_root_with_first_id_and_clock(frozen):
     p = frozen
-    facts, archive = module.read_claim_plan(p.source, 30, p.plan)
+    facts, archive = module.read_claim_plan(p.source, 30, p.plan, route_resolver=legacy_routes())
     projected = replace(p.source.session)
     projected.running()
     if p.source.exhausted:
@@ -118,7 +122,9 @@ async def test_write_rechecks_source_then_borrows_original_root_with_first_id_an
     )
     stage = ClaimStage("exhausted" if p.source.exhausted else "claimed", claim)
     p.store.claim_in.return_value = stage
-    write = module.InterpretationClaimWrite(p.store, p.source, 30, p.plan)
+    write = module.InterpretationClaimWrite(
+        p.store, p.source, 30, p.plan, route_resolver=legacy_routes()
+    )
     assert write.staged is None
     await write(p.db, facts)
     assert write.staged == stage
@@ -136,9 +142,11 @@ async def test_write_rechecks_source_then_borrows_original_root_with_first_id_an
 @pytest.mark.parametrize("status", ["miss", "deferred"])
 async def test_no_event_admission_cannot_commit_a_frozen_running_or_exhausted_event(frozen, status):
     p = frozen
-    facts, _ = module.read_claim_plan(p.source, 30, p.plan)
+    facts, _ = module.read_claim_plan(p.source, 30, p.plan, route_resolver=legacy_routes())
     p.store.claim_in.return_value = ClaimStage(status)
-    write = module.InterpretationClaimWrite(p.store, p.source, 30, p.plan)
+    write = module.InterpretationClaimWrite(
+        p.store, p.source, 30, p.plan, route_resolver=legacy_routes()
+    )
     with pytest.raises(LeaseLost):
         await write(p.db, facts)
     assert write.staged is None
@@ -146,25 +154,29 @@ async def test_no_event_admission_cannot_commit_a_frozen_running_or_exhausted_ev
 
 async def test_locked_source_conflict_refuses_original_business_write(frozen):
     p = frozen
-    facts, _ = module.read_claim_plan(p.source, 30, p.plan)
+    facts, _ = module.read_claim_plan(p.source, 30, p.plan, route_resolver=legacy_routes())
     p.read.return_value = replace(p.source, source_hash=b"x" * 32)
     with pytest.raises(LeaseLost):
-        await module.InterpretationClaimWrite(p.store, p.source, 30, p.plan)(p.db, facts)
+        await module.InterpretationClaimWrite(
+            p.store, p.source, 30, p.plan, route_resolver=legacy_routes()
+        )(p.db, facts)
     p.store.claim_in.assert_not_called()
 
 
 async def test_wrong_staged_business_outcome_never_becomes_frozen_commit_proof(frozen):
     p = frozen
-    facts, _ = module.read_claim_plan(p.source, 30, p.plan)
+    facts, _ = module.read_claim_plan(p.source, 30, p.plan, route_resolver=legacy_routes())
     p.store.claim_in.return_value = ClaimStage("claimed" if p.source.exhausted else "exhausted")
     with pytest.raises(LeaseLost):
-        await module.InterpretationClaimWrite(p.store, p.source, 30, p.plan)(p.db, facts)
+        await module.InterpretationClaimWrite(
+            p.store, p.source, 30, p.plan, route_resolver=legacy_routes()
+        )(p.db, facts)
 
 
 @pytest.mark.parametrize("damage", ["event_id", "ttl_seconds", "source_hash", "kind", "extra"])
 async def test_keyless_plan_reader_rejects_changed_claim_context(frozen, damage):
     p = frozen
-    facts, archive = module.read_claim_plan(p.source, 30, p.plan)
+    facts, archive = module.read_claim_plan(p.source, 30, p.plan, route_resolver=legacy_routes())
     context = json.loads(facts.business_context)
     context[damage] = dict(
         event_id=str(uuid4()),
@@ -181,7 +193,7 @@ async def test_keyless_plan_reader_rejects_changed_claim_context(frozen, damage)
         changed_plan = replace(
             p.plan, branches=(replace(branch, message=changed_archive.message()),)
         )
-        module.read_claim_plan(p.source, 30, changed_plan)
+        module.read_claim_plan(p.source, 30, changed_plan, route_resolver=legacy_routes())
 
 
 @pytest.mark.parametrize("ttl", [True, 2, 86401])
@@ -214,6 +226,7 @@ async def test_unresolved_existing_claim_does_not_plan_execute_or_handoff(frozen
         ),
         reserve=AsyncMock(),
         execute=AsyncMock(),
+        routing=legacy_routes(),
     )
     sender = InterpretationClaimSender(p.store, SimpleNamespace(), runtime, **p.keys)
     sender._planner.candidate = AsyncMock()
@@ -239,7 +252,7 @@ async def test_duplicate_claim_requires_exact_proof_without_second_model_handoff
 
     p = frozen
     execution = Execution(p.plan, 1, "m3-1", b"x" * 32, datetime.now(UTC) + timedelta(seconds=60))
-    facts, first = module.read_claim_plan(p.source, 30, p.plan)
+    facts, first = module.read_claim_plan(p.source, 30, p.plan, route_resolver=legacy_routes())
     reference = execution.references[0]
     if proof == "wrong_reference":
         reference = replace(reference, fence=2)
@@ -251,6 +264,7 @@ async def test_duplicate_claim_requires_exact_proof_without_second_model_handoff
         ),
         reserve=AsyncMock(),
         execute=AsyncMock(),
+        routing=legacy_routes(),
     )
     archives = SimpleNamespace(
         read_committed=AsyncMock(

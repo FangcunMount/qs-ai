@@ -81,16 +81,24 @@ def transaction_evaluation_worker(
         runtime,
         schemas,
         owner,
-        WorkerDispatchPlanner(transactions, schemas, clock=clock, **keys),
+        WorkerDispatchPlanner(
+            transactions, schemas, clock=clock, **keys, route_resolver=runtime.routing
+        ),
         capacity=capacity,
     )
     serial = SerialRuntime(
         serial_dispatch,
         SerialGenerationSender(
-            transactions, archives, runtime, SerialGenerationPlanner(transactions, routes, **keys)
+            transactions,
+            archives,
+            runtime,
+            SerialGenerationPlanner(transactions, routes, **keys, route_resolver=runtime.routing),
         ),
         SerialSemanticSender(
-            transactions, archives, runtime, SerialSemanticPlanner(transactions, **keys)
+            transactions,
+            archives,
+            runtime,
+            SerialSemanticPlanner(transactions, **keys, route_resolver=runtime.routing),
         ),
         dispatch_recovery=WorkerDispatchRecovery(serial_dispatch),
     )
@@ -99,13 +107,23 @@ def transaction_evaluation_worker(
         archives,
         runtime,
         owner,
-        CandidateDispatchPlanner(transactions, schemas, limit=candidate_limit, clock=clock, **keys),
+        CandidateDispatchPlanner(
+            transactions,
+            schemas,
+            limit=candidate_limit,
+            clock=clock,
+            **keys,
+            route_resolver=runtime.routing,
+        ),
         capacity=capacity,
     )
     candidate = CandidateRuntime(
         candidate_dispatch,
         CandidateCompletionSender(
-            transactions, archives, runtime, CandidateCompletionPlanner(transactions, **keys)
+            transactions,
+            archives,
+            runtime,
+            CandidateCompletionPlanner(transactions, **keys, route_resolver=runtime.routing),
         ),
         dispatch_recovery=CandidateDispatchRecovery(candidate_dispatch),
     )

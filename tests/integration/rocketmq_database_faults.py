@@ -29,6 +29,7 @@ from tests.integration.rocketmq_admission_host import required_broker as require
 from tests.integration.rocketmq_admission_host import (
     required_disposable_primary as required_disposable_primary,
 )
+from tests.route_fixtures import legacy_routes
 
 pytestmark = pytest.mark.integration
 
@@ -127,7 +128,9 @@ async def test_actual_command_original_commit_packet_fault(broker):
         # A paused replacement uses an independent short-lived session factory
         # on the original primary. No new business operation is authorized.
         next_runtime = TransactionRuntime(
-            TransactionalSender(broker.sender.config, authority), admitted=False
+            TransactionalSender(broker.sender.config, authority),
+            admitted=False,
+            routing=legacy_routes(),
         )
         await next_runtime.start()
 

@@ -12,6 +12,7 @@ from uuid import UUID, uuid4, uuid5
 
 from reliable_messaging.durable import MessageConflict
 from reliable_messaging.transaction import FrozenPlan
+from reliable_messaging.transport import RouteResolver
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -196,7 +197,9 @@ class PreflightStatePlanner:
         clock: Callable[[], datetime] = _clock,
         new_id: Callable[[], str] = _identity,
         database_seconds: float = 2,
+        route_resolver: RouteResolver,
     ) -> None:
+        self._route_resolver = route_resolver
         if not math.isfinite(database_seconds) or database_seconds <= 0:
             raise ValueError("Finite positive preflight database budget required")
         self._transactions, self._database_seconds = transactions, database_seconds
@@ -258,7 +261,9 @@ class PreflightStatePlanner:
             recipient_key=self._recipient_key,
             original_occurred_at=facts.at.isoformat(timespec="microseconds"),
         )
-        return freeze_evaluation_state_plan(facts, self._new_id(), first)
+        return freeze_evaluation_state_plan(
+            facts, self._new_id(), first, route_resolver=self._route_resolver
+        )
 
 
 async def apply_preflight_state(db: AsyncSession, facts: EvaluationStateFacts) -> None:

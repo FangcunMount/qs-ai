@@ -19,6 +19,7 @@ from reliable_messaging.transaction import (
 
 from qs_ai.application.evaluation.checkpoints import CheckpointConflict
 from qs_ai.infrastructure.workflow_transport import transactional_evaluation_requests as dispatch
+from tests.route_fixtures import legacy_routes
 from tests.test_creation_state_plan import frozen as frozen
 from tests.test_generation_manifest import assets as assets
 from tests.test_generation_manifest import complete_release as complete_release
@@ -39,6 +40,7 @@ async def sent(frozen, monkeypatch):
         store=store,
         reserve=AsyncMock(return_value=Reservation(owned, True, State.PREPARED)),
         execute=AsyncMock(return_value=Result(LocalOutcome.COMMITTED, ())),
+        routing=legacy_routes(),
     )
     view = object()
     local = SimpleNamespace(view=view, business_error=None)
@@ -49,7 +51,11 @@ async def sent(frozen, monkeypatch):
     creator = SimpleNamespace(transactions=object())
     archives = SimpleNamespace(
         read_committed=AsyncMock(
-            return_value=(dispatch.read_creation_state_plan(f["incoming"], f["winner"]))[2]
+            return_value=(
+                dispatch.read_creation_state_plan(
+                    f["incoming"], f["winner"], route_resolver=legacy_routes()
+                )
+            )[2]
         )
     )
     sender = dispatch.TransactionalEvaluationRequests(

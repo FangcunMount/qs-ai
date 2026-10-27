@@ -33,6 +33,7 @@ from tests.integration.test_transaction_evaluation_admission import (
     required_disposable_primary as required_disposable_primary,
 )
 from tests.integration.test_transaction_evaluation_admission import setup_run as setup_run
+from tests.route_fixtures import legacy_routes
 
 pytestmark = pytest.mark.integration
 _REASON = "explicit isolated authoritative source proof"
@@ -113,7 +114,7 @@ async def test_explicit_source_context_keeps_stable_input_without_relaxing_origi
         recipient_key=host.keys["qs.encrypt"],
         original_occurred_at=facts.at.isoformat(timespec="microseconds"),
     )
-    plan = freeze_evaluation_state_plan(facts, str(uuid4()), first)
+    plan = freeze_evaluation_state_plan(facts, str(uuid4()), first, route_resolver=legacy_routes())
     owned = await host.store.reserve(intent.request, plan)
     assert owned.acquired
     host.executions.append(owned.execution)
@@ -143,7 +144,13 @@ async def test_explicit_source_context_keeps_stable_input_without_relaxing_origi
             raise RuntimeError("explicit original root refusal")
 
     root = EvaluationStateRoot(
-        host.tx, host.archives, host.store, intent, owned.execution.plan, business
+        host.tx,
+        host.archives,
+        host.store,
+        intent,
+        owned.execution.plan,
+        business,
+        route_resolver=legacy_routes(),
     )
     outcome = await root(owned.execution)
     committed = fault in ("none", "client_reply_discarded", "multi_cas")
@@ -159,7 +166,7 @@ async def test_explicit_source_context_keeps_stable_input_without_relaxing_origi
         if fault == "source_changed"
         else (before.status, before.version)
     )
-    _, archive = read_evaluation_state_plan(intent, plan)
+    _, archive = read_evaluation_state_plan(intent, plan, route_resolver=legacy_routes())
     assert await host.archives.read_committed(first.envelope.message_id) == (
         archive if committed else None
     )

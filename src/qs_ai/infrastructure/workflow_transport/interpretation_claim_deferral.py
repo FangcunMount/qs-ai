@@ -9,6 +9,7 @@ from typing import Any
 from reliable_messaging.sqlalchemy import bind
 from reliable_messaging.transaction import BindingError, Execution, LocalOutcome, decide_local
 from reliable_messaging.transaction_mysql import MySQLTransactionStore
+from reliable_messaging.transport import RouteResolver
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -61,7 +62,9 @@ class InterpretationClaimDeferral:
         archives: TransactionArchive,
         *,
         database_seconds: float = 2,
+        route_resolver: RouteResolver,
     ) -> None:
+        self._route_resolver = route_resolver
         if not math.isfinite(database_seconds) or database_seconds <= 0:
             raise ValueError("Finite positive original deferral budget required")
         if isinstance(business.transactions, BorrowedTransactions):
@@ -78,7 +81,9 @@ class InterpretationClaimDeferral:
         previous: Execution,
     ) -> bool:
         """Only delay the same still-capacity-denied job; never call its claim executor."""
-        _, first = read_claim_plan(source, ttl_seconds, previous.plan)
+        _, first = read_claim_plan(
+            source, ttl_seconds, previous.plan, route_resolver=self._route_resolver
+        )
         if previous.writer_epoch != self._store.binding.writer_epoch:
             raise BindingError("Original deferral writer epoch differs")
         if source.exhausted or not source.session.uses_qs_snapshot:

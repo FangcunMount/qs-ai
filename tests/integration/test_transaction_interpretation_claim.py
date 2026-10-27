@@ -26,6 +26,7 @@ from tests.integration.test_transaction_start_admission import (
     required_disposable_primary as required_disposable_primary,
 )
 from tests.messaging_fixtures import keys as keys
+from tests.route_fixtures import legacy_routes
 
 pytestmark = pytest.mark.integration
 
@@ -56,6 +57,7 @@ async def candidate(host, exhausted=False, *, snapshot=False):
         host.kit.store,
         signing_key=host.keys["ai.sign"],
         recipient_key=host.keys["qs.encrypt"],
+        route_resolver=legacy_routes(),
     )
     source = await planner.source(job_id, receipt.session_id)
     before = await rows(host.kit, receipt.session_id)
@@ -77,12 +79,16 @@ async def test_frozen_claim_business_lease_attempt_first_history_archive_and_wit
 ):
     source, before, plan = await candidate(host, exhausted)
     intent = source.intent(60)
-    facts, first = read_claim_plan(source, 60, plan)
+    facts, first = read_claim_plan(source, 60, plan, route_resolver=legacy_routes())
     owned = await host.store.reserve(intent.request, plan)
     assert owned.acquired
     host.executions.append(owned.execution)
-    write = InterpretationClaimWrite(host.kit.store, source, 60, plan)
-    root = InterpretationStateRoot(host.tx, host.archives, host.store, intent, plan, write)
+    write = InterpretationClaimWrite(
+        host.kit.store, source, 60, plan, route_resolver=legacy_routes()
+    )
+    root = InterpretationStateRoot(
+        host.tx, host.archives, host.store, intent, plan, write, route_resolver=legacy_routes()
+    )
     trigger = None
     try:
         if fault in ("archive_rejected", "witness_rejected"):
@@ -163,9 +169,17 @@ async def test_claim_source_conflict_preserves_competitor_and_aborts_exact_execu
         await db.execute(statement)
         await db.commit()
     competing = await rows(host.kit, source.session.id)
-    write = InterpretationClaimWrite(host.kit.store, source, 60, plan)
+    write = InterpretationClaimWrite(
+        host.kit.store, source, 60, plan, route_resolver=legacy_routes()
+    )
     root = InterpretationStateRoot(
-        host.tx, host.archives, host.store, source.intent(60), plan, write
+        host.tx,
+        host.archives,
+        host.store,
+        source.intent(60),
+        plan,
+        write,
+        route_resolver=legacy_routes(),
     )
     assert await root(owned.execution) == LocalOutcome.ABORTED
     assert write.staged is None
@@ -180,6 +194,7 @@ async def test_claim_readonly_source_cannot_adopt_a_job_from_another_session(hos
         host.kit.store,
         signing_key=host.keys["ai.sign"],
         recipient_key=host.keys["qs.encrypt"],
+        route_resolver=legacy_routes(),
     )
     with pytest.raises(LeaseLost):
         await planner.source(source.job_id, other.session_id)
@@ -193,15 +208,23 @@ async def test_real_capacity_deferral_cannot_commit_prepared_running_event(host)
     assert source.session.uses_qs_snapshot
     owned = await host.store.reserve(source.intent(60).request, plan)
     host.executions.append(owned.execution)
-    write = InterpretationClaimWrite(host.kit.store, source, 60, plan)
+    write = InterpretationClaimWrite(
+        host.kit.store, source, 60, plan, route_resolver=legacy_routes()
+    )
     root = InterpretationStateRoot(
-        host.tx, host.archives, host.store, source.intent(60), plan, write
+        host.tx,
+        host.archives,
+        host.store,
+        source.intent(60),
+        plan,
+        write,
+        route_resolver=legacy_routes(),
     )
     assert await root(owned.execution) == LocalOutcome.ABORTED
     assert write.staged is None
     assert await rows(host.kit, source.session.id) == before
     assert await StoreChecker(host.store).check(owned.execution.references[0]) == Decision.ROLLBACK
-    _, first_event = read_claim_plan(source, 60, plan)
+    _, first_event = read_claim_plan(source, 60, plan, route_resolver=legacy_routes())
     assert await host.archives.read_committed(first_event.envelope().message_id) is None
 
 
@@ -222,6 +245,8 @@ async def test_claim_sender_halves_precede_original_writes_and_duplicate_never_h
     source, before, plan = await candidate(host, exhausted)
 
     class Runtime:
+        routing = legacy_routes()
+
         store = host.store
         calls = 0
 
@@ -275,6 +300,8 @@ async def test_committed_claim_with_expired_lease_does_not_handoff_to_model(host
     source, _, _ = await candidate(host)
 
     class Runtime:
+        routing = legacy_routes()
+
         store = host.store
 
         async def reserve(self, request, candidate):

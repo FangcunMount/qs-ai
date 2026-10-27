@@ -34,6 +34,7 @@ from tests.integration.test_transaction_start_admission import (
     required_disposable_primary as required_disposable_primary,
 )
 from tests.messaging_fixtures import keys as keys
+from tests.route_fixtures import legacy_routes
 from tests.test_generation_manifest import assets as assets
 from tests.test_generation_manifest import complete_release as complete_release
 from tests.test_generation_manifest import evaluation_release as evaluation_release
@@ -61,10 +62,13 @@ async def test_creation_first_definition_mode_policy_sequence_archive_and_witnes
         creator,
         signing_key=host.keys["ai.sign"],
         recipient_key=host.keys["qs.encrypt"],
+        route_resolver=legacy_routes(),
     ).candidate(incoming, at)
     owned = (await host.store.reserve(incoming.intent.request, candidate)).execution
     host.executions.append(owned)
-    _, original, first = read_creation_state_plan(incoming, owned.plan)
+    _, original, first = read_creation_state_plan(
+        incoming, owned.plan, route_resolver=legacy_routes()
+    )
     assert await rows(host.tx, run_id) == [None, None, None]
     assert original.created_at.isoformat() == at.isoformat()
     trigger = None
@@ -86,7 +90,15 @@ async def test_creation_first_definition_mode_policy_sequence_archive_and_witnes
             async with host.tx.open() as db:
                 await apply_run_creation(db, creation)
                 await db.commit()
-        root = CreationStateRoot(host.tx, host.archives, host.store, incoming, owned.plan, creation)
+        root = CreationStateRoot(
+            host.tx,
+            host.archives,
+            host.store,
+            incoming,
+            owned.plan,
+            creation,
+            route_resolver=legacy_routes(),
+        )
         with monkeypatch.context() as patch:
             if fault == "client_reply_discarded":
                 real_commit = EventSession.commit

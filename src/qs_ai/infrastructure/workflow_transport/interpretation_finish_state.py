@@ -9,6 +9,7 @@ from typing import Any
 from uuid import uuid4
 
 from reliable_messaging.transaction import FrozenPlan
+from reliable_messaging.transport import RouteResolver
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -184,10 +185,12 @@ def read_finish_plan(
     incoming: InterpretationFinishInput,
     intent: InterpretationStateIntent,
     winner: FrozenPlan,
+    *,
+    route_resolver: RouteResolver,
 ) -> tuple[InterpretationStateFacts, FrozenArchive, str | None]:
     if incoming.intent(intent.request_id) != intent:
         raise ValueError("Original finish intent differs")
-    facts, archive = read_interpretation_state_plan(intent, winner)
+    facts, archive = read_interpretation_state_plan(intent, winner, route_resolver=route_resolver)
     try:
         context = json.loads(facts.business_context)
         if (
@@ -256,7 +259,9 @@ class InterpretationFinishPlanner:
         signing_key: Any,
         recipient_key: Any,
         database_seconds: float = 2,
+        route_resolver: RouteResolver,
     ) -> None:
+        self._route_resolver = route_resolver
         self.store, self.signing_key, self.recipient_key = store, signing_key, recipient_key
         self.database_seconds = database_seconds
 
@@ -283,7 +288,9 @@ class InterpretationFinishPlanner:
         winner: FrozenPlan,
     ) -> None:
         """Fresh original source check without identity generation or signing."""
-        facts, _, _ = read_finish_plan(incoming, intent, winner)
+        facts, _, _ = read_finish_plan(
+            incoming, intent, winner, route_resolver=self._route_resolver
+        )
         source_hash, sequence = await self._source_facts(incoming, intent)
         context = json.loads(facts.business_context)
         if source_hash != context["source_hash"] or (
@@ -337,8 +344,10 @@ class InterpretationFinishPlanner:
             recipient_key=self.recipient_key,
             original_occurred_at=facts.at.isoformat(timespec="microseconds"),
         )
-        winner = freeze_interpretation_state_plan(facts, operation_id, first)
-        read_finish_plan(incoming, intent, winner)
+        winner = freeze_interpretation_state_plan(
+            facts, operation_id, first, route_resolver=self._route_resolver
+        )
+        read_finish_plan(incoming, intent, winner, route_resolver=self._route_resolver)
         return winner
 
 
@@ -349,8 +358,13 @@ class InterpretationFinishWrite:
         incoming: InterpretationFinishInput,
         intent: InterpretationStateIntent,
         winner: FrozenPlan,
+        *,
+        route_resolver: RouteResolver,
     ) -> None:
-        self.facts, _, self.question_id = read_finish_plan(incoming, intent, winner)
+        self._route_resolver = route_resolver
+        self.facts, _, self.question_id = read_finish_plan(
+            incoming, intent, winner, route_resolver=route_resolver
+        )
         self.store, self.incoming, self.intent = store, incoming, intent
         candidate = incoming.result.artifact
         self.identity = (

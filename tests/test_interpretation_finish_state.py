@@ -17,6 +17,7 @@ from qs_ai.infrastructure.workflow_transport.interpretation_finish_sender import
     InterpretationFinishPending,
     InterpretationFinishSender,
 )
+from tests.route_fixtures import legacy_routes
 from tests.test_evaluation_state_plan import fixture as state_fixture
 
 
@@ -52,7 +53,7 @@ async def frozen(monkeypatch):
         return real_prepare(*args, **kwargs)
 
     monkeypatch.setattr(module, "prepare", prepare)
-    planner = module.InterpretationFinishPlanner(store, **f.keys)
+    planner = module.InterpretationFinishPlanner(store, **f.keys, route_resolver=legacy_routes())
     plan = await planner.candidate(incoming, intent)
     return SimpleNamespace(**locals())
 
@@ -60,18 +61,25 @@ async def frozen(monkeypatch):
 async def test_finish_reuses_first_ids_wire_and_clock_with_stable_input_and_closed_source(frozen):
     p = frozen
     winner = decode_plan(encode_plan(p.plan))
-    first, archive, question_id = module.read_finish_plan(p.incoming, p.intent, winner)
+    first, archive, question_id = module.read_finish_plan(
+        p.incoming, p.intent, winner, route_resolver=legacy_routes()
+    )
     other = await p.planner.candidate(p.incoming, p.intent)
     p.intent.request.match(other)
     assert winner.digest != other.digest
     assert winner.branches[0].wire != other.branches[0].wire
-    assert module.read_finish_plan(p.incoming, p.intent, winner)[0] == first
+    assert (
+        module.read_finish_plan(p.incoming, p.intent, winner, route_resolver=legacy_routes())[0]
+        == first
+    )
     assert (
         question_id
         and question_id
-        != json.loads(module.read_finish_plan(p.incoming, p.intent, other)[0].business_context)[
-            "question_id"
-        ]
+        != json.loads(
+            module.read_finish_plan(p.incoming, p.intent, other, route_resolver=legacy_routes())[
+                0
+            ].business_context
+        )["question_id"]
     )
     assert json.loads(first.business_context)["question_sequence"] == 3
     assert archive.envelope().original_occurred_at == first.at.isoformat(timespec="microseconds")
@@ -102,7 +110,7 @@ async def test_different_business_input_cannot_reuse_first_finish(frozen, field)
     other = module.InterpretationFinishInput(p.incoming.claim, result)
     assert other.intent(p.intent.request_id).request.input_hash != p.intent.request.input_hash
     with pytest.raises(ValueError):
-        module.read_finish_plan(other, p.intent, p.plan)
+        module.read_finish_plan(other, p.intent, p.plan, route_resolver=legacy_routes())
 
 
 @pytest.mark.parametrize(
@@ -110,7 +118,9 @@ async def test_different_business_input_cannot_reuse_first_finish(frozen, field)
 )
 async def test_inexact_finish_context_is_refused_before_execution(frozen, damage):
     p = frozen
-    facts, _, _ = module.read_finish_plan(p.incoming, p.intent, p.plan)
+    facts, _, _ = module.read_finish_plan(
+        p.incoming, p.intent, p.plan, route_resolver=legacy_routes()
+    )
     context = json.loads(facts.business_context)
     if damage == "extra":
         context["extra"] = True
@@ -128,10 +138,14 @@ async def test_inexact_finish_context_is_refused_before_execution(frozen, damage
     # generic codec and original witness have their own separate tests.
     monkeypatch = pytest.MonkeyPatch()
     with monkeypatch.context() as patch:
-        _, archive, _ = module.read_finish_plan(p.incoming, p.intent, p.plan)
-        patch.setattr(module, "read_interpretation_state_plan", lambda *args: (changed, archive))
+        _, archive, _ = module.read_finish_plan(
+            p.incoming, p.intent, p.plan, route_resolver=legacy_routes()
+        )
+        patch.setattr(
+            module, "read_interpretation_state_plan", lambda *args, **kwargs: (changed, archive)
+        )
         with pytest.raises(ValueError):
-            module.read_finish_plan(p.incoming, p.intent, p.plan)
+            module.read_finish_plan(p.incoming, p.intent, p.plan, route_resolver=legacy_routes())
 
 
 @pytest.mark.parametrize("state", [State.PREPARED, State.ABORTED])
@@ -145,6 +159,7 @@ async def test_existing_unresolved_finish_never_plans_executes_or_repeats_model(
         ),
         reserve=AsyncMock(),
         execute=AsyncMock(),
+        routing=legacy_routes(),
     )
     sender = InterpretationFinishSender(p.store, SimpleNamespace(), runtime, **p.f.keys)
     sender._planner.candidate = AsyncMock()
@@ -189,9 +204,9 @@ async def test_finish_identity_survives_only_operational_lease_handover(frozen):
     renewed = replace(p.incoming.claim, fence=p.incoming.claim.fence + 1)
     recovered = module.InterpretationFinishInput(renewed, p.incoming.result)
     assert recovered.intent(p.intent.request_id) == p.intent
-    assert module.read_finish_plan(recovered, p.intent, p.plan) == module.read_finish_plan(
-        p.incoming, p.intent, p.plan
-    )
+    assert module.read_finish_plan(
+        recovered, p.intent, p.plan, route_resolver=legacy_routes()
+    ) == module.read_finish_plan(p.incoming, p.intent, p.plan, route_resolver=legacy_routes())
     changed = replace(
         renewed, session=replace(renewed.session, version=renewed.session.version + 1)
     )

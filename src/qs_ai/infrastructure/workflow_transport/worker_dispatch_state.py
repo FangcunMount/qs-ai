@@ -13,6 +13,7 @@ from uuid import UUID, uuid4, uuid5
 
 from reliable_messaging.durable import MessageConflict
 from reliable_messaging.transaction import FrozenPlan
+from reliable_messaging.transport import RouteResolver
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -189,9 +190,12 @@ class WorkerDispatchOperation:
 
 
 def read_worker_dispatch_plan(
-    intent: EvaluationStateIntent, winner: FrozenPlan
+    intent: EvaluationStateIntent,
+    winner: FrozenPlan,
+    *,
+    route_resolver: RouteResolver,
 ) -> tuple[EvaluationStateFacts, WorkerDispatchOperation, FrozenArchive]:
-    facts, archive = read_evaluation_state_plan(intent, winner)
+    facts, archive = read_evaluation_state_plan(intent, winner, route_resolver=route_resolver)
     operation = WorkerDispatchOperation.from_facts(facts)
     state = pb.MessagingBody.FromString(archive.body).evaluation_state
     if state.version != intent.expected_version + 2 or state.status != "collecting":
@@ -210,7 +214,9 @@ class WorkerDispatchPlanner:
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
         new_id: Callable[[], str] = lambda: str(uuid4()),
         database_seconds: float = 2,
+        route_resolver: RouteResolver,
     ) -> None:
+        self._route_resolver = route_resolver
         if not math.isfinite(database_seconds) or database_seconds <= 0:
             raise ValueError("Finite positive worker database budget required")
         self.transactions, self.schemas = transactions, schemas
@@ -283,8 +289,10 @@ class WorkerDispatchPlanner:
             recipient_key=self.recipient_key,
             original_occurred_at=facts.at.isoformat(timespec="microseconds"),
         )
-        winner = freeze_evaluation_state_plan(facts, self.new_id(), first)
-        read_worker_dispatch_plan(intent, winner)
+        winner = freeze_evaluation_state_plan(
+            facts, self.new_id(), first, route_resolver=self._route_resolver
+        )
+        read_worker_dispatch_plan(intent, winner, route_resolver=self._route_resolver)
         return winner, inputs
 
 

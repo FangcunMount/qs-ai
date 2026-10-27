@@ -15,6 +15,7 @@ from uuid import UUID, uuid4, uuid5
 
 from reliable_messaging.durable import MessageConflict
 from reliable_messaging.transaction import FrozenPlan
+from reliable_messaging.transport import RouteResolver
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -192,9 +193,12 @@ class SerialSemanticOperation:
 
 
 def read_serial_semantic_plan(
-    intent: EvaluationStateIntent, winner: FrozenPlan
+    intent: EvaluationStateIntent,
+    winner: FrozenPlan,
+    *,
+    route_resolver: RouteResolver,
 ) -> tuple[EvaluationStateFacts, SerialSemanticOperation]:
-    facts, archive = read_evaluation_state_plan(intent, winner)
+    facts, archive = read_evaluation_state_plan(intent, winner, route_resolver=route_resolver)
     operation = SerialSemanticOperation.decode(facts.business_context)
     state = pb.MessagingBody.FromString(archive.body).evaluation_state
     if (
@@ -317,7 +321,9 @@ class SerialSemanticPlanner:
         signing_key: Any,
         recipient_key: Any,
         database_seconds: float = 2,
+        route_resolver: RouteResolver,
     ) -> None:
+        self._route_resolver = route_resolver
         if not math.isfinite(database_seconds) or database_seconds <= 0:
             raise ValueError("Finite positive serial completion database budget required")
         self.transactions = transactions
@@ -378,13 +384,17 @@ class SerialSemanticPlanner:
             recipient_key=self.recipient_key,
             original_occurred_at=facts.at.isoformat(timespec="microseconds"),
         )
-        winner = freeze_evaluation_state_plan(facts, str(uuid4()), first)
-        read_serial_semantic_plan(operation.intent, winner)
+        winner = freeze_evaluation_state_plan(
+            facts, str(uuid4()), first, route_resolver=self._route_resolver
+        )
+        read_serial_semantic_plan(operation.intent, winner, route_resolver=self._route_resolver)
         return winner
 
     async def verify(self, reference: SerialResponseReference, winner: FrozenPlan) -> None:
         intent = await self.intent(reference)
-        facts, expected = read_serial_semantic_plan(intent, winner)
+        facts, expected = read_serial_semantic_plan(
+            intent, winner, route_resolver=self._route_resolver
+        )
         if expected.reference != reference:
             raise MessageConflict("Original serial response reference changed")
         async with asyncio.timeout(self.database_seconds), self.transactions.open() as db:

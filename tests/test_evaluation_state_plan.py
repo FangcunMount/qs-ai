@@ -18,6 +18,7 @@ from qs_ai.infrastructure.workflow_transport.evaluation_state_plan import (
     read_evaluation_state_plan,
 )
 from qs_ai.infrastructure.workflow_transport.messaging import prepare
+from tests.route_fixtures import legacy_routes
 
 
 def fixture():
@@ -50,26 +51,32 @@ def fixture():
         )
 
     prepared = seal()
-    plan = freeze_evaluation_state_plan(facts, str(uuid4()), prepared)
+    plan = freeze_evaluation_state_plan(
+        facts, str(uuid4()), prepared, route_resolver=legacy_routes()
+    )
     return SimpleNamespace(**locals())
 
 
 def test_durable_winner_owns_exact_first_wire_clock_sequence_and_input_without_keys():
     f = fixture()
     restored = decode_plan(encode_plan(f.plan))
-    facts, value = read_evaluation_state_plan(f.intent, restored)
+    facts, value = read_evaluation_state_plan(f.intent, restored, route_resolver=legacy_routes())
     assert facts == f.facts and EvaluationStateFacts.decode(facts.encode()) == facts
     assert value.wire == f.prepared.wire and value.body == f.prepared.body
     assert value.sequence == 9 and value.envelope().message_id == f.prepared.envelope.message_id
     assert not value.ordered and value.requires_receipt
     f.prepared.envelope.message_id = str(uuid4())
-    assert read_evaluation_state_plan(f.intent, restored)[1] == value
+    assert (
+        read_evaluation_state_plan(f.intent, restored, route_resolver=legacy_routes())[1] == value
+    )
 
 
 def test_new_cipher_and_candidate_clock_do_not_change_the_original_request_identity():
     f = fixture()
     facts = replace(f.facts, at=f.facts.at + timedelta(seconds=1))
-    other = freeze_evaluation_state_plan(facts, str(uuid4()), f.seal(at=facts.at))
+    other = freeze_evaluation_state_plan(
+        facts, str(uuid4()), f.seal(at=facts.at), route_resolver=legacy_routes()
+    )
     assert other.digest != f.plan.digest and other.branches[0].wire != f.plan.branches[0].wire
     f.intent.request.match(other)
     assert f.intent.request.key_digest == f.facts.intent.request.key_digest
@@ -94,7 +101,7 @@ def test_wrong_route_identity_or_wire_never_becomes_an_original_state_plan(damag
                 "wire": {"wire": b"different"},
             }
             changed = replace(f.plan, branches=(replace(branch, **values[damage]),))
-        read_evaluation_state_plan(f.intent, changed)
+        read_evaluation_state_plan(f.intent, changed, route_resolver=legacy_routes())
 
 
 @pytest.mark.parametrize("damage", ["organization_id", "run_id", "version", "event_sequence"])
@@ -109,7 +116,9 @@ def test_frozen_state_must_match_original_target_and_exact_next_sequence(damage)
         ],
     )
     with pytest.raises(ValueError):
-        freeze_evaluation_state_plan(f.facts, str(uuid4()), f.seal(changed))
+        freeze_evaluation_state_plan(
+            f.facts, str(uuid4()), f.seal(changed), route_resolver=legacy_routes()
+        )
 
 
 @pytest.mark.parametrize("damage", ["duplicate", "unknown", "noncanonical", "version"])
@@ -144,7 +153,10 @@ def test_missing_regressed_or_overflowing_sequence_evidence_is_refused_before_fr
         replace(f.facts, at=f.facts.at.replace(tzinfo=None))
     with pytest.raises(ValueError):
         freeze_evaluation_state_plan(
-            f.facts, str(uuid4()), f.seal(at=f.facts.at + timedelta(seconds=1))
+            f.facts,
+            str(uuid4()),
+            f.seal(at=f.facts.at + timedelta(seconds=1)),
+            route_resolver=legacy_routes(),
         )
 
 
@@ -183,9 +195,11 @@ def test_atomic_multi_checkpoint_root_keeps_only_frozen_final_version_and_one_ev
     # Existing preparation and dispatch advance twice inside one original root.
     # A single state event describes its final version, never an intermediate one.
     state.version = version
-    plan = freeze_evaluation_state_plan(f.facts, str(uuid4()), f.seal(state))
+    plan = freeze_evaluation_state_plan(
+        f.facts, str(uuid4()), f.seal(state), route_resolver=legacy_routes()
+    )
     restored = decode_plan(encode_plan(plan))
-    facts, value = read_evaluation_state_plan(f.intent, restored)
+    facts, value = read_evaluation_state_plan(f.intent, restored, route_resolver=legacy_routes())
     assert facts == f.facts
     assert value.sequence == f.facts.sequence == 9
     assert value.wire == plan.branches[0].wire
@@ -199,4 +213,6 @@ def test_state_target_must_advance_original_version_within_signed_storage_range(
     state = pb.EvaluationRuntimeState.FromString(f.state.SerializeToString())
     with pytest.raises(ValueError):
         state.version = version
-        freeze_evaluation_state_plan(f.facts, str(uuid4()), f.seal(state))
+        freeze_evaluation_state_plan(
+            f.facts, str(uuid4()), f.seal(state), route_resolver=legacy_routes()
+        )

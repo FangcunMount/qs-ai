@@ -11,6 +11,7 @@ from pydantic import SecretStr
 
 from qs_ai.application.evaluation.checkpoints import CheckpointState
 from qs_ai.bootstrap import recover_semantic_contract as cli
+from tests.route_fixtures import legacy_routes
 from tests.test_evaluation_resolution import AT
 
 
@@ -152,6 +153,7 @@ async def test_transaction_cli_closes_source_before_sender_and_drains_before_pri
         start=AsyncMock(side_effect=start),
         close=AsyncMock(side_effect=close),
         wait=AsyncMock(side_effect=wait),
+        routing=legacy_routes(),
     )
     sessions = object()
 

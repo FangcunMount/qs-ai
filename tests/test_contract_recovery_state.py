@@ -24,6 +24,7 @@ from qs_ai.infrastructure.workflow_transport.evaluation_state_plan import (
     freeze_evaluation_state_plan,
 )
 from qs_ai.infrastructure.workflow_transport.messaging import prepare
+from tests.route_fixtures import legacy_routes
 from tests.test_evaluation_state_plan import fixture as state_fixture
 from tests.test_semantic_contract_recovery import recovered_inventory
 
@@ -52,7 +53,9 @@ def frozen():
         original_occurred_at=facts.at.isoformat(timespec="microseconds"),
         **f.keys,
     )
-    plan = freeze_evaluation_state_plan(facts, str(uuid4()), message)
+    plan = freeze_evaluation_state_plan(
+        facts, str(uuid4()), message, route_resolver=legacy_routes()
+    )
     return SimpleNamespace(**locals())
 
 
@@ -62,7 +65,9 @@ def test_first_operator_authorization_audit_and_frozen_response_are_durable_with
         p.incoming, value=replace(p.value, resolved_at=p.value.resolved_at + timedelta(seconds=10))
     )
     assert later.intent == p.incoming.intent
-    facts, first, source, archive = read_contract_recovery_plan(later, p.plan)
+    facts, first, source, archive = read_contract_recovery_plan(
+        later, p.plan, route_resolver=legacy_routes()
+    )
     assert first == p.incoming and source == p.digest and archive.wire == p.message.wire
     assert facts.at == p.value.resolved_at
     changed = first.response()
@@ -88,7 +93,7 @@ def test_different_business_input_cannot_reuse_first_exception(frozen, field):
         }
         changed = replace(p.incoming, value=replace(p.value, **values[field]))
     with pytest.raises(ValueError):
-        read_contract_recovery_plan(changed, p.plan)
+        read_contract_recovery_plan(changed, p.plan, route_resolver=legacy_routes())
 
 
 @pytest.mark.parametrize(
@@ -148,6 +153,7 @@ async def test_unknown_or_aborted_execution_never_replans_or_reexecutes_original
         ),
         reserve=AsyncMock(),
         execute=AsyncMock(),
+        routing=legacy_routes(),
     )
     tx = SimpleNamespace(
         open=AsyncMock(side_effect=AssertionError("No business transaction from unresolved lookup"))

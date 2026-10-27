@@ -34,6 +34,7 @@ from tests.integration.test_transaction_start_admission import (
     required_disposable_primary as required_disposable_primary,
 )
 from tests.messaging_fixtures import keys as keys
+from tests.route_fixtures import legacy_routes
 
 pytestmark = pytest.mark.integration
 
@@ -55,6 +56,7 @@ def planner(p):
         p.host.kit.store,
         signing_key=p.host.keys["ai.sign"],
         recipient_key=p.host.keys["qs.encrypt"],
+        route_resolver=legacy_routes(),
     )
 
 
@@ -73,14 +75,19 @@ async def test_frozen_original_finish_question_failure_and_witness_commit_togeth
     reserved = await p.host.store.reserve(intent.request, winner)
     assert reserved.acquired
     p.host.executions.append(reserved.execution)
-    facts, first, question_id = read_finish_plan(value, intent, winner)
+    facts, first, question_id = read_finish_plan(
+        value, intent, winner, route_resolver=legacy_routes()
+    )
     root = InterpretationStateRoot(
         p.host.tx,
         p.host.archives,
         p.host.store,
         intent,
         winner,
-        InterpretationFinishWrite(p.host.kit.store, value, intent, winner),
+        InterpretationFinishWrite(
+            p.host.kit.store, value, intent, winner, route_resolver=legacy_routes()
+        ),
+        route_resolver=legacy_routes(),
     )
     trigger = None
     try:
@@ -147,6 +154,8 @@ async def test_explicit_finish_sender_prepares_first_and_replays_first_archive_a
     value = incoming(p, question)
 
     class Runtime:
+        routing = legacy_routes()
+
         store = p.host.store
         calls = 0
 
@@ -179,7 +188,9 @@ async def test_explicit_finish_sender_prepares_first_and_replays_first_archive_a
         return
     assert await sender(value.claim, value.result) is None
     first = await p.host.store.lookup(value.intent(p.request_id).request)
-    _, frozen, _ = read_finish_plan(value, value.intent(p.request_id), first.execution.plan)
+    _, frozen, _ = read_finish_plan(
+        value, value.intent(p.request_id), first.execution.plan, route_resolver=legacy_routes()
+    )
     assert await p.host.archives.read_committed(frozen.envelope().message_id) == frozen
     async with p.host.tx.open() as db:
         await db.execute(
@@ -226,7 +237,10 @@ async def test_finish_root_rechecks_source_and_original_live_lease(original, cha
         p.host.store,
         intent,
         winner,
-        InterpretationFinishWrite(p.host.kit.store, value, intent, winner),
+        InterpretationFinishWrite(
+            p.host.kit.store, value, intent, winner, route_resolver=legacy_routes()
+        ),
+        route_resolver=legacy_routes(),
     )
     committed = change == "heartbeat"
     assert await root(owned.execution) == (
@@ -261,13 +275,20 @@ async def test_published_artifact_finish_keeps_durable_model_response_and_origin
     value = InterpretationFinishInput(claim, WorkflowResult("", artifact=candidate))
     intent = value.intent(request_id)
     plan = await InterpretationFinishPlanner(
-        host.kit.store, signing_key=host.keys["ai.sign"], recipient_key=host.keys["qs.encrypt"]
+        host.kit.store,
+        signing_key=host.keys["ai.sign"],
+        recipient_key=host.keys["qs.encrypt"],
+        route_resolver=legacy_routes(),
     ).candidate(value, intent)
     owned = await host.store.reserve(intent.request, plan)
     host.executions.append(owned.execution)
-    facts, first, _ = read_finish_plan(value, intent, plan)
-    business = InterpretationFinishWrite(host.kit.store, value, intent, plan)
-    root = InterpretationStateRoot(host.tx, host.archives, host.store, intent, plan, business)
+    facts, first, _ = read_finish_plan(value, intent, plan, route_resolver=legacy_routes())
+    business = InterpretationFinishWrite(
+        host.kit.store, value, intent, plan, route_resolver=legacy_routes()
+    )
+    root = InterpretationStateRoot(
+        host.tx, host.archives, host.store, intent, plan, business, route_resolver=legacy_routes()
+    )
 
     def no_uuid(*args):
         raise AssertionError("No Artifact identity generation inside the original executor")

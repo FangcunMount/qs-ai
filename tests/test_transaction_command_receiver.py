@@ -80,6 +80,7 @@ def fixture():
         store=sdk_store,
         reserve=AsyncMock(return_value=Reservation(execution, True, State.PREPARED)),
         execute=AsyncMock(return_value=Result(LocalOutcome.COMMITTED, ())),
+        routing=legacy_routes(),
     )
     archives = SimpleNamespace(read_committed=AsyncMock())
     receiver = TransactionCommandReceiver(boundary, base, runtime, archives)

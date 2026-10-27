@@ -47,6 +47,7 @@ from tests.integration.test_transaction_start_admission import keys as keys
 from tests.integration.test_transaction_start_admission import (
     required_disposable_primary as required_disposable_primary,
 )
+from tests.route_fixtures import legacy_routes
 
 pytestmark = pytest.mark.integration
 _CASES = {}
@@ -104,17 +105,28 @@ async def payload_plan(original):
         p.host.kit.store,
         signing_key=p.host.keys["ai.sign"],
         recipient_key=p.host.keys["qs.encrypt"],
+        route_resolver=legacy_routes(),
     )
     winner = await planner.candidate(incoming, intent)
     reserved = await p.host.store.reserve(intent.request, winner)
     assert reserved.acquired
     p.host.executions.append(reserved.execution)
-    _, first, question_id = read_finish_plan(incoming, intent, winner)
+    _, first, question_id = read_finish_plan(
+        incoming, intent, winner, route_resolver=legacy_routes()
+    )
     assert first.envelope().HasField("payload_reference") and 32768 < len(first.body) < 65535
     passed("large_reference_wire")
-    business = InterpretationFinishWrite(p.host.kit.store, incoming, intent, winner)
+    business = InterpretationFinishWrite(
+        p.host.kit.store, incoming, intent, winner, route_resolver=legacy_routes()
+    )
     root = InterpretationStateRoot(
-        p.host.tx, p.host.archives, p.host.store, intent, winner, business
+        p.host.tx,
+        p.host.archives,
+        p.host.store,
+        intent,
+        winner,
+        business,
+        route_resolver=legacy_routes(),
     )
     yield SimpleNamespace(
         original=p,

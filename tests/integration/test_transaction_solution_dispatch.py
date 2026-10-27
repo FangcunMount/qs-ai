@@ -33,6 +33,7 @@ from qs_ai.transport.grpc.solutions import SolutionManagement
 from qs_ai.transport.grpc.solutions import response as solution_response
 from tests.integration import test_transaction_solution_preparation as preparation_tests
 from tests.integration.test_evaluation_runs import rows
+from tests.route_fixtures import legacy_routes
 from tests.test_grpc_commands import Aborted, Context
 
 pytestmark = pytest.mark.integration
@@ -57,6 +58,8 @@ async def sending(host, workspace):
     original = MySQLSolutions(host.tx, previous.settings)
 
     class DatabaseOnlyRuntime:
+        routing = legacy_routes()
+
         store = host.store
         calls = 0
         reject = False

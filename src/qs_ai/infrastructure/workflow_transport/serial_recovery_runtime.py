@@ -66,6 +66,7 @@ class SerialRecoveryRuntime:
             signing_key=signing_key,
             recipient_key=recipient_key,
             database_seconds=database_seconds,
+            route_resolver=runtime.routing,
         )
         self._generation = SerialGenerationSender(
             transactions,
@@ -78,6 +79,7 @@ class SerialRecoveryRuntime:
             signing_key=signing_key,
             recipient_key=recipient_key,
             database_seconds=database_seconds,
+            route_resolver=runtime.routing,
         )
         self._semantic = SerialSemanticSender(
             transactions,
@@ -137,7 +139,9 @@ class SerialRecoveryRuntime:
             async with asyncio.timeout(self.database_seconds):
                 old = await self._runtime.store.lookup(request.intent.request)
             if old is not None and old.state == State.ABORTED:
-                read_expired_recovery_plan(request, old.execution.plan)
+                read_expired_recovery_plan(
+                    request, old.execution.plan, route_resolver=self._runtime.routing
+                )
                 return await self._expired.retry(request, old.execution)
         return await self._expired(request, actor, at)
 
@@ -156,10 +160,14 @@ class SerialRecoveryRuntime:
             old = await self._runtime.store.lookup(intent.request)
         if old is not None and old.state == State.ABORTED:
             if reference.checkpoint.kind == "generation":
-                facts, generation = read_serial_generation_plan(intent, old.execution.plan)
+                facts, generation = read_serial_generation_plan(
+                    intent, old.execution.plan, route_resolver=self._runtime.routing
+                )
                 first_reference = generation.reference
             else:
-                facts, semantic = read_serial_semantic_plan(intent, old.execution.plan)
+                facts, semantic = read_serial_semantic_plan(
+                    intent, old.execution.plan, route_resolver=self._runtime.routing
+                )
                 first_reference = semantic.reference
             if (
                 first_reference != reference

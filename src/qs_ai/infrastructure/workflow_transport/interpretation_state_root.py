@@ -5,6 +5,7 @@ from collections.abc import Awaitable, Callable
 
 from reliable_messaging.transaction import BindingError, Execution, FrozenPlan, LocalOutcome
 from reliable_messaging.transaction_mysql import MySQLTransactionStore
+from reliable_messaging.transport import RouteResolver
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
@@ -34,11 +35,17 @@ class InterpretationStateRoot:
         business: StateWrite,
         *,
         database_seconds: float = 2,
+        route_resolver: RouteResolver,
     ) -> None:
+        self._route_resolver = route_resolver
         if not math.isfinite(database_seconds) or database_seconds <= 0:
             raise ValueError("Finite positive interpretation database budget required")
-        self._facts, self._archive = read_interpretation_state_plan(intent, winner)
-        self._events = FrozenInterpretationStateEvents(intent, winner)
+        self._facts, self._archive = read_interpretation_state_plan(
+            intent, winner, route_resolver=route_resolver
+        )
+        self._events = FrozenInterpretationStateEvents(
+            intent, winner, route_resolver=route_resolver
+        )
         self._transactions, self._archives, self._store = transactions, archives, store
         self._business, self._database_seconds = business, database_seconds
         self._digest, self._used = winner.digest, False

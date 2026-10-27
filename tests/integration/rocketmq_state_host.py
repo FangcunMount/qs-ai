@@ -139,6 +139,7 @@ from tests.integration.test_transaction_evaluation_admission import (
 )
 from tests.integration.test_transaction_resolution_state import unknown as resolution_seed
 from tests.integration.test_transaction_solution_dispatch import service_request
+from tests.route_fixtures import legacy_routes
 from tests.test_generation_manifest import assets as assets
 from tests.test_generation_manifest import complete_release as complete_release
 from tests.test_generation_manifest import evaluation_release as evaluation_release
@@ -187,7 +188,7 @@ def state_receipt(required_broker, request):
 
 class WorkerRuntime(TransactionRuntime):
     def __init__(self, sender, host):
-        super().__init__(sender, admitted=True)
+        super().__init__(sender, admitted=True, routing=legacy_routes())
         self.host, self.results, self.calls, self.pause = host, [], 0, False
         self.entered, self.release, self.completed = (
             asyncio.Event(),
@@ -360,7 +361,9 @@ async def broker(original, required_broker):
                 assert not failures
                 reserved = await host.store.lookup(intent.request)
                 if reserved is not None and reserved.state.value == "committed":
-                    facts, value = read_evaluation_state_plan(intent, reserved.execution.plan)
+                    facts, value = read_evaluation_state_plan(
+                        intent, reserved.execution.plan, route_resolver=legacy_routes()
+                    )
                     if value.envelope().message_id in messages:
                         assert (
                             await StoreChecker(host.store).check(reserved.execution.references[0])
@@ -605,7 +608,9 @@ async def governance_broker(host, required_broker):
     async def consumed(operation):
         reserved = await host.store.lookup(operation.intent.request)
         assert reserved is not None
-        _, value = read_evaluation_state_plan(operation.intent, reserved.execution.plan)
+        _, value = read_evaluation_state_plan(
+            operation.intent, reserved.execution.plan, route_resolver=legacy_routes()
+        )
         message_id = value.envelope().message_id
         async with asyncio.timeout(60):
             while message_id not in messages:
@@ -684,7 +689,9 @@ async def test_actual_governance_finalize_reopen_halves_and_lost_final_reply(
             try:
                 await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
                 owned = b.host.executions[-1]
-                _, first = read_evaluation_state_plan(operation.intent, owned.plan)
+                _, first = read_evaluation_state_plan(
+                    operation.intent, owned.plan, route_resolver=legacy_routes()
+                )
                 b.empty_poll.clear()
                 await asyncio.wait_for(b.empty_poll.wait(), timeout=20)
                 assert first.envelope().message_id not in b.messages
@@ -768,7 +775,9 @@ async def test_actual_review_full35_rpc_half_gate_first_clocks_and_wire(
     try:
         await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
         owned = b.host.executions[-1]
-        _, first_facts, first = read_review_state_plan(incoming, owned.plan)
+        _, first_facts, first = read_review_state_plan(
+            incoming, owned.plan, route_resolver=legacy_routes()
+        )
         b.empty_poll.clear()
         await asyncio.wait_for(b.empty_poll.wait(), timeout=20)
         assert first.envelope().message_id not in b.messages
@@ -807,7 +816,7 @@ async def test_actual_review_source_conflict_rolls_back_prepared_half(
     try:
         await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
         owned = b.host.executions[-1]
-        _, _, first = read_review_state_plan(incoming, owned.plan)
+        _, _, first = read_review_state_plan(incoming, owned.plan, route_resolver=legacy_routes())
         async with tx.open() as db:
             await db.connection(execution_options={"isolation_level": "REPEATABLE READ"})
             await accept_reviews(db, scope, version, incoming.values)
@@ -844,7 +853,7 @@ async def test_actual_correction_first_wire_final_unknown_and_replay_after_final
     try:
         await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
         owned = b.host.executions[-1]
-        facts, first = read_correction_plan(operation, owned.plan)
+        facts, first = read_correction_plan(operation, owned.plan, route_resolver=legacy_routes())
         b.empty_poll.clear()
         await asyncio.wait_for(b.empty_poll.wait(), timeout=20)
         assert first.envelope().message_id not in b.messages
@@ -910,7 +919,7 @@ async def test_actual_correction_source_conflict_rolls_back_prepared_half(
     try:
         await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
         owned = b.host.executions[-1]
-        _, first = read_correction_plan(operation, owned.plan)
+        _, first = read_correction_plan(operation, owned.plan, route_resolver=legacy_routes())
         await original.correct_review(**{**args, "command_id": str(uuid4())})
         competing = await evaluation_rows(tx, scope.run_id)
         b.runtime.release.set()
@@ -969,7 +978,9 @@ async def test_actual_solution_prepare_rpc_half_gate_first_receipt_and_final_unk
     try:
         await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
         owned = b.host.executions[-1]
-        _, facts, first = read_preparation_plan(incoming, owned.plan)
+        _, facts, first = read_preparation_plan(
+            incoming, owned.plan, route_resolver=legacy_routes()
+        )
         b.empty_poll.clear()
         await asyncio.wait_for(b.empty_poll.wait(), timeout=20)
         assert first.envelope().message_id not in b.messages
@@ -1037,7 +1048,7 @@ async def test_actual_solution_source_conflict_rolls_back_prepared_half(
     try:
         await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
         owned = b.host.executions[-1]
-        _, _, first = read_preparation_plan(incoming, owned.plan)
+        _, _, first = read_preparation_plan(incoming, owned.plan, route_resolver=legacy_routes())
         competing = await previous.apply(
             scope, solution_id, replace(command, command_id=uuid4(), reason="并发旧准备"), at
         )
@@ -1130,7 +1141,7 @@ async def test_actual_resolution_rpc_half_gate_first_audit_and_final_unknown(
     try:
         await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
         owned = b.host.executions[-1]
-        facts, first = read_resolution_plan(operation, owned.plan)
+        facts, first = read_resolution_plan(operation, owned.plan, route_resolver=legacy_routes())
         frozen, _ = ResolutionStateOperation.from_facts(facts)
         b.empty_poll.clear()
         await asyncio.wait_for(b.empty_poll.wait(), timeout=20)
@@ -1192,7 +1203,7 @@ async def test_actual_resolution_source_conflict_rolls_back_prepared_half(
     try:
         await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
         owned = b.host.executions[-1]
-        _, first = read_resolution_plan(operation, owned.plan)
+        _, first = read_resolution_plan(operation, owned.plan, route_resolver=legacy_routes())
         await MySQLEvaluationManagement(p.tx).resolve(
             p.scope, p.state.version, replace(value, decision="cancel_run"), confirm=True
         )
@@ -1242,6 +1253,7 @@ async def _actual_serial_dispatch(b, ready, monkeypatch, *, semantic):
         signing_key=b.host.keys["ai.sign"],
         recipient_key=b.host.keys["qs.encrypt"],
         clock=lambda: AT + timedelta(seconds=1),
+        route_resolver=legacy_routes(),
     )
     _, expected = await planner.candidate(run_id, version, 1, "worker:real-serial")
     pool = ModelCapacity({expected.route.provider: ProviderCapacity(2, 1)}, 1)
@@ -1255,7 +1267,9 @@ async def _actual_serial_dispatch(b, ready, monkeypatch, *, semantic):
     try:
         await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
         owned = b.host.executions[-1]
-        _, operation, first = read_worker_dispatch_plan(intent, owned.plan)
+        _, operation, first = read_worker_dispatch_plan(
+            intent, owned.plan, route_resolver=legacy_routes()
+        )
         b.empty_poll.clear()
         await asyncio.wait_for(b.empty_poll.wait(), timeout=20)
         assert first.envelope().message_id not in b.messages
@@ -1551,7 +1565,9 @@ async def test_actual_default_transport_and_worker_share_sender_root_and_shutdow
                 tracked = True
                 passed("default_assembly_original_worker_preflight")
                 passed("default_assembly_exact_archive_witness")
-                _, event_value = read_evaluation_state_plan(intent, owned.execution.plan)
+                _, event_value = read_evaluation_state_plan(
+                    intent, owned.execution.plan, route_resolver=legacy_routes()
+                )
                 event_header = event_value.envelope()
                 ack = prepare(
                     messaging_pb.EVENT_ACKNOWLEDGEMENT,
@@ -1852,7 +1868,9 @@ async def _recovery_half_gate(b, tx, run_id, invoke, monkeypatch, label, unchang
         await _wait_recovery_barrier(task, b.runtime.entered)
         owned = b.host.executions[-1]
         facts = EvaluationStateFacts.decode(decode_branch(owned.plan.branches[0]).context)
-        _, archive = read_evaluation_state_plan(facts.intent, owned.plan)
+        _, archive = read_evaluation_state_plan(
+            facts.intent, owned.plan, route_resolver=legacy_routes()
+        )
         b.empty_poll.clear()
         await asyncio.wait_for(b.empty_poll.wait(), timeout=20)
         assert archive.envelope().message_id not in b.messages
@@ -2271,6 +2289,7 @@ async def test_actual_aborted_dispatch_requires_explicit_replan_and_one_capacity
             recipient_key=b.host.keys["qs.encrypt"],
             limit=3,
             clock=lambda: AT,
+            route_resolver=legacy_routes(),
         )
     else:
         planner = WorkerDispatchPlanner(
@@ -2279,6 +2298,7 @@ async def test_actual_aborted_dispatch_requires_explicit_replan_and_one_capacity
             signing_key=b.host.keys["ai.sign"],
             recipient_key=b.host.keys["qs.encrypt"],
             clock=lambda: AT,
+            route_resolver=legacy_routes(),
         )
     _, inputs = await planner.candidate(run_id, 3, 1, "worker:recovery")
     pool = ModelCapacity({inputs.route.provider: ProviderCapacity(2, 1)}, 1)
@@ -2379,6 +2399,7 @@ async def test_actual_serial_dispatch_source_conflict_rolls_back_without_model_c
         signing_key=b.host.keys["ai.sign"],
         recipient_key=b.host.keys["qs.encrypt"],
         clock=lambda: AT + timedelta(seconds=1),
+        route_resolver=legacy_routes(),
     )
     dispatch = WorkerDispatchSender(
         b.host.tx, b.host.archives, b.runtime, schemas, "worker:real-serial", planner
@@ -2389,7 +2410,7 @@ async def test_actual_serial_dispatch_source_conflict_rolls_back_without_model_c
     try:
         await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
         owned = b.host.executions[-1]
-        _, _, first = read_worker_dispatch_plan(intent, owned.plan)
+        _, _, first = read_worker_dispatch_plan(intent, owned.plan, route_resolver=legacy_routes())
         await MySQLEvaluationManagement(tx).cancel(
             ManagementScope(run_id, 1, 42),
             3,
@@ -2497,7 +2518,9 @@ async def _actual_interpretation_finish(b, kind, monkeypatch):
     try:
         await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
         owned = b.host.executions[-1]
-        facts, first, question_id = read_finish_plan(p.incoming, p.intent, owned.plan)
+        facts, first, question_id = read_finish_plan(
+            p.incoming, p.intent, owned.plan, route_resolver=legacy_routes()
+        )
         message_id = first.envelope().message_id
         b.empty_poll.clear()
         await asyncio.wait_for(b.empty_poll.wait(), timeout=20)
@@ -2622,7 +2645,9 @@ async def test_actual_interpretation_finish_source_conflict_rolls_back_without_n
     try:
         await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
         owned = b.host.executions[-1]
-        _, first, _ = read_finish_plan(p.incoming, p.intent, owned.plan)
+        _, first, _ = read_finish_plan(
+            p.incoming, p.intent, owned.plan, route_resolver=legacy_routes()
+        )
         previous = b.host.tx.database.state_events
         b.host.tx.database.state_events = None
         try:
@@ -2694,7 +2719,7 @@ async def _actual_interpretation_claim(b, exhausted, monkeypatch):
     try:
         await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
         owned = b.host.executions[-1]
-        facts, first = read_claim_plan(source, 60, owned.plan)
+        facts, first = read_claim_plan(source, 60, owned.plan, route_resolver=legacy_routes())
         message_id = first.envelope().message_id
         b.empty_poll.clear()
         await asyncio.wait_for(b.empty_poll.wait(), timeout=20)
@@ -2786,7 +2811,7 @@ async def _actual_claim_rollback(b, *, quota):
     try:
         await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
         owned = b.host.executions[-1]
-        _, first = read_claim_plan(source, 60, owned.plan)
+        _, first = read_claim_plan(source, 60, owned.plan, route_resolver=legacy_routes())
         if not quota:
             previous = b.host.tx.database.state_events
             b.host.tx.database.state_events = None
@@ -2877,7 +2902,7 @@ async def test_actual_original_claim_scanner_first_plan_and_explicit_abort_retry
     try:
         await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
         owned = b.host.executions[-1]
-        _, first = read_claim_plan(source, 60, owned.plan)
+        _, first = read_claim_plan(source, 60, owned.plan, route_resolver=legacy_routes())
         message_id = first.envelope().message_id
         b.empty_poll.clear()
         await asyncio.wait_for(b.empty_poll.wait(), timeout=20)
@@ -2931,7 +2956,7 @@ async def test_actual_original_claim_scanner_quota_defers_without_running_event(
     )
     assert await worker.claim(60) is None
     owned = b.host.executions[-1]
-    _, first = read_claim_plan(source, 60, owned.plan)
+    _, first = read_claim_plan(source, 60, owned.plan, route_resolver=legacy_routes())
     assert await StoreChecker(b.host.store).check(owned.references[0]) == Decision.ROLLBACK
     after = await rows(b.host.kit, source.session.id)
     assert after[0] == before[0] and after[2:] == before[2:]
@@ -2984,7 +3009,9 @@ async def test_actual_explicit_finalization_retry_preserves_first_wire_and_durab
         await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
         owned = b.host.executions[-1]
         assert owned.plan == previous.execution.plan and owned.fence == previous.execution.fence + 1
-        _, first, question_id = read_finish_plan(p.incoming, p.intent, owned.plan)
+        _, first, question_id = read_finish_plan(
+            p.incoming, p.intent, owned.plan, route_resolver=legacy_routes()
+        )
         message_id = first.envelope().message_id
         b.empty_poll.clear()
         await asyncio.wait_for(b.empty_poll.wait(), timeout=20)
@@ -3087,6 +3114,7 @@ async def _serial_terminal_seed(b, ready, *, unknown=False, semantic=False):
             b.host.tx,
             signing_key=b.host.keys["ai.sign"],
             recipient_key=b.host.keys["qs.encrypt"],
+            route_resolver=legacy_routes(),
         )
         sender = SerialSemanticSender(b.host.tx, b.host.archives, b.runtime, planner)
     else:
@@ -3095,6 +3123,7 @@ async def _serial_terminal_seed(b, ready, *, unknown=False, semantic=False):
             routes,
             signing_key=b.host.keys["ai.sign"],
             recipient_key=b.host.keys["qs.encrypt"],
+            route_resolver=legacy_routes(),
         )
         sender = SerialGenerationSender(b.host.tx, b.host.archives, b.runtime, planner)
     intent = await planner.intent(reference)
@@ -3137,8 +3166,10 @@ async def test_actual_serial_generation_terminal_half_gate_and_first_response(
     try:
         await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
         owned = b.host.executions[-1]
-        facts, operation = read_serial_generation_plan(p.intent, owned.plan)
-        _, first = read_evaluation_state_plan(p.intent, owned.plan)
+        facts, operation = read_serial_generation_plan(
+            p.intent, owned.plan, route_resolver=legacy_routes()
+        )
+        _, first = read_evaluation_state_plan(p.intent, owned.plan, route_resolver=legacy_routes())
         b.empty_poll.clear()
         await asyncio.wait_for(b.empty_poll.wait(), timeout=20)
         assert first.envelope().message_id not in b.messages
@@ -3205,8 +3236,12 @@ async def test_actual_serial_terminal_cancel_requires_explicit_old_abort_replan(
     try:
         await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
         previous = b.host.executions[-1]
-        _, original_op = read_serial_generation_plan(p.intent, previous.plan)
-        _, old_wire = read_evaluation_state_plan(p.intent, previous.plan)
+        _, original_op = read_serial_generation_plan(
+            p.intent, previous.plan, route_resolver=legacy_routes()
+        )
+        _, old_wire = read_evaluation_state_plan(
+            p.intent, previous.plan, route_resolver=legacy_routes()
+        )
         await MySQLEvaluationManagement(p.tx).cancel(
             ManagementScope(p.run_id, 1, 42),
             5,
@@ -3227,8 +3262,12 @@ async def test_actual_serial_terminal_cancel_requires_explicit_old_abort_replan(
         next_task = asyncio.create_task(p.sender.replan(p.reference, previous))
         await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
         current = b.host.executions[-1]
-        facts, operation = read_serial_generation_plan(p.intent, current.plan)
-        _, first = read_evaluation_state_plan(p.intent, current.plan)
+        facts, operation = read_serial_generation_plan(
+            p.intent, current.plan, route_resolver=legacy_routes()
+        )
+        _, first = read_evaluation_state_plan(
+            p.intent, current.plan, route_resolver=legacy_routes()
+        )
         assert current.plan.digest != previous.plan.digest and facts.source_version == 6
         assert (
             operation.reference == original_op.reference
@@ -3285,8 +3324,10 @@ async def test_actual_serial_semantic_terminal_half_gate_and_first_response(
     try:
         await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
         owned = b.host.executions[-1]
-        facts, operation = read_serial_semantic_plan(p.intent, owned.plan)
-        _, first = read_evaluation_state_plan(p.intent, owned.plan)
+        facts, operation = read_serial_semantic_plan(
+            p.intent, owned.plan, route_resolver=legacy_routes()
+        )
+        _, first = read_evaluation_state_plan(p.intent, owned.plan, route_resolver=legacy_routes())
         b.empty_poll.clear()
         await asyncio.wait_for(b.empty_poll.wait(), timeout=20)
         assert first.envelope().message_id not in b.messages
@@ -3353,8 +3394,12 @@ async def test_actual_serial_semantic_cancel_requires_explicit_old_abort_replan(
     try:
         await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
         previous = b.host.executions[-1]
-        _, original_op = read_serial_semantic_plan(p.intent, previous.plan)
-        _, old_wire = read_evaluation_state_plan(p.intent, previous.plan)
+        _, original_op = read_serial_semantic_plan(
+            p.intent, previous.plan, route_resolver=legacy_routes()
+        )
+        _, old_wire = read_evaluation_state_plan(
+            p.intent, previous.plan, route_resolver=legacy_routes()
+        )
         await MySQLEvaluationManagement(p.tx).cancel(
             ManagementScope(p.run_id, 1, 42),
             8,
@@ -3375,8 +3420,12 @@ async def test_actual_serial_semantic_cancel_requires_explicit_old_abort_replan(
         next_task = asyncio.create_task(p.sender.replan(p.reference, previous))
         await asyncio.wait_for(b.runtime.entered.wait(), timeout=30)
         current = b.host.executions[-1]
-        facts, operation = read_serial_semantic_plan(p.intent, current.plan)
-        _, first = read_evaluation_state_plan(p.intent, current.plan)
+        facts, operation = read_serial_semantic_plan(
+            p.intent, current.plan, route_resolver=legacy_routes()
+        )
+        _, first = read_evaluation_state_plan(
+            p.intent, current.plan, route_resolver=legacy_routes()
+        )
         assert current.plan.digest != previous.plan.digest and facts.source_version == 9
         assert (
             operation.reference == original_op.reference
@@ -3492,6 +3541,7 @@ async def test_actual_candidate_graph_halves_first_response_and_final_unknown(
             recipient_key=b.host.keys["qs.encrypt"],
             limit=3,
             clock=lambda: at,
+            route_resolver=legacy_routes(),
         ),
     )
     completion = CandidateCompletionSender(
@@ -3499,7 +3549,10 @@ async def test_actual_candidate_graph_halves_first_response_and_final_unknown(
         b.host.archives,
         b.runtime,
         CandidateCompletionPlanner(
-            b.host.tx, signing_key=b.host.keys["ai.sign"], recipient_key=b.host.keys["qs.encrypt"]
+            b.host.tx,
+            signing_key=b.host.keys["ai.sign"],
+            recipient_key=b.host.keys["qs.encrypt"],
+            route_resolver=legacy_routes(),
         ),
     )
     runtime = CandidateRuntime(dispatch, completion)
@@ -3544,7 +3597,9 @@ async def test_actual_candidate_graph_halves_first_response_and_final_unknown(
     try:
         await barrier(b.runtime.entered)
         intent = candidate_dispatch_intent(run_id, version, 1)
-        _, _, first_dispatch = read_candidate_dispatch_plan(intent, b.host.executions[-1].plan)
+        _, _, first_dispatch = read_candidate_dispatch_plan(
+            intent, b.host.executions[-1].plan, route_resolver=legacy_routes()
+        )
         b.empty_poll.clear()
         await asyncio.wait_for(b.empty_poll.wait(), timeout=20)
         assert first_dispatch.envelope().message_id not in b.messages
@@ -3569,8 +3624,12 @@ async def test_actual_candidate_graph_halves_first_response_and_final_unknown(
             from qs_ai.infrastructure.workflow_transport.transaction_archive import decode_branch
 
             facts = EvaluationStateFacts.decode(decode_branch(owned.plan.branches[0]).context)
-            _, operation = read_candidate_completion_plan(facts.intent, owned.plan)
-            _, first = read_evaluation_state_plan(facts.intent, owned.plan)
+            _, operation = read_candidate_completion_plan(
+                facts.intent, owned.plan, route_resolver=legacy_routes()
+            )
+            _, first = read_evaluation_state_plan(
+                facts.intent, owned.plan, route_resolver=legacy_routes()
+            )
             b.empty_poll.clear()
             await asyncio.wait_for(b.empty_poll.wait(), timeout=20)
             assert first.envelope().message_id not in b.messages and len(gateway.calls) == calls + 1

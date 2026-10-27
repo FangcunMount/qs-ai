@@ -53,10 +53,13 @@ class PreflightStateDispatcher:
             signing_key=signing_key,
             recipient_key=recipient_key,
             database_seconds=database_seconds,
+            route_resolver=runtime.routing,
         )
 
     async def _committed(self, intent: EvaluationStateIntent, execution: Execution) -> None:
-        facts, value = read_evaluation_state_plan(intent, execution.plan)
+        facts, value = read_evaluation_state_plan(
+            intent, execution.plan, route_resolver=self._runtime.routing
+        )
         PreflightOperation.from_facts(facts)
         async with asyncio.timeout(self._database_seconds):
             evidence = tuple(
@@ -88,6 +91,7 @@ class PreflightStateDispatcher:
             reservation.execution.plan,
             apply_preflight_state,
             database_seconds=self._database_seconds,
+            route_resolver=self._runtime.routing,
         )
         try:
             result = await self._runtime.execute(reservation.execution, local)

@@ -7,6 +7,7 @@ import pytest
 from reliable_messaging.transaction import BindingError, LocalOutcome
 
 from qs_ai.infrastructure.workflow_transport import interpretation_state_root as module
+from tests.route_fixtures import legacy_routes
 from tests.test_interpretation_state_plan import frozen as frozen
 
 
@@ -15,7 +16,13 @@ async def test_root_constructor_is_inert_and_owned_executor_cannot_be_called_twi
 ):
     tx = SimpleNamespace(open=AsyncMock(side_effect=AssertionError("Constructor opens no session")))
     root = module.InterpretationStateRoot(
-        tx, object(), object(), frozen.intent, frozen.plan, AsyncMock()
+        tx,
+        object(),
+        object(),
+        frozen.intent,
+        frozen.plan,
+        AsyncMock(),
+        route_resolver=legacy_routes(),
     )
     tx.open.assert_not_called()
     commit = AsyncMock(return_value=LocalOutcome.UNKNOWN)
@@ -34,7 +41,7 @@ async def test_wrong_execution_never_enters_original_business_or_primary(frozen,
     )
     business = AsyncMock()
     root = module.InterpretationStateRoot(
-        tx, object(), object(), frozen.intent, frozen.plan, business
+        tx, object(), object(), frozen.intent, frozen.plan, business, route_resolver=legacy_routes()
     )
     execution = SimpleNamespace(
         owned=owned, plan=SimpleNamespace(digest=b"not the original digest")

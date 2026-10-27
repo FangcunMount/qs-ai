@@ -8,6 +8,7 @@ import pytest
 from reliable_messaging.durable import MessageConflict
 
 from qs_ai.infrastructure.workflow_transport import frozen_evaluation_events as events
+from tests.route_fixtures import legacy_routes
 from tests.test_evaluation_state_plan import fixture as planning
 
 
@@ -36,7 +37,7 @@ def fixture(monkeypatch):
     )
     binding = SimpleNamespace(validate=AsyncMock())
     monkeypatch.setattr(events, "bind", Mock(return_value=binding))
-    recorder = events.FrozenEvaluationStateEvents(f.intent, f.plan)
+    recorder = events.FrozenEvaluationStateEvents(f.intent, f.plan, route_resolver=legacy_routes())
     return SimpleNamespace(**locals())
 
 

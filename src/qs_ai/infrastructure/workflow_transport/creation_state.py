@@ -10,6 +10,7 @@ from uuid import uuid5
 from reliable_messaging.durable import MessageConflict
 from reliable_messaging.transaction import FrozenPlan
 from reliable_messaging.transaction_mysql import MySQLTransactionStore
+from reliable_messaging.transport import RouteResolver
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from qs_ai.application.evaluation.management import EvaluationView
@@ -46,7 +47,9 @@ class CreationStatePlanner:
         signing_key: Any,
         recipient_key: Any,
         database_seconds: float = 2,
+        route_resolver: RouteResolver,
     ) -> None:
+        self._route_resolver = route_resolver
         if not math.isfinite(database_seconds) or database_seconds <= 0:
             raise ValueError("Finite positive creation database budget required")
         self._creator, self._database_seconds = creator, database_seconds
@@ -91,8 +94,10 @@ class CreationStatePlanner:
             recipient_key=self._recipient_key,
             original_occurred_at=facts.at.isoformat(timespec="microseconds"),
         )
-        winner = freeze_evaluation_state_plan(facts, str(plan.run_id), first)
-        read_creation_state_plan(incoming, winner)
+        winner = freeze_evaluation_state_plan(
+            facts, str(plan.run_id), first, route_resolver=self._route_resolver
+        )
+        read_creation_state_plan(incoming, winner, route_resolver=self._route_resolver)
         return winner, plan
 
 
@@ -107,8 +112,12 @@ class CreationStateRoot(EvaluationStateRoot):
         creation: RunCreationPlan,
         *,
         database_seconds: float = 2,
+        route_resolver: RouteResolver,
     ) -> None:
-        facts, original, _ = read_creation_state_plan(incoming, winner)
+        self._route_resolver = route_resolver
+        facts, original, _ = read_creation_state_plan(
+            incoming, winner, route_resolver=route_resolver
+        )
         original.validate(incoming, creation)
         definition = json.loads(creation.definition_json)
         # Decode immutable assets before the callback. No new identity, clock,
@@ -156,6 +165,7 @@ class CreationStateRoot(EvaluationStateRoot):
             write,
             database_seconds=database_seconds,
             isolation_level="REPEATABLE READ",
+            route_resolver=route_resolver,
         )
 
     @property

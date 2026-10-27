@@ -77,7 +77,7 @@ class CandidateDispatchSender:
             # Even a committed dispatch is not permission to invoke the provider twice.
             raise CandidateDispatchPending("Existing candidate dispatch requires exact recovery")
         if previous is not None:
-            read_candidate_dispatch_plan(intent, previous.plan)
+            read_candidate_dispatch_plan(intent, previous.plan, route_resolver=self.runtime.routing)
             if (
                 existing is None
                 or existing.state != State.ABORTED
@@ -102,7 +102,9 @@ class CandidateDispatchSender:
             )
             if not reserved.acquired or reserved.execution.plan.digest != candidate.digest:
                 raise CandidateDispatchPending("Another candidate owns the first dispatch")
-            _, operation, archive = read_candidate_dispatch_plan(intent, reserved.execution.plan)
+            _, operation, archive = read_candidate_dispatch_plan(
+                intent, reserved.execution.plan, route_resolver=self.runtime.routing
+            )
             business = CandidateDispatchWrite()
             root = EvaluationStateRoot(
                 self.transactions,
@@ -113,6 +115,7 @@ class CandidateDispatchSender:
                 business,
                 database_seconds=self.planner.database_seconds,
                 isolation_level="REPEATABLE READ",
+                route_resolver=self.runtime.routing,
             )
             try:
                 result = await self.runtime.execute(reserved.execution, root)

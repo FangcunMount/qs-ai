@@ -32,6 +32,7 @@ from tests.integration.test_transaction_start_admission import (
 )
 from tests.integration.test_transaction_worker_dispatch import original as original
 from tests.messaging_fixtures import keys as keys
+from tests.route_fixtures import legacy_routes
 
 pytestmark = pytest.mark.integration
 
@@ -49,14 +50,19 @@ async def test_original_serial_expiry_audit_terminal_archive_and_witness_are_ato
     before = await rows(p.tx, p.run_id)
     request = ExpiredRecoveryRequest(p.run_id, 1, checkpoint.version, "invocation:dead", EXPIRY)
     planner = ExpiredRecoveryPlanner(
-        p.host.tx, signing_key=p.host.keys["ai.sign"], recipient_key=p.host.keys["qs.encrypt"]
+        p.host.tx,
+        signing_key=p.host.keys["ai.sign"],
+        recipient_key=p.host.keys["qs.encrypt"],
+        route_resolver=legacy_routes(),
     )
     winner = await planner.candidate(request, "system:recovery", EXPIRY)
     reservation = await p.host.store.reserve(request.intent.request, winner)
     assert reservation.acquired
     owned = reservation.execution
     p.host.executions.append(owned)
-    facts, actor, first = read_expired_recovery_plan(request, winner)
+    facts, actor, first = read_expired_recovery_plan(
+        request, winner, route_resolver=legacy_routes()
+    )
     assert actor == "system:recovery" and facts.at == EXPIRY
     root = EvaluationStateRoot(
         p.host.tx,
@@ -66,6 +72,7 @@ async def test_original_serial_expiry_audit_terminal_archive_and_witness_are_ato
         owned.plan,
         apply_expired_recovery,
         isolation_level="REPEATABLE READ",
+        route_resolver=legacy_routes(),
     )
     trigger = None
     calls = p.gateway.calls

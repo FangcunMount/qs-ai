@@ -62,6 +62,7 @@ class CandidateRecoveryRuntime:
             signing_key=signing_key,
             recipient_key=recipient_key,
             database_seconds=database_seconds,
+            route_resolver=runtime.routing,
         )
         self._completion = CandidateCompletionSender(
             transactions,
@@ -100,7 +101,9 @@ class CandidateRecoveryRuntime:
             async with asyncio.timeout(self.database_seconds):
                 old = await self._runtime.store.lookup(intent.request)
             if old is not None and old.state == State.ABORTED:
-                facts, first = read_candidate_completion_plan(intent, old.execution.plan)
+                facts, first = read_candidate_completion_plan(
+                    intent, old.execution.plan, route_resolver=self._runtime.routing
+                )
                 if (
                     first.reference != reference
                     or facts.source_version is None
@@ -121,7 +124,9 @@ class CandidateRecoveryRuntime:
             async with asyncio.timeout(self.database_seconds):
                 old = await self._runtime.store.lookup(request.intent.request)
             if old is not None and old.state == State.ABORTED:
-                facts, first, _ = read_candidate_expiry_plan(request, old.execution.plan)
+                facts, first, _ = read_candidate_expiry_plan(
+                    request, old.execution.plan, route_resolver=self._runtime.routing
+                )
                 if facts.source_version is None or version < facts.source_version:
                     raise MessageConflict("Candidate expiry coordinator regressed")
                 if (

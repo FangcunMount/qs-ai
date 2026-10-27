@@ -36,6 +36,7 @@ from tests.integration.test_transaction_start_admission import (
     required_disposable_primary as required_disposable_primary,
 )
 from tests.messaging_fixtures import keys as keys
+from tests.route_fixtures import legacy_routes
 
 pytestmark = pytest.mark.integration
 
@@ -105,7 +106,9 @@ def candidate(p, question):
         recipient_key=p.host.keys["qs.encrypt"],
         original_occurred_at=facts.at.isoformat(timespec="microseconds"),
     )
-    return intent, freeze_interpretation_state_plan(facts, str(uuid4()), first)
+    return intent, freeze_interpretation_state_plan(
+        facts, str(uuid4()), first, route_resolver=legacy_routes()
+    )
 
 
 @pytest.mark.parametrize("question", [False, True])
@@ -120,7 +123,7 @@ async def test_standalone_interpretation_state_history_and_witness_use_original_
     reserved = await p.host.store.reserve(intent.request, winner)
     assert reserved.acquired
     p.host.executions.append(reserved.execution)
-    facts, first = read_interpretation_state_plan(intent, winner)
+    facts, first = read_interpretation_state_plan(intent, winner, route_resolver=legacy_routes())
     original_context = json.loads(facts.business_context)
     calls = 0
 
@@ -147,7 +150,13 @@ async def test_standalone_interpretation_state_history_and_witness_use_original_
         )
 
     root = InterpretationStateRoot(
-        p.host.tx, p.host.archives, p.host.store, intent, winner, business
+        p.host.tx,
+        p.host.archives,
+        p.host.store,
+        intent,
+        winner,
+        business,
+        route_resolver=legacy_routes(),
     )
     trigger = None
     try:

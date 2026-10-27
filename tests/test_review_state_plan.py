@@ -21,6 +21,7 @@ from qs_ai.infrastructure.workflow_transport.review_state_plan import (
     ReviewStateInput,
     read_review_state_plan,
 )
+from tests.route_fixtures import legacy_routes
 from tests.test_evaluation_review import review
 
 
@@ -67,7 +68,9 @@ def fixture(count=35):
         )
 
     first = seal()
-    winner = freeze_evaluation_state_plan(frozen, str(incoming.operation_id), first)
+    winner = freeze_evaluation_state_plan(
+        frozen, str(incoming.operation_id), first, route_resolver=legacy_routes()
+    )
     return locals()
 
 
@@ -75,7 +78,9 @@ def test_full_original_batch_binds_all_input_without_putting_it_in_protocol_meta
     f = fixture()
     incoming, winner = f["incoming"], f["winner"]
     assert sum(len(v.reason.encode()) for v in incoming.values) > 8192
-    facts, original, archived = read_review_state_plan(incoming, decode_plan(encode_plan(winner)))
+    facts, original, archived = read_review_state_plan(
+        incoming, decode_plan(encode_plan(winner)), route_resolver=legacy_routes()
+    )
     assert facts == f["frozen"] and original == f["facts"]
     assert archived.wire == f["first"].wire
     assert len(archived.context) <= 16384
@@ -96,7 +101,7 @@ def test_losing_clock_vector_uses_durable_winner_and_preserves_original_offset_f
         losing.input_digest == incoming.input_digest
         and losing.intent.request == incoming.intent.request
     )
-    _, original, _ = read_review_state_plan(losing, f["winner"])
+    _, original, _ = read_review_state_plan(losing, f["winner"], route_resolver=legacy_routes())
     restored = original.values_for(losing)
     assert tuple(v.reviewed_at.isoformat() for v in restored) == tuple(
         v.reviewed_at.isoformat() for v in incoming.values
@@ -127,7 +132,7 @@ def test_changed_original_authority_or_payload_cannot_execute_an_existing_plan(d
             ),
         )
     with pytest.raises(ValueError):
-        read_review_state_plan(changed, f["winner"])
+        read_review_state_plan(changed, f["winner"], route_resolver=legacy_routes())
 
 
 @pytest.mark.parametrize(
@@ -173,7 +178,10 @@ def test_one_review_cas_cannot_be_replaced_by_another_frozen_state(version, stat
     state = pb.EvaluationRuntimeState.FromString(f["state"].SerializeToString())
     state.version, state.status = version, status
     changed = freeze_evaluation_state_plan(
-        f["frozen"], str(f["incoming"].operation_id), f["seal"](state)
+        f["frozen"],
+        str(f["incoming"].operation_id),
+        f["seal"](state),
+        route_resolver=legacy_routes(),
     )
     with pytest.raises(ValueError):
-        read_review_state_plan(f["incoming"], changed)
+        read_review_state_plan(f["incoming"], changed, route_resolver=legacy_routes())

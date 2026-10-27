@@ -19,6 +19,7 @@ from qs_ai.infrastructure.persistence.mysql import evaluation_cancellation as or
 from qs_ai.infrastructure.persistence.mysql.schema import evaluation_checkpoints, evaluation_runs
 from qs_ai.infrastructure.workflow_transport import cancellation_drain_state as drain
 from qs_ai.infrastructure.workflow_transport.state_events import evaluation_sequences
+from tests.route_fixtures import legacy_routes
 
 
 def fixture(monkeypatch):
@@ -107,6 +108,7 @@ def fixture(monkeypatch):
         tx,
         signing_key=jwk.JWK.generate(kty="EC", crv="P-256", kid="ai.sign"),
         recipient_key=jwk.JWK.generate(kty="EC", crv="P-256", kid="qs.encrypt"),
+        route_resolver=legacy_routes(),
     )
     return SimpleNamespace(**locals())
 
@@ -118,7 +120,9 @@ async def test_drain_identity_uses_original_request_while_source_tracks_current_
     before = copy.deepcopy((p.run, p.checkpoint))
     operation = await p.planner.observe(p.scope, p.at)
     winner = await p.planner.candidate(operation, p.at + timedelta(seconds=2))
-    facts, _, archive = drain.read_cancellation_drain_plan(operation, winner)
+    facts, _, archive = drain.read_cancellation_drain_plan(
+        operation, winner, route_resolver=legacy_routes()
+    )
     assert operation.request_version == facts.intent.expected_version == 4
     assert facts.source_version == 8 and facts.at == p.at + timedelta(seconds=2)
     visible = pb.MessagingBody.FromString(archive.body).evaluation_state
@@ -158,7 +162,9 @@ async def test_drain_root_revalidates_and_uses_original_writer_without_own_commi
     p = fixture(monkeypatch)
     operation = await p.planner.observe(p.scope, p.at)
     winner = await p.planner.candidate(operation, p.at)
-    facts, _, _ = drain.read_cancellation_drain_plan(operation, winner)
+    facts, _, _ = drain.read_cancellation_drain_plan(
+        operation, winner, route_resolver=legacy_routes()
+    )
     p.db.execute.reset_mock()
     if damage == "source":
         p.run["definition_json"] += " "
@@ -186,7 +192,9 @@ async def test_frozen_drain_rejects_foreign_or_malformed_evidence(monkeypatch, d
     p = fixture(monkeypatch)
     operation = await p.planner.observe(p.scope, p.at)
     winner = await p.planner.candidate(operation, p.at)
-    facts, _, _ = drain.read_cancellation_drain_plan(operation, winner)
+    facts, _, _ = drain.read_cancellation_drain_plan(
+        operation, winner, route_resolver=legacy_routes()
+    )
     with pytest.raises(ValueError):
         if damage == "owner":
             drain.CancellationDrainOperation.from_facts(

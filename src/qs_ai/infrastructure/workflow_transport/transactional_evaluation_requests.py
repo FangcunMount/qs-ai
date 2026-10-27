@@ -67,6 +67,7 @@ class TransactionalEvaluationRequests:
             signing_key=signing_key,
             recipient_key=recipient_key,
             database_seconds=database_seconds,
+            route_resolver=runtime.routing,
         )
 
     async def create(
@@ -107,6 +108,7 @@ class TransactionalEvaluationRequests:
             reservation.execution.plan,
             creation,
             database_seconds=self._database_seconds,
+            route_resolver=self._runtime.routing,
         )
         try:
             result = await self._runtime.execute(reservation.execution, local)
@@ -221,7 +223,9 @@ class TransactionalEvaluationRequests:
     async def _verify_commit(
         self, incoming: CreationStateInput, execution: Execution
     ) -> CreationPlanFacts:
-        _, original, first = read_creation_state_plan(incoming, execution.plan)
+        _, original, first = read_creation_state_plan(
+            incoming, execution.plan, route_resolver=self._runtime.routing
+        )
         async with asyncio.timeout(self._database_seconds):
             evidence = tuple(
                 [await self._runtime.store.evidence(ref) for ref in execution.references]

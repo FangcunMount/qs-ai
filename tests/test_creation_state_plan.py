@@ -22,6 +22,7 @@ from qs_ai.infrastructure.workflow_transport.evaluation_state_plan import (
     freeze_evaluation_state_plan,
 )
 from qs_ai.infrastructure.workflow_transport.messaging import prepare
+from tests.route_fixtures import legacy_routes
 from tests.test_generation_manifest import assets as assets
 from tests.test_generation_manifest import complete_release as complete_release
 from tests.test_generation_manifest import evaluation_release as evaluation_release
@@ -68,14 +69,16 @@ async def frozen(context):
         )
 
     first = seal()
-    winner = freeze_evaluation_state_plan(facts, str(f.run_id), first)
+    winner = freeze_evaluation_state_plan(
+        facts, str(f.run_id), first, route_resolver=legacy_routes()
+    )
     return locals()
 
 
 async def test_creation_round_trip_preserves_first_bytes_mode_and_offset(frozen):
     f = frozen
     facts, original, archived = read_creation_state_plan(
-        f["incoming"], decode_plan(encode_plan(f["winner"]))
+        f["incoming"], decode_plan(encode_plan(f["winner"])), route_resolver=legacy_routes()
     )
     assert facts == f["facts"] and original == f["original"]
     assert original.created_at.isoformat() == f["f"].at.isoformat()
@@ -149,13 +152,17 @@ async def test_frozen_creation_requires_exact_initial_state_and_original_identit
             f["original"], created_at=f["original"].created_at + timedelta(seconds=1)
         )
         facts = replace(f["facts"], business_context=original.encode())
-        winner = freeze_evaluation_state_plan(facts, str(f["f"].run_id), f["first"])
+        winner = freeze_evaluation_state_plan(
+            facts, str(f["f"].run_id), f["first"], route_resolver=legacy_routes()
+        )
         with pytest.raises(ValueError):
-            read_creation_state_plan(f["incoming"], winner)
+            read_creation_state_plan(f["incoming"], winner, route_resolver=legacy_routes())
         return
     operation = (
         "22222222-2222-4222-8222-222222222222" if damage == "operation" else str(f["f"].run_id)
     )
-    winner = freeze_evaluation_state_plan(f["facts"], operation, f["seal"](state))
+    winner = freeze_evaluation_state_plan(
+        f["facts"], operation, f["seal"](state), route_resolver=legacy_routes()
+    )
     with pytest.raises(ValueError):
-        read_creation_state_plan(f["incoming"], winner)
+        read_creation_state_plan(f["incoming"], winner, route_resolver=legacy_routes())

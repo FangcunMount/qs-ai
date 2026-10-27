@@ -18,6 +18,7 @@ from qs_ai.infrastructure.workflow_transport.solution_preparation_plan import (
     SolutionPreparationInput,
     read_preparation_plan,
 )
+from tests.route_fixtures import legacy_routes
 from tests.test_generation_manifest import assets as assets
 from tests.test_generation_manifest import complete_release as complete_release
 from tests.test_generation_manifest import evaluation_release as evaluation_release
@@ -80,7 +81,7 @@ async def planning(original, monkeypatch):
     signing = jwk.JWK.generate(kty="EC", crv="P-256", kid="ai.sign")
     recipient = jwk.JWK.generate(kty="EC", crv="P-256", kid="qs.encrypt")
     planner = preparation.SolutionPreparationPlanner(
-        store, signing_key=signing, recipient_key=recipient
+        store, signing_key=signing, recipient_key=recipient, route_resolver=legacy_routes()
     )
     return SimpleNamespace(**locals())
 
@@ -88,7 +89,9 @@ async def planning(original, monkeypatch):
 async def test_source_and_whole_assets_are_frozen_before_read_closes_and_first_seal(planning):
     f = planning
     candidate = await f.planner.candidate(f.incoming, f.p.draft.saved_at)
-    facts, original, _ = read_preparation_plan(f.incoming, candidate.winner)
+    facts, original, _ = read_preparation_plan(
+        f.incoming, candidate.winner, route_resolver=legacy_routes()
+    )
     assert original.source_digest == preparation.source_digest(candidate.source_json)
     assert original.draft_digest == preparation.draft_digest(f.p.draft)
     original.validate_assets(f.incoming, candidate.assets)
@@ -148,7 +151,13 @@ async def test_root_refuses_substituted_frozen_candidate_before_any_business(pla
     )
     with pytest.raises(MessageConflict):
         preparation.SolutionPreparationRoot(
-            f.store, object(), object(), f.incoming, candidate.winner, changed
+            f.store,
+            object(),
+            object(),
+            f.incoming,
+            candidate.winner,
+            changed,
+            route_resolver=legacy_routes(),
         )
 
 
@@ -158,12 +167,20 @@ async def test_root_uses_same_session_first_facts_and_captured_response_only(
 ):
     f = planning
     candidate = await f.planner.candidate(f.incoming, f.p.draft.saved_at)
-    facts, original, _ = read_preparation_plan(f.incoming, candidate.winner)
+    facts, original, _ = read_preparation_plan(
+        f.incoming, candidate.winner, route_resolver=legacy_routes()
+    )
     response = json.loads(candidate.target_json)
     applied = AsyncMock(return_value=SolutionApplyResult(response, True))
     monkeypatch.setattr(f.store, "apply_in", applied)
     root = preparation.SolutionPreparationRoot(
-        f.store, object(), object(), f.incoming, candidate.winner, candidate
+        f.store,
+        object(),
+        object(),
+        f.incoming,
+        candidate.winner,
+        candidate,
+        route_resolver=legacy_routes(),
     )
     verified = AsyncMock()
     monkeypatch.setattr(root, "_verify_business", verified)

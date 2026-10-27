@@ -24,6 +24,7 @@ from qs_ai.domain.governance.prompt_draft import DraftConflict
 from qs_ai.infrastructure.workflow_transport import solution_preparation_dispatch as dispatch
 from qs_ai.infrastructure.workflow_transport.solution_preparation_plan import read_preparation_plan
 from tests import test_solution_preparation_state
+from tests.route_fixtures import legacy_routes
 from tests.test_generation_manifest import assets as assets
 from tests.test_generation_manifest import complete_release as complete_release
 from tests.test_generation_manifest import evaluation_release as evaluation_release
@@ -37,7 +38,9 @@ planning = test_solution_preparation_state.planning
 async def sent(planning, monkeypatch):
     f = planning
     candidate = await f.planner.candidate(f.incoming, f.p.draft.saved_at)
-    _, facts, first = read_preparation_plan(f.incoming, candidate.winner)
+    _, facts, first = read_preparation_plan(
+        f.incoming, candidate.winner, route_resolver=legacy_routes()
+    )
     owned = Execution(
         candidate.winner, 1, "m3-1", b"x" * 32, f.p.draft.saved_at + timedelta(seconds=60)
     )
@@ -50,6 +53,7 @@ async def sent(planning, monkeypatch):
         store=store,
         reserve=AsyncMock(return_value=Reservation(owned, True, State.PREPARED)),
         execute=AsyncMock(return_value=Result(LocalOutcome.COMMITTED, ())),
+        routing=legacy_routes(),
     )
     value = json.loads(candidate.target_json)
     root = SimpleNamespace(value=value, business_error=None)

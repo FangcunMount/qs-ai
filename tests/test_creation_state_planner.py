@@ -9,6 +9,7 @@ import pytest
 
 from qs_ai.infrastructure.workflow_transport import creation_state as creation
 from qs_ai.infrastructure.workflow_transport.creation_state_plan import read_creation_state_plan
+from tests.route_fixtures import legacy_routes
 from tests.test_creation_state_plan import frozen as frozen
 from tests.test_generation_manifest import assets as assets
 from tests.test_generation_manifest import complete_release as complete_release
@@ -59,6 +60,7 @@ async def planned(frozen, monkeypatch):
         creator,
         signing_key=f["signing"],
         recipient_key=f["recipient"],
+        route_resolver=legacy_routes(),
     )
     return SimpleNamespace(**locals())
 
@@ -67,7 +69,7 @@ async def test_creation_plan_is_read_only_and_first_seal_occurs_after_read_close
     p = planned
     winner, business = await p.planner.candidate(p.f["incoming"], p.f["f"].at)
     assert business is p.f["plan"]
-    _, facts, _ = read_creation_state_plan(p.f["incoming"], winner)
+    _, facts, _ = read_creation_state_plan(p.f["incoming"], winner, route_resolver=legacy_routes())
     facts.validate(p.f["incoming"], business)
     assert p.order == ["plan", "seal"]
     p.db.commit.assert_not_called()
@@ -96,7 +98,13 @@ async def test_creation_root_revalidates_exact_raw_source_on_same_guarded_root(
 ):
     f = frozen
     root = creation.CreationStateRoot(
-        object(), object(), object(), f["incoming"], f["winner"], f["plan"]
+        object(),
+        object(),
+        object(),
+        f["incoming"],
+        f["winner"],
+        f["plan"],
+        route_resolver=legacy_routes(),
     )
     db, view = object(), object()
     current = (

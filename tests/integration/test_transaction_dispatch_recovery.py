@@ -41,6 +41,7 @@ from tests.integration.test_transaction_start_admission import (
 )
 from tests.integration.test_transaction_worker_dispatch import original as original
 from tests.messaging_fixtures import keys as keys
+from tests.route_fixtures import legacy_routes
 
 pytestmark = pytest.mark.integration
 
@@ -83,6 +84,7 @@ async def test_host_dispatch_recovery_never_repeats_commit_and_retains_original_
             recipient_key=p.host.keys["qs.encrypt"],
             limit=3,
             clock=lambda: AT,
+            route_resolver=legacy_routes(),
         )
         intent = candidate_dispatch_intent(p.run_id, 3, 1)
     else:
@@ -92,6 +94,7 @@ async def test_host_dispatch_recovery_never_repeats_commit_and_retains_original_
             signing_key=p.host.keys["ai.sign"],
             recipient_key=p.host.keys["qs.encrypt"],
             clock=lambda: AT,
+            route_resolver=legacy_routes(),
         )
         intent = worker_dispatch_intent(p.run_id, 3, 1, "worker:original")
     first, inputs = await planner.candidate(p.run_id, 3, 1, "worker:original")
@@ -108,6 +111,7 @@ async def test_host_dispatch_recovery_never_repeats_commit_and_retains_original_
             first,
             business,
             isolation_level="REPEATABLE READ",
+            route_resolver=legacy_routes(),
         )
         assert await root(old.execution) == LocalOutcome.COMMITTED
     else:
@@ -116,6 +120,8 @@ async def test_host_dispatch_recovery_never_repeats_commit_and_retains_original_
     pool = ModelCapacity({inputs.route.provider: ProviderCapacity(2, 1)}, 1)
 
     class DatabaseOnlyRuntime:
+        routing = legacy_routes()
+
         store = p.host.store
         local_calls = 0
         replans = 0

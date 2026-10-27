@@ -19,6 +19,7 @@ from reliable_messaging.transaction import (
 
 from qs_ai.infrastructure.workflow_transport import expired_recovery_sender as sender
 from qs_ai.infrastructure.workflow_transport import expired_recovery_state as state
+from tests.route_fixtures import legacy_routes
 from tests.test_evaluation_expired_recovery_source import source as source
 from tests.test_expired_recovery_state import setup
 
@@ -60,9 +61,12 @@ async def fixture(source, monkeypatch):
         tx,
         signing_key=jwk.JWK.generate(kty="EC", crv="P-256", kid="ai.sign"),
         recipient_key=jwk.JWK.generate(kty="EC", crv="P-256", kid="qs.encrypt"),
+        route_resolver=legacy_routes(),
     )
     winner = await planner.candidate(p.request, "worker:first", p.cp.lease_expires_at)
-    facts, actor, archive = state.read_expired_recovery_plan(p.request, winner)
+    facts, actor, archive = state.read_expired_recovery_plan(
+        p.request, winner, route_resolver=legacy_routes()
+    )
     execution = Execution(
         winner, 1, "m3-1", b"x" * 32, p.cp.lease_expires_at + timedelta(seconds=60)
     )
@@ -76,6 +80,7 @@ async def fixture(source, monkeypatch):
         reserve=AsyncMock(return_value=reservation),
         execute=AsyncMock(return_value=Result(LocalOutcome.COMMITTED, ())),
         retry=AsyncMock(return_value=reservation),
+        routing=legacy_routes(),
     )
     archives = SimpleNamespace(read_committed=AsyncMock(return_value=archive))
     root = object()

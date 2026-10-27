@@ -12,6 +12,7 @@ from reliable_messaging.transaction import Execution, Reservation, State
 from qs_ai.infrastructure.workflow_transport.candidate_recovery_runtime import (
     CandidateRecoveryRuntime,
 )
+from tests.route_fixtures import legacy_routes
 from tests.test_candidate_completion_state import frozen as frozen
 from tests.test_candidate_expiry_sender import fixture as expiry_fixture
 from tests.test_evaluation_serial_response_receipts import original as original
@@ -84,7 +85,7 @@ async def test_first_response_policy_preserves_reference_and_chooses_retry_or_ex
     f = frozen
     execution = Execution(f.winner, 1, "m3-1", b"x" * 32, f.facts.at + timedelta(seconds=60))
     lookup = AsyncMock(return_value=Reservation(execution, False, State.ABORTED))
-    owner = SimpleNamespace(store=SimpleNamespace(lookup=lookup))
+    owner = SimpleNamespace(routing=legacy_routes(), store=SimpleNamespace(lookup=lookup))
     runtime = CandidateRecoveryRuntime(
         Mock(), Mock(), owner, signing_key=None, recipient_key=None, recover_aborted=enabled
     )
@@ -109,9 +110,10 @@ async def test_corrupt_aborted_response_identity_is_not_automatic_replan_authori
     f = frozen
     execution = Execution(f.winner, 1, "m3-1", b"x" * 32, f.facts.at + timedelta(seconds=60))
     owner = SimpleNamespace(
+        routing=legacy_routes(),
         store=SimpleNamespace(
             lookup=AsyncMock(return_value=Reservation(execution, False, State.ABORTED))
-        )
+        ),
     )
     runtime = CandidateRecoveryRuntime(
         Mock(), Mock(), owner, signing_key=None, recipient_key=None, recover_aborted=True

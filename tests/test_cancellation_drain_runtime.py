@@ -11,6 +11,7 @@ from qs_ai.infrastructure.workflow_transport import cancellation_drain_runtime a
 from qs_ai.infrastructure.workflow_transport.cancellation_drain_state import (
     read_cancellation_drain_plan,
 )
+from tests.route_fixtures import legacy_routes
 from tests.test_cancellation_drain_sender import fixture as planning
 
 
@@ -20,7 +21,9 @@ async def test_host_drain_policy_only_recovers_exact_abort_after_fresh_scoped_so
     monkeypatch, status, advanced
 ):
     f = await planning(monkeypatch)
-    facts, _, _ = read_cancellation_drain_plan(f.operation, f.winner)
+    facts, _, _ = read_cancellation_drain_plan(
+        f.operation, f.winner, route_resolver=legacy_routes()
+    )
     source = SimpleNamespace(version=facts.source_version + int(advanced), at=facts.at)
     header = AsyncMock(return_value={**f.p.run, **f.p.checkpoint})
     monkeypatch.setattr(module, "header", header)
@@ -64,7 +67,9 @@ async def test_drain_policy_off_keeps_sender_contract_and_no_extra_observation(m
 
 async def test_regressed_drain_source_is_not_new_recovery_authority(monkeypatch):
     f = await planning(monkeypatch)
-    facts, _, _ = read_cancellation_drain_plan(f.operation, f.winner)
+    facts, _, _ = read_cancellation_drain_plan(
+        f.operation, f.winner, route_resolver=legacy_routes()
+    )
     monkeypatch.setattr(module, "header", AsyncMock(return_value={**f.p.run, **f.p.checkpoint}))
     monkeypatch.setattr(
         module,

@@ -14,7 +14,7 @@ from typing import Any
 from uuid import UUID, uuid5
 
 from reliable_messaging.transaction import FrozenPlan, Request
-from reliable_messaging.transport import physical_topic_v2
+from reliable_messaging.transport import RouteKey, RouteResolver
 
 from qs_ai.contracts.workflow import messaging_pb2 as pb
 from qs_ai.infrastructure.workflow_transport.messaging import (
@@ -211,7 +211,11 @@ class EvaluationStateFacts:
 
 
 def freeze_evaluation_state_plan(
-    facts: EvaluationStateFacts, operation_id: str, prepared: PreparedMessage
+    facts: EvaluationStateFacts,
+    operation_id: str,
+    prepared: PreparedMessage,
+    *,
+    route_resolver: RouteResolver,
 ) -> FrozenPlan:
     """Freeze the first already sealed message, without SQL, clock, keys or PUB."""
     if not isinstance(operation_id, str) or not valid_id(operation_id):
@@ -223,7 +227,9 @@ def freeze_evaluation_state_plan(
         False,
         True,
         prepared.envelope.message_id,
-        physical_topic_v2(EVENTS, "TRANSACTION", "ai.mysql", "m3-1"),
+        route_resolver.publish_route(
+            RouteKey(EVENTS, "TRANSACTION", "ai.mysql", "m3-1")
+        ).physical_topic,
         "m3-1",
         context=facts.encode(),
     )
@@ -231,23 +237,31 @@ def freeze_evaluation_state_plan(
     plan = FrozenPlan(
         request.owner, request.scope, operation_id, request.key, request.input_hash, (branch,)
     )
-    read_evaluation_state_plan(facts.intent, plan)
+    read_evaluation_state_plan(facts.intent, plan, route_resolver=route_resolver)
     return plan
 
 
 def read_evaluation_state_plan(
-    intent: EvaluationStateIntent, plan: FrozenPlan
+    intent: EvaluationStateIntent,
+    plan: FrozenPlan,
+    *,
+    route_resolver: RouteResolver,
 ) -> tuple[EvaluationStateFacts, FrozenArchive]:
     intent.request.match(plan)
     if len(plan.branches) != 1:
         raise MessagingContractError("One original evaluation state branch required")
     branch = plan.branches[0]
+    try:
+        route_resolver.recorded_route(
+            RouteKey(EVENTS, "TRANSACTION", "ai.mysql", "m3-1"), branch.physical_topic
+        )
+    except ValueError:
+        raise MessagingContractError("State plan route outside trusted manifest") from None
     archive = decode_branch(branch)
     facts = EvaluationStateFacts.decode(archive.context)
     header = archive.envelope()
     if (
         facts.intent != intent
-        or branch.physical_topic != physical_topic_v2(EVENTS, "TRANSACTION", "ai.mysql", "m3-1")
         or branch.branch_id != header.message_id
         or header.kind != pb.EVALUATION_STATE
         or header.producer != "qs-ai"

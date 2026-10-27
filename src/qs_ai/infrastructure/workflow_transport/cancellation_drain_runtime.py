@@ -59,7 +59,9 @@ class CancellationDrainRuntime:
         async with asyncio.timeout(self.database_seconds):
             old = await self._runtime.store.lookup(operation.intent.request)
         if old is not None and old.state == State.ABORTED:
-            facts, _, _ = read_cancellation_drain_plan(operation, old.execution.plan)
+            facts, _, _ = read_cancellation_drain_plan(
+                operation, old.execution.plan, route_resolver=self._runtime.routing
+            )
             if facts.source_version is None or source.version < facts.source_version:
                 raise MessageConflict("Original drain coordinator regressed")
             if source.version == facts.source_version:

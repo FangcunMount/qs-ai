@@ -21,6 +21,7 @@ from qs_ai.infrastructure.workflow_transport.interpretation_finish_sender import
     InterpretationFinishSender,
 )
 from tests import test_interpretation_finish_state as cases
+from tests.route_fixtures import legacy_routes
 
 frozen = cases.frozen
 
@@ -41,6 +42,7 @@ async def original(frozen, monkeypatch):
         reserve=AsyncMock(),
         execute=AsyncMock(),
         retry=AsyncMock(side_effect=retry),
+        routing=legacy_routes(),
     )
     sender = InterpretationFinishSender(p.store, SimpleNamespace(), runtime, **p.f.keys)
     sender._planner.candidate = AsyncMock(side_effect=AssertionError("Retry must not Seal"))

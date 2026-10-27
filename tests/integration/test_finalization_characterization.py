@@ -39,6 +39,7 @@ from tests.integration.test_transaction_start_admission import (
     required_disposable_primary as required_disposable_primary,
 )
 from tests.messaging_fixtures import keys as keys
+from tests.route_fixtures import legacy_routes
 from tests.test_input_binding import bound_case
 from tests.test_output_validation import candidate
 
@@ -54,6 +55,8 @@ async def kit(published_configuration):
 
 class OriginalRootRuntime:
     """Preserve actual SQL roots, explicitly abort the first terminal without a Broker."""
+
+    routing = legacy_routes()
 
     def __init__(self, host):
         self.host, self.store = host, host.store

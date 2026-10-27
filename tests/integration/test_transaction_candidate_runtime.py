@@ -57,6 +57,7 @@ from tests.integration.test_transaction_start_admission import (
 )
 from tests.integration.test_transaction_worker_dispatch import original as original
 from tests.messaging_fixtures import keys as keys
+from tests.route_fixtures import legacy_routes
 
 pytestmark = pytest.mark.integration
 
@@ -75,7 +76,10 @@ async def candidate_host(original):
     gateway = ConcurrentGateway(p.ready)
     gateway.release.set()
     planner = CandidateCompletionPlanner(
-        p.host.tx, signing_key=p.host.keys["ai.sign"], recipient_key=p.host.keys["qs.encrypt"]
+        p.host.tx,
+        signing_key=p.host.keys["ai.sign"],
+        recipient_key=p.host.keys["qs.encrypt"],
+        route_resolver=legacy_routes(),
     )
     try:
         yield SimpleNamespace(**locals())
@@ -178,7 +182,9 @@ async def test_durable_candidate_generation_and_semantic_share_original_root_and
     before, calls = await snapshot(p.tx, p.run_id), len(s.gateway.calls)
     intent = await s.planner.intent(reference)
     winner = await s.planner.candidate(reference)
-    facts, operation = read_candidate_completion_plan(intent, winner)
+    facts, operation = read_candidate_completion_plan(
+        intent, winner, route_resolver=legacy_routes()
+    )
     assert await snapshot(p.tx, p.run_id) == before
     reserved = await p.host.store.reserve(intent.request, winner)
     assert reserved.acquired
@@ -192,6 +198,7 @@ async def test_durable_candidate_generation_and_semantic_share_original_root_and
         winner,
         business,
         isolation_level="REPEATABLE READ",
+        route_resolver=legacy_routes(),
     )
     trigger = None
     try:
@@ -234,9 +241,14 @@ async def test_durable_candidate_generation_and_semantic_share_original_root_and
         )
         if committed:
             assert business.state.version == facts.source_version + 1
-            _, first = read_evaluation_state_plan(intent, winner)
+            _, first = read_evaluation_state_plan(intent, winner, route_resolver=legacy_routes())
             assert await p.host.archives.read_committed(first.envelope().message_id) == first
-            runtime = SimpleNamespace(store=p.host.store, reserve=AsyncMock(), execute=AsyncMock())
+            runtime = SimpleNamespace(
+                store=p.host.store,
+                reserve=AsyncMock(),
+                execute=AsyncMock(),
+                routing=legacy_routes(),
+            )
             duplicate = await CandidateCompletionSender(
                 p.host.tx, p.host.archives, runtime, s.planner
             )(reference)
@@ -280,6 +292,7 @@ async def test_actual_candidate_graph_both_stages_without_legacy_hook(
             recipient_key=p.host.keys["qs.encrypt"],
             limit=3,
             clock=lambda: current,
+            route_resolver=legacy_routes(),
         ),
     )
     runtime = CandidateRuntime(
@@ -335,7 +348,7 @@ async def test_other_claim_requires_explicit_old_abort_replan_without_new_provid
     reference = await d.save()
     intent = await s.planner.intent(reference)
     winner = await s.planner.candidate(reference)
-    _, first = read_candidate_completion_plan(intent, winner)
+    _, first = read_candidate_completion_plan(intent, winner, route_resolver=legacy_routes())
     reserved = await p.host.store.reserve(intent.request, winner)
     p.host.executions.append(reserved.execution)
     await prepare_step(
@@ -358,13 +371,16 @@ async def test_other_claim_requires_explicit_old_abort_replan_without_new_provid
         winner,
         CandidateCompletionWrite(),
         isolation_level="REPEATABLE READ",
+        route_resolver=legacy_routes(),
     )
     assert await root(reserved.execution) == LocalOutcome.ABORTED
     assert await snapshot(p.tx, p.run_id) == before
     with pytest.raises(MessageConflict):
         await s.planner.verify(reference, winner)
     replacement = await s.planner.candidate(reference, candidate_id=first.candidate_id)
-    facts, operation = read_candidate_completion_plan(intent, replacement)
+    facts, operation = read_candidate_completion_plan(
+        intent, replacement, route_resolver=legacy_routes()
+    )
     assert operation.reference == first.reference
     assert operation.response_hash == first.response_hash
     assert operation.candidate_id == first.candidate_id
@@ -381,6 +397,7 @@ async def test_other_claim_requires_explicit_old_abort_replan_without_new_provid
         replacement,
         business,
         isolation_level="REPEATABLE READ",
+        route_resolver=legacy_routes(),
     )
     assert await root(retried.execution) == LocalOutcome.COMMITTED
     assert business.state.version == facts.source_version + 1

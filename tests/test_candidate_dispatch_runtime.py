@@ -26,6 +26,7 @@ from qs_ai.infrastructure.workflow_transport.evaluation_state_plan import (
 )
 from qs_ai.infrastructure.workflow_transport.messaging import prepare
 from qs_ai.infrastructure.workflows import evaluation as graph
+from tests.route_fixtures import legacy_routes
 from tests.test_worker_dispatch_state import frozen as frozen
 
 
@@ -47,14 +48,19 @@ def candidate(frozen):
         original_occurred_at=facts.at.isoformat(timespec="microseconds"),
         **p.f.keys,
     )
-    winner = freeze_evaluation_state_plan(facts, str(uuid4()), message)
+    winner = freeze_evaluation_state_plan(
+        facts, str(uuid4()), message, route_resolver=legacy_routes()
+    )
     return SimpleNamespace(**locals())
 
 
 def test_candidate_dispatch_has_separate_bounded_codec_and_one_coordinator_cas(candidate):
     p = candidate
     assert CandidateDispatchOperation.decode(p.operation.encode()) == p.operation
-    assert read_candidate_dispatch_plan(p.intent, p.winner)[:2] == (p.facts, p.operation)
+    assert read_candidate_dispatch_plan(p.intent, p.winner, route_resolver=legacy_routes())[:2] == (
+        p.facts,
+        p.operation,
+    )
     for limit in (0, True, 33):
         with pytest.raises(ValueError):
             replace(p.operation, limit=limit)
@@ -92,6 +98,7 @@ def rig(candidate):
             return_value=SimpleNamespace(acquired=True, execution=SimpleNamespace(plan=p.winner))
         ),
         execute=AsyncMock(return_value=Result(LocalOutcome.UNKNOWN, ())),
+        routing=legacy_routes(),
     )
     pool = ModelCapacity({"first": ProviderCapacity(2, 1)}, 1)
     dispatch = sender.CandidateDispatchSender(
@@ -175,6 +182,7 @@ async def test_actual_candidate_graph_calls_provider_once_and_uses_first_durable
         prepare=AsyncMock(return_value=prepared),
         save_response=AsyncMock(),
         complete=AsyncMock(return_value=CheckpointState(p.run_id, 4, None)),
+        routing=legacy_routes(),
     )
     gateway = SimpleNamespace(generate_messages=AsyncMock(return_value=object()))
     save = AsyncMock(

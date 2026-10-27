@@ -15,12 +15,15 @@ from tests.integration.test_transaction_start_admission import (
     required_disposable_primary as required_disposable_primary,
 )
 from tests.messaging_fixtures import keys as keys
+from tests.route_fixtures import legacy_routes
 
 pytestmark = pytest.mark.integration
 
 
 def adapter(host, *, half_unknown=False):
     class Runtime:
+        routing = legacy_routes()
+
         store = host.store
         calls = 0
 

@@ -21,6 +21,7 @@ from qs_ai.infrastructure.workflow_transport.interpretation_state_plan import (
 )
 from qs_ai.infrastructure.workflow_transport.messaging import prepare
 from tests import test_interpretation_finish_state as finish_cases
+from tests.route_fixtures import legacy_routes
 from tests.test_evaluation_state_plan import fixture as state_fixture
 
 finish_frozen = finish_cases.frozen
@@ -61,7 +62,9 @@ def frozen():
         )
 
     prepared = seal()
-    plan = freeze_interpretation_state_plan(facts, str(uuid4()), prepared)
+    plan = freeze_interpretation_state_plan(
+        facts, str(uuid4()), prepared, route_resolver=legacy_routes()
+    )
     return SimpleNamespace(**locals())
 
 
@@ -70,7 +73,9 @@ def test_first_wire_and_business_context_round_trip_without_keys_or_fake_command
 ):
     p = frozen
     winner = decode_plan(encode_plan(p.plan))
-    facts, archive = read_interpretation_state_plan(p.intent, winner)
+    facts, archive = read_interpretation_state_plan(
+        p.intent, winner, route_resolver=legacy_routes()
+    )
     assert facts == p.facts and archive.wire == p.prepared.wire and archive.body == p.prepared.body
     assert archive.sequence == 4 and archive.requires_receipt and not archive.ordered
     assert InterpretationStateFacts.decode(facts.encode()) == facts
@@ -79,7 +84,7 @@ def test_first_wire_and_business_context_round_trip_without_keys_or_fake_command
         raise AssertionError("Standalone state must not fabricate a command")
 
     monkeypatch.setattr(frozen_start_events, "read_admission_plan", no_command)
-    events = FrozenInterpretationStateEvents(p.intent, winner)
+    events = FrozenInterpretationStateEvents(p.intent, winner, route_resolver=legacy_routes())
     assert events.plan_digest == winner.digest
     assert not isinstance(events, frozen_start_events.FrozenInterpretationEvents)
 
@@ -89,10 +94,15 @@ def test_losing_cipher_clock_and_message_identity_do_not_change_stable_business_
     facts = replace(p.facts, at=p.facts.at + timedelta(seconds=10))
     state = workflow.StateEvent.FromString(p.state.SerializeToString())
     state.event_id = str(uuid4())
-    other = freeze_interpretation_state_plan(facts, str(uuid4()), p.seal(state, facts.at))
+    other = freeze_interpretation_state_plan(
+        facts, str(uuid4()), p.seal(state, facts.at), route_resolver=legacy_routes()
+    )
     p.intent.request.match(other)
     assert other.digest != p.plan.digest and other.branches[0].wire != p.plan.branches[0].wire
-    assert read_interpretation_state_plan(p.intent, p.plan)[0].at == p.facts.at
+    assert (
+        read_interpretation_state_plan(p.intent, p.plan, route_resolver=legacy_routes())[0].at
+        == p.facts.at
+    )
 
 
 @pytest.mark.parametrize("damage", ["owner", "scope", "normal_topic", "revision", "branch", "wire"])
@@ -113,7 +123,7 @@ def test_wrong_owner_physical_type_reference_or_wire_cannot_be_read_as_original_
                 "wire": {"wire": b"wrong first wire"},
             }
             wrong = replace(p.plan, branches=(replace(p.plan.branches[0], **fields[damage]),))
-        read_interpretation_state_plan(p.intent, wrong)
+        read_interpretation_state_plan(p.intent, wrong, route_resolver=legacy_routes())
 
 
 @pytest.mark.parametrize("field", ["session_id", "request_id", "version", "organization"])
@@ -125,7 +135,9 @@ def test_first_projection_cannot_cross_business_scope_or_version(frozen, field):
     else:
         setattr(state, field, 5 if field == "version" else str(uuid4()))
     with pytest.raises(ValueError):
-        freeze_interpretation_state_plan(p.facts, str(uuid4()), p.seal(state))
+        freeze_interpretation_state_plan(
+            p.facts, str(uuid4()), p.seal(state), route_resolver=legacy_routes()
+        )
 
 
 @pytest.mark.parametrize("damage", ["duplicate", "unknown", "whitespace", "magic"])
@@ -172,13 +184,20 @@ def test_two_original_transitions_freeze_one_final_state_with_explicit_v2_contex
     facts = replace(p.facts, version_delta=2)
     state = workflow.StateEvent.FromString(p.state.SerializeToString())
     state.version += 1
-    plan = freeze_interpretation_state_plan(facts, str(uuid4()), p.seal(state))
-    decoded, archive = read_interpretation_state_plan(p.intent, decode_plan(encode_plan(plan)))
+    plan = freeze_interpretation_state_plan(
+        facts, str(uuid4()), p.seal(state), route_resolver=legacy_routes()
+    )
+    decoded, archive = read_interpretation_state_plan(
+        p.intent, decode_plan(encode_plan(plan)), route_resolver=legacy_routes()
+    )
     assert facts.encode().startswith(b"qs-ai-interpretation-state/v2\0")
     assert decoded == facts and facts.target_version == p.intent.expected_version + 2
     assert archive.sequence == facts.target_version
     assert pb.MessagingBody.FromString(archive.body).interpretation_state == state
-    assert FrozenInterpretationStateEvents(p.intent, plan).plan_digest == plan.digest
+    assert (
+        FrozenInterpretationStateEvents(p.intent, plan, route_resolver=legacy_routes()).plan_digest
+        == plan.digest
+    )
 
 
 @pytest.mark.parametrize("delta", [0, 3, True, 2.0, "2"])
@@ -191,7 +210,10 @@ def test_two_transition_context_cannot_freeze_a_single_transition_body(frozen):
     p = frozen
     with pytest.raises(ValueError):
         freeze_interpretation_state_plan(
-            replace(p.facts, version_delta=2), str(uuid4()), p.prepared
+            replace(p.facts, version_delta=2),
+            str(uuid4()),
+            p.prepared,
+            route_resolver=legacy_routes(),
         )
 
 
@@ -217,7 +239,9 @@ async def test_single_transition_finish_cannot_adopt_a_two_transition_protocol_p
     from qs_ai.infrastructure.workflow_transport.interpretation_finish_state import read_finish_plan
 
     p = finish_frozen
-    facts, archive = read_interpretation_state_plan(p.intent, p.plan)
+    facts, archive = read_interpretation_state_plan(
+        p.intent, p.plan, route_resolver=legacy_routes()
+    )
     state = pb.MessagingBody.FromString(archive.body).interpretation_state
     state.version += 1
     facts = replace(facts, version_delta=2)
@@ -230,6 +254,8 @@ async def test_single_transition_finish_cannot_adopt_a_two_transition_protocol_p
         original_occurred_at=facts.at.isoformat(timespec="microseconds"),
         **p.f.keys,
     )
-    other = freeze_interpretation_state_plan(facts, str(uuid4()), prepared)
+    other = freeze_interpretation_state_plan(
+        facts, str(uuid4()), prepared, route_resolver=legacy_routes()
+    )
     with pytest.raises(ValueError):
-        read_finish_plan(p.incoming, p.intent, other)
+        read_finish_plan(p.incoming, p.intent, other, route_resolver=legacy_routes())

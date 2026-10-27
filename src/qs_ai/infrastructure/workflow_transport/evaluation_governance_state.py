@@ -17,6 +17,7 @@ from uuid import UUID, uuid5
 from reliable_messaging.durable import MessageConflict
 from reliable_messaging.transaction import FrozenPlan
 from reliable_messaging.transaction_mysql import MySQLTransactionStore
+from reliable_messaging.transport import RouteResolver
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -211,7 +212,9 @@ class GovernanceStatePlanner:
         signing_key: Any,
         recipient_key: Any,
         database_seconds: float = 2,
+        route_resolver: RouteResolver,
     ) -> None:
+        self._route_resolver = route_resolver
         if not math.isfinite(database_seconds) or database_seconds <= 0:
             raise ValueError("Finite positive governance database budget required")
         self._transactions, self._database_seconds = transactions, database_seconds
@@ -262,7 +265,9 @@ class GovernanceStatePlanner:
             recipient_key=self._recipient_key,
             original_occurred_at=at.isoformat(timespec="microseconds"),
         )
-        return freeze_evaluation_state_plan(facts, str(operation.operation_id), first)
+        return freeze_evaluation_state_plan(
+            facts, str(operation.operation_id), first, route_resolver=self._route_resolver
+        )
 
 
 async def apply_governance_state(db: AsyncSession, facts: EvaluationStateFacts) -> None:
@@ -288,8 +293,12 @@ class GovernanceStateRoot(EvaluationStateRoot):
         *,
         database_seconds: float = 2,
         runtime_limits: EvaluationRuntimeLimits = SERIAL_RUNTIME_LIMITS,
+        route_resolver: RouteResolver,
     ) -> None:
-        facts, archived = read_evaluation_state_plan(operation.intent, winner)
+        self._route_resolver = route_resolver
+        facts, archived = read_evaluation_state_plan(
+            operation.intent, winner, route_resolver=route_resolver
+        )
         actual, _ = GovernanceStateOperation.from_facts(facts)
         state = pb.MessagingBody.FromString(archived.body).evaluation_state
         if (
@@ -318,6 +327,7 @@ class GovernanceStateRoot(EvaluationStateRoot):
             original,
             database_seconds=database_seconds,
             isolation_level="REPEATABLE READ",
+            route_resolver=route_resolver,
         )
 
     @property

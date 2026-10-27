@@ -48,10 +48,13 @@ class CandidateExpirySender:
             signing_key=signing_key,
             recipient_key=recipient_key,
             database_seconds=database_seconds,
+            route_resolver=runtime.routing,
         )
 
     async def _committed(self, request: CandidateExpiryRequest, execution: Execution) -> bool:
-        _, _, archive = read_candidate_expiry_plan(request, execution.plan)
+        _, _, archive = read_candidate_expiry_plan(
+            request, execution.plan, route_resolver=self._runtime.routing
+        )
         async with asyncio.timeout(self._planner.database_seconds):
             evidence = tuple(
                 [await self._runtime.store.evidence(ref) for ref in execution.references]
@@ -76,7 +79,7 @@ class CandidateExpirySender:
 
     async def retry(self, request: CandidateExpiryRequest, previous: Execution) -> bool:
         """Explicit host finalization recovery through the bounded public SDK gate."""
-        read_candidate_expiry_plan(request, previous.plan)
+        read_candidate_expiry_plan(request, previous.plan, route_resolver=self._runtime.routing)
         reserved = await self._runtime.retry(RetryAuthorization(previous))
         if not reserved.acquired:
             raise CandidateExpiryPending("Explicit candidate expiry retry not acquired")
@@ -86,7 +89,7 @@ class CandidateExpirySender:
         self, request: CandidateExpiryRequest, previous: Execution, at: datetime
     ) -> bool:
         """Host authorizes a new source after exact old abort; claim/model identity persists."""
-        read_candidate_expiry_plan(request, previous.plan)
+        read_candidate_expiry_plan(request, previous.plan, route_resolver=self._runtime.routing)
         winner = await self._planner.candidate(request, at)
         reserved = await self._runtime.replan(ReplanAuthorization(previous, winner))
         if not reserved.acquired:
@@ -94,7 +97,7 @@ class CandidateExpirySender:
         return await self._execute(request, reserved.execution)
 
     async def _execute(self, request: CandidateExpiryRequest, execution: Execution) -> bool:
-        read_candidate_expiry_plan(request, execution.plan)
+        read_candidate_expiry_plan(request, execution.plan, route_resolver=self._runtime.routing)
         root = EvaluationStateRoot(
             self.transactions,
             self._archives,
@@ -104,6 +107,7 @@ class CandidateExpirySender:
             apply_candidate_expiry,
             database_seconds=self._planner.database_seconds,
             isolation_level="REPEATABLE READ",
+            route_resolver=self._runtime.routing,
         )
         try:
             result = await self._runtime.execute(execution, root)

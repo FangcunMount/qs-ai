@@ -17,13 +17,14 @@ from reliable_messaging.transaction import (
 
 from qs_ai.infrastructure.workflow_transport import evaluation_governance_dispatch as dispatch
 from qs_ai.infrastructure.workflow_transport.review_state_plan import read_review_state_plan
+from tests.route_fixtures import legacy_routes
 from tests.test_review_state_plan import fixture as frozen
 
 
 def fixture(monkeypatch):
     f = frozen()
     incoming, plan, at = f["incoming"], f["winner"], f["frozen"].at
-    _, _, value = read_review_state_plan(incoming, plan)
+    _, _, value = read_review_state_plan(incoming, plan, route_resolver=legacy_routes())
     owned = Execution(plan, 1, "m3-1", b"x" * 32, at + timedelta(seconds=60))
     store = SimpleNamespace(
         lookup=AsyncMock(return_value=None),
@@ -33,6 +34,7 @@ def fixture(monkeypatch):
         store=store,
         reserve=AsyncMock(return_value=Reservation(owned, True, State.PREPARED)),
         execute=AsyncMock(return_value=Result(LocalOutcome.COMMITTED, ())),
+        routing=legacy_routes(),
     )
     archives = SimpleNamespace(read_committed=AsyncMock(return_value=value))
     expected = object()

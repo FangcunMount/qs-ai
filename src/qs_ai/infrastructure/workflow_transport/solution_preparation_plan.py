@@ -8,6 +8,7 @@ from typing import Any
 from uuid import UUID
 
 from reliable_messaging.transaction import FrozenPlan
+from reliable_messaging.transport import RouteResolver
 
 from qs_ai.application.governance.prompt_drafts import DraftScope
 from qs_ai.application.governance.solutions import PrepareSolution
@@ -181,8 +182,12 @@ class SolutionPreparationFacts:
 def read_preparation_plan(
     incoming: SolutionPreparationInput,
     winner: FrozenPlan,
+    *,
+    route_resolver: RouteResolver,
 ) -> tuple[EvaluationStateFacts, SolutionPreparationFacts, FrozenArchive]:
-    facts, first = read_evaluation_state_plan(incoming.intent, winner)
+    facts, first = read_evaluation_state_plan(
+        incoming.intent, winner, route_resolver=route_resolver
+    )
     original = SolutionPreparationFacts.decode(facts.business_context)
     state = pb.MessagingBody.FromString(first.body).evaluation_state
     if (
