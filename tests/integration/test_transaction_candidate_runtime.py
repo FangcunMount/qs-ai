@@ -279,7 +279,9 @@ async def test_actual_candidate_graph_both_stages_without_legacy_hook(
         p.host.executions.append(execution)
         return Result(await root(execution), ())
 
-    transport = SimpleNamespace(store=p.host.store, reserve=p.host.store.reserve, execute=execute)
+    transport = SimpleNamespace(
+        store=p.host.store, reserve=p.host.store.reserve, execute=execute, routing=legacy_routes()
+    )
     dispatch = CandidateDispatchSender(
         p.host.tx,
         p.host.archives,

@@ -43,6 +43,7 @@ async def prior(p, *, question=True, abort=True):
         assert await p.host.store.abort(previous.execution)
 
     class Runtime:
+        routing = legacy_routes()
         store = p.host.store
         calls = 0
 
