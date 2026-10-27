@@ -257,7 +257,14 @@ async def pair(host, required_pair, monkeypatch, request):
         reservation.bind(("127.0.0.1", 0))
         ai_port = reservation.getsockname()[1]
     routes = directory / "routes.json"
-    routes.write_text(json.dumps(dict(version=2, routes=config["routes"])))
+    routes.write_text(
+        json.dumps(
+            dict(
+                version=3 if any(r.get("naming_scheme") for r in config["routes"]) else 2,
+                routes=config["routes"],
+            )
+        )
+    )
     routes.chmod(0o600)
     credential_paths = {}
     for role in ("qs", "ai"):
