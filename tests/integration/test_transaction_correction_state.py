@@ -38,6 +38,7 @@ from tests.integration.test_transaction_start_admission import (
     required_disposable_primary as required_disposable_primary,
 )
 from tests.messaging_fixtures import keys as keys
+from tests.route_fixtures import legacy_routes
 
 pytestmark = pytest.mark.integration
 
@@ -60,14 +61,17 @@ async def test_original_correction_audit_sequence_archive_and_witness_commit_ato
     operation = CorrectionStateOperation(**args)
     before, evidence = await rows(tx, scope.run_id), await outputs(tx, scope.run_id)
     candidate = await CorrectionStatePlanner(
-        host.tx, signing_key=host.keys["ai.sign"], recipient_key=host.keys["qs.encrypt"]
+        host.tx,
+        signing_key=host.keys["ai.sign"],
+        recipient_key=host.keys["qs.encrypt"],
+        route_resolver=legacy_routes(),
     ).candidate(operation, operation.value.reviewed_at)
     assert candidate is not None
     reserved = await host.store.reserve(operation.intent.request, candidate)
     assert reserved.acquired
     owned = reserved.execution
     host.executions.append(owned)
-    _, first = read_correction_plan(operation, owned.plan)
+    _, first = read_correction_plan(operation, owned.plan, route_resolver=legacy_routes())
     trigger = None
     try:
         if fault == "archive_rejected":
@@ -88,7 +92,9 @@ async def test_original_correction_audit_sequence_archive_and_witness_commit_ato
                 operation.value, reviewed_at=operation.value.reviewed_at + timedelta(seconds=10)
             ),
         )
-        root = CorrectionStateRoot(host.tx, host.archives, host.store, later, owned.plan)
+        root = CorrectionStateRoot(
+            host.tx, host.archives, host.store, later, owned.plan, route_resolver=legacy_routes()
+        )
         with monkeypatch.context() as patch:
             if fault == "client_reply_discarded":
                 actual = EventSession.commit
@@ -148,6 +154,8 @@ async def test_original_correction_audit_sequence_archive_and_witness_commit_ato
 
 
 class DatabaseOnlyRuntime:
+    routing = legacy_routes()
+
     def __init__(self, host, *, reject=False):
         self.host, self.store, self.reject, self.calls = host, host.store, reject, 0
 
@@ -316,7 +324,9 @@ async def test_actual_correction_handler_uses_original_root_only_after_preparati
         else:
             response = await EvaluationManagement(container).CorrectReview(request, Context())
             assert response.version == version + 1 and runtime.calls == 1
-            frozen, _ = read_correction_plan(operation, host.executions[-1].plan)
+            frozen, _ = read_correction_plan(
+                operation, host.executions[-1].plan, route_resolver=legacy_routes()
+            )
             first, _ = CorrectionStateOperation.from_facts(frozen)
             assert at <= first.value.reviewed_at <= datetime.now(UTC)
             current = await rows(tx, scope.run_id)

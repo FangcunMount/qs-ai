@@ -53,7 +53,11 @@ class TransactionalInterpretationExecutionStore:
         self._claims = InterpretationClaimSender(store, archives, runtime, **keys)
         self._finish = InterpretationFinishSender(store, archives, runtime, **keys)
         self._defer = InterpretationClaimDeferral(
-            store, runtime.store, archives, database_seconds=database_seconds
+            store,
+            runtime.store,
+            archives,
+            database_seconds=database_seconds,
+            route_resolver=runtime.routing,
         )
 
     def _admit(self) -> None:

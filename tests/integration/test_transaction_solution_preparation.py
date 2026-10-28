@@ -29,6 +29,7 @@ from tests.integration.test_transaction_start_admission import (
     required_disposable_primary as required_disposable_primary,
 )
 from tests.messaging_fixtures import keys as keys
+from tests.route_fixtures import legacy_routes
 from tests.test_generation_manifest import assets as assets
 from tests.test_generation_manifest import complete_release as complete_release
 from tests.test_generation_manifest import evaluation_release as evaluation_release
@@ -62,13 +63,14 @@ async def test_original_solution_complete_assets_receipt_and_first_wire_share_ex
         original,
         signing_key=host.keys["ai.sign"],
         recipient_key=host.keys["qs.encrypt"],
+        route_resolver=legacy_routes(),
     ).candidate(incoming, at)
     assert candidate is not None
     reservation = await host.store.reserve(incoming.intent.request, candidate.winner)
     assert reservation.acquired
     owned = reservation.execution
     host.executions.append(owned)
-    _, _, first = read_preparation_plan(incoming, owned.plan)
+    _, _, first = read_preparation_plan(incoming, owned.plan, route_resolver=legacy_routes())
     trigger = None
     try:
         if fault in ("archive_rejected", "witness_rejected"):
@@ -89,7 +91,13 @@ async def test_original_solution_complete_assets_receipt_and_first_wire_share_ex
             )
             await original.apply(scope, solution_id, concurrent, at)
         root = preparation.SolutionPreparationRoot(
-            original, host.archives, host.store, incoming, owned.plan, candidate
+            original,
+            host.archives,
+            host.store,
+            incoming,
+            owned.plan,
+            candidate,
+            route_resolver=legacy_routes(),
         )
         with monkeypatch.context() as patch:
             patch.setattr(

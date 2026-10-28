@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Any
 
 from reliable_messaging.transaction import FrozenPlan
+from reliable_messaging.transport import RouteResolver
 
 from qs_ai.application.evaluation.management import ManagementScope
 from qs_ai.contracts.workflow import messaging_pb2 as pb
@@ -178,8 +179,12 @@ class CreationPlanFacts:
 def read_creation_state_plan(
     incoming: CreationStateInput,
     winner: FrozenPlan,
+    *,
+    route_resolver: RouteResolver,
 ) -> tuple[EvaluationStateFacts, CreationPlanFacts, FrozenArchive]:
-    facts, archived = read_evaluation_state_plan(incoming.intent, winner)
+    facts, archived = read_evaluation_state_plan(
+        incoming.intent, winner, route_resolver=route_resolver
+    )
     original = CreationPlanFacts.decode(facts.business_context)
     state = pb.MessagingBody.FromString(archived.body).evaluation_state
     if (

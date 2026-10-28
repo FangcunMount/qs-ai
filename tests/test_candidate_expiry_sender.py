@@ -20,6 +20,7 @@ from reliable_messaging.transaction import (
 
 from qs_ai.infrastructure.workflow_transport import candidate_expiry_sender as sender
 from qs_ai.infrastructure.workflow_transport import candidate_expiry_state as state
+from tests.route_fixtures import legacy_routes
 from tests.test_candidate_expiry_state import fixture as planning
 from tests.test_evaluation_serial_response_receipts import original as original
 
@@ -59,9 +60,12 @@ async def fixture(original, monkeypatch):
         tx,
         signing_key=jwk.JWK.generate(kty="EC", crv="P-256", kid="ai.sign"),
         recipient_key=jwk.JWK.generate(kty="EC", crv="P-256", kid="qs.encrypt"),
+        route_resolver=legacy_routes(),
     )
     winner = await planner.candidate(p.request, p.cp.lease_expires_at)
-    facts, first, archive = state.read_candidate_expiry_plan(p.request, winner)
+    facts, first, archive = state.read_candidate_expiry_plan(
+        p.request, winner, route_resolver=legacy_routes()
+    )
     execution = Execution(
         winner, 1, "m3-1", b"x" * 32, p.cp.lease_expires_at + timedelta(seconds=60)
     )
@@ -76,6 +80,7 @@ async def fixture(original, monkeypatch):
         retry=AsyncMock(return_value=reservation),
         replan=AsyncMock(return_value=reservation),
         execute=AsyncMock(return_value=Result(LocalOutcome.COMMITTED, ())),
+        routing=legacy_routes(),
     )
     archives = SimpleNamespace(read_committed=AsyncMock(return_value=archive))
     root = object()
@@ -167,7 +172,9 @@ async def test_explicit_replan_uses_new_coordinator_and_same_original_claim(orig
     f = await fixture(original, monkeypatch)
     f.project.return_value = replace(f.projection, version=8)
     winner = await f.planner.candidate(f.p.request, f.facts.at + timedelta(seconds=1))
-    facts, first, archive = state.read_candidate_expiry_plan(f.p.request, winner)
+    facts, first, archive = state.read_candidate_expiry_plan(
+        f.p.request, winner, route_resolver=legacy_routes()
+    )
     owned = Execution(winner, 1, "m3-1", b"y" * 32, f.execution.lease_until)
     f.send._planner.candidate.return_value = winner
     f.runtime.replan.return_value = Reservation(owned, True, State.PREPARED)

@@ -22,6 +22,7 @@ from reliable_messaging.transaction import (
     RetryAuthorization,
 )
 from reliable_messaging.transaction_mysql import MySQLTransactionStore
+from reliable_messaging.transport import RouteBinding, RouteResolver
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from qs_ai.application.operations.metrics import TransactionMetricsSnapshot
@@ -40,12 +41,25 @@ class TransactionRuntime:
     """Pause only new sends; final StopAdmission and drain remain SDK-owned."""
 
     def __init__(
-        self, sender: TransactionalSender, *, admitted: bool, monitor: ProtocolMonitor | None = None
+        self,
+        sender: TransactionalSender,
+        *,
+        admitted: bool,
+        monitor: ProtocolMonitor | None = None,
+        routing: RouteResolver | None = None,
     ) -> None:
         self._sender = sender
+        self._routing = routing
         self._admitted = admitted
         self._stopping = False
         self._monitor = monitor
+
+    @property
+    def routing(self) -> RouteResolver:
+        """Trusted immutable identities; no credentials or runtime I/O exposed."""
+        if self._routing is None:
+            raise ValueError("Explicit host route resolver required")
+        return self._routing
 
     @property
     def config(self) -> TransactionConfig:
@@ -266,14 +280,22 @@ def make_transaction_sender(
         raise ValueError("Transaction client requires the host's configured verified CA")
     binding = options.transactions["ai.mysql"]
     config = read_rocketmq_config(options)
-    routes = {
-        r.physical_topic: TransactionRoute(r.topic, r.physical_topic, r.route_revision)
-        for r in config.routes
-        if r.message_type == "TRANSACTION"
-        and r.owner == "ai.mysql"
-        and r.route_revision == binding.route_revision
-        and r.topic == EVENTS
-    }
+
+    def select(rows: tuple[RouteBinding, ...]) -> tuple[TransactionRoute, ...]:
+        return tuple(
+            {
+                r.physical_topic: TransactionRoute(
+                    r.topic, r.physical_topic, r.route_revision, r.naming_scheme
+                )
+                for r in rows
+                if r.message_type == "TRANSACTION"
+                and r.owner == "ai.mysql"
+                and r.route_revision == binding.route_revision
+                and r.topic == EVENTS
+            }.values()
+        )
+
+    routes = select(config.routes)
     if not routes:
         raise ValueError("Required ai.mysql transaction event route absent")
     store = MySQLTransactionStore(
@@ -285,8 +307,9 @@ def make_transaction_sender(
             config.access_key,
             config.secret_key,
             "ai.mysql",
-            tuple(routes.values()),
+            routes,
             binding.limits,
+            historical_routes=select(config.historical_routes),
         ),
         store,
     )
@@ -315,4 +338,9 @@ def make_transaction_sender(
         budget=binding.limits.check_timeout,
         native_read=native.read_native_limit,
     )
-    return TransactionRuntime(sender, admitted=options.publish_enabled, monitor=monitor)
+    return TransactionRuntime(
+        sender,
+        admitted=options.publish_enabled,
+        monitor=monitor,
+        routing=RouteResolver(config.routes, config.historical_routes),
+    )

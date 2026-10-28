@@ -20,6 +20,7 @@ from qs_ai.infrastructure.persistence.mysql.schema import model_calls, sessions
 from qs_ai.infrastructure.workflow_transport.messaging import COMMANDS
 from qs_ai.infrastructure.workflow_transport.start_plan import StartPlanFacts
 from qs_ai.infrastructure.workflow_transport.transaction_command import read_admission_plan
+from tests.integration.broker_routes import owned_broker_routes
 from tests.integration.rocketmq_admission_host import broker as broker
 from tests.integration.rocketmq_admission_host import frozen_start
 from tests.integration.rocketmq_admission_host import host as host
@@ -127,7 +128,9 @@ async def test_actual_command_original_commit_packet_fault(broker):
         # A paused replacement uses an independent short-lived session factory
         # on the original primary. No new business operation is authorized.
         next_runtime = TransactionRuntime(
-            TransactionalSender(broker.sender.config, authority), admitted=False
+            TransactionalSender(broker.sender.config, authority),
+            admitted=False,
+            routing=owned_broker_routes(),
         )
         await next_runtime.start()
 

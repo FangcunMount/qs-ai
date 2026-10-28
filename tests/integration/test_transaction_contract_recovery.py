@@ -41,6 +41,7 @@ from tests.integration.test_transaction_start_admission import (
     required_disposable_primary as required_disposable_primary,
 )
 from tests.messaging_fixtures import keys as keys
+from tests.route_fixtures import legacy_routes
 
 pytestmark = pytest.mark.integration
 
@@ -64,7 +65,10 @@ async def original(host, ready):
 
 def planner(p):
     return ContractRecoveryPlanner(
-        p.host.tx, signing_key=p.host.keys["ai.sign"], recipient_key=p.host.keys["qs.encrypt"]
+        p.host.tx,
+        signing_key=p.host.keys["ai.sign"],
+        recipient_key=p.host.keys["qs.encrypt"],
+        route_resolver=legacy_routes(),
     )
 
 
@@ -80,7 +84,9 @@ async def test_original_failed_evidence_exception_audit_and_witness_commit_or_ro
     reserved = await p.host.store.reserve(p.incoming.intent.request, winner)
     assert reserved.acquired
     p.host.executions.append(reserved.execution)
-    _, first, _, frozen = read_contract_recovery_plan(p.incoming, winner)
+    _, first, _, frozen = read_contract_recovery_plan(
+        p.incoming, winner, route_resolver=legacy_routes()
+    )
     root = EvaluationStateRoot(
         p.host.tx,
         p.host.archives,
@@ -89,6 +95,7 @@ async def test_original_failed_evidence_exception_audit_and_witness_commit_or_ro
         winner,
         apply_contract_recovery_state,
         isolation_level="REPEATABLE READ",
+        route_resolver=legacy_routes(),
     )
     trigger = None
     try:
@@ -151,6 +158,8 @@ async def test_sender_requires_preparation_and_replays_first_operator_result_aft
     p = original
 
     class Runtime:
+        routing = legacy_routes()
+
         store = p.host.store
         calls = 0
 
@@ -231,6 +240,7 @@ async def test_later_original_cancellation_cannot_be_overridden_by_prepared_exce
         winner,
         apply_contract_recovery_state,
         isolation_level="REPEATABLE READ",
+        route_resolver=legacy_routes(),
     )
     assert await root(reserved.execution) == LocalOutcome.ABORTED
     assert await rows(p.tx, p.run_id) == expected and await originals(p.ready) == p.records
@@ -294,6 +304,8 @@ async def test_maintenance_cli_real_primary_preview_or_sdk_original_root_without
 
     def factory(_options, sessions):
         class Runtime:
+            routing = legacy_routes()
+
             store = MySQLTransactionStore(sessions, p.host.store.binding)
 
             async def start(self):

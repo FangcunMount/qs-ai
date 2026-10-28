@@ -48,6 +48,7 @@ class ExpiredRecoverySender:
             signing_key=signing_key,
             recipient_key=recipient_key,
             database_seconds=database_seconds,
+            route_resolver=runtime.routing,
         )
 
     async def dispatch(
@@ -67,7 +68,9 @@ class ExpiredRecoverySender:
         return await self(request, actor, at)
 
     async def _committed(self, request: ExpiredRecoveryRequest, execution: Execution) -> bool:
-        _, _, archive = read_expired_recovery_plan(request, execution.plan)
+        _, _, archive = read_expired_recovery_plan(
+            request, execution.plan, route_resolver=self._runtime.routing
+        )
         async with asyncio.timeout(self._planner.database_seconds):
             evidence = tuple(
                 [await self._runtime.store.evidence(ref) for ref in execution.references]
@@ -92,14 +95,14 @@ class ExpiredRecoverySender:
 
     async def retry(self, request: ExpiredRecoveryRequest, previous: Execution) -> bool:
         """Only an explicit host decision can retry the already aborted frozen finalization."""
-        read_expired_recovery_plan(request, previous.plan)
+        read_expired_recovery_plan(request, previous.plan, route_resolver=self._runtime.routing)
         reserved = await self._runtime.retry(RetryAuthorization(previous))
         if not reserved.acquired:
             raise ExpiredRecoveryPending("Explicit original expired recovery retry not acquired")
         return await self._execute(request, reserved.execution)
 
     async def _execute(self, request: ExpiredRecoveryRequest, execution: Execution) -> bool:
-        read_expired_recovery_plan(request, execution.plan)
+        read_expired_recovery_plan(request, execution.plan, route_resolver=self._runtime.routing)
         root = EvaluationStateRoot(
             self.transactions,
             self._archives,
@@ -109,6 +112,7 @@ class ExpiredRecoverySender:
             apply_expired_recovery,
             database_seconds=self._planner.database_seconds,
             isolation_level="REPEATABLE READ",
+            route_resolver=self._runtime.routing,
         )
         try:
             result = await self._runtime.execute(execution, root)

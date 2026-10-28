@@ -43,6 +43,7 @@ from tests.integration.test_transaction_start_admission import (
 )
 from tests.integration.test_transaction_start_admission import reserve, rows
 from tests.messaging_fixtures import keys as keys
+from tests.route_fixtures import legacy_routes
 from tests.transaction_fixtures import admission, command
 
 pytestmark = pytest.mark.integration
@@ -86,7 +87,9 @@ async def trigger_admin(host):
         await engine.dispose()
 
 
-def incoming(host, scope, kind=pb.EVALUATION_START, version=1, *, original_occurred_at=""):
+def incoming(
+    host, scope, kind=pb.EVALUATION_START, version=1, *, original_occurred_at="", routes=None
+):
     body = pb.MessagingBody()
     request = body.evaluation_start if kind == pb.EVALUATION_START else body.evaluation_cancel
     request.scope.CopyFrom(
@@ -112,7 +115,9 @@ def incoming(host, scope, kind=pb.EVALUATION_START, version=1, *, original_occur
         decrypt_keys={"ai.encrypt": host.keys["ai.encrypt"]},
         trusted_signers={"qs.sign": TrustedSigner("qs-server", host.keys["qs.sign"])},
     )
-    value = FrozenCommandInput.from_authenticated(header, prepared.body, prepared.wire)
+    value = FrozenCommandInput.from_authenticated(
+        header, prepared.body, prepared.wire, routes=legacy_routes() if routes is None else routes
+    )
     host.messages.append(value)
     return value
 

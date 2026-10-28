@@ -10,6 +10,7 @@ from uuid import uuid5
 from reliable_messaging.durable import MessageConflict
 from reliable_messaging.transaction import FrozenPlan
 from reliable_messaging.transaction_mysql import MySQLTransactionStore
+from reliable_messaging.transport import RouteResolver
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -53,7 +54,9 @@ class ReviewStatePlanner:
         recipient_key: Any,
         database_seconds: float = 2,
         runtime_limits: EvaluationRuntimeLimits = SERIAL_RUNTIME_LIMITS,
+        route_resolver: RouteResolver,
     ) -> None:
+        self._route_resolver = route_resolver
         if not math.isfinite(database_seconds) or database_seconds <= 0:
             raise ValueError("Finite positive review database budget required")
         self._transactions, self._database_seconds = transactions, database_seconds
@@ -109,7 +112,9 @@ class ReviewStatePlanner:
             recipient_key=self._recipient_key,
             original_occurred_at=at.isoformat(timespec="microseconds"),
         )
-        return freeze_evaluation_state_plan(facts, str(incoming.operation_id), first)
+        return freeze_evaluation_state_plan(
+            facts, str(incoming.operation_id), first, route_resolver=self._route_resolver
+        )
 
 
 async def apply_review_state(
@@ -145,8 +150,10 @@ class ReviewStateRoot(EvaluationStateRoot):
         *,
         database_seconds: float = 2,
         runtime_limits: EvaluationRuntimeLimits = SERIAL_RUNTIME_LIMITS,
+        route_resolver: RouteResolver,
     ) -> None:
-        facts, original, _ = read_review_state_plan(incoming, winner)
+        self._route_resolver = route_resolver
+        facts, original, _ = read_review_state_plan(incoming, winner, route_resolver=route_resolver)
         # Restore the durable winner's first clocks before entering the root.
         frozen = replace(incoming, values=original.values_for(incoming))
         self._view: EvaluationView | None = None
@@ -169,6 +176,7 @@ class ReviewStateRoot(EvaluationStateRoot):
             write,
             database_seconds=database_seconds,
             isolation_level="REPEATABLE READ",
+            route_resolver=route_resolver,
         )
 
     @property

@@ -12,6 +12,7 @@ from qs_ai.application.evaluation.checkpoints import CheckpointConflict, Checkpo
 from qs_ai.application.execution.model_capacity import ModelCapacity, ProviderCapacity
 from qs_ai.infrastructure.workflow_transport.worker_dispatch_sender import WorkerDispatchPending
 from qs_ai.infrastructure.workflows import evaluation as graph
+from tests.route_fixtures import legacy_routes
 from tests.test_worker_dispatch_state import frozen as frozen
 
 
@@ -58,6 +59,7 @@ async def test_paired_serial_graph_saves_first_response_before_terminal_without_
         prepare=AsyncMock(return_value=prepared),
         save_response=AsyncMock(side_effect=save),
         complete=AsyncMock(side_effect=complete),
+        routing=legacy_routes(),
     )
     old = AsyncMock(side_effect=AssertionError("Paired serial runtime cannot use legacy writes"))
     monkeypatch.setattr(graph, "prepare_step", old)
@@ -114,7 +116,11 @@ async def test_paired_serial_graph_saves_first_response_before_terminal_without_
 @pytest.mark.parametrize("foreign", ["host", "candidate", "partial_dispatch"])
 async def test_serial_runtime_rejects_foreign_or_partial_composition_before_any_model(foreign):
     tx = Mock()
-    runtime = SimpleNamespace(transactions=Mock() if foreign == "host" else tx, prepare=AsyncMock())
+    runtime = SimpleNamespace(
+        transactions=Mock() if foreign == "host" else tx,
+        prepare=AsyncMock(),
+        routing=legacy_routes(),
+    )
     gateway = SimpleNamespace(generate_messages=AsyncMock())
     options = {"candidate_limit": 3} if foreign == "candidate" else {}
     if foreign == "partial_dispatch":
@@ -168,6 +174,7 @@ async def test_paired_serial_graph_retains_original_handoff_validation_and_permi
         prepare=AsyncMock(return_value=prepared),
         save_response=AsyncMock(),
         complete=AsyncMock(),
+        routing=legacy_routes(),
     )
     gateway = SimpleNamespace(generate_messages=AsyncMock())
     with pytest.raises(CheckpointConflict):

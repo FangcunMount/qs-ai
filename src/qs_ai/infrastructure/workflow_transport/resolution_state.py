@@ -9,6 +9,7 @@ from uuid import uuid5
 from reliable_messaging.durable import MessageConflict
 from reliable_messaging.transaction import FrozenPlan
 from reliable_messaging.transaction_mysql import MySQLTransactionStore
+from reliable_messaging.transport import RouteResolver
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -41,9 +42,14 @@ from qs_ai.infrastructure.workflow_transport.transaction_archive import FrozenAr
 
 
 def read_resolution_plan(
-    operation: ResolutionStateOperation, winner: FrozenPlan
+    operation: ResolutionStateOperation,
+    winner: FrozenPlan,
+    *,
+    route_resolver: RouteResolver,
 ) -> tuple[EvaluationStateFacts, FrozenArchive]:
-    facts, first = read_evaluation_state_plan(operation.intent, winner)
+    facts, first = read_evaluation_state_plan(
+        operation.intent, winner, route_resolver=route_resolver
+    )
     ResolutionStateOperation.from_facts(facts)
     state = pb.MessagingBody.FromString(first.body).evaluation_state
     if (
@@ -63,7 +69,9 @@ class ResolutionStatePlanner:
         signing_key: Any,
         recipient_key: Any,
         database_seconds: float = 2,
+        route_resolver: RouteResolver,
     ) -> None:
+        self._route_resolver = route_resolver
         if not math.isfinite(database_seconds) or database_seconds <= 0:
             raise ValueError("Finite positive resolution database budget required")
         self._original, self._database_seconds = original, database_seconds
@@ -128,8 +136,10 @@ class ResolutionStatePlanner:
             recipient_key=self._recipient_key,
             original_occurred_at=at.isoformat(timespec="microseconds"),
         )
-        winner = freeze_evaluation_state_plan(facts, str(operation.operation_id), first)
-        read_resolution_plan(operation, winner)
+        winner = freeze_evaluation_state_plan(
+            facts, str(operation.operation_id), first, route_resolver=self._route_resolver
+        )
+        read_resolution_plan(operation, winner, route_resolver=self._route_resolver)
         return winner
 
 
@@ -143,8 +153,10 @@ class ResolutionStateRoot(EvaluationStateRoot):
         winner: FrozenPlan,
         *,
         database_seconds: float = 2,
+        route_resolver: RouteResolver,
     ) -> None:
-        facts, _ = read_resolution_plan(operation, winner)
+        self._route_resolver = route_resolver
+        facts, _ = read_resolution_plan(operation, winner, route_resolver=route_resolver)
         frozen, digest = ResolutionStateOperation.from_facts(facts)
         self._view: EvaluationView | None = None
         self._business_error: Exception | None = None
@@ -188,6 +200,7 @@ class ResolutionStateRoot(EvaluationStateRoot):
             write,
             database_seconds=database_seconds,
             isolation_level="REPEATABLE READ",
+            route_resolver=route_resolver,
         )
 
     @property

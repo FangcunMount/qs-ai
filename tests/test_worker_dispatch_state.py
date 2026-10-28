@@ -25,6 +25,7 @@ from qs_ai.infrastructure.workflow_transport.worker_dispatch_state import (
     read_worker_dispatch_plan,
     worker_dispatch_intent,
 )
+from tests.route_fixtures import legacy_routes
 from tests.test_evaluation_state_plan import fixture as state_fixture
 
 
@@ -60,14 +61,16 @@ def frozen():
         original_occurred_at=facts.at.isoformat(timespec="microseconds"),
         **f.keys,
     )
-    plan = freeze_evaluation_state_plan(facts, str(uuid4()), message)
+    plan = freeze_evaluation_state_plan(
+        facts, str(uuid4()), message, route_resolver=legacy_routes()
+    )
     return SimpleNamespace(**locals())
 
 
 def test_first_checkpoint_and_source_have_canonical_bounded_immutable_codec(frozen):
     p = frozen
     assert WorkerDispatchOperation.decode(p.operation.encode()) == p.operation
-    facts, op, archive = read_worker_dispatch_plan(p.intent, p.plan)
+    facts, op, archive = read_worker_dispatch_plan(p.intent, p.plan, route_resolver=legacy_routes())
     assert facts == p.facts and op == p.operation and archive.wire == p.message.wire
     assert "execution:first" not in repr(op) and "source_digest" not in repr(op)
     assert worker_dispatch_intent(UUID(p.intent.run_id), 2, 7, p.owner) == p.intent
@@ -126,6 +129,7 @@ def rig(frozen):
         store=store,
         reserve=AsyncMock(return_value=SimpleNamespace(acquired=True, execution=owned)),
         execute=AsyncMock(return_value=Result(LocalOutcome.UNKNOWN, ())),
+        routing=legacy_routes(),
     )
     pool = ModelCapacity({"first": ProviderCapacity(2, 1)}, 1)
     dispatch = sender.WorkerDispatchSender(

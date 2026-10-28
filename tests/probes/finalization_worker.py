@@ -19,6 +19,7 @@ from reliable_messaging.rocketmq_transaction import (
 )
 from reliable_messaging.transaction import Binding, Limits
 from reliable_messaging.transaction_mysql import MySQLTransactionStore
+from reliable_messaging.transport import RouteKey
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from qs_ai.application.execution.configuration import PublishedReportWorkflow
@@ -40,6 +41,7 @@ from qs_ai.infrastructure.workflow_transport.transactional_interpretation_execut
     TransactionalInterpretationExecutionStore,
 )
 from qs_ai.infrastructure.workflows.report import create_report_workflow
+from tests.integration.broker_routes import owned_broker_routes
 from tests.probes.p1_runtime import SyntheticEvidence
 
 
@@ -74,7 +76,16 @@ async def run(config):
             credentials["username"],
             credentials["password"],
             "ai.mysql",
-            (TransactionRoute(EVENTS, config["physical_topic"], "m3-1"),),
+            (
+                TransactionRoute(
+                    EVENTS,
+                    config["physical_topic"],
+                    "m3-1",
+                    naming_scheme=owned_broker_routes()
+                    .publish_route(RouteKey(EVENTS, "TRANSACTION", "ai.mysql", "m3-1"))
+                    .naming_scheme,
+                ),
+            ),
             Limits(sends=4, check_workers=1, check_queue=16),
         ),
         store,
@@ -103,7 +114,7 @@ async def run(config):
         if config.get("outcomes"):
             Path(config["outcomes"]).write_text(json.dumps(outcomes))
 
-    runtime = ObservedRuntime(sender, admitted=True)
+    runtime = ObservedRuntime(sender, admitted=True, routing=owned_broker_routes())
     invocation = contextvars.ContextVar("probe_invocation", default="")
 
     async def correlate(request):

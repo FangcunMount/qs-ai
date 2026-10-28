@@ -13,6 +13,7 @@ from typing import Any
 from uuid import UUID
 
 from reliable_messaging.transaction import FrozenPlan
+from reliable_messaging.transport import RouteResolver
 
 from qs_ai.application.evaluation.management import ManagementScope
 from qs_ai.contracts.workflow import messaging_pb2 as pb
@@ -166,13 +167,18 @@ class ReviewPlanFacts:
 
 
 def read_review_state_plan(
-    incoming: ReviewStateInput, winner: FrozenPlan
+    incoming: ReviewStateInput,
+    winner: FrozenPlan,
+    *,
+    route_resolver: RouteResolver,
 ) -> tuple[
     EvaluationStateFacts,
     ReviewPlanFacts,
     FrozenArchive,
 ]:
-    facts, archived = read_evaluation_state_plan(incoming.intent, winner)
+    facts, archived = read_evaluation_state_plan(
+        incoming.intent, winner, route_resolver=route_resolver
+    )
     original = ReviewPlanFacts.decode(facts.business_context)
     original.values_for(incoming)
     state = pb.MessagingBody.FromString(archived.body).evaluation_state

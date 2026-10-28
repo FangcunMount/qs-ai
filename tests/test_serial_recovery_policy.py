@@ -9,6 +9,7 @@ from reliable_messaging.durable import MessageConflict
 from reliable_messaging.transaction import Execution, Reservation, State
 
 from qs_ai.infrastructure.workflow_transport.serial_recovery_runtime import SerialRecoveryRuntime
+from tests.route_fixtures import legacy_routes
 from tests.test_evaluation_expired_recovery_source import source as source
 from tests.test_evaluation_serial_response_receipts import original as original
 from tests.test_expired_recovery_sender import fixture as expiry_fixture
@@ -29,7 +30,7 @@ async def test_serial_response_policy_requires_exact_abort_and_original_referenc
     f = frozen
     execution = Execution(f.winner, 1, "m3-1", b"x" * 32, f.facts.at + timedelta(seconds=60))
     lookup = AsyncMock(return_value=Reservation(execution, False, status))
-    owner = SimpleNamespace(store=SimpleNamespace(lookup=lookup))
+    owner = SimpleNamespace(routing=legacy_routes(), store=SimpleNamespace(lookup=lookup))
     runtime = SerialRecoveryRuntime(
         Mock(), Mock(), owner, Mock(), signing_key=None, recipient_key=None, recover_aborted=True
     )
@@ -59,9 +60,10 @@ async def test_regressed_serial_source_never_authorizes_new_plan(frozen):
     f = frozen
     execution = Execution(f.winner, 1, "m3-1", b"x" * 32, f.facts.at + timedelta(seconds=60))
     owner = SimpleNamespace(
+        routing=legacy_routes(),
         store=SimpleNamespace(
             lookup=AsyncMock(return_value=Reservation(execution, False, State.ABORTED))
-        )
+        ),
     )
     runtime = SerialRecoveryRuntime(
         Mock(), Mock(), owner, Mock(), signing_key=None, recipient_key=None, recover_aborted=True

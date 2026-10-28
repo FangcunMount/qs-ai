@@ -6,6 +6,7 @@ from typing import Literal
 
 from reliable_messaging.transaction import BindingError, Execution, FrozenPlan, LocalOutcome
 from reliable_messaging.transaction_mysql import MySQLTransactionStore
+from reliable_messaging.transport import RouteResolver
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
@@ -38,14 +39,18 @@ class EvaluationStateRoot:
         *,
         database_seconds: float = 2,
         isolation_level: Literal["READ COMMITTED", "REPEATABLE READ"] | None = None,
+        route_resolver: RouteResolver,
     ) -> None:
+        self._route_resolver = route_resolver
         if not math.isfinite(database_seconds) or database_seconds <= 0:
             raise ValueError("Finite positive state evidence budget required")
         if isolation_level not in (None, "READ COMMITTED", "REPEATABLE READ"):
             raise ValueError("Explicit supported root isolation required")
         self._isolation_level = isolation_level
-        self._facts, self._archive = read_evaluation_state_plan(intent, winner)
-        self._events = FrozenEvaluationStateEvents(intent, winner)
+        self._facts, self._archive = read_evaluation_state_plan(
+            intent, winner, route_resolver=route_resolver
+        )
+        self._events = FrozenEvaluationStateEvents(intent, winner, route_resolver=route_resolver)
         self._transactions, self._archives, self._store = transactions, archives, store
         self._business, self._database_seconds = business, database_seconds
         self._plan_digest, self._used = winner.digest, False

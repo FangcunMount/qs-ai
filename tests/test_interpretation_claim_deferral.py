@@ -20,6 +20,7 @@ from qs_ai.infrastructure.workflow_transport.interpretation_claim_state import (
     InterpretationClaimPlanner,
     InterpretationClaimSource,
 )
+from tests.route_fixtures import legacy_routes
 from tests.test_evaluation_state_plan import fixture as state_fixture
 
 
@@ -61,7 +62,7 @@ async def original(monkeypatch):
         quota_baseline=None,
         claim_in=AsyncMock(),
     )
-    planner = InterpretationClaimPlanner(business, **keys)
+    planner = InterpretationClaimPlanner(business, **keys, route_resolver=legacy_routes())
     planner.source = AsyncMock(return_value=source)
     plan = await planner.candidate(source, 60)
     events.clear()
@@ -83,7 +84,9 @@ async def original(monkeypatch):
     monkeypatch.setattr(module, "read_claim_source", read)
     monkeypatch.setattr(module, "acquire", acquire)
     monkeypatch.setattr(module, "bind", lambda _: binding)
-    deferred = module.InterpretationClaimDeferral(business, store, archives)
+    deferred = module.InterpretationClaimDeferral(
+        business, store, archives, route_resolver=legacy_routes()
+    )
     return SimpleNamespace(**locals())
 
 
@@ -248,4 +251,6 @@ def test_independent_operational_action_refuses_a_borrowed_business_transaction(
     p = original
     p.business.transactions = BorrowedTransactions(p.db)
     with pytest.raises(BindingError):
-        module.InterpretationClaimDeferral(p.business, p.store, p.archives)
+        module.InterpretationClaimDeferral(
+            p.business, p.store, p.archives, route_resolver=legacy_routes()
+        )

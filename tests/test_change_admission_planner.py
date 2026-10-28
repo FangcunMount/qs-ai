@@ -18,6 +18,7 @@ from qs_ai.infrastructure.workflow_transport.transaction_command import (
     FrozenCommandInput,
     read_admission_plan,
 )
+from tests.route_fixtures import legacy_routes
 from tests.test_read_only_change_admission import fixture as read_fixture
 from tests.test_transaction_command import command_fixture
 
@@ -36,7 +37,7 @@ def fixture(monkeypatch, *, snapshot=False, action="answer"):
         len(raw),
         raw,
     )
-    incoming = FrozenCommandInput.from_authenticated(envelope, raw, wire)
+    incoming = FrozenCommandInput.from_authenticated(envelope, raw, wire, routes=legacy_routes())
     active = False
 
     @asynccontextmanager

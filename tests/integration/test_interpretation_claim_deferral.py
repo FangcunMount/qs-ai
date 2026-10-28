@@ -23,6 +23,7 @@ from tests.integration.test_transaction_start_admission import (
     required_disposable_primary as required_disposable_primary,
 )
 from tests.messaging_fixtures import keys as keys
+from tests.route_fixtures import legacy_routes
 
 pytestmark = pytest.mark.integration
 
@@ -38,7 +39,9 @@ async def prior(host, *, denied=True, abort=True):
     host.executions.append(owned.execution)
     if abort:
         assert await host.store.abort(owned.execution)
-    deferred = InterpretationClaimDeferral(host.kit.store, host.store, host.archives)
+    deferred = InterpretationClaimDeferral(
+        host.kit.store, host.store, host.archives, route_resolver=legacy_routes()
+    )
     return source, before, owned.execution, deferred
 
 

@@ -33,6 +33,7 @@ from tests.integration.test_transaction_start_admission import (
     required_disposable_primary as required_disposable_primary,
 )
 from tests.messaging_fixtures import keys as keys
+from tests.route_fixtures import legacy_routes
 
 pytestmark = pytest.mark.integration
 
@@ -62,12 +63,17 @@ async def test_original_drain_business_audit_sequence_archive_and_witness_commit
     trigger = None
     try:
         planner = CancellationDrainPlanner(
-            host.tx, signing_key=host.keys["ai.sign"], recipient_key=host.keys["qs.encrypt"]
+            host.tx,
+            signing_key=host.keys["ai.sign"],
+            recipient_key=host.keys["qs.encrypt"],
+            route_resolver=legacy_routes(),
         )
         operation = await planner.observe(scope, at)
         assert operation is not None
         winner = await planner.candidate(operation, at + timedelta(seconds=1))
-        facts, _, first = read_cancellation_drain_plan(operation, winner)
+        facts, _, first = read_cancellation_drain_plan(
+            operation, winner, route_resolver=legacy_routes()
+        )
         assert facts.intent.expected_version == requested.version
         assert facts.source_version == source_version
         reservation = await host.store.reserve(operation.intent.request, winner)
@@ -100,6 +106,7 @@ async def test_original_drain_business_audit_sequence_archive_and_witness_commit
             owned.plan,
             apply_cancellation_drain,
             isolation_level="REPEATABLE READ",
+            route_resolver=legacy_routes(),
         )
         with monkeypatch.context() as patch:
             if fault == "client_reply_discarded":

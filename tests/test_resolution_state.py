@@ -19,6 +19,7 @@ from qs_ai.infrastructure.workflow_transport import resolution_state as resoluti
 from qs_ai.infrastructure.workflow_transport.evaluation_governance_dispatch import (
     GovernanceStateDispatcher,
 )
+from tests.route_fixtures import legacy_routes
 from tests.test_resolution_state_plan import original
 
 
@@ -88,6 +89,7 @@ def planned(monkeypatch):
         owner,
         signing_key=jwk.JWK.generate(kty="EC", crv="P-256", kid="ai.sign"),
         recipient_key=jwk.JWK.generate(kty="EC", crv="P-256", kid="qs.encrypt"),
+        route_resolver=legacy_routes(),
     )
     return SimpleNamespace(**locals())
 
@@ -95,7 +97,7 @@ def planned(monkeypatch):
 async def test_readonly_candidate_checks_original_capacity_then_seals_after_session_close(planned):
     p = planned
     winner = await p.planner.candidate(p.operation, p.at)
-    facts, _ = resolution.read_resolution_plan(p.operation, winner)
+    facts, _ = resolution.read_resolution_plan(p.operation, winner, route_resolver=legacy_routes())
     frozen, digest = resolution.ResolutionStateOperation.from_facts(facts)
     assert frozen == p.operation and digest == resolution.source_snapshot_digest(p.run)
     assert facts.sequence == 3
@@ -133,8 +135,10 @@ async def test_root_rechecks_source_and_borrows_original_resolver_without_commit
     later = replace(
         p.operation, value=replace(p.operation.value, resolved_at=p.at + timedelta(days=1))
     )
-    executor = resolution.ResolutionStateRoot(p.owner, object(), object(), later, winner)
-    facts, _ = resolution.read_resolution_plan(p.operation, winner)
+    executor = resolution.ResolutionStateRoot(
+        p.owner, object(), object(), later, winner, route_resolver=legacy_routes()
+    )
+    facts, _ = resolution.read_resolution_plan(p.operation, winner, route_resolver=legacy_routes())
     admitted = AsyncMock()
     resolver = SimpleNamespace(resolve=AsyncMock(return_value=object()))
     factory = Mock(return_value=resolver)
@@ -170,7 +174,11 @@ async def test_missing_original_owner_refuses_resolution_before_lookup_or_any_bu
     p = planned
     store = SimpleNamespace(lookup=AsyncMock())
     dispatch = GovernanceStateDispatcher(
-        p.tx, object(), SimpleNamespace(store=store), signing_key=object(), recipient_key=object()
+        p.tx,
+        object(),
+        SimpleNamespace(routing=legacy_routes(), store=store),
+        signing_key=object(),
+        recipient_key=object(),
     )
     with pytest.raises(BindingError, match="binding"):
         await dispatch(p.operation, p.at)
@@ -193,8 +201,10 @@ def test_incorrect_original_owner_is_refused_by_inert_constructor(planned):
 async def test_root_preserves_original_version_conflict_before_source_digest(planned, monkeypatch):
     p = planned
     winner = await p.planner.candidate(p.operation, p.at)
-    executor = resolution.ResolutionStateRoot(p.owner, object(), object(), p.operation, winner)
-    facts, _ = resolution.read_resolution_plan(p.operation, winner)
+    executor = resolution.ResolutionStateRoot(
+        p.owner, object(), object(), p.operation, winner, route_resolver=legacy_routes()
+    )
+    facts, _ = resolution.read_resolution_plan(p.operation, winner, route_resolver=legacy_routes())
     monkeypatch.setattr(resolution, "lock_admission", AsyncMock())
     p.run["version"] += 1
     with pytest.raises(CheckpointConflict, match="version"):

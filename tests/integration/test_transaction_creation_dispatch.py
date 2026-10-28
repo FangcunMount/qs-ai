@@ -34,6 +34,7 @@ from tests.integration.test_transaction_start_admission import (
     required_disposable_primary as required_disposable_primary,
 )
 from tests.messaging_fixtures import keys as keys
+from tests.route_fixtures import legacy_routes
 from tests.test_generation_manifest import assets as assets
 from tests.test_generation_manifest import complete_release as complete_release
 from tests.test_generation_manifest import evaluation_release as evaluation_release
@@ -49,6 +50,8 @@ async def creation(host, setup_run, assets, complete_release):
     scope = ManagementScope(run_id, 1, 42)
 
     class DatabaseOnlyRuntime:
+        routing = legacy_routes()
+
         store = host.store
         calls = 0
         reject = False
@@ -251,7 +254,7 @@ async def test_sender_does_not_return_captured_business_view_after_original_root
         assert await StoreChecker(p.host.store).check(owned.references[0]) == Decision.ROLLBACK
         assert await rows(p.host.tx, p.run_id) == [None, None, None]
         incoming = CreationStateInput(p.scope, p.complete_release, "原创建意图")
-        _, _, first = read_creation_state_plan(incoming, owned.plan)
+        _, _, first = read_creation_state_plan(incoming, owned.plan, route_resolver=legacy_routes())
         assert await p.host.archives.read_committed(first.envelope().message_id) is None
     finally:
         async with trigger_admin.begin() as db:

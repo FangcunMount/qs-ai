@@ -9,6 +9,7 @@ from uuid import uuid5
 from reliable_messaging.durable import MessageConflict
 from reliable_messaging.transaction import FrozenPlan
 from reliable_messaging.transaction_mysql import MySQLTransactionStore
+from reliable_messaging.transport import RouteResolver
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -59,9 +60,14 @@ def arguments(operation: CorrectionStateOperation) -> dict[str, Any]:
 
 
 def read_correction_plan(
-    operation: CorrectionStateOperation, winner: FrozenPlan
+    operation: CorrectionStateOperation,
+    winner: FrozenPlan,
+    *,
+    route_resolver: RouteResolver,
 ) -> tuple[EvaluationStateFacts, FrozenArchive]:
-    facts, archived = read_evaluation_state_plan(operation.intent, winner)
+    facts, archived = read_evaluation_state_plan(
+        operation.intent, winner, route_resolver=route_resolver
+    )
     CorrectionStateOperation.from_facts(facts)
     state = pb.MessagingBody.FromString(archived.body).evaluation_state
     if (
@@ -82,7 +88,9 @@ class CorrectionStatePlanner:
         recipient_key: Any,
         database_seconds: float = 2,
         runtime_limits: EvaluationRuntimeLimits = SERIAL_RUNTIME_LIMITS,
+        route_resolver: RouteResolver,
     ) -> None:
+        self._route_resolver = route_resolver
         if not math.isfinite(database_seconds) or database_seconds <= 0:
             raise ValueError("Finite positive correction database budget required")
         self._transactions, self._database_seconds = transactions, database_seconds
@@ -144,7 +152,9 @@ class CorrectionStatePlanner:
             recipient_key=self._recipient_key,
             original_occurred_at=at.isoformat(timespec="microseconds"),
         )
-        return freeze_evaluation_state_plan(facts, operation.command_id, first)
+        return freeze_evaluation_state_plan(
+            facts, operation.command_id, first, route_resolver=self._route_resolver
+        )
 
 
 async def apply_correction_state(db: AsyncSession, facts: EvaluationStateFacts) -> None:
@@ -169,8 +179,10 @@ class CorrectionStateRoot(EvaluationStateRoot):
         *,
         database_seconds: float = 2,
         runtime_limits: EvaluationRuntimeLimits = SERIAL_RUNTIME_LIMITS,
+        route_resolver: RouteResolver,
     ) -> None:
-        facts, _ = read_correction_plan(operation, winner)
+        self._route_resolver = route_resolver
+        facts, _ = read_correction_plan(operation, winner, route_resolver=route_resolver)
         original, _ = CorrectionStateOperation.from_facts(facts)
         self._view: EvaluationView | None = None
         self._business_error: Exception | None = None
@@ -192,6 +204,7 @@ class CorrectionStateRoot(EvaluationStateRoot):
             write,
             database_seconds=database_seconds,
             isolation_level="REPEATABLE READ",
+            route_resolver=route_resolver,
         )
 
     @property

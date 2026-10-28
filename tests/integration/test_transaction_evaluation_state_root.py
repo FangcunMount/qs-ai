@@ -50,6 +50,7 @@ from tests.integration.test_transaction_evaluation_admission import (
 from tests.integration.test_transaction_evaluation_admission import (
     trigger_admin as trigger_admin,
 )
+from tests.route_fixtures import legacy_routes
 
 pytestmark = pytest.mark.integration
 _REASON = "explicit original state cancellation"
@@ -111,7 +112,9 @@ async def planned(host, scope):
         recipient_key=host.keys["qs.encrypt"],
         original_occurred_at=facts.at.isoformat(timespec="microseconds"),
     )
-    winner = freeze_evaluation_state_plan(facts, str(uuid4()), first)
+    winner = freeze_evaluation_state_plan(
+        facts, str(uuid4()), first, route_resolver=legacy_routes()
+    )
     reservation = await host.store.reserve(intent.request, winner)
     assert reservation.acquired
     host.executions.append(reservation.execution)
@@ -135,7 +138,7 @@ async def test_state_only_original_business_sequence_archive_and_witness_commit_
     host, scope, store = original
     before = await store.get(scope)
     intent, owned = await planned(host, scope)
-    facts, value = read_evaluation_state_plan(intent, owned.plan)
+    facts, value = read_evaluation_state_plan(intent, owned.plan, route_resolver=legacy_routes())
     trigger = None
     if fault in ("archive_rejected", "witness_rejected"):
         trigger = "state_fault_" + uuid4().hex
@@ -176,7 +179,15 @@ async def test_state_only_original_business_sequence_archive_and_witness_commit_
         )
 
     try:
-        root = EvaluationStateRoot(host.tx, host.archives, host.store, intent, owned.plan, business)
+        root = EvaluationStateRoot(
+            host.tx,
+            host.archives,
+            host.store,
+            intent,
+            owned.plan,
+            business,
+            route_resolver=legacy_routes(),
+        )
         outcome = await root(owned)
         committed = fault in ("none", "client_reply_discarded")
         assert outcome == (LocalOutcome.COMMITTED if committed else LocalOutcome.ABORTED)

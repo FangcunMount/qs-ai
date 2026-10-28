@@ -18,6 +18,7 @@ from reliable_messaging.transaction import (
     decide_local,
 )
 from reliable_messaging.transaction_mysql import MySQLTransactionStore
+from reliable_messaging.transport import RouteResolver
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from qs_ai.infrastructure.persistence.mysql.database import Transactions
@@ -32,6 +33,9 @@ class TransactionAdmissionClosed(RuntimeError):
 
 
 class StateTransactions(Protocol):
+    @property
+    def routing(self) -> RouteResolver: ...
+
     @property
     def store(self) -> MySQLTransactionStore: ...
 

@@ -84,7 +84,7 @@ class WorkerDispatchSender:
             # A commit is not authorization for this new process to invoke a model again.
             raise WorkerDispatchPending("Existing worker dispatch cannot authorize a model retry")
         if previous is not None:
-            read_worker_dispatch_plan(intent, previous.plan)
+            read_worker_dispatch_plan(intent, previous.plan, route_resolver=self._runtime.routing)
             if (
                 existing is None
                 or existing.state != State.ABORTED
@@ -111,7 +111,9 @@ class WorkerDispatchSender:
                 raise WorkerDispatchPending("Another worker owns the original dispatch")
             if reservation.execution.plan.digest != candidate.digest:
                 raise WorkerDispatchPending("Owned worker plan differs from first candidate")
-            _, operation, archive = read_worker_dispatch_plan(intent, reservation.execution.plan)
+            _, operation, archive = read_worker_dispatch_plan(
+                intent, reservation.execution.plan, route_resolver=self._runtime.routing
+            )
             business = WorkerDispatchWrite(self._schemas)
             root = EvaluationStateRoot(
                 self._transactions,
@@ -122,6 +124,7 @@ class WorkerDispatchSender:
                 business,
                 database_seconds=self._planner.database_seconds,
                 isolation_level="REPEATABLE READ",
+                route_resolver=self._runtime.routing,
             )
             try:
                 result = await self._runtime.execute(reservation.execution, root)

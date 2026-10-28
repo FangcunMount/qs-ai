@@ -39,6 +39,7 @@ from tests.integration.test_transaction_start_admission import (
 )
 from tests.integration.test_transaction_start_admission import reserve, rows
 from tests.messaging_fixtures import keys as keys
+from tests.route_fixtures import legacy_routes
 from tests.transaction_fixtures import admission, command
 
 pytestmark = [pytest.mark.integration, pytest.mark.usefixtures("published_configuration")]
@@ -49,7 +50,7 @@ def calls_digest(values):
     return hashlib.sha256(raw.encode()).digest()
 
 
-async def incoming(host, value, *, original_occurred_at=""):
+async def incoming(host, value, *, original_occurred_at="", routes=None):
     async with host.tx.open() as db:
         original_request = await db.scalar(
             select(sessions.c.request_id).where(sessions.c.id == value.session_id)
@@ -83,7 +84,9 @@ async def incoming(host, value, *, original_occurred_at=""):
         decrypt_keys={"ai.encrypt": host.keys["ai.encrypt"]},
         trusted_signers={"qs.sign": TrustedSigner("qs-server", host.keys["qs.sign"])},
     )
-    result = FrozenCommandInput.from_authenticated(header, prepared.body, prepared.wire)
+    result = FrozenCommandInput.from_authenticated(
+        header, prepared.body, prepared.wire, routes=legacy_routes() if routes is None else routes
+    )
     host.messages.append(result)
     return result
 

@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from reliable_messaging.transaction import FrozenPlan, Request
-from reliable_messaging.transport import physical_topic_v2
+from reliable_messaging.transport import RouteKey, RouteResolver
 
 from qs_ai.contracts.workflow import messaging_pb2 as pb
 from qs_ai.domain.interpretation.model import Status
@@ -181,7 +181,11 @@ class InterpretationStateFacts:
 
 
 def freeze_interpretation_state_plan(
-    facts: InterpretationStateFacts, operation_id: str, prepared: PreparedMessage
+    facts: InterpretationStateFacts,
+    operation_id: str,
+    prepared: PreparedMessage,
+    *,
+    route_resolver: RouteResolver,
 ) -> FrozenPlan:
     if not isinstance(operation_id, str) or not valid_id(operation_id):
         raise ValueError("Canonical original interpretation operation required")
@@ -192,7 +196,9 @@ def freeze_interpretation_state_plan(
         False,
         True,
         prepared.envelope.message_id,
-        physical_topic_v2(EVENTS, "TRANSACTION", "ai.mysql", "m3-1"),
+        route_resolver.publish_route(
+            RouteKey(EVENTS, "TRANSACTION", "ai.mysql", "m3-1")
+        ).physical_topic,
         "m3-1",
         context=facts.encode(),
     )
@@ -200,23 +206,31 @@ def freeze_interpretation_state_plan(
     plan = FrozenPlan(
         request.owner, request.scope, operation_id, request.key, request.input_hash, (branch,)
     )
-    read_interpretation_state_plan(facts.intent, plan)
+    read_interpretation_state_plan(facts.intent, plan, route_resolver=route_resolver)
     return plan
 
 
 def read_interpretation_state_plan(
-    intent: InterpretationStateIntent, plan: FrozenPlan
+    intent: InterpretationStateIntent,
+    plan: FrozenPlan,
+    *,
+    route_resolver: RouteResolver,
 ) -> tuple[InterpretationStateFacts, FrozenArchive]:
     intent.request.match(plan)
     if len(plan.branches) != 1:
         raise MessagingContractError("One original interpretation state branch required")
     branch = plan.branches[0]
+    try:
+        route_resolver.recorded_route(
+            RouteKey(EVENTS, "TRANSACTION", "ai.mysql", "m3-1"), branch.physical_topic
+        )
+    except ValueError:
+        raise MessagingContractError("State plan route outside trusted manifest") from None
     archive = decode_branch(branch)
     facts = InterpretationStateFacts.decode(archive.context)
     header = archive.envelope()
     if (
         facts.intent != intent
-        or branch.physical_topic != physical_topic_v2(EVENTS, "TRANSACTION", "ai.mysql", "m3-1")
         or branch.branch_id != header.message_id
         or header.kind != pb.INTERPRETATION_STATE
         or header.producer != "qs-ai"
@@ -249,7 +263,14 @@ def read_interpretation_state_plan(
 class FrozenInterpretationStateEvents(InterpretationStateTranscription):
     """A standalone original state has no synthetic command or Inbox receipt."""
 
-    def __init__(self, intent: InterpretationStateIntent, plan: FrozenPlan) -> None:
-        _, archive = read_interpretation_state_plan(intent, plan)
+    def __init__(
+        self,
+        intent: InterpretationStateIntent,
+        plan: FrozenPlan,
+        *,
+        route_resolver: RouteResolver,
+    ) -> None:
+        self._route_resolver = route_resolver
+        _, archive = read_interpretation_state_plan(intent, plan, route_resolver=route_resolver)
         expected = pb.MessagingBody.FromString(archive.body).interpretation_state
         super().__init__(plan.digest, expected)

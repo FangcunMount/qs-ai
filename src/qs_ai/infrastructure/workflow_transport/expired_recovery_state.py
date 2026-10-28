@@ -12,6 +12,7 @@ from uuid import UUID, uuid4, uuid5
 
 from reliable_messaging.durable import MessageConflict
 from reliable_messaging.transaction import FrozenPlan
+from reliable_messaging.transport import RouteResolver
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -302,8 +303,12 @@ async def apply_expired_recovery(db: AsyncSession, facts: EvaluationStateFacts) 
 def read_expired_recovery_plan(
     request: ExpiredRecoveryRequest,
     winner: FrozenPlan,
+    *,
+    route_resolver: RouteResolver,
 ) -> tuple[EvaluationStateFacts, str, FrozenArchive]:
-    facts, archive = read_evaluation_state_plan(request.intent, winner)
+    facts, archive = read_evaluation_state_plan(
+        request.intent, winner, route_resolver=route_resolver
+    )
     first, actor, _ = ExpiredRecoveryRequest.from_facts(facts)
     visible = pb.MessagingBody.FromString(archive.body).evaluation_state
     if (
@@ -323,7 +328,9 @@ class ExpiredRecoveryPlanner:
         signing_key: Any,
         recipient_key: Any,
         database_seconds: float = 2,
+        route_resolver: RouteResolver,
     ) -> None:
+        self._route_resolver = route_resolver
         if not math.isfinite(database_seconds) or database_seconds <= 0:
             raise ValueError("Finite positive expired recovery database budget required")
         self.transactions, self.database_seconds = transactions, database_seconds
@@ -376,6 +383,8 @@ class ExpiredRecoveryPlanner:
             recipient_key=self.recipient_key,
             original_occurred_at=facts.at.isoformat(timespec="microseconds"),
         )
-        winner = freeze_evaluation_state_plan(facts, str(uuid4()), first)
-        read_expired_recovery_plan(request, winner)
+        winner = freeze_evaluation_state_plan(
+            facts, str(uuid4()), first, route_resolver=self._route_resolver
+        )
+        read_expired_recovery_plan(request, winner, route_resolver=self._route_resolver)
         return winner

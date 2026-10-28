@@ -6,7 +6,7 @@ import grpc
 from reliable_messaging.durable import MessageConflict
 from reliable_messaging.protected import ProtectionError, TrustedSigner
 from reliable_messaging.transaction import BindingError
-from reliable_messaging.transport import Received, physical_topic_v2
+from reliable_messaging.transport import Received, RouteKey, RouteResolver
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from qs_ai.contracts.workflow import messaging_pb2 as pb
@@ -50,11 +50,16 @@ class CommandReceiver:
         admission: CommandAdmission,
         resolver: PayloadResolver,
         *,
+        routes: RouteResolver,
         decrypt_keys: dict[str, Any],
         trusted_signers: dict[str, TrustedSigner],
         signing_key: Any,
         qs_recipient_key: Any,
     ) -> None:
+        self.routes = routes
+        self._ack_topic = routes.publish_route(
+            RouteKey(ACKS, "TRANSACTION", "qs.mysql", "m3-1")
+        ).physical_topic
         self.transactions, self.store, self.admission = transactions, store, admission
         self.resolver = resolver
         self.decrypt_keys, self.trusted_signers = dict(decrypt_keys), dict(trusted_signers)
@@ -109,7 +114,7 @@ class CommandReceiver:
         if (
             received.provider != "rocketmq"
             or received.logical_topic != ACKS
-            or received.physical_topic != physical_topic_v2(ACKS, "TRANSACTION", "qs.mysql", "m3-1")
+            or received.physical_topic != self._ack_topic
         ):
             await self.isolate(received.wire, "transaction_route_mismatch")
             return
@@ -137,7 +142,7 @@ class CommandReceiver:
             original = failed_original(
                 wire,
                 ACKS,
-                rocketmq_topic=physical_topic_v2(ACKS, "TRANSACTION", "qs.mysql", "m3-1"),
+                rocketmq_topic=self._ack_topic,
             )
             envelope = authenticate(
                 original,

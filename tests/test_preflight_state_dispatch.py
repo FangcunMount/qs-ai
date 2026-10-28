@@ -22,6 +22,7 @@ from qs_ai.infrastructure.workflow_transport.evaluation_preflight_dispatch impor
     PreflightTransactionPending,
 )
 from qs_ai.infrastructure.workflow_transport.evaluation_state_plan import read_evaluation_state_plan
+from tests.route_fixtures import legacy_routes
 from tests.test_preflight_state_planner import fixture as planning
 
 
@@ -29,7 +30,7 @@ async def fixture(monkeypatch):
     f = planning(monkeypatch)
     run_id = f.f.run_id
     plan = await f.planner.candidate(f.intent)
-    facts, value = read_evaluation_state_plan(f.intent, plan)
+    facts, value = read_evaluation_state_plan(f.intent, plan, route_resolver=legacy_routes())
     execution = Execution(plan, 1, "m3-1", b"x" * 32, datetime.now(UTC) + timedelta(seconds=60))
     store = SimpleNamespace(
         lookup=AsyncMock(return_value=None),
@@ -39,6 +40,7 @@ async def fixture(monkeypatch):
         store=store,
         reserve=AsyncMock(return_value=Reservation(execution, True, State.PREPARED)),
         execute=AsyncMock(return_value=Result(LocalOutcome.COMMITTED, ())),
+        routing=legacy_routes(),
     )
     archives = SimpleNamespace(read_committed=AsyncMock(return_value=value))
     dispatcher = PreflightStateDispatcher(

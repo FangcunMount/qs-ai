@@ -59,6 +59,7 @@ class InterpretationClaimSender:
             signing_key=signing_key,
             recipient_key=recipient_key,
             database_seconds=database_seconds,
+            route_resolver=runtime.routing,
         )
 
     async def _committed(
@@ -67,7 +68,9 @@ class InterpretationClaimSender:
         ttl_seconds: int,
         owned: Execution,
     ) -> None:
-        _, first = read_claim_plan(source, ttl_seconds, owned.plan)
+        _, first = read_claim_plan(
+            source, ttl_seconds, owned.plan, route_resolver=self._runtime.routing
+        )
         async with asyncio.timeout(self._database_seconds):
             evidence = tuple([await self._runtime.store.evidence(ref) for ref in owned.references])
             if decide_local(owned.references, evidence) != LocalOutcome.COMMITTED:
@@ -125,7 +128,7 @@ class InterpretationClaimSender:
         previous: Execution,
     ) -> Claim | None:
         """An explicit host decision, never called by Checker or ordinary duplicate lookup."""
-        read_claim_plan(source, ttl_seconds, previous.plan)
+        read_claim_plan(source, ttl_seconds, previous.plan, route_resolver=self._runtime.routing)
         current = await self._planner.source(source.job_id, source.session.id)
         if current != source:
             raise LeaseLost("Original claim retry source differs from its frozen plan")
@@ -140,8 +143,10 @@ class InterpretationClaimSender:
         ttl_seconds: int,
         owned: Execution,
     ) -> Claim | None:
-        read_claim_plan(source, ttl_seconds, owned.plan)
-        write = InterpretationClaimWrite(self._store, source, ttl_seconds, owned.plan)
+        read_claim_plan(source, ttl_seconds, owned.plan, route_resolver=self._runtime.routing)
+        write = InterpretationClaimWrite(
+            self._store, source, ttl_seconds, owned.plan, route_resolver=self._runtime.routing
+        )
         root = InterpretationStateRoot(
             self._store.transactions,
             self._archives,
@@ -150,6 +155,7 @@ class InterpretationClaimSender:
             owned.plan,
             write,
             database_seconds=self._database_seconds,
+            route_resolver=self._runtime.routing,
         )
         try:
             outcome = await self._runtime.execute(owned, root)

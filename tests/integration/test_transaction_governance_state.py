@@ -33,6 +33,7 @@ from tests.integration.test_transaction_start_admission import (
     required_disposable_primary as required_disposable_primary,
 )
 from tests.messaging_fixtures import keys as keys
+from tests.route_fixtures import legacy_routes
 
 pytestmark = pytest.mark.integration
 
@@ -74,12 +75,15 @@ async def test_original_governance_business_history_sequence_archive_and_witness
             host.tx,
             signing_key=host.keys["ai.sign"],
             recipient_key=host.keys["qs.encrypt"],
+            route_resolver=legacy_routes(),
         ).candidate(operation, at)
         reserved = await host.store.reserve(operation.intent.request, plan)
         assert reserved.acquired
         owned = reserved.execution
         host.executions.append(owned)
-        _, first = read_evaluation_state_plan(operation.intent, owned.plan)
+        _, first = read_evaluation_state_plan(
+            operation.intent, owned.plan, route_resolver=legacy_routes()
+        )
         if fault == "archive_rejected":
             trigger = "governance_fault_" + uuid4().hex
             async with trigger_admin.begin() as db:
@@ -95,7 +99,14 @@ async def test_original_governance_business_history_sequence_archive_and_witness
                 await management.finalize(scope, version, False, "并发原治理提交", at, confirm=True)
             else:
                 await management.reopen(scope, version, "并发原治理提交", at, confirm=True)
-        root = GovernanceStateRoot(host.tx, host.archives, host.store, operation, owned.plan)
+        root = GovernanceStateRoot(
+            host.tx,
+            host.archives,
+            host.store,
+            operation,
+            owned.plan,
+            route_resolver=legacy_routes(),
+        )
         with monkeypatch.context() as scoped_patch:
             if fault == "client_reply_discarded":
                 original_commit = EventSession.commit
@@ -203,6 +214,8 @@ async def test_rpc_handler_and_original_governance_root_require_preparation_befo
     # This exercises the actual handler and database roots, deliberately without
     # SDK halves/Broker. The separate published-SDK profile owns that proof.
     class DatabaseOnlyRuntime:
+        routing = legacy_routes()
+
         store = host.store
         local_calls = 0
 
@@ -283,7 +296,9 @@ async def test_rpc_handler_and_original_governance_root_require_preparation_befo
 
         facts = EvaluationStateFacts.decode(decode_branch(owned.plan.branches[0]).context)
         operation, _ = GovernanceStateOperation.from_facts(facts)
-        _, first = read_evaluation_state_plan(operation.intent, owned.plan)
+        _, first = read_evaluation_state_plan(
+            operation.intent, owned.plan, route_resolver=legacy_routes()
+        )
         assert await host.archives.read_committed(first.envelope().message_id) == (
             None if reject_before_local else first
         )

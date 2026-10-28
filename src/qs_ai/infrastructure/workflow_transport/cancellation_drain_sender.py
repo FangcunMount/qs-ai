@@ -49,10 +49,13 @@ class CancellationDrainSender:
             signing_key=signing_key,
             recipient_key=recipient_key,
             database_seconds=database_seconds,
+            route_resolver=runtime.routing,
         )
 
     async def _committed(self, operation: CancellationDrainOperation, execution: Execution) -> bool:
-        _, _, archive = read_cancellation_drain_plan(operation, execution.plan)
+        _, _, archive = read_cancellation_drain_plan(
+            operation, execution.plan, route_resolver=self._runtime.routing
+        )
         async with asyncio.timeout(self._planner.database_seconds):
             evidence = tuple(
                 [await self._runtime.store.evidence(ref) for ref in execution.references]
@@ -80,7 +83,7 @@ class CancellationDrainSender:
 
     async def retry(self, operation: CancellationDrainOperation, previous: Execution) -> bool:
         """Host explicitly retries an aborted frozen drain; never a model or cancel request."""
-        read_cancellation_drain_plan(operation, previous.plan)
+        read_cancellation_drain_plan(operation, previous.plan, route_resolver=self._runtime.routing)
         reservation = await self._runtime.retry(RetryAuthorization(previous))
         if not reservation.acquired:
             raise CancellationDrainPending("Explicit original drain retry not acquired")
@@ -90,7 +93,7 @@ class CancellationDrainSender:
         self, operation: CancellationDrainOperation, previous: Execution, at: datetime
     ) -> bool:
         """Explicit new source after old abort; original cancel request remains authoritative."""
-        read_cancellation_drain_plan(operation, previous.plan)
+        read_cancellation_drain_plan(operation, previous.plan, route_resolver=self._runtime.routing)
         candidate = await self._planner.candidate(operation, at)
         reserved = await self._runtime.replan(ReplanAuthorization(previous, candidate))
         if not reserved.acquired:
@@ -98,7 +101,9 @@ class CancellationDrainSender:
         return await self._execute(operation, reserved.execution)
 
     async def _execute(self, operation: CancellationDrainOperation, execution: Execution) -> bool:
-        read_cancellation_drain_plan(operation, execution.plan)
+        read_cancellation_drain_plan(
+            operation, execution.plan, route_resolver=self._runtime.routing
+        )
         root = EvaluationStateRoot(
             self.transactions,
             self._archives,
@@ -108,6 +113,7 @@ class CancellationDrainSender:
             apply_cancellation_drain,
             database_seconds=self._planner.database_seconds,
             isolation_level="REPEATABLE READ",
+            route_resolver=self._runtime.routing,
         )
         try:
             result = await self._runtime.execute(execution, root)

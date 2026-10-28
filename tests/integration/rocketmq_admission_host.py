@@ -39,7 +39,7 @@ from reliable_messaging.transaction import (
     execution_key,
 )
 from reliable_messaging.transaction_mysql import MySQLTransactionStore
-from reliable_messaging.transport import RouteBinding, consumer_group_v2, physical_topic_v2
+from reliable_messaging.transport import RouteKey
 from sqlalchemy import delete, event, insert, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -72,6 +72,11 @@ from qs_ai.infrastructure.workflow_transport.transaction_command import (
     read_admission_plan,
 )
 from qs_ai.infrastructure.workflow_transport.transaction_receiver import TransactionCommandReceiver
+from tests.integration.broker_routes import (
+    owned_broker_physical,
+    owned_broker_route,
+    owned_broker_routes,
+)
 from tests.integration.test_evaluation_runs import setup_run as setup_run
 from tests.integration.test_evaluation_start import requested as requested
 from tests.integration.test_interpretation import kit as kit
@@ -156,7 +161,7 @@ def required_broker(request):
 
 class ObservedRuntime(TransactionRuntime):
     def __init__(self, sender, host):
-        super().__init__(sender, admitted=True)
+        super().__init__(sender, admitted=True, routing=owned_broker_routes())
         self.host, self.results, self.executions = host, [], []
         self.pause = False
         self.entered, self.release = asyncio.Event(), asyncio.Event()
@@ -203,26 +208,10 @@ class ObservedRuntime(TransactionRuntime):
 @pytest.fixture
 async def broker(host, required_broker):
     config = required_broker
-    command_topic = physical_topic_v2(COMMANDS, "TRANSACTION", "qs.mysql", "m3-1")
-    event_topic = physical_topic_v2(EVENTS, "TRANSACTION", "ai.mysql", "m3-1")
-    command_route = RouteBinding(
-        COMMANDS,
-        CHANNELS[COMMANDS],
-        command_topic,
-        consumer_group_v2(COMMANDS, CHANNELS[COMMANDS]),
-        "TRANSACTION",
-        "qs.mysql",
-        "m3-1",
-    )
-    event_route = RouteBinding(
-        EVENTS,
-        _OBSERVER,
-        event_topic,
-        consumer_group_v2(EVENTS, _OBSERVER),
-        "TRANSACTION",
-        "ai.mysql",
-        "m3-1",
-    )
+    command_topic = owned_broker_physical(COMMANDS, "qs.mysql")
+    event_topic = owned_broker_physical(EVENTS, "ai.mysql")
+    command_route = owned_broker_route(COMMANDS, CHANNELS[COMMANDS], "qs.mysql")
+    event_route = owned_broker_route(EVENTS, _OBSERVER, "ai.mysql")
     sessions = async_sessionmaker(
         host.tx.database.engine, class_=AsyncSession, expire_on_commit=False
     )
@@ -241,7 +230,7 @@ async def broker(host, required_broker):
             )
         )
     owner = admission(host.kit.source)
-    boundary = receiver(host.tx, MessagingStore(), host.keys, owner)
+    boundary = receiver(host.tx, MessagingStore(), host.keys, owner, routes=owned_broker_routes())
     limits = Limits(sends=4, check_workers=1, check_queue=16)
     ai_credentials, qs_credentials, observer_credentials = (
         config[role] for role in ("ai", "input", "observer")
@@ -258,7 +247,23 @@ async def broker(host, required_broker):
                 ai_credentials["username"],
                 ai_credentials["password"],
                 "ai.mysql",
-                (TransactionRoute(EVENTS, event_topic, "m3-1"),),
+                (
+                    TransactionRoute(
+                        EVENTS,
+                        event_topic,
+                        "m3-1",
+                        naming_scheme=owned_broker_routes()
+                        .publish_route(
+                            RouteKey(
+                                EVENTS,
+                                "TRANSACTION",
+                                "ai.mysql" if EVENTS == EVENTS else "qs.mysql",
+                                "m3-1",
+                            )
+                        )
+                        .naming_scheme,
+                    ),
+                ),
                 limits,
             ),
             host.store,
@@ -271,7 +276,23 @@ async def broker(host, required_broker):
                 qs_credentials["username"],
                 qs_credentials["password"],
                 "qs.mysql",
-                (TransactionRoute(COMMANDS, command_topic, "m3-1"),),
+                (
+                    TransactionRoute(
+                        COMMANDS,
+                        command_topic,
+                        "m3-1",
+                        naming_scheme=owned_broker_routes()
+                        .publish_route(
+                            RouteKey(
+                                COMMANDS,
+                                "TRANSACTION",
+                                "ai.mysql" if COMMANDS == EVENTS else "qs.mysql",
+                                "m3-1",
+                            )
+                        )
+                        .naming_scheme,
+                    ),
+                ),
                 limits,
             ),
             qs_store,
@@ -472,7 +493,9 @@ def frozen_start(host):
         decrypt_keys={"ai.encrypt": host.keys["ai.encrypt"]},
         trusted_signers={"qs.sign": TrustedSigner("qs-server", host.keys["qs.sign"])},
     )
-    return FrozenCommandInput.from_authenticated(header, value.body, value.wire)
+    return FrozenCommandInput.from_authenticated(
+        header, value.body, value.wire, routes=owned_broker_routes()
+    )
 
 
 @pytest.mark.usefixtures("published_configuration")
@@ -513,6 +536,7 @@ async def test_actual_change_original_root_over_broker(broker, action):
         first,
         action,
         original_occurred_at=datetime.now(UTC).isoformat(timespec="microseconds"),
+        routes=owned_broker_routes(),
     )
     await broker.send(incoming)
     await broker.complete(incoming)
@@ -527,6 +551,7 @@ async def test_actual_participant_retry_does_not_add_model_invocations(broker):
         broker.host,
         value,
         original_occurred_at=datetime.now(UTC).isoformat(timespec="microseconds"),
+        routes=owned_broker_routes(),
     )
     await broker.send(incoming)
     await broker.complete(incoming)
@@ -543,6 +568,7 @@ async def test_actual_evaluation_original_root_over_broker(broker, requested, ki
             scope,
             kind,
             original_occurred_at=datetime.now(UTC).isoformat(timespec="microseconds"),
+            routes=owned_broker_routes(),
         )
         await broker.send(incoming)
         await broker.complete(incoming)

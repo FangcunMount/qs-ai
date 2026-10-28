@@ -18,7 +18,6 @@ from qs_ai.infrastructure.persistence.mysql.messaging import (
 from qs_ai.infrastructure.workflow_transport.messaging import COMMANDS
 from qs_ai.infrastructure.workflow_transport.transaction_command import read_admission_plan
 from qs_ai.infrastructure.workflow_transport.transaction_receiver import (
-    COMMAND_TOPIC,
     CommandTransactionPending,
     TransactionCommandReceiver,
 )
@@ -30,6 +29,7 @@ from tests.integration.test_transaction_start_admission import (
 )
 from tests.messaging_fixtures import keys as keys
 from tests.messaging_fixtures import received, receiver
+from tests.route_fixtures import COMMAND_TOPIC, legacy_routes
 from tests.transaction_fixtures import admission, start_message
 
 pytestmark = pytest.mark.integration
@@ -55,6 +55,8 @@ async def receiver_host(host):
 
 
 class DatabaseOnlyRuntime:
+    routing = legacy_routes()
+
     def __init__(self, host):
         self.host, self.store = host, host.store
         self.reserve_count = self.execute_count = 0

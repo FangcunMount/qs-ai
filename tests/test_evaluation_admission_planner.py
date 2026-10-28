@@ -20,6 +20,7 @@ from qs_ai.infrastructure.workflow_transport.transaction_command import (
     FrozenCommandInput,
     read_admission_plan,
 )
+from tests.route_fixtures import legacy_routes
 from tests.test_evaluation_admission_projection import fixture as read_fixture
 from tests.test_transaction_command import command_fixture
 
@@ -38,7 +39,7 @@ def fixture(monkeypatch, kind=pb.EVALUATION_START, previous=None):
         len(raw),
         raw,
     )
-    incoming = FrozenCommandInput.from_authenticated(envelope, raw, wire)
+    incoming = FrozenCommandInput.from_authenticated(envelope, raw, wire, routes=legacy_routes())
     original = read.db.execute
 
     async def execute(statement):

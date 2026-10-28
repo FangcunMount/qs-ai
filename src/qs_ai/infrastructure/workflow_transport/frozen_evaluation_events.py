@@ -6,6 +6,7 @@ from typing import Any, cast
 from reliable_messaging.durable import MessageConflict
 from reliable_messaging.sqlalchemy import bind
 from reliable_messaging.transaction import FrozenPlan
+from reliable_messaging.transport import RouteResolver
 from sqlalchemy import insert, select, update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession, AsyncSessionTransaction
@@ -151,7 +152,14 @@ class FrozenEvaluationEvents(EvaluationStateTranscription):
 class FrozenEvaluationStateEvents(EvaluationStateTranscription):
     """A non-command state uses its own intent, never a fabricated Inbox receipt."""
 
-    def __init__(self, intent: EvaluationStateIntent, plan: FrozenPlan) -> None:
-        facts, value = read_evaluation_state_plan(intent, plan)
+    def __init__(
+        self,
+        intent: EvaluationStateIntent,
+        plan: FrozenPlan,
+        *,
+        route_resolver: RouteResolver,
+    ) -> None:
+        self._route_resolver = route_resolver
+        facts, value = read_evaluation_state_plan(intent, plan, route_resolver=route_resolver)
         expected = pb.MessagingBody.FromString(value.body).evaluation_state
         super().__init__(plan.digest, expected, facts.previous_sequence, facts.previous_version)

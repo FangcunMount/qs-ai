@@ -20,6 +20,7 @@ from qs_ai.infrastructure.workflow_transport.transaction_command import (
     freeze_admission_plan,
     read_admission_plan,
 )
+from tests.route_fixtures import legacy_routes
 from tests.test_transaction_command import command_fixture
 
 
@@ -52,7 +53,7 @@ def publication(kind, body, aggregate, correlation=""):
 
 def fixture(decision=pb.ACCEPTED):
     command, raw, wire = command_fixture()
-    incoming = FrozenCommandInput.from_authenticated(command, raw, wire)
+    incoming = FrozenCommandInput.from_authenticated(command, raw, wire, routes=legacy_routes())
     session, run = str(uuid4()), str(uuid4())
     receipt = publication(
         pb.COMMAND_RECEIPT,
@@ -127,7 +128,7 @@ def test_candidate_receipt_identity_and_cipher_do_not_change_stable_incoming_req
 
 def test_evaluation_plan_preserves_business_version_and_independent_event_sequence():
     command, body, wire = command_fixture(pb.EVALUATION_START)
-    incoming = FrozenCommandInput.from_authenticated(command, body, wire)
+    incoming = FrozenCommandInput.from_authenticated(command, body, wire, routes=legacy_routes())
     receipt = publication(
         pb.COMMAND_RECEIPT,
         pb.MessagingBody(

@@ -45,6 +45,7 @@ from tests.integration.test_transaction_start_admission import (
     required_disposable_primary as required_disposable_primary,
 )
 from tests.messaging_fixtures import keys as keys
+from tests.route_fixtures import legacy_routes
 
 pytestmark = pytest.mark.integration
 
@@ -72,6 +73,7 @@ def planner(p):
         signing_key=p.host.keys["ai.sign"],
         recipient_key=p.host.keys["qs.encrypt"],
         clock=lambda: AT + timedelta(seconds=1),
+        route_resolver=legacy_routes(),
     )
 
 
@@ -87,7 +89,9 @@ async def test_original_preparation_dispatch_ledger_and_witness_share_both_cas_a
     before, calls = await snapshot(p.tx, p.run_id), p.gateway.calls
     candidate, inputs = await planner(p).candidate(p.run_id, version, 1, "worker:original")
     intent = worker_dispatch_intent(p.run_id, version, 1, "worker:original")
-    facts, operation, first = read_worker_dispatch_plan(intent, candidate)
+    facts, operation, first = read_worker_dispatch_plan(
+        intent, candidate, route_resolver=legacy_routes()
+    )
     assert await snapshot(p.tx, p.run_id) == before and p.gateway.calls == calls
     assert operation.model_inputs_digest == inputs_digest(inputs)
     reserved = await p.host.store.reserve(intent.request, candidate)
@@ -102,6 +106,7 @@ async def test_original_preparation_dispatch_ledger_and_witness_share_both_cas_a
         candidate,
         business,
         isolation_level="REPEATABLE READ",
+        route_resolver=legacy_routes(),
     )
     trigger = None
     try:
@@ -191,6 +196,8 @@ async def test_explicit_sender_transfers_permit_once_only_after_precise_local_co
     pool = ModelCapacity({inputs.route.provider: ProviderCapacity(2, 1)}, 1)
 
     class Runtime:
+        routing = legacy_routes()
+
         store = p.host.store
         calls = 0
 
@@ -270,6 +277,7 @@ async def test_later_original_cancellation_wins_before_dispatch_without_provider
         candidate,
         business,
         isolation_level="REPEATABLE READ",
+        route_resolver=legacy_routes(),
     )
     assert await root(reserved.execution) == LocalOutcome.ABORTED
     assert await snapshot(p.tx, p.run_id) == expected and expected != before
@@ -329,5 +337,5 @@ async def test_readonly_inputs_use_one_primary_snapshot_and_seal_after_source_cl
     assert await snapshot(p.tx, p.run_id) == before and p.gateway.calls == calls
     p.schemas.get.assert_not_called()
     intent = worker_dispatch_intent(p.run_id, version, 1, "worker:original")
-    _, operation, _ = read_worker_dispatch_plan(intent, candidate)
+    _, operation, _ = read_worker_dispatch_plan(intent, candidate, route_resolver=legacy_routes())
     assert operation.model_inputs_digest == inputs_digest(inputs)

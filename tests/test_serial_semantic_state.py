@@ -16,6 +16,7 @@ from qs_ai.infrastructure.workflow_transport.evaluation_state_plan import (
     freeze_evaluation_state_plan,
 )
 from qs_ai.infrastructure.workflow_transport.messaging import prepare
+from tests.route_fixtures import legacy_routes
 from tests.test_evaluation_serial_response_receipts import original as original
 from tests.test_evaluation_state_plan import fixture as state_fixture
 from tests.test_semantic_completion import completion
@@ -50,14 +51,19 @@ def frozen(original):
         original_occurred_at=facts.at.isoformat(timespec="microseconds"),
         **f.keys,
     )
-    winner = freeze_evaluation_state_plan(facts, str(uuid4()), first)
+    winner = freeze_evaluation_state_plan(
+        facts, str(uuid4()), first, route_resolver=legacy_routes()
+    )
     return SimpleNamespace(**locals())
 
 
 def test_source_and_candidate_freeze_separately_from_stable_original_response_request(frozen):
     p = frozen
     assert module.SerialSemanticOperation.decode(p.operation.encode()) == p.operation
-    assert module.read_serial_semantic_plan(p.intent, p.winner) == (p.facts, p.operation)
+    assert module.read_serial_semantic_plan(p.intent, p.winner, route_resolver=legacy_routes()) == (
+        p.facts,
+        p.operation,
+    )
     assert replace(p.operation, source_hash=b"s" * 32).intent == p.intent
     assert (
         replace(p.operation, response_hash=b"r" * 32).intent.request.input_hash
@@ -136,9 +142,11 @@ def test_body_target_and_stable_reference_are_both_checked(frozen, damage):
         facts = replace(facts, source_version=None)
     else:
         facts = replace(facts, source_version=5)
-    winner = freeze_evaluation_state_plan(facts, str(uuid4()), p.first)
+    winner = freeze_evaluation_state_plan(
+        facts, str(uuid4()), p.first, route_resolver=legacy_routes()
+    )
     with pytest.raises((ValueError, MessageConflict)):
-        module.read_serial_semantic_plan(facts.intent, winner)
+        module.read_serial_semantic_plan(facts.intent, winner, route_resolver=legacy_routes())
 
 
 def test_completion_digest_binds_exact_outputs_receipt_and_time_without_persisting_them():

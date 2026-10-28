@@ -40,6 +40,7 @@ from tests.integration.test_transaction_start_admission import (
 )
 from tests.integration.test_transaction_worker_dispatch import original as original
 from tests.messaging_fixtures import keys as keys
+from tests.route_fixtures import legacy_routes
 
 pytestmark = pytest.mark.integration
 
@@ -61,6 +62,7 @@ async def serial(original):
         p.routes,
         signing_key=p.host.keys["ai.sign"],
         recipient_key=p.host.keys["qs.encrypt"],
+        route_resolver=legacy_routes(),
     )
 
     async def save(result):
@@ -117,7 +119,7 @@ async def test_first_serial_response_terminal_receipt_cancel_drain_and_witness_s
     before = await snapshot(p.tx, p.run_id)
     intent = await s.planner.intent(s.reference)
     winner = await s.planner.candidate(s.reference)
-    facts, operation = read_serial_generation_plan(intent, winner)
+    facts, operation = read_serial_generation_plan(intent, winner, route_resolver=legacy_routes())
     assert await snapshot(p.tx, p.run_id) == before and s.gateway.calls == 1
     assert facts.source_version == (6 if cancel else 5)
     assert bool(operation.candidate_id) != unknown
@@ -133,6 +135,7 @@ async def test_first_serial_response_terminal_receipt_cancel_drain_and_witness_s
         winner,
         business,
         isolation_level="REPEATABLE READ",
+        route_resolver=legacy_routes(),
     )
     trigger = None
     try:
@@ -177,7 +180,7 @@ async def test_first_serial_response_terminal_receipt_cancel_drain_and_witness_s
         )
         if committed:
             assert business.state is not None and business.state.version == facts.source_version + 1
-            _, first = read_evaluation_state_plan(intent, winner)
+            _, first = read_evaluation_state_plan(intent, winner, route_resolver=legacy_routes())
             assert await p.host.archives.read_committed(first.envelope().message_id) == first
             runtime = SimpleNamespace(
                 store=p.host.store,
@@ -185,6 +188,7 @@ async def test_first_serial_response_terminal_receipt_cancel_drain_and_witness_s
                 execute=AsyncMock(),
                 retry=AsyncMock(),
                 replan=AsyncMock(),
+                routing=legacy_routes(),
             )
             sender = SerialGenerationSender(p.host.tx, p.host.archives, runtime, s.planner)
             duplicate = await sender(s.reference)
@@ -210,7 +214,7 @@ async def test_cancel_after_first_plan_requires_explicit_new_plan_and_retains_fi
     await s.save(EvaluationResponse(s.response, None, AT + timedelta(seconds=1)))
     intent = await s.planner.intent(s.reference)
     first = await s.planner.candidate(s.reference)
-    _, original_op = read_serial_generation_plan(intent, first)
+    _, original_op = read_serial_generation_plan(intent, first, route_resolver=legacy_routes())
     reserved = await p.host.store.reserve(intent.request, first)
     p.host.executions.append(reserved.execution)
     await MySQLEvaluationManagement(p.tx).cancel(
@@ -229,12 +233,13 @@ async def test_cancel_after_first_plan_requires_explicit_new_plan_and_retains_fi
         first,
         SerialGenerationWrite(p.routes),
         isolation_level="REPEATABLE READ",
+        route_resolver=legacy_routes(),
     )
     assert await root(reserved.execution) == LocalOutcome.ABORTED
     with pytest.raises(MessageConflict):
         await s.planner.verify(s.reference, first)
     next_plan = await s.planner.candidate(s.reference, candidate_id=original_op.candidate_id)
-    facts, next_op = read_serial_generation_plan(intent, next_plan)
+    facts, next_op = read_serial_generation_plan(intent, next_plan, route_resolver=legacy_routes())
     assert next_op.intent == original_op.intent and next_op.candidate_id == original_op.candidate_id
     assert facts.source_version == 6 and next_plan.digest != first.digest
     retried = await p.host.store.replan(ReplanAuthorization(reserved.execution, next_plan))
@@ -249,6 +254,7 @@ async def test_cancel_after_first_plan_requires_explicit_new_plan_and_retains_fi
         next_plan,
         business,
         isolation_level="REPEATABLE READ",
+        route_resolver=legacy_routes(),
     )
     assert await root(retried.execution) == LocalOutcome.COMMITTED
     assert business.state.version == 7 and s.gateway.calls == 1

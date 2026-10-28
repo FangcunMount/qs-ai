@@ -119,7 +119,7 @@ async def run(args: argparse.Namespace) -> dict:
         recipient = await asyncio.to_thread(read_key, options.qs_recipient_key_file, private=False)
         sender = ContractRecoverySender(
             transactions,
-            TransactionArchive(sessions, runtime.store.binding),
+            TransactionArchive(sessions, runtime.store.binding, routes=runtime.routing),
             runtime,
             signing_key=signing,
             recipient_key=recipient,

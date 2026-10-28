@@ -12,6 +12,7 @@ from reliable_messaging.durable import MessageConflict
 from qs_ai.infrastructure.workflow_transport import correction_state as correction
 from qs_ai.infrastructure.workflow_transport.correction_state_plan import CorrectionStateOperation
 from qs_ai.infrastructure.workflow_transport.evaluation_state_plan import read_evaluation_state_plan
+from tests.route_fixtures import legacy_routes
 from tests.test_correction_state_operation import fixture as original
 
 
@@ -74,6 +75,7 @@ def fixture(monkeypatch):
         tx,
         signing_key=jwk.JWK.generate(kty="EC", crv="P-256", kid="ai.sign"),
         recipient_key=jwk.JWK.generate(kty="EC", crv="P-256", kid="qs.encrypt"),
+        route_resolver=legacy_routes(),
     )
     return SimpleNamespace(**locals())
 
@@ -81,7 +83,9 @@ def fixture(monkeypatch):
 async def test_candidate_binds_complete_original_input_before_first_seal(monkeypatch):
     f = fixture(monkeypatch)
     winner = await f.planner.candidate(f.operation, f.at)
-    facts, archive = read_evaluation_state_plan(f.operation.intent, winner)
+    facts, archive = read_evaluation_state_plan(
+        f.operation.intent, winner, route_resolver=legacy_routes()
+    )
     actual, digest = CorrectionStateOperation.from_facts(facts)
     assert actual == f.operation and digest == correction.source_snapshot_digest(f.run)
     assert winner.operation_id == f.operation.command_id and facts.sequence == 9
@@ -116,7 +120,9 @@ async def test_original_root_rechecks_source_and_only_saves_new_frozen_correctio
 ):
     f = fixture(monkeypatch)
     winner = await f.planner.candidate(f.operation, f.at)
-    facts, _ = read_evaluation_state_plan(f.operation.intent, winner)
+    facts, _ = read_evaluation_state_plan(
+        f.operation.intent, winner, route_resolver=legacy_routes()
+    )
     lock = AsyncMock(return_value=f.run)
     save = AsyncMock()
     monkeypatch.setattr(correction, "lock_run_in_transaction", lock)
@@ -143,9 +149,13 @@ async def test_executor_restores_winner_audit_time_before_root_callback(monkeypa
     later = replace(
         f.operation, value=replace(f.operation.value, reviewed_at=f.at + timedelta(seconds=5))
     )
-    root = correction.CorrectionStateRoot(f.tx, object(), object(), later, winner)
+    root = correction.CorrectionStateRoot(
+        f.tx, object(), object(), later, winner, route_resolver=legacy_routes()
+    )
     assert root._isolation_level == "REPEATABLE READ" and root.view is None
-    facts, _ = read_evaluation_state_plan(f.operation.intent, winner)
+    facts, _ = read_evaluation_state_plan(
+        f.operation.intent, winner, route_resolver=legacy_routes()
+    )
     apply = AsyncMock()
     monkeypatch.setattr(correction, "apply_correction_state", apply)
     await root._business(f.db, facts)

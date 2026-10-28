@@ -11,6 +11,7 @@ from pydantic import SecretStr
 
 from qs_ai.application.evaluation.checkpoints import CheckpointState
 from qs_ai.bootstrap import recover_semantic_contract as cli
+from tests.route_fixtures import legacy_routes
 from tests.test_evaluation_resolution import AT
 
 
@@ -152,6 +153,7 @@ async def test_transaction_cli_closes_source_before_sender_and_drains_before_pri
         start=AsyncMock(side_effect=start),
         close=AsyncMock(side_effect=close),
         wait=AsyncMock(side_effect=wait),
+        routing=legacy_routes(),
     )
     sessions = object()
 
@@ -164,7 +166,7 @@ async def test_transaction_cli_closes_source_before_sender_and_drains_before_pri
     factory = Mock(side_effect=construct)
     monkeypatch.setattr(cli, "async_sessionmaker", lambda engine, **kw: sessions)
     monkeypatch.setattr(cli, "make_transaction_sender", factory)
-    monkeypatch.setattr(cli, "TransactionArchive", lambda *values: object())
+    monkeypatch.setattr(cli, "TransactionArchive", lambda *values, **kwargs: object())
 
     def key(path, *, private):
         assert path == ("signing-test-key" if private else "recipient-test-key")

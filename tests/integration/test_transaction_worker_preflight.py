@@ -47,12 +47,15 @@ from tests.integration.test_transaction_evaluation_admission import (
 from tests.integration.test_transaction_evaluation_admission import (
     trigger_admin as trigger_admin,
 )
+from tests.route_fixtures import legacy_routes
 
 pytestmark = pytest.mark.integration
 
 
 class DatabaseOnlyStateRuntime:
     """No sender, half message or final Broker confirmation is provided here."""
+
+    routing = legacy_routes()
 
     def __init__(self, host):
         self.host, self.store, self.calls, self.before = host, host.store, 0, None
@@ -161,7 +164,9 @@ async def test_actual_worker_commits_frozen_preflight_with_state_witness_and_no_
         intent = preflight_intent(scope.run_id, 2, scope.organization_id)
         reserved = await host.store.lookup(intent.request)
         assert reserved is not None and runtime.calls == 1
-        facts, value = read_evaluation_state_plan(intent, reserved.execution.plan)
+        facts, value = read_evaluation_state_plan(
+            intent, reserved.execution.plan, route_resolver=legacy_routes()
+        )
         original = PreflightOperation.from_facts(facts)
         assert original.evidence.provider_call_count == 0
         async with host.tx.open() as db:

@@ -26,6 +26,7 @@ from tests.integration.test_transaction_start_admission import (
     required_disposable_primary as required_disposable_primary,
 )
 from tests.messaging_fixtures import keys as keys
+from tests.route_fixtures import legacy_routes
 
 pytestmark = pytest.mark.integration
 
@@ -38,6 +39,7 @@ async def original(host, exhausted=False, *, abort=True, conflict=False):
         assert await host.store.abort(old.execution)
 
     class Runtime:
+        routing = legacy_routes()
         store = host.store
         calls = 0
 
@@ -83,7 +85,7 @@ async def test_explicit_retry_preserves_old_abort_and_first_wire_on_a_new_exact_
     assert (result is None) is exhausted
     current = await host.store.lookup(source.intent(60).request)
     assert current.execution.fence == old.fence + 1 and current.execution.plan == old.plan
-    _, first = read_claim_plan(source, 60, old.plan)
+    _, first = read_claim_plan(source, 60, old.plan, route_resolver=legacy_routes())
     assert await host.archives.read_committed(first.envelope().message_id) == first
     assert await StoreChecker(host.store).check(old.references[0]) == Decision.ROLLBACK
     assert await StoreChecker(host.store).check(current.execution.references[0]) == Decision.COMMIT

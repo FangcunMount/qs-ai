@@ -35,6 +35,7 @@ from tests.integration.test_transaction_start_admission import (
 )
 from tests.integration.test_transaction_worker_dispatch import original as original
 from tests.messaging_fixtures import keys as keys
+from tests.route_fixtures import legacy_routes
 
 pytestmark = pytest.mark.integration
 
@@ -112,12 +113,15 @@ async def test_expired_candidate_claim_terminal_archive_and_witness_share_origin
         p.host.tx,
         signing_key=p.host.keys["ai.sign"],
         recipient_key=p.host.keys["qs.encrypt"],
+        route_resolver=legacy_routes(),
     ).candidate(request, at)
     reserved = await p.host.store.reserve(request.intent.request, winner)
     assert reserved.acquired
     owned = reserved.execution
     p.host.executions.append(owned)
-    facts, first, archived = read_candidate_expiry_plan(request, winner)
+    facts, first, archived = read_candidate_expiry_plan(
+        request, winner, route_resolver=legacy_routes()
+    )
     assert first.claim == claim and facts.source_version == before[2]["version"]
     root = EvaluationStateRoot(
         p.host.tx,
@@ -127,6 +131,7 @@ async def test_expired_candidate_claim_terminal_archive_and_witness_share_origin
         owned.plan,
         apply_candidate_expiry,
         isolation_level="REPEATABLE READ",
+        route_resolver=legacy_routes(),
     )
     trigger, calls = None, len(s.gateway.calls)
     try:

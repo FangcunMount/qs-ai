@@ -60,8 +60,12 @@ class SerialGenerationSender:
     async def _committed(
         self, intent: EvaluationStateIntent, execution: Execution
     ) -> CheckpointState:
-        _, operation = read_serial_generation_plan(intent, execution.plan)
-        _, first = read_evaluation_state_plan(intent, execution.plan)
+        _, operation = read_serial_generation_plan(
+            intent, execution.plan, route_resolver=self._runtime.routing
+        )
+        _, first = read_evaluation_state_plan(
+            intent, execution.plan, route_resolver=self._runtime.routing
+        )
         ref = operation.reference
         async with asyncio.timeout(self._planner.database_seconds):
             evidence = tuple([await self._runtime.store.evidence(r) for r in execution.references])
@@ -134,7 +138,9 @@ class SerialGenerationSender:
     ) -> CheckpointState:
         """Host-authorized new source plan after an exact old abort; preserve first candidate."""
         intent = await self._planner.intent(reference)
-        _, first = read_serial_generation_plan(intent, previous.plan)
+        _, first = read_serial_generation_plan(
+            intent, previous.plan, route_resolver=self._runtime.routing
+        )
         candidate = await self._planner.candidate(reference, candidate_id=first.candidate_id)
         reservation = await self._runtime.replan(ReplanAuthorization(previous, candidate))
         if not reservation.acquired:
@@ -145,7 +151,7 @@ class SerialGenerationSender:
         self, intent: EvaluationStateIntent, execution: Execution
     ) -> CheckpointState:
         # Do not let a public runtime substitute a plan bound to another original input.
-        read_serial_generation_plan(intent, execution.plan)
+        read_serial_generation_plan(intent, execution.plan, route_resolver=self._runtime.routing)
         business = SerialGenerationWrite(self._planner.routes)
         root = EvaluationStateRoot(
             self._transactions,
@@ -156,6 +162,7 @@ class SerialGenerationSender:
             business,
             database_seconds=self._planner.database_seconds,
             isolation_level="REPEATABLE READ",
+            route_resolver=self._runtime.routing,
         )
         try:
             result = await self._runtime.execute(execution, root)

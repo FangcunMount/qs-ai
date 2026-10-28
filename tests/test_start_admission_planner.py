@@ -31,6 +31,7 @@ from qs_ai.infrastructure.workflow_transport.transaction_command import (
     FrozenCommandInput,
     read_admission_plan,
 )
+from tests.route_fixtures import legacy_routes
 from tests.test_input_binding import bound_case
 from tests.test_transaction_command import command_fixture
 
@@ -50,7 +51,7 @@ def fixture(monkeypatch, kind=pb.START):
             len(raw),
             raw,
         )
-    incoming = FrozenCommandInput.from_authenticated(envelope, raw, wire)
+    incoming = FrozenCommandInput.from_authenticated(envelope, raw, wire, routes=legacy_routes())
     reading = False
     opened = []
     selected = Mock()
@@ -218,7 +219,9 @@ async def test_invalid_original_start_freezes_only_the_original_refusal_without_
         len(raw),
         raw,
     )
-    incoming = FrozenCommandInput.from_authenticated(header, raw, f.incoming.wire)
+    incoming = FrozenCommandInput.from_authenticated(
+        header, raw, f.incoming.wire, routes=legacy_routes()
+    )
     plan = await f.planner.candidate(incoming)
     facts = StartPlanFacts.from_plan(incoming, plan)
     values = read_admission_plan(incoming, plan)

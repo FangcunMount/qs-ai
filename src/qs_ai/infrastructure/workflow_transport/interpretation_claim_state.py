@@ -10,6 +10,7 @@ from typing import Any
 from uuid import uuid4
 
 from reliable_messaging.transaction import FrozenPlan
+from reliable_messaging.transport import RouteResolver
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -196,9 +197,11 @@ def read_claim_plan(
     source: InterpretationClaimSource,
     ttl_seconds: int,
     winner: FrozenPlan,
+    *,
+    route_resolver: RouteResolver,
 ) -> tuple[InterpretationStateFacts, FrozenArchive]:
     intent = source.intent(ttl_seconds)
-    facts, archive = read_interpretation_state_plan(intent, winner)
+    facts, archive = read_interpretation_state_plan(intent, winner, route_resolver=route_resolver)
     try:
         context = json.loads(facts.business_context)
         if (
@@ -231,7 +234,9 @@ class InterpretationClaimPlanner:
         signing_key: Any,
         recipient_key: Any,
         database_seconds: float = 2,
+        route_resolver: RouteResolver,
     ) -> None:
+        self._route_resolver = route_resolver
         if not math.isfinite(database_seconds) or database_seconds <= 0:
             raise ValueError("Finite positive claim planning budget required")
         self.store, self.signing_key, self.recipient_key = store, signing_key, recipient_key
@@ -274,8 +279,10 @@ class InterpretationClaimPlanner:
             recipient_key=self.recipient_key,
             original_occurred_at=facts.at.isoformat(timespec="microseconds"),
         )
-        winner = freeze_interpretation_state_plan(facts, operation_id, message)
-        read_claim_plan(source, ttl_seconds, winner)
+        winner = freeze_interpretation_state_plan(
+            facts, operation_id, message, route_resolver=self._route_resolver
+        )
+        read_claim_plan(source, ttl_seconds, winner, route_resolver=self._route_resolver)
         return winner
 
 
@@ -288,8 +295,13 @@ class InterpretationClaimWrite:
         source: InterpretationClaimSource,
         ttl_seconds: int,
         winner: FrozenPlan,
+        *,
+        route_resolver: RouteResolver,
     ) -> None:
-        self.facts, self.archive = read_claim_plan(source, ttl_seconds, winner)
+        self._route_resolver = route_resolver
+        self.facts, self.archive = read_claim_plan(
+            source, ttl_seconds, winner, route_resolver=route_resolver
+        )
         self.store, self.source, self.ttl_seconds = store, source, ttl_seconds
         self.staged: ClaimStage | None = None
         self.quota_denied = False

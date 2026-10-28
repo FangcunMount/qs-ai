@@ -12,6 +12,7 @@ from uuid import UUID, uuid5
 from reliable_messaging.durable import MessageConflict
 from reliable_messaging.transaction import FrozenPlan
 from reliable_messaging.transaction_mysql import MySQLTransactionStore
+from reliable_messaging.transport import RouteResolver
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -115,7 +116,9 @@ class SolutionPreparationPlanner:
         signing_key: Any,
         recipient_key: Any,
         database_seconds: float = 2,
+        route_resolver: RouteResolver,
     ) -> None:
+        self._route_resolver = route_resolver
         if not math.isfinite(database_seconds) or database_seconds <= 0:
             raise ValueError("Finite positive preparation database budget required")
         self._original, self._database_seconds = original, database_seconds
@@ -226,8 +229,10 @@ class SolutionPreparationPlanner:
             recipient_key=self._recipient_key,
             original_occurred_at=facts.at.isoformat(timespec="microseconds"),
         )
-        winner = freeze_evaluation_state_plan(facts, str(incoming.command.command_id), first)
-        read_preparation_plan(incoming, winner)
+        winner = freeze_evaluation_state_plan(
+            facts, str(incoming.command.command_id), first, route_resolver=self._route_resolver
+        )
+        read_preparation_plan(incoming, winner, route_resolver=self._route_resolver)
         original.validate_assets(incoming, assets)
         return SolutionPreparationCandidate(winner, assets, source_json, target_json)
 
@@ -249,8 +254,12 @@ class SolutionPreparationRoot(EvaluationStateRoot):
         candidate: SolutionPreparationCandidate,
         *,
         database_seconds: float = 2,
+        route_resolver: RouteResolver,
     ) -> None:
-        facts, first, archived = read_preparation_plan(incoming, winner)
+        self._route_resolver = route_resolver
+        facts, first, archived = read_preparation_plan(
+            incoming, winner, route_resolver=route_resolver
+        )
         assets = candidate.assets
         first.validate_assets(incoming, assets)
         if (
@@ -314,6 +323,7 @@ class SolutionPreparationRoot(EvaluationStateRoot):
             write,
             database_seconds=database_seconds,
             isolation_level="READ COMMITTED",
+            route_resolver=route_resolver,
         )
 
     async def _verify_business(self, db: AsyncSession) -> None:

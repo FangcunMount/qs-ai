@@ -20,6 +20,7 @@ from qs_ai.infrastructure.workflow_transport.interpretation_claim_sender import 
     InterpretationClaimSender,
 )
 from tests import test_interpretation_claim_state as cases
+from tests.route_fixtures import legacy_routes
 
 frozen = cases.frozen
 
@@ -34,6 +35,7 @@ async def original(frozen):
         reserve=AsyncMock(),
         execute=AsyncMock(),
         retry=AsyncMock(return_value=Reservation(current, True, State.PREPARED)),
+        routing=legacy_routes(),
     )
     sender = InterpretationClaimSender(p.store, SimpleNamespace(), runtime, **p.keys)
     sender._planner.source = AsyncMock(return_value=p.source)

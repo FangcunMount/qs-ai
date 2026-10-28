@@ -11,6 +11,7 @@ import pytest
 from reliable_messaging.transaction import BindingError, Evidence, Execution, LocalOutcome, State
 
 from qs_ai.infrastructure.workflow_transport.evaluation_state_root import EvaluationStateRoot
+from tests.route_fixtures import legacy_routes
 from tests.test_evaluation_state_plan import fixture as planning
 
 
@@ -64,6 +65,7 @@ def fixture():
         f.plan,
         business,
         database_seconds=0.01,
+        route_resolver=legacy_routes(),
     )
     root._events.flush = AsyncMock(side_effect=lambda _: trace.append("state-proof"))
     return SimpleNamespace(**{**vars(f), **locals()})
@@ -165,6 +167,7 @@ async def test_explicit_governance_snapshot_isolation_precedes_original_guard():
         f.plan,
         f.business,
         isolation_level="REPEATABLE READ",
+        route_resolver=legacy_routes(),
     )
     root._events.flush = AsyncMock(side_effect=lambda _: f.trace.append("state-proof"))
     assert not f.trace
@@ -186,5 +189,6 @@ def test_original_state_root_rejects_unreviewed_isolation_before_opening():
             f.plan,
             f.business,
             isolation_level="AUTOCOMMIT",
+            route_resolver=legacy_routes(),
         )
     assert not f.trace

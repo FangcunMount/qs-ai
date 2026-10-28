@@ -18,6 +18,7 @@ from reliable_messaging.transaction import (
 
 from qs_ai.infrastructure.persistence.mysql import evaluation_worker as worker
 from qs_ai.infrastructure.workflow_transport import cancellation_drain_sender as sender
+from tests.route_fixtures import legacy_routes
 from tests.test_cancellation_drain_state import fixture as planning
 
 
@@ -25,7 +26,9 @@ async def fixture(monkeypatch):
     p = planning(monkeypatch)
     operation = await p.planner.observe(p.scope, p.at)
     winner = await p.planner.candidate(operation, p.at)
-    _, _, archive = sender.read_cancellation_drain_plan(operation, winner)
+    _, _, archive = sender.read_cancellation_drain_plan(
+        operation, winner, route_resolver=legacy_routes()
+    )
     execution = Execution(winner, 1, "m3-1", b"x" * 32, p.at + timedelta(seconds=60))
     store = SimpleNamespace(
         lookup=AsyncMock(return_value=None),
@@ -37,6 +40,7 @@ async def fixture(monkeypatch):
         reserve=AsyncMock(return_value=owned),
         retry=AsyncMock(return_value=owned),
         execute=AsyncMock(return_value=Result(LocalOutcome.COMMITTED, ())),
+        routing=legacy_routes(),
     )
     archives = SimpleNamespace(read_committed=AsyncMock(return_value=archive))
     root = object()
