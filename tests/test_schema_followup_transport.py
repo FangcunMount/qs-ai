@@ -217,12 +217,16 @@ def test_prompt_host_apply_is_never_exposed():
         load("deploy/serverA/prompt_retirement_followup.py").run(None, "apply", None)
 
 
-def test_workflow_binds_ci_secrets_and_continuous_deployment_lock():
-    workflow = (
-        Path(__file__).resolve().parents[1] / ".github/workflows/schema-followup.yml"
-    ).read_text()
+def test_current_deployment_keeps_lock_without_retired_schema_operations():
+    root = Path(__file__).resolve().parents[1]
+    workflow = (root / ".github/workflows/deploy.yml").read_text()
     assert "group: qs-ai-serverA" in workflow and "cancel-in-progress: false" in workflow
     assert "--event push" in workflow and "environment: production" in workflow
-    assert "MYSQL_MAINTENANCE_USERNAME" in workflow and "MYSQL_MAINTENANCE_PASSWORD" in workflow
-    assert "retirement-apply" not in workflow and "schema-followup-receipt.json" in workflow
-    assert "inputs.operation == 'release'" in workflow
+    # Normal application deployment must not gain the old database-maintenance
+    # credentials or run a historical schema switch/restore as a release hook.
+    for path in (root / ".github/workflows").glob("*.yml"):
+        active = path.read_text()
+        assert "MYSQL_MAINTENANCE_USERNAME" not in active, path.name
+        assert "MYSQL_MAINTENANCE_PASSWORD" not in active, path.name
+        assert "python scripts/cd/schema_followup.py" not in active, path.name
+        assert "python scripts/cd/schema_maintenance.py" not in active, path.name
