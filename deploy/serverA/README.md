@@ -10,7 +10,7 @@ M4 的主机部署及恢复入口在密钥/数据库预检、迁移和停止服�
 
 手动操作要求工作流运行于 main；revision 留空选择当前提交，也可填写 main 上已通过 push CI 的完整 SHA。operation=rollback 恢复 serverA 记录的上一成功发布。普通镜像回滚仅在数据库匹配旧镜像head和存储布局时允许。0038/0040任一方向必须进入[双向全量数据转换](../../docs/04-接口与运维/09-模块数据表与双向迁移.md)，完整保留当前新增事实。
 
-[Schema maintenance serverA](../../.github/workflows/schema-maintenance.yml) 是这次结构切换的专用入口。手动依次执行 preflight、prepare、rehearse、switch，恢复使用 rollback，status 只读查询。每次保持相同 maintenance_id 和已通过 main CI 的完整 revision；prepare 中断后填写第一次生成的 release ID 继续，不重新构建或替换已绑定镜像。候选镜像准备不更新部署基线，切换完成并核验运行时后才更新 state.json。维护窗口内暂停自动部署。
+[原 Schema maintenance serverA](https://github.com/FangcunMount/qs-ai/blob/c8c52e7ead4f8c601bdb437bc85a86786b3619a3/.github/workflows/schema-maintenance.yml) 是已完成的 0038/0040 结构切换入口，2026-10-28 已从 Actions 退役。当前应用发布继续使用 `deploy.yml`；未来数据库结构变更需另行冻结当前事实与执行计划，不能重用旧维护上下文。以下保留原批次操作说明供核验：手动依次执行 preflight、prepare、rehearse、switch，恢复使用 rollback，status 只读查询。每次保持相同 maintenance_id 和已通过 main CI 的完整 revision；prepare 中断后填写第一次生成的 release ID 继续，不重新构建或替换已绑定镜像。候选镜像准备不更新部署基线，切换完成并核验运行时后才更新 state.json。维护窗口内暂停自动部署。
 
 自动发布由 main 的 checks 成功触发，同时要求仓库变量 AUTO_DEPLOY_ENABLED=true；是否已启用需读取仓库当前设置。并发部署串行，serverA 另外使用文件锁防止手动操作重叠。
 
