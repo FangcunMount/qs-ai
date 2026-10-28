@@ -59,7 +59,7 @@ jobs:
           import reliable_messaging.protected
           import reliable_messaging.rocketmq_transaction
           import qs_ai.bootstrap.messaging
-          assert importlib.metadata.version('fangcun-reliable-messaging') == '0.5.0rc1'
+          assert importlib.metadata.version('fangcun-reliable-messaging') == '0.5.0'
           assert importlib.util.find_spec('nsq') is None
           assert importlib.util.find_spec('tornado') is None
           PYDEPS

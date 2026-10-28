@@ -4,7 +4,7 @@
   "reviewed_on": "2026-10-28",
   "authority": "runtime composition > code > machine contracts/config/migrations > scoped tests > maintained prose > dated evidence/plans/archive",
   "source_catalog": {
-    ".github/workflows/ci.yml": "93e080ba2f3a45aa7dc8391444872f93a53084755e4244afffeae9eee14da392",
+    ".github/workflows/ci.yml": "263e6dda62b6c976568f79af291352c7aea381b11fb0871e14a64acbfeeee4f8",
     ".github/workflows/deploy.yml": "3b2890bfa20ad734bcd97f3c24d3ea3a2a9e3724c723bb5bf8df908d5e4280bc",
     ".github/workflows/m7-messaging.yml": "e9b73769948db5c81da115c12d3f666768668db3c004e73556bce479ef738398",
     ".github/workflows/schema-followup.yml": "4a0015cc3b3f1d59693f0e6df068f35c37d6c5675811c35cfc34505746d7e80f",
@@ -20,7 +20,7 @@
     "deploy/serverA/deploy.py": "30de1b00348b51b6d4f646978c914c7723a030b615e90e85fd758cb8a526428b",
     "deploy/serverA/schema_followup.py": "bd3acee4621ad53a10ae27a22a052a5caea82772980247789ed7f9b9bc73afd6",
     "deploy/serverA/schema_maintenance.py": "95f68ba26955f02b8139ebdd6f1b5bbf3e1b643e53f44dd18f01cb21907f4c59",
-    "docs/03-基础设施/messaging/README.md": "6cb22a8a8bf511b3cc23fe5cf9611875e8b70286acc47b5ff26856c9817af01e",
+    "docs/03-基础设施/messaging/README.md": "e0a6edd7e374a5f940d408e86f44dd0046b1f3284a764f455445836c8b12657a",
     "docs/evidence/2026-09-13-m3-current-published-reconciliation.json": "950b0d4b7c6f6812756cef41374366a39630277d831ca6c42de56a447802d055",
     "docs/evidence/2026-09-13-m3-fixed-baseline-import.json": "cb28ea6199095f211348cf1ed44675a8e41cb22c56cec2f282217dc79747a23f",
     "docs/evidence/2026-09-13-m3-m4-coordinated-release.json": "4c3c0d45e968b6d35c9c18e54607cddd97430852bebe4f1765b76c78eb9bdb66",
@@ -79,7 +79,7 @@
     "migrations/versions/0041_transaction_messaging.py": "dd27c8eb56581bf9ef78b52a6d4ced763dc8aa6676587b1836ff5dce3f4312f1",
     "migrations/versions/0042_transaction_event_receipts.py": "6d9e884de4af5b8d3ea99e8be902c3f4c81f317525a790775a93bf8249d7b517",
     "migrations/versions/0043_native_transaction_limit.py": "a891eabcfa3d1032cd579aa5973720b5dc806eeb1398131e17f6716e8ec3d99c",
-    "pyproject.toml": "d5c3122477d405ab2b14ba71589b725f8ba2971447edb9061507b9686d118564",
+    "pyproject.toml": "4e0c954ef69b54ceef63ddb4f6276bc4834d18b488bfa1ed4af4ab6108b39d1d",
     "scripts/cd/IMAGE_RETENTION.md": "2e525760370df1c5b4238fea5ee707deb492b0f7c2851517d3cdc3dee8feb5d3",
     "scripts/cd/deploy.py": "c8eed75918ee3ce351714a8145e6afd1d536b50bdab1c10e094a089b30bcb9c1",
     "scripts/cd/deploy_scope.py": "fec48f82798101688b26459169b3808b08cf8610b5fd5e3fcdacb86cddf1bbc5",
@@ -831,7 +831,7 @@
     "tests/test_worker_dispatch_state.py": "d7bd8b5989d1ec2691290fac9082bd76a11a022827fe5124f94f54c6c56ed477",
     "tests/test_worker_frozen_evidence.py": "a279da8e3371901f60a08e200f6ce91438304332c980d2bf591fb2ec0aa108e9",
     "tests/transaction_fixtures.py": "329b9d907aafe2399e4e04051be0c78169f4444eff92e96b1926be8b43d969ae",
-    "uv.lock": "944851ab7e32c8547c013314ecbc0720821ee5234a6cb222c1cd4979df07fb29"
+    "uv.lock": "5cdec1d0e43f91730f4c0a771867e0a2c58d61b6c41c574eb3a4e1d43ef7e64c"
   },
   "documents": [
     {
