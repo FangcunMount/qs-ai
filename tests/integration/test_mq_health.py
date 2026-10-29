@@ -1,4 +1,4 @@
-"""Original organization Health shares only committed, trusted Outbox aggregates."""
+"""Organization Health observes committed interpretation ACKs through trusted Session ownership."""
 
 from datetime import timedelta
 
@@ -9,8 +9,8 @@ from qs_ai.application.execution.runtime import RuntimeReader
 from qs_ai.application.governance.prompt_drafts import DraftScope
 from qs_ai.bootstrap.container import create_container
 from qs_ai.config import Settings
-from qs_ai.infrastructure.persistence.mysql.messaging import outbox
 from qs_ai.infrastructure.persistence.mysql.runtime import MySQLRuntimeReader
+from qs_ai.infrastructure.persistence.mysql.schema import result_outbox
 from tests.integration.test_mq_observability import observations as observations
 from tests.integration.test_mq_observability import record
 
@@ -32,7 +32,7 @@ def settings(enabled):
     )
 
 
-async def test_mq_health_exposes_only_committed_organization_outbox(observations):
+async def test_mq_health_exposes_only_committed_organization_interpretation_receipts(observations):
     tx, org, ids = observations
     async with tx.open() as db:
         now = await db.scalar(text("SELECT UTC_TIMESTAMP(6)"))
@@ -41,42 +41,41 @@ async def test_mq_health_exposes_only_committed_organization_outbox(observations
     scope = DraftScope(org, 42)
     async with tx.open() as db:
         await db.execute(
-            insert(outbox),
+            insert(result_outbox),
             [
-                record(ids[0], org, "staged", past, past),
-                record(ids[1], org, "awaiting_receipt", past, past),
-                record(ids[2], org, "held", past, past),
-                record(ids[3], org + 1, "staged", past, past),
+                record(ids[0], False, past),
+                record(ids[1], True, past),
+                record(ids[2], False, past, mq_owned=False),
+                record(ids[5], False, past),
             ],
         )
         before = await reader.health(scope)
-        assert before["messaging"]["staged_events"] == 0
+        assert before["messaging"]["pending_interpretation_receipts"] == 0
         await db.commit()
     observed = await reader.health(scope)
     messaging = observed["messaging"]
     assert messaging["enabled"] and messaging["availability"] == "available"
     assert messaging["observed_at"] == observed["observed_at"]
-    assert messaging["staged_events"] == 1
-    assert messaging["awaiting_receipt_events"] == 1
-    assert messaging["held_events"] == 1
-    assert messaging["due_events"] == 2
-    assert 30 <= messaging["oldest_staged_seconds"] < 60
+    assert messaging["pending_interpretation_receipts"] == 1
+    assert 30 <= messaging["oldest_pending_interpretation_receipt_seconds"] < 60
     assert set(messaging) == {
         "enabled",
         "availability",
         "observed_at",
-        "staged_events",
-        "due_events",
-        "awaiting_receipt_events",
-        "held_events",
-        "oldest_staged_seconds",
-        "oldest_awaiting_receipt_seconds",
+        "pending_interpretation_receipts",
+        "oldest_pending_interpretation_receipt_seconds",
     }
-    # Synthetic MQ state is not added to/redefined as old pending deliveries.
-    assert all(value == 0 for value in observed["backlog"].values())
+    # The retained all-result ledger includes the non-MQ history too. Neither
+    # count is a Broker queue depth, and no organization sees another's history.
+    assert observed["backlog"]["pending_deliveries"] == 2
+    assert all(
+        value == 0 for key, value in observed["backlog"].items() if key != "pending_deliveries"
+    )
+    other = await reader.health(DraftScope(org + 1, 42))
+    assert other["messaging"]["pending_interpretation_receipts"] == 1
     foreign = await reader.health(DraftScope(org + 2, 42))
-    assert foreign["messaging"]["staged_events"] == 0
-    assert foreign["messaging"]["held_events"] == 0
+    assert foreign["messaging"]["pending_interpretation_receipts"] == 0
+    assert foreign["backlog"]["pending_deliveries"] == 0
 
 
 async def test_mq_health_disabled_never_reads_messaging_tables(observations, monkeypatch):

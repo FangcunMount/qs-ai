@@ -250,7 +250,7 @@ class MySQLRuntimeReader:
             }
             if self.messaging_enabled:
                 observed = datetime.fromisoformat(observed_at).replace(tzinfo=None)
-                # Only trusted Outbox organization ownership reaches Health.
+                # Only trusted Session ownership scopes interpretation ACK history.
                 # No global quarantine/Inbox/technical counts cross this scope.
                 snapshot = await collect_messaging_snapshot(
                     db, observed, organization_id=scope.organization_id

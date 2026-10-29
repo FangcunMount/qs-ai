@@ -89,6 +89,8 @@ qs_ai_mq_observation_available 0
 
 旧发布队列的 staged/due/awaiting_receipt/held_events 指标退出。原 `pending_results` 等业务指标继续保留其全量结果历史口径，与 MQ-owned 子集分别说明。`mq_held_commands` 仍来自 Inbox，是技术处置，不是业务拒绝。组织范围读取只返回关联 Session 属于该组织的 MQ-owned 解读 ACK 等待；Inbox/quarantine没有可信组织列，不按消息body自报组织过滤后公开。
 
+组织 Health 复用同一只读快照，输出 `messaging.pending_interpretation_receipts` 及其年龄；原 `backlog.pending_deliveries` 继续包含该组织的全部未确认结果，两者范围不同。共享读取、提交隔离及组织边界由 [Health 实库回归](../../../tests/integration/test_mq_health.py)保护。
+
 本次宿主退役 M2 的源码审查与历史 T24 计数分开。失败的文档哈希门禁保留记录；修正文档与事实台账不代表 CI、真实业务链或生产已经验收。
 
 ## 观测起点、保留记录与小型milestone

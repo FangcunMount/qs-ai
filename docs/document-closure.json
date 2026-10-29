@@ -829,7 +829,10 @@
     "tests/test_worker_dispatch_state.py": "d7bd8b5989d1ec2691290fac9082bd76a11a022827fe5124f94f54c6c56ed477",
     "tests/test_worker_frozen_evidence.py": "a279da8e3371901f60a08e200f6ce91438304332c980d2bf591fb2ec0aa108e9",
     "tests/transaction_fixtures.py": "329b9d907aafe2399e4e04051be0c78169f4444eff92e96b1926be8b43d969ae",
-    "uv.lock": "5cdec1d0e43f91730f4c0a771867e0a2c58d61b6c41c574eb3a4e1d43ef7e64c"
+    "uv.lock": "5cdec1d0e43f91730f4c0a771867e0a2c58d61b6c41c574eb3a4e1d43ef7e64c",
+    "src/qs_ai/infrastructure/persistence/mysql/runtime.py": "307ca4bcb10dcd893df27fb0c0ce789a9a31686dd1d60ffac1ecc1c828407ed8",
+    "tests/integration/test_mq_health.py": "7fdbea37bfa4eea4d41c5dee8e4b328338b065935291c9343f73637fa27ad084",
+    "scripts/ci/verify_mq_report.py": "c756c2750ea3ecc1fa835bb5e968ee7784e76bf3a760dee36b884d7c01fdb14e"
   },
   "documents": [
     {
@@ -2441,7 +2444,10 @@
         "tests/test_structured_logging.py",
         "tests/test_transaction_metrics.py",
         "tests/test_transaction_protection.py",
-        "uv.lock"
+        "uv.lock",
+        "src/qs_ai/infrastructure/persistence/mysql/runtime.py",
+        "tests/integration/test_mq_health.py",
+        "scripts/ci/verify_mq_report.py"
       ],
       "verify": [
         "python scripts/check_docs.py",
@@ -2449,7 +2455,7 @@
         "16 structured logging/operational metrics/cutover observation unit tests passed using existing sibling SDK path; DB/MQ/listener/production observations not run",
         "M3 T24: uv run --locked pytest -m \"not integration and not interop\": 4239 passed,1351 deselected; Ruff and mypy450 passed; actual host native gates pending"
       ],
-      "review_scope": "2026-10-06 source-grounded rewrite on unchanged 766b2aa business code; health/readiness, safe structured logs and queue degradation, exact metrics SQL and absent values, seeded MQ observation coverage, diagnostic retention, candidate diagnostic active-claim limit, Profile cohort semantics; independent review corrections applied. 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained.; 2026-10-23 T24: reviewed fixed published a4 and host-owned readonly protocol observation, existing-loop sampler/positive recovery audit, fixed metrics port, latched admission/review and real shutdown ownership.4239 local pure pass,1351 dependency tests deselected,Ruff/mypy450 pass. Prior domain facts and runtime_status unknown retained; no production/system/native completion claim. T24-D source candidate cea1806783b81a85f9284db1800503aef5d01468: original-primary deny-only governance and existing-loop sampler reviewed. Native CI pending; retained runtime status unknown and all historical evidence sources unchanged.; 2026-10-29 host-retirement M2 review of candidate 129dadc77731173aa05bceb8c3b7812d83913d0e: metrics now read MQ-owned interpretation ACK history joined to Session, separate from Broker confirmation and all-result pending metrics; staged/due publisher metrics retired, unavailable and organization boundaries retained. Four original CI source-baseline-drift findings and missing ci-results artifact failure remain historical failures; corrected CI/native/production acceptance not inferred from this metadata refresh."
+      "review_scope": "2026-10-06 source-grounded rewrite on unchanged 766b2aa business code; health/readiness, safe structured logs and queue degradation, exact metrics SQL and absent values, seeded MQ observation coverage, diagnostic retention, candidate diagnostic active-claim limit, Profile cohort semantics; independent review corrections applied. 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained.; 2026-10-23 T24: reviewed fixed published a4 and host-owned readonly protocol observation, existing-loop sampler/positive recovery audit, fixed metrics port, latched admission/review and real shutdown ownership.4239 local pure pass,1351 dependency tests deselected,Ruff/mypy450 pass. Prior domain facts and runtime_status unknown retained; no production/system/native completion claim. T24-D source candidate cea1806783b81a85f9284db1800503aef5d01468: original-primary deny-only governance and existing-loop sampler reviewed. Native CI pending; retained runtime status unknown and all historical evidence sources unchanged.; 2026-10-29 host-retirement M2 review of candidate 129dadc77731173aa05bceb8c3b7812d83913d0e: metrics now read MQ-owned interpretation ACK history joined to Session, separate from Broker confirmation and all-result pending metrics; staged/due publisher metrics retired, unavailable and organization boundaries retained. Four original CI source-baseline-drift findings and missing ci-results artifact failure remain historical failures; corrected CI/native/production acceptance not inferred from this metadata refresh.; M2 shared organization Health reader reviewed: ACK waits follow trusted Session ownership; all-result pending deliveries retain their wider scope. Updated the existing real-MySQL Health regression and required test names rather than excluding the shared caller."
     },
     {
       "path": "docs/03-基础设施/persistence/README.md",
