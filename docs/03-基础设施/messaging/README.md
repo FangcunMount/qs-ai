@@ -38,6 +38,10 @@
 
 [evaluation_sequences](../../../src/qs_ai/infrastructure/workflow_transport/state_events.py)仍是当前状态序号声明；旧StateEventRecorder已删除。每笔可见状态写入安装其冻结的原事务transcription；EventSession.commit不做MQ网络I/O，也不在callback重入时生成新ID、重新加密或调用模型。
 
+## 当前业务回执观察
+
+运行指标不再读取旧 `messaging_outbox` 发布状态。MQ-owned 解读状态历史中未收到 QS 业务 ACK 的记录，由 `mq_pending_interpretation_receipts` 及其等待年龄单独观察；组织范围按原 Session 过滤。该指标不覆盖全部评测事件，不是 Broker 队列深度，也不能代替事务最终确认。读取失败保持不可用，不输出零积压；详见[指标口径](../observability/README.md#metrics-的一致快照与缺失语义)。本次宿主退役 M2 未删除表，也未更改 ACK、事务凭证或业务历史。
+
 ## 正文RPC与不可公开的计划
 
 [ArchivePayloadReader](../../../src/qs_ai/infrastructure/persistence/mysql/transaction_archive.py)只读取当前精确Committed档案。RPC验证mTLS工作负载、收件方、组织、原消息ID、正文hash/长度；Prepared不公开。缺业务档案返回NotFound；已有档案但精确权威证明不可用，或数据库错误，保持Unavailable，不公开历史正文。原wire按bytes保留，不经JSON重建或重新加密。运行时的TransactionArchive另外绑定同一可信路由解析器，正文/回执的精确Reference必须命中活动或显式历史物理Topic；即使数据库行与witness结构完整，未登记的物理地址也不构成合法读取依据。底层不带解析器的构造仅供显式存储夹具，生产DI和维护装配均提供解析器。

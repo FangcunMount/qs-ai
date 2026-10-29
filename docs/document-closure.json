@@ -1,7 +1,7 @@
 {
   "schema_version": "qs-ai-document-closure/v1",
   "source_commit": "926841162af947d490e9f3e1738b340264d4ad54",
-  "reviewed_on": "2026-10-28",
+  "reviewed_on": "2026-10-29",
   "authority": "runtime composition > code > machine contracts/config/migrations > scoped tests > maintained prose > dated evidence/plans/archive",
   "source_catalog": {
     ".github/workflows/ci.yml": "263e6dda62b6c976568f79af291352c7aea381b11fb0871e14a64acbfeeee4f8",
@@ -18,7 +18,7 @@
     "deploy/serverA/deploy.py": "30de1b00348b51b6d4f646978c914c7723a030b615e90e85fd758cb8a526428b",
     "deploy/serverA/schema_followup.py": "bd3acee4621ad53a10ae27a22a052a5caea82772980247789ed7f9b9bc73afd6",
     "deploy/serverA/schema_maintenance.py": "95f68ba26955f02b8139ebdd6f1b5bbf3e1b643e53f44dd18f01cb21907f4c59",
-    "docs/03-基础设施/messaging/README.md": "e0a6edd7e374a5f940d408e86f44dd0046b1f3284a764f455445836c8b12657a",
+    "docs/03-基础设施/messaging/README.md": "778d4f55a24b69d29443e01ab8b1d7102e0b94c536ae4ef0aa1a1a687d8fa6d7",
     "docs/evidence/2026-09-13-m3-current-published-reconciliation.json": "950b0d4b7c6f6812756cef41374366a39630277d831ca6c42de56a447802d055",
     "docs/evidence/2026-09-13-m3-fixed-baseline-import.json": "cb28ea6199095f211348cf1ed44675a8e41cb22c56cec2f282217dc79747a23f",
     "docs/evidence/2026-09-13-m3-m4-coordinated-release.json": "4c3c0d45e968b6d35c9c18e54607cddd97430852bebe4f1765b76c78eb9bdb66",
@@ -246,7 +246,7 @@
     "src/qs_ai/infrastructure/persistence/mysql/interpretation_admission.py": "37c13d8984fdb6e0a81b5923a81c9975dcd478383874e5ff39005302210e5b4e",
     "src/qs_ai/infrastructure/persistence/mysql/interpretation_finalization_claim.py": "f1beb2123a2c9daa86c227ac26fe0d65ddae08b3f65ea17e19a57d82f5bbb01e",
     "src/qs_ai/infrastructure/persistence/mysql/messaging.py": "32361b3cb1fbaa078449f7d99b66f84daab66cb06d28209a59aa1b460ead136c",
-    "src/qs_ai/infrastructure/persistence/mysql/messaging_observability.py": "0237bc7078ddd8027da919384b0f74280d8bad69568025d786875d5f86de2d4f",
+    "src/qs_ai/infrastructure/persistence/mysql/messaging_observability.py": "14ed581bd91ef917d198c6be350342ee2df9f8b931e02be7601bc613e4a6ac84",
     "src/qs_ai/infrastructure/persistence/mysql/messaging_observations.py": "1a6aec8f9865bd18b65a273d29ff9b6e341d7b09f51610f39fe8face1b5e7bd5",
     "src/qs_ai/infrastructure/persistence/mysql/metrics.py": "ae7864fcead4118678940571ee0adf51c4048b5d90b862789bff61d8fa0e2606",
     "src/qs_ai/infrastructure/persistence/mysql/native_limit.py": "ceb09c58bc5c2933d41313a6da79b96afd9a0ed4c4004fee281dd3d01fdd08cd",
@@ -407,7 +407,7 @@
     "src/qs_ai/transport/grpc/solution_input.py": "ca0fa032495dedf8f6ac4df7350e4b6578dce1c72d0c19f6849935576ae49f0b",
     "src/qs_ai/transport/grpc/solutions.py": "c461912935ed0ade959c8f81593978f3b90cbfd938b931ac52221cd602b394d5",
     "src/qs_ai/transport/http/health.py": "cb1f15c778a3533364d968fb178aa29548fb79f47ceb98b77f3141823a5f302c",
-    "src/qs_ai/transport/http/metrics.py": "b786adf9f1e268c62b5f1c8d0ef754190cf6362bc7a2b603eeae3839378d6ee7",
+    "src/qs_ai/transport/http/metrics.py": "e8d94c9e1519235c6d11b74db4231a51645d88d76aa4fa2d1adda4d07885979c",
     "src/qs_ai/transport/http/transaction_metrics.py": "001f7d75da4b8d167aade1909cb62e07af1c3519b1ef6698f06ac6d174cde2dc",
     "tests/fixtures/legacy_go_contracts.json": "7e3223be35fb8818004ec90fd662e3f87ecb5c3219f4a15df7067532cb80eea8",
     "tests/fixtures/messaging_archive/v1.json": "6323925a937e6429c14ff49c33ea6a59b4f8edabb0a1ce3aaccb997d46effaeb",
@@ -425,7 +425,7 @@
     "tests/integration/rocketmq_finalization_host.py": "3d3bb420c56b865ded36e77c1326ad5bdf85a76f4c2faf28eee40fdc351dd29e",
     "tests/integration/rocketmq_finalization_matrix.py": "957835812ff2e241427b2a110f28291db5d5b1193fec401c21ee5b63d5edb9cf",
     "tests/integration/rocketmq_paired_faults.py": "20e9337be493c07a719b05f4b60c4689698103c1e47c785c921ba825f3287a85",
-    "tests/integration/rocketmq_paired_host.py": "1322a26e416b4177a104c72c3a0dc6d12285aa992ea4484e406a71226a80dea4",
+    "tests/integration/rocketmq_paired_host.py": "a6506ac6e57617c087de9e9545ab2c59b026c9f041f5b320f7fc1f48f13eef4e",
     "tests/integration/rocketmq_payload_host.py": "d9e906b60e67635c2dc8b4e288f7d61dfed078a1d9a01fd6096d63ff2573dc15",
     "tests/integration/rocketmq_state_host.py": "819961ac8fce19d086c8ebea0ccc881bf9badf0dec0578bef5e3ab991859afd3",
     "tests/integration/test_artifact_acceptance.py": "357dd73f4a563f881386554b49e30719a9a207c013aa57fe5a37345a142ecddd",
@@ -483,7 +483,7 @@
     "tests/integration/test_messaging_preflight.py": "5b914f7882fc6f5c4dcb37340242c037e447f503af2a634f3c9c6c1542cfd13e",
     "tests/integration/test_mq_0038_maintenance.py": "674391de108eb600c3f0182b1bfd016fbe4f51ae544ab2e5dbbaef39106d6774",
     "tests/integration/test_mq_inventory.py": "9e7f38ee0efad21620f857800497063ff8d3ec6c3a8e2b8414a9a028881ac489",
-    "tests/integration/test_mq_observability.py": "e313117c89f0dbf3c0a73bcbe54c1afe13343e2afcb3d122fb8f68800e0d5a0b",
+    "tests/integration/test_mq_observability.py": "151b5e78991388074ade28d64ff1d875100df37b9a5498f0f15c3b4deaa7030c",
     "tests/integration/test_mq_observations.py": "27d6a54fca605914645a3bcee3f16899eb38b209e389f2e5a00986155e5288d0",
     "tests/integration/test_operational_metrics.py": "52ed0bd08181321ea7ed2c6c45dd799c11e0cd7bf55f8572e2a8979921f9359a",
     "tests/integration/test_participant_capacity.py": "1bdf28a56b7882884f136d269f0606f00bc6f707ae090289e0d7c590b857ad67",
@@ -2365,7 +2365,7 @@
         "M3 T24: uv run --locked pytest -m \"not integration and not interop\": 4239 passed,1351 deselected; Ruff and mypy450 passed; actual host native gates pending",
         "pytest -q tests/test_transaction_binding.py (13 pure PASS); native initial-binding CLI collection only, required GitHub MySQL pending; no production or M3 completion claim"
       ],
-      "review_scope": "2026-10-26 M4 current source review: explicit ai.mysql runtime, archive-only payload/ACK, original transaction/state facts, bounded real-call shutdown, no publisher Outbox/Relay/legacy transfer. Unit/type/docs gates recorded separately from hosted native and production evidence; model/retry/checkpoint and unrelated business behavior unchanged.; 2026-10-28 reviewed paired test fixture v3 manifest selection while retaining v2 default. No production implementation change. Prior source-baseline-drift retained as CI failure; actual paired native evidence is independently recorded in infra."
+      "review_scope": "2026-10-26 M4 current source review: explicit ai.mysql runtime, archive-only payload/ACK, original transaction/state facts, bounded real-call shutdown, no publisher Outbox/Relay/legacy transfer. Unit/type/docs gates recorded separately from hosted native and production evidence; model/retry/checkpoint and unrelated business behavior unchanged.; 2026-10-28 reviewed paired test fixture v3 manifest selection while retaining v2 default. No production implementation change. Prior source-baseline-drift retained as CI failure; actual paired native evidence is independently recorded in infra.; 2026-10-29 host-retirement M2 review of candidate 129dadc77731173aa05bceb8c3b7812d83913d0e: metrics now read MQ-owned interpretation ACK history joined to Session, separate from Broker confirmation and all-result pending metrics; staged/due publisher metrics retired, unavailable and organization boundaries retained. Four original CI source-baseline-drift findings and missing ci-results artifact failure remain historical failures; corrected CI/native/production acceptance not inferred from this metadata refresh."
     },
     {
       "path": "docs/03-基础设施/model-gateway/README.md",
@@ -2449,7 +2449,7 @@
         "16 structured logging/operational metrics/cutover observation unit tests passed using existing sibling SDK path; DB/MQ/listener/production observations not run",
         "M3 T24: uv run --locked pytest -m \"not integration and not interop\": 4239 passed,1351 deselected; Ruff and mypy450 passed; actual host native gates pending"
       ],
-      "review_scope": "2026-10-06 source-grounded rewrite on unchanged 766b2aa business code; health/readiness, safe structured logs and queue degradation, exact metrics SQL and absent values, seeded MQ observation coverage, diagnostic retention, candidate diagnostic active-claim limit, Profile cohort semantics; independent review corrections applied. 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained.; 2026-10-23 T24: reviewed fixed published a4 and host-owned readonly protocol observation, existing-loop sampler/positive recovery audit, fixed metrics port, latched admission/review and real shutdown ownership.4239 local pure pass,1351 dependency tests deselected,Ruff/mypy450 pass. Prior domain facts and runtime_status unknown retained; no production/system/native completion claim. T24-D source candidate cea1806783b81a85f9284db1800503aef5d01468: original-primary deny-only governance and existing-loop sampler reviewed. Native CI pending; retained runtime status unknown and all historical evidence sources unchanged."
+      "review_scope": "2026-10-06 source-grounded rewrite on unchanged 766b2aa business code; health/readiness, safe structured logs and queue degradation, exact metrics SQL and absent values, seeded MQ observation coverage, diagnostic retention, candidate diagnostic active-claim limit, Profile cohort semantics; independent review corrections applied. 2026-10-08 module-storage rename and typed consolidation reconciled with reviewed owner changes and current source hashes; protocol identities, transaction ownership, original facts and runtime evidence boundary retained.; 2026-10-23 T24: reviewed fixed published a4 and host-owned readonly protocol observation, existing-loop sampler/positive recovery audit, fixed metrics port, latched admission/review and real shutdown ownership.4239 local pure pass,1351 dependency tests deselected,Ruff/mypy450 pass. Prior domain facts and runtime_status unknown retained; no production/system/native completion claim. T24-D source candidate cea1806783b81a85f9284db1800503aef5d01468: original-primary deny-only governance and existing-loop sampler reviewed. Native CI pending; retained runtime status unknown and all historical evidence sources unchanged.; 2026-10-29 host-retirement M2 review of candidate 129dadc77731173aa05bceb8c3b7812d83913d0e: metrics now read MQ-owned interpretation ACK history joined to Session, separate from Broker confirmation and all-result pending metrics; staged/due publisher metrics retired, unavailable and organization boundaries retained. Four original CI source-baseline-drift findings and missing ci-results artifact failure remain historical failures; corrected CI/native/production acceptance not inferred from this metadata refresh."
     },
     {
       "path": "docs/03-基础设施/persistence/README.md",

@@ -19,6 +19,7 @@ import sys
 import tempfile
 from contextlib import aclosing
 from dataclasses import asdict
+from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
 from uuid import uuid4
@@ -27,7 +28,7 @@ import grpc
 import pytest
 from dishka import Provider, Scope, provide
 from reliable_messaging.transaction import Decision, StoreChecker, resolve
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, text
 
 from qs_ai.application.evaluation.management import ManagementScope
 from qs_ai.application.interpretation.ports import EvidenceSource, WorkflowResult
@@ -41,9 +42,13 @@ from qs_ai.contracts.workflow import messaging_pb2 as pb
 from qs_ai.contracts.workflow import messaging_pb2_grpc as rpc
 from qs_ai.infrastructure.persistence.mysql.database import Database
 from qs_ai.infrastructure.persistence.mysql.messaging import inbox, outbox
+from qs_ai.infrastructure.persistence.mysql.messaging_observability import (
+    collect_messaging_snapshot,
+)
 from qs_ai.infrastructure.persistence.mysql.schema import jobs, model_calls, result_outbox, sessions
 from qs_ai.infrastructure.persistence.mysql.transaction_schema import event_receipts
 from qs_ai.infrastructure.workflow_transport.state_events import evaluation_sequences
+from qs_ai.transport.http.metrics import render_metrics
 from tests.integration import test_evaluation_runs as evaluation_fixtures
 from tests.integration.test_delivery import certificates
 from tests.integration.test_transaction_receipts import kit as kit
@@ -713,6 +718,20 @@ async def start_loop(p, *, large=False, before_start=None, after_start=None, exp
             assert p.ack_wires[ack_id] == archives[ack_id]["wire_sha256"]
             assert hashlib.sha256(bytes(row["body"])).hexdigest() == archives[ack_id]["body_sha256"]
     passed("first_command_and_ack_wire_cross_language")
+    # Observe the actual committed command/ACK loop using the production readers.
+    # Fixture-state tests separately prove positive waits and unavailable samples.
+    observed = await p.qs.call(mode="metrics")
+    assert observed["ok"] is True
+    assert observed["metrics"]["observation_available"] == 1
+    assert observed["metrics"]["committed_commands"] == facts["counts"]["ai_messaging_operations"]
+    assert observed["metrics"]["awaiting_command_receipts"] == 0
+    assert observed["metrics"]["held_command_receipts"] == 0
+    async with p.host.tx.open() as db:
+        await db.connection(execution_options={"isolation_level": "REPEATABLE READ"})
+        await db.execute(text("START TRANSACTION WITH CONSISTENT SNAPSHOT, READ ONLY"))
+        metrics = await collect_messaging_snapshot(db, datetime.now(UTC).replace(tzinfo=None))
+    assert metrics["mq_pending_interpretation_receipts"] == 0
+    assert "qs_ai_mq_pending_interpretation_receipts 0\n" in render_metrics(metrics)
     passed("actual_ai_business_receipts_and_history")
     passed("no_new_publish_outbox_or_model_call")
 
