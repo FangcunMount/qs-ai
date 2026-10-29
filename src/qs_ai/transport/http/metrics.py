@@ -15,13 +15,11 @@ router = APIRouter(route_class=DishkaRoute)
 DESCRIPTIONS = {
     "mq_enabled": "Whether MQ is configured; this does not prove delivery readiness.",
     "mq_observation_available": "Whether the committed MQ snapshot is available.",
-    "mq_staged_events": "Staged MQ events, including future retry availability.",
-    "mq_due_events": "Due staged or awaiting-receipt rows; not an ordering eligibility count.",
-    "mq_awaiting_receipt_events": "Events still awaiting QS business confirmation.",
-    "mq_held_events": "Technically held MQ Outbox events, separate from business refusal.",
-    "mq_held_commands": "Technically held Inbox commands, separate from held Outbox events.",
-    "mq_oldest_staged_seconds": "Oldest retained staged creation age, clamped to zero.",
-    "mq_oldest_awaiting_receipt_seconds": "Oldest retained event awaiting business confirmation.",
+    "mq_pending_interpretation_receipts": "MQ interpretation states awaiting QS business ACK.",
+    "mq_oldest_pending_interpretation_receipt_seconds": (
+        "Oldest MQ interpretation state awaiting ACK."
+    ),
+    "mq_held_commands": "Technically held Inbox commands, separate from business refusal.",
     "mq_duplicate_observations_available": "Whether durable duplicate observations exist.",
     "mq_payload_error_observations_available": "Whether durable payload error observations exist.",
     "mq_observations_history_complete": "Recording does not reconstruct missing history.",

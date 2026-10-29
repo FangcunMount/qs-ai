@@ -23,24 +23,20 @@ QUARANTINE_CODES = (
 async def collect_messaging_snapshot(
     db: AsyncSession, observed_at: datetime, *, organization_id: int | None = None
 ) -> dict[str, float]:
-    where = "" if organization_id is None else " WHERE organization_id=:org"
+    # Interpretation state history remains the business ACK ledger. Broker
+    # confirmation is reported separately by the transaction protocol metrics.
+    where = "" if organization_id is None else " AND s.org_id=:org"
     row = (
         (
             await db.execute(
                 text(
                     """SELECT /*+ MAX_EXECUTION_TIME(1000) */
-                COALESCE(SUM(stage='staged'),0) AS mq_staged_events,
-                COALESCE(SUM(stage IN ('staged','awaiting_receipt')
-                    AND available_at<=:at),0) AS mq_due_events,
-                COALESCE(SUM(stage='awaiting_receipt'),0) AS mq_awaiting_receipt_events,
-                COALESCE(SUM(stage='held'),0) AS mq_held_events,
-                COALESCE(GREATEST(MAX(CASE WHEN stage='staged' THEN
-                    TIMESTAMPDIFF(MICROSECOND,created_at,:at) END),0)/1000000,0)
-                    AS mq_oldest_staged_seconds,
-                COALESCE(GREATEST(MAX(CASE WHEN stage='awaiting_receipt' THEN
-                    TIMESTAMPDIFF(MICROSECOND,created_at,:at) END),0)/1000000,0)
-                    AS mq_oldest_awaiting_receipt_seconds
-                FROM messaging_outbox"""
+                    COUNT(*) AS mq_pending_interpretation_receipts,
+                    COALESCE(GREATEST(MAX(TIMESTAMPDIFF(MICROSECOND,o.created_at,:at)),0)
+                        /1000000,0) AS mq_oldest_pending_interpretation_receipt_seconds
+                    FROM interpretation_result_outbox o
+                    JOIN interpretation_sessions s ON s.id=o.session_id
+                    WHERE o.mq_owned=1 AND o.delivered=0"""
                     + where
                 ),
                 {"at": observed_at, "org": organization_id},
