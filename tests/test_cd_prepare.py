@@ -46,6 +46,7 @@ def staged_release(tmp_path, monkeypatch):
             "image load",
             "TLS file preflight",
             "MQ key file preflight",
+            "RocketMQ driver import preflight",
             "mysql CA policy",
         }:
             pytest.fail(f"Unexpected preparation side effect: {phase}")
@@ -80,6 +81,7 @@ def test_preparation_never_contacts_source_database_or_running_release(tmp_path,
         "compose services",
         "MQ material receipt verification",
         "MQ key file preflight",
+        "RocketMQ driver import preflight",
         "TLS file preflight",
         "compose services",
         "image schema contract",
@@ -132,7 +134,7 @@ def test_prepare_cannot_overwrite_a_successful_release(tmp_path, monkeypatch, pr
     assert not (release / "prepared.json").exists()
 
 
-@pytest.mark.parametrize("failure", ["identity", "TLS", "MQ", "material"])
+@pytest.mark.parametrize("failure", ["identity", "TLS", "MQ", "driver", "material"])
 def test_offline_failure_never_marks_release_prepared(tmp_path, monkeypatch, failure):
     remote, release, manifest, _calls = staged_release(tmp_path, monkeypatch)
     original = remote.run
@@ -145,6 +147,7 @@ def test_offline_failure_never_marks_release_prepared(tmp_path, monkeypatch, fai
         if (failure, phase) in {
             ("TLS", "TLS file preflight"),
             ("MQ", "MQ key file preflight"),
+            ("driver", "RocketMQ driver import preflight"),
             ("material", "MQ material receipt verification"),
         }:
             raise remote.DeploymentError("Offline file check failed")
