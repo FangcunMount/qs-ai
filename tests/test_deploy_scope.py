@@ -91,3 +91,30 @@ def test_docs_after_pending_runtime_use_deployed_baseline(tmp_path):
     assert since(docs, deployed) == "true"
     assert since(docs, runtime) == "false"
     assert since(deployed, runtime) == "false"
+
+
+def test_reusing_service_image_still_uses_the_pinned_workflow_tooling():
+    jobs = yaml.safe_load((ROOT / ".github/workflows/deploy.yml").read_text())["jobs"]
+    build_checkout = next(
+        step
+        for step in jobs["build"]["steps"]
+        if step.get("uses", "").startswith("actions/checkout@")
+    )
+    deploy_checkout = next(
+        step
+        for step in jobs["deploy"]["steps"]
+        if step.get("uses", "").startswith("actions/checkout@")
+    )
+    assert build_checkout["with"]["ref"] == "${{ needs.gate.outputs.revision }}"
+    assert deploy_checkout["with"]["ref"] == "${{ github.workflow_sha }}"
+    delivery = next(step for step in jobs["deploy"]["steps"] if step.get("id") == "release")
+    assert delivery["env"]["DEPLOY_SHA"] == "${{ needs.gate.outputs.revision }}"
+    assert (
+        delivery["env"]["IMAGE_DIGEST"]
+        == "${{ inputs.candidate_digest || needs.build.outputs.digest }}"
+    )
+    summary = next(
+        step for step in jobs["deploy"]["steps"] if step.get("name") == "Release summary"
+    )
+    assert summary["env"]["TOOLING_SHA"] == "${{ github.workflow_sha }}"
+    assert "Service source:" in summary["run"] and "Tooling source:" in summary["run"]

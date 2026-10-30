@@ -488,6 +488,55 @@ def write_json(path: Path, value: dict) -> None:
     temporary.replace(path)
 
 
+@contextlib.contextmanager
+def preflight_network(args: list[str]):
+    """One-off probes cannot claim the live native checkpoint's reserved address."""
+    prefix = ["sudo", "-n", "docker", "compose", "-p", "qs-ai", "--env-file"]
+    if (
+        len(args) < 13
+        or args[:7] != prefix
+        or args[8] != "-f"
+        or args[10] != "-f"
+        or args[12] != "run"
+    ):
+        yield args
+        return
+    release = Path(args[7]).parent
+    if args[7:12] != [
+        str(release / "image.env"),
+        "-f",
+        str(release / "compose.yaml"),
+        "-f",
+        str(release / "runtime.json"),
+    ]:
+        raise DeploymentError("Unexpected one-off checkpoint configuration")
+    manifest = json.loads((release / "manifest.json").read_text())
+    if manifest.get("provenance") != "observed-existing-runtime":
+        yield args
+        return
+    config = json.loads((release / "compose.yaml").read_text())
+    networks = config["services"]["qs-ai"].get("networks", {})
+    if not any("ipv4_address" in value or "ipv6_address" in value for value in networks.values()):
+        yield args
+        return
+    runtime = json.loads((release / "runtime.json").read_text())
+    if set(config["services"]) != {"qs-ai"} or runtime["services"]["qs-ai"].get("networks"):
+        raise DeploymentError("Unexpected native checkpoint network override")
+    for value in networks.values():
+        value.pop("ipv4_address", None)
+        value.pop("ipv6_address", None)
+    # Keep the immutable checkpoint and real up/stop/rollback commands untouched.
+    # A private derived file exists only while the synchronous one-off command runs.
+    with tempfile.NamedTemporaryFile(
+        mode="w", prefix=".preflight-network-", suffix=".json", dir=release.parent
+    ) as temporary:
+        json.dump(config, temporary)
+        temporary.flush()
+        command = list(args)
+        command[9] = temporary.name
+        yield command
+
+
 def run(phase: str, args: list[str]) -> str:
     authentication = {}
     # Password authentication is restricted to the reviewed read-only entry point.
@@ -513,7 +562,10 @@ def run(phase: str, args: list[str]) -> str:
     ):
         args = ["sudo", "-S", "-p", "", *args[2:]]
         authentication["input"] = _MATERIAL_PASSWORD + "\n"
-    result = subprocess.run(args, capture_output=True, text=True, timeout=1200, **authentication)
+    with preflight_network(args) as command:
+        result = subprocess.run(
+            command, capture_output=True, text=True, timeout=1200, **authentication
+        )
     if result.returncode:
         # Do not expose raw driver/Compose errors, which may contain credentials.
         detail = ""

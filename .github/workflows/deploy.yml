@@ -136,7 +136,7 @@ jobs:
         run: df -h "$RUNNER_TEMP"
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.gate.outputs.revision }}
+          ref: ${{ github.workflow_sha }}
       - name: Verify organization public MySQL policy
         env:
           MYSQL_HOST: ${{ vars.MYSQL_PUBLIC_HOST }}
@@ -213,5 +213,6 @@ jobs:
         env:
           REVISION: ${{ needs.gate.outputs.revision }}
           OPERATION: ${{ inputs.operation || 'deploy' }}
+          TOOLING_SHA: ${{ github.workflow_sha }}
         run: |
-          printf 'Operation: %s\n\nWorkflow source: `%s`\n\nTarget: serverA\n' "$OPERATION" "$REVISION" >> "$GITHUB_STEP_SUMMARY"
+          printf 'Operation: %s\n\nService source: `%s`\n\nTooling source: `%s`\n\nTarget: serverA\n' "$OPERATION" "$REVISION" "$TOOLING_SHA" >> "$GITHUB_STEP_SUMMARY"
