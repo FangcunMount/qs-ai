@@ -337,11 +337,22 @@ def export_failure_kind(raw: bytes) -> str:
     owned = re.search(
         rb"(?m)^QS_AI_HANDOFF_FAILURE:"
         rb"(initialization|runtime_identity|inventory|image_source|compose_source|runtime_binding)"
-        rb":[A-Za-z_]+$",
+        rb":([A-Za-z_]+)$",
         raw,
     )
     if owned:
-        return "handoff_" + owned[1].decode("ascii")
+        known = {
+            b"PermissionError",
+            b"FileNotFoundError",
+            b"DeploymentError",
+            b"ValueError",
+            b"JSONDecodeError",
+            b"TypeError",
+            b"KeyError",
+            b"IndexError",
+        }
+        kind = owned[2].decode("ascii").lower() if owned[2] in known else "unexpected"
+        return "handoff_" + owned[1].decode("ascii") + "_" + kind
     message = raw.lower()
     for category, patterns in (
         ("no_space", (b"no space left", b"disk full", b"not enough space")),

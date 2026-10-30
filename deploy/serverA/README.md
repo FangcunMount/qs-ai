@@ -50,6 +50,8 @@ state.json 仅在脚本自动部署检查（readiness、准确镜像、mTLS和�
 
 接管检查通过容器内的 `id -u` 核验实际 UID 为 10001，并继续比较原生 Compose 与容器用户配置；Docker `User` 使用名称 `app` 是有效配置。失败只公开固定阶段码，原始 SSH／Docker／配置错误正文继续隐藏。
 
+原生 profile 可以保持 root 私有权限。接管使用既有授权的 `sudo -n docker compose ... config` 读取当前固定 namespace 的配置，完整渲染摘要必须与实际容器的环境、镜像、挂载、身份和资源约束一致。部署账号无法直接读取的原文件哈希标记为 `null`、`native_files_raw_hashes_available=false`，不能当作原始字节哈希已核验；不增加文件可读权限或通用 root Python 权限。
+
 普通发布与回退在镜像加载、数据库探测和停止服务前，核对实际运行镜像与 `state.json.current` 的绑定。若独立维护流程已更新运行版本而旧台账未同步，发布拒绝继续，不能把旧指针当作可用回退版本。
 
 此时保持 `AUTO_DEPLOY_ENABLED=false`，使用 [Existing AI runtime handoff](../../.github/workflows/runtime-handoff.yml) 的三个独立操作。`inspect` 只读取得当前容器、镜像、源码、旧台账和原生 Compose 配置的哈希；`prepare` 输入这些精确值及新的 `<当前源码 SHA>-<run>-<attempt>` 检查点 ID，在主机私有目录保存当前配置和旧台账原始字节，复用材料、密钥、TLS、只读 exact-head schema 和当前 mTLS 探针；`adopt` 输入准备结果的 `prepared_sha256`，在两把既有发布锁下重查运行事实和材料后才更新指针。两步均不停止、重建或启动服务，不执行 Alembic、不修改业务数据。准备失败保留现场且不更新指针。

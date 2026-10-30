@@ -90,13 +90,24 @@ def observe():
     paths = [Path(value) for value in files]
     directory = paths[0].parent
     if any(
-        p.resolve() != p or not p.is_relative_to(NATIVE_ROOT) or p.parent != directory
+        not p.is_absolute()
+        or ".." in p.parts
+        or not p.is_relative_to(NATIVE_ROOT)
+        or p.parent != directory
         for p in paths
     ):
         raise deploy.DeploymentError("Expected reviewed native Compose paths")
     environment = directory / "runtime.env"
-    # Known deployment files only. Never print, upload or inspect credentials.
-    frozen = {str(p): digest(p.read_bytes()) for p in [*paths, environment]}
+    # The accepted native profile can be root-private. Use the already-authorized
+    # Docker Compose renderer below; never widen filesystem/Python permissions.
+    # Raw-byte fingerprints remain explicitly unavailable when unreadable. The
+    # complete rendered-config digest and actual-runtime comparison are mandatory.
+    frozen = {}
+    for path in [*paths, environment]:
+        try:
+            frozen[str(path)] = digest(path.read_bytes())
+        except PermissionError:
+            frozen[str(path)] = None
     args = ["sudo", "-n", "docker", "compose", "-p", "qs-ai", "--env-file", str(environment)]
     for path in paths:
         args += ["-f", str(path)]
@@ -108,11 +119,19 @@ def observe():
     effective_uid = deploy.run(
         "handoff effective uid", ["sudo", "-n", "docker", "exec", "qs-ai", "id", "-u"]
     ).strip()
-    expected_env = {
-        key: str(value).replace("$$", "$") for key, value in service.get("environment", {}).items()
-    }
     actual_env = dict(item.split("=", 1) for item in row["Config"]["Env"])
-    frozen_env = {**dict(item.split("=", 1) for item in inspected["Config"]["Env"]), **expected_env}
+    frozen_env = dict(item.split("=", 1) for item in inspected["Config"]["Env"])
+    for key, value in service.get("environment", {}).items():
+        if value is None:
+            frozen_env.pop(key, None)  # Compose null explicitly unsets inherited environment.
+        else:
+            frozen_env[key] = str(value).replace("$$", "$")
+    expected_command = service.get("command")
+    if expected_command is None:
+        expected_command = inspected["Config"].get("Cmd")
+    expected_entrypoint = service.get("entrypoint")
+    if expected_entrypoint is None:
+        expected_entrypoint = inspected["Config"].get("Entrypoint")
     actual_mounts = {
         (m["Source"], m["Destination"], m["RW"]) for m in row["Mounts"] if m["Type"] != "tmpfs"
     }
@@ -130,11 +149,10 @@ def observe():
         or row["HostConfig"]["ReadonlyRootfs"] is not True
         or int(service.get("mem_limit", 0)) != row["HostConfig"]["Memory"]
         or float(service.get("cpus", 0)) != 0.75
-        or str(service.get("user", inspected["Config"].get("User"))) != row["Config"]["User"]
+        or str(service.get("user") or inspected["Config"].get("User")) != row["Config"]["User"]
         or service.get("read_only") is not True
-        or service.get("command", inspected["Config"].get("Cmd")) != row["Config"].get("Cmd")
-        or service.get("entrypoint", inspected["Config"].get("Entrypoint"))
-        != row["Config"].get("Entrypoint")
+        or expected_command != row["Config"].get("Cmd")
+        or expected_entrypoint != row["Config"].get("Entrypoint")
     ):
         raise deploy.DeploymentError("Frozen Compose differs from actual runtime")
     facts = {
@@ -144,6 +162,7 @@ def observe():
         "state_sha256": digest(state_bytes()),
         "config_sha256": deploy.json_digest(config),
         "native_files_sha256": frozen,
+        "native_files_raw_hashes_available": all(value is not None for value in frozen.values()),
         "effective_uid": effective_uid,
     }
     return facts, config
