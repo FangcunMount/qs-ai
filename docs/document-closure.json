@@ -1,6 +1,6 @@
 {
   "schema_version": "qs-ai-document-closure/v1",
-  "source_commit": "407f74c9b42932c756762fad29a327148d8dc64a",
+  "source_commit": "26f2b9d0b1f8151029bec8d7eceb320d59fd8dc4",
   "reviewed_on": "2026-10-30",
   "authority": "runtime composition > code > machine contracts/config/migrations > scoped tests > maintained prose > dated evidence/plans/archive",
   "source_catalog": {
@@ -581,7 +581,7 @@
     "tests/test_candidate_response_reference.py": "4ab2f20ed0511d077a8b42e7996c150c0badd27be0adf1001c9c287a4f010441",
     "tests/test_candidate_semantic_records.py": "96c94dfec3bdc0cef034d1f5023a535d369054f55e13e697280c3226365427d7",
     "tests/test_candidate_terminal_progress.py": "92de3b3a29de3242ff907e0ff2c075c20e826862d4d377d9dcd503fff0e08919",
-    "tests/test_cd_prepare.py": "6137c6c02238bafdfe8702adf9bc097483a9e9202ba759c50c33e12a5d595892",
+    "tests/test_cd_prepare.py": "fe91a775bb9931d3c7a6d81ce502cb0f2020fccad0be05e3982700de16181ad0",
     "tests/test_change_admission_planner.py": "fec74a8c3b42acf49b23b8e9de1b796ed0dc141db489e201decf7154a28661ba",
     "tests/test_change_command_mapping.py": "d838dc572af7ed4e8c00afecce1fb8a3d3fba52bca37a3f78b5eb3f0ca8509c5",
     "tests/test_change_plan_facts.py": "2ff07ce7e483bc12ae27ff56c4af59e2d3cce956f38bc8b38aa305e4a2f1ae51",
