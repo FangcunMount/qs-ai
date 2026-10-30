@@ -339,7 +339,8 @@ def export_failure_kind(raw: bytes) -> str:
         rb"(initialization|runtime_identity|inventory|image_source|compose_source|runtime_binding|"
         rb"checkpoint_identity|checkpoint_files|checkpoint_binding|offline_preflight|"
         rb"schema_contract|schema_probe|live_tls|runtime_recheck|checkpoint_receipt|"
-        rb"checkpoint_review|checkpoint_adoption)"
+        rb"checkpoint_review|checkpoint_adoption|material_receipt|material_tool|"
+        rb"mq_key_files|tls_files|compose_validation)"
         rb":([A-Za-z_]+)$",
         raw,
     )

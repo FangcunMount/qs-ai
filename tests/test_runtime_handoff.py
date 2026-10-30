@@ -465,3 +465,31 @@ def test_final_runtime_recheck_has_its_own_phase(handoff, monkeypatch):
         prepared(handoff)
     assert handoff.module.PHASE == "runtime_recheck"
     assert handoff.module.state_bytes() == handoff.raw_state
+
+
+@pytest.mark.parametrize(
+    ("prefix", "phase"),
+    [
+        ("Installed MQ materials not verified;", "material_receipt"),
+        ("Reviewed material tool unavailable;", "material_tool"),
+        ("MQ key file preflight failed (", "mq_key_files"),
+        ("TLS file preflight failed (", "tls_files"),
+        ("compose services failed (", "compose_validation"),
+    ],
+)
+def test_offline_failure_exports_only_allowlisted_local_phase(handoff, monkeypatch, prefix, phase):
+    def fail(*_args):
+        raise handoff.module.deploy.DeploymentError(prefix + " private output")
+
+    monkeypatch.setattr(handoff.module.deploy, "_offline_release_preflight", fail)
+    with pytest.raises(handoff.module.deploy.DeploymentError):
+        prepared(handoff)
+    assert handoff.module.PHASE == phase
+    client = load("scripts/cd/deploy.py")
+    assert (
+        client.export_failure_kind(
+            ("QS_AI_HANDOFF_FAILURE:" + phase + ":DeploymentError\n").encode()
+        )
+        == "handoff_" + phase + "_deploymenterror"
+    )
+    assert handoff.module.state_bytes() == handoff.raw_state

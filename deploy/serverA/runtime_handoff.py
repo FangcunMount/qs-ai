@@ -177,7 +177,21 @@ def compatible(release):
     PHASE = "checkpoint_binding"
     deploy.require_final_messaging(release)
     PHASE = "offline_preflight"
-    deploy._offline_release_preflight(release, True)
+    try:
+        deploy._offline_release_preflight(release, True)
+    except deploy.DeploymentError as error:
+        # Fixed local prefixes only; never expose private command/driver output.
+        for prefix, phase in (
+            ("Installed MQ materials not verified;", "material_receipt"),
+            ("Reviewed material tool unavailable;", "material_tool"),
+            ("MQ key file preflight failed (", "mq_key_files"),
+            ("TLS file preflight failed (", "tls_files"),
+            ("compose services failed (", "compose_validation"),
+        ):
+            if str(error).startswith(prefix):
+                PHASE = phase
+                break
+        raise
     PHASE = "schema_contract"
     heads = deploy.expected_heads(release)
     PHASE = "schema_probe"
