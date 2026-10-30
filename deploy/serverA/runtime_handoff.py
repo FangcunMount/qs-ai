@@ -22,6 +22,7 @@ spec.loader.exec_module(deploy)
 
 NATIVE_ROOT = Path("/opt/fangcun-readable-names/releases/readable-20261028-v2")
 FILES = ("manifest.json", "runtime.json", "compose.yaml", "image.env", "old-state.json")
+PHASE = "initialization"
 
 
 def digest(raw):
@@ -42,6 +43,8 @@ def source(env):
 
 def observe():
     """Read Docker/configuration locally; return no credential-bearing values publicly."""
+    global PHASE
+    PHASE = "runtime_identity"
     row = json.loads(deploy.run("handoff runtime", ["sudo", "-n", "docker", "inspect", "qs-ai"]))[0]
     labels = row["Config"].get("Labels") or {}
     if (
@@ -52,6 +55,7 @@ def observe():
         or labels.get("com.docker.compose.service") != "qs-ai"
     ):
         raise deploy.DeploymentError("Expected one healthy native AI runtime")
+    PHASE = "inventory"
     ids = deploy.run(
         "handoff project inventory",
         [
@@ -67,6 +71,7 @@ def observe():
     ).split()
     if ids != [row["Id"]]:
         raise deploy.DeploymentError("Ambiguous AI runtime inventory")
+    PHASE = "image_source"
     image = deploy.image_id(row["Image"])
     inspected = json.loads(
         deploy.run("handoff image", ["sudo", "-n", "docker", "image", "inspect", image])
@@ -78,6 +83,7 @@ def observe():
         revision,
     ):
         raise deploy.DeploymentError("Runtime source/platform identity differs")
+    PHASE = "compose_source"
     files = labels.get("com.docker.compose.project.config_files", "").split(",")
     if not files or len(files) > 4:
         raise deploy.DeploymentError("Native Compose source unavailable")
@@ -97,7 +103,11 @@ def observe():
     config = json.loads(deploy.run("handoff frozen Compose", [*args, "config", "--format", "json"]))
     if set(config["services"]) != {"qs-ai"}:
         raise deploy.DeploymentError("Expected single-service Compose configuration")
+    PHASE = "runtime_binding"
     service = config["services"]["qs-ai"]
+    effective_uid = deploy.run(
+        "handoff effective uid", ["sudo", "-n", "docker", "exec", "qs-ai", "id", "-u"]
+    ).strip()
     expected_env = {
         key: str(value).replace("$$", "$") for key, value in service.get("environment", {}).items()
     }
@@ -116,7 +126,7 @@ def observe():
         or actual_mounts != desired_mounts
         or row["HostConfig"]["Memory"] != 768 * 1024 * 1024
         or row["HostConfig"]["NanoCpus"] != 750000000
-        or row["Config"]["User"] != "10001"
+        or effective_uid != "10001"
         or row["HostConfig"]["ReadonlyRootfs"] is not True
         or int(service.get("mem_limit", 0)) != row["HostConfig"]["Memory"]
         or float(service.get("cpus", 0)) != 0.75
@@ -134,6 +144,7 @@ def observe():
         "state_sha256": digest(state_bytes()),
         "config_sha256": deploy.json_digest(config),
         "native_files_sha256": frozen,
+        "effective_uid": effective_uid,
     }
     return facts, config
 
@@ -292,6 +303,5 @@ if __name__ == "__main__":
     try:
         main()
     except Exception as error:
-        message = str(error) if isinstance(error, deploy.DeploymentError) else type(error).__name__
-        print("Runtime handoff failed: " + message, file=sys.stderr)
+        print("QS_AI_HANDOFF_FAILURE:" + PHASE + ":" + type(error).__name__, file=sys.stderr)
         raise SystemExit(1) from None
