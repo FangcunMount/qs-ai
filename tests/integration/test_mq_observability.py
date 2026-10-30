@@ -9,11 +9,12 @@ from sqlalchemy import delete, insert, text, update
 
 from qs_ai.config import Settings
 from qs_ai.infrastructure.persistence.mysql.database import Database, Transactions
-from qs_ai.infrastructure.persistence.mysql.messaging import inbox, outbox, quarantine
+from qs_ai.infrastructure.persistence.mysql.messaging import inbox, quarantine
 from qs_ai.infrastructure.persistence.mysql.messaging_observability import (
     collect_messaging_snapshot,
 )
 from qs_ai.infrastructure.persistence.mysql.metrics import MySQLOperationalMetrics
+from qs_ai.infrastructure.persistence.mysql.schema import result_outbox, sessions
 from qs_ai.transport.http.metrics import render_metrics
 
 pytestmark = pytest.mark.integration
@@ -28,37 +29,48 @@ async def observations():
     transactions = Transactions(database)
     ids = [str(uuid4()) for _ in range(8)]
     org = uuid4().int % (2**63 - 2) + 1
+    async with transactions.open() as db:
+        await db.execute(
+            insert(sessions),
+            [
+                dict(
+                    id=id,
+                    org_id=org + (1 if i == 5 else 2 if i == 6 else 0),
+                    owner_subject_id="fixture",
+                    testee_id=1,
+                    assessment_ids=[],
+                    goal="fixture",
+                    status="created",
+                    version=1,
+                    workflow_version="fixture",
+                )
+                for i, id in enumerate(ids)
+            ],
+        )
+        await db.commit()
     try:
         yield transactions, org, ids
     finally:
         async with transactions.open() as db:
-            await db.execute(delete(outbox).where(outbox.c.message_id.in_(ids)))
+            await db.execute(delete(result_outbox).where(result_outbox.c.session_id.in_(ids)))
+            await db.execute(delete(sessions).where(sessions.c.id.in_(ids)))
             await db.execute(delete(inbox).where(inbox.c.message_id.in_(ids)))
             await db.execute(delete(quarantine).where(quarantine.c.wire_sha256.in_(ids)))
             await db.commit()
         await database.close()
 
 
-def record(id, org, stage, created_at, available_at):
-    return {
-        "producer": "qs-ai",
-        "destination": "qs-server",
-        "message_id": id,
-        "body_sha256": "a" * 64,
-        "body": b"synthetic state fixture; not delivered",
-        "wire": b"synthetic state fixture; not delivered",
-        "wire_sha256": "b" * 64,
-        "topic": "qs.ai.events.v1",
-        "kind": 7,
-        "organization_id": org,
-        "aggregate_key": id,
-        "aggregate_sequence": 1,
-        "ordered": False,
-        "requires_receipt": True,
-        "stage": stage,
-        "available_at": available_at,
-        "created_at": created_at,
-    }
+def record(id, delivered, created_at, *, mq_owned=True):
+    return dict(
+        event_id=id,
+        session_id=id,
+        version=1,
+        payload={},
+        delivered=delivered,
+        mq_owned=mq_owned,
+        created_at=created_at,
+        available_at=created_at,
+    )
 
 
 async def snapshot(transactions, at, org=None):
@@ -68,36 +80,32 @@ async def snapshot(transactions, at, org=None):
         return await collect_messaging_snapshot(db, at, organization_id=org)
 
 
-async def test_mq_snapshot_distinguishes_due_confirmation_hold_and_org(observations):
+async def test_mq_snapshot_distinguishes_business_ack_ownership_and_org(observations):
     tx, org, ids = observations
     now = datetime.now(UTC).replace(tzinfo=None)
     past, future = now - timedelta(minutes=5), now + timedelta(minutes=1)
     async with tx.open() as db:
         await db.execute(
-            insert(outbox),
+            insert(result_outbox),
             [
-                record(ids[0], org, "staged", past, past),
-                record(ids[1], org, "staged", future, future),
-                record(ids[2], org, "awaiting_receipt", past, past),
-                record(ids[3], org, "held", past, past),
-                record(ids[4], org, "confirmed", past, past),
-                record(ids[5], org + 1, "staged", now - timedelta(days=5), past),
-                record(ids[6], org + 2, "staged", future, future),
+                record(ids[0], False, past),
+                record(ids[1], False, future),
+                record(ids[2], True, past),
+                record(ids[3], False, past, mq_owned=False),
+                record(ids[5], False, past),
+                record(ids[6], False, future),
             ],
         )
         await db.commit()
     observed = await snapshot(tx, now, org)
     assert observed == {
-        "mq_staged_events": 2,
-        "mq_due_events": 2,
-        "mq_awaiting_receipt_events": 1,
-        "mq_held_events": 1,
-        "mq_oldest_staged_seconds": 300,
-        "mq_oldest_awaiting_receipt_seconds": 300,
+        "mq_pending_interpretation_receipts": 2,
+        "mq_oldest_pending_interpretation_receipt_seconds": 300,
     }
-    future_only = await snapshot(tx, now, org + 2)
-    assert future_only.pop("mq_staged_events") == 1
-    assert all(value == 0 for value in future_only.values())
+    assert await snapshot(tx, now, org + 2) == {
+        "mq_pending_interpretation_receipts": 1,
+        "mq_oldest_pending_interpretation_receipt_seconds": 0,
+    }
     assert not any("quarantine" in name or "commands" in name for name in observed)
 
 
@@ -105,19 +113,17 @@ async def test_mq_snapshot_sees_only_commit_and_never_settles_or_waits_for_write
     tx, org, ids = observations
     now = datetime.now(UTC).replace(tzinfo=None)
     async with tx.open() as db:
-        await db.execute(insert(outbox).values(**record(ids[0], org, "staged", now, now)))
-        assert (await snapshot(tx, now, org))["mq_staged_events"] == 0
+        await db.execute(insert(result_outbox).values(**record(ids[0], False, now)))
+        assert (await snapshot(tx, now, org))["mq_pending_interpretation_receipts"] == 0
         await db.commit()
-    assert (await snapshot(tx, now, org))["mq_staged_events"] == 1
+    assert (await snapshot(tx, now, org))["mq_pending_interpretation_receipts"] == 1
     async with tx.open() as writer:
         await writer.execute(
-            update(outbox).where(outbox.c.message_id == ids[0]).values(stage="confirmed")
+            update(result_outbox).where(result_outbox.c.event_id == ids[0]).values(delivered=True)
         )
-        assert (await snapshot(tx, now, org))["mq_staged_events"] == 1
-        await writer.rollback()
-    assert (await snapshot(tx, now, org))["mq_staged_events"] == 1
-    # Another reader instance observes the same persistent facts, with no flush task.
-    assert (await snapshot(tx, now, org))["mq_due_events"] == 1
+        assert (await snapshot(tx, now, org))["mq_pending_interpretation_receipts"] == 1
+        await writer.commit()
+    assert (await snapshot(tx, now, org))["mq_pending_interpretation_receipts"] == 0
 
 
 async def test_mq_security_records_are_gauges_without_invented_duplicate_history(observations):

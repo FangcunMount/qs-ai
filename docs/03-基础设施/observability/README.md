@@ -71,7 +71,7 @@ qs_ai_mq_enabled 1
 qs_ai_mq_observation_available 0
 ```
 
-这里假定配置开启MQ。ready_jobs、pending_results和MQ积压读数均缺席，**不是0**。mq_enabled=1仅说明配置开启，mq_observation_available=1才表示本次读取成功。缺失seed类别还会分别让duplicate/payload观测不可用；不能因为Outbox读取成功就声称历史观测完整。
+这里假定配置开启MQ。ready_jobs、pending_results和MQ积压读数均缺席，**不是0**。mq_enabled=1仅说明配置开启，mq_observation_available=1才表示本次读取成功。缺失seed类别还会分别让duplicate/payload观测不可用；当前状态快照读取成功也不能证明历史观测完整。
 
 [render_metrics](../../../src/qs_ai/transport/http/metrics.py) 只输出固定名称，数据库项统一为gauge，无动态标签。即使adapter错误返回testee_id等未知key，也不渲染。重要口径如下：
 
@@ -85,7 +85,13 @@ qs_ai_mq_observation_available 0
 | capacity_rejections_24h | Session创建近24小时且failure_code=participant_daily_capacity_exceeded | 不是所有组织配额/模型容量拒绝总数 |
 | database_account_connections | 当前数据库、当前MySQL账号的PROCESSLIST，含本次scrape连接 | 不是仅APP池连接数或全服务器连接数 |
 
-[MQ快照](../../../src/qs_ai/infrastructure/persistence/mysql/messaging_observability.py) 区分 staged、awaiting_receipt、held；due只按stage/available_at，不计算顺序资格或最终gate。held_events与held_commands是技术处置，不能当作业务拒绝。组织范围读取只返回该组织的Outbox值；Inbox/quarantine没有可信组织列，不按消息body自报组织过滤后公开。
+[MQ快照](../../../src/qs_ai/infrastructure/persistence/mysql/messaging_observability.py) 读取 `interpretation_result_outbox` 中 `mq_owned=1 AND delivered=0` 的解读状态历史，并关联原 Session。`qs_ai_mq_pending_interpretation_receipts` 是等待 QS 业务 ACK 的记录数；`qs_ai_mq_oldest_pending_interpretation_receipt_seconds` 按 created_at 计算最老等待年龄，未来时间钳制为零。它们不覆盖所有 AI 事件，也不代表 Broker 队列深度或事务确认缺口。
+
+旧发布队列的 staged/due/awaiting_receipt/held_events 指标退出。原 `pending_results` 等业务指标继续保留其全量结果历史口径，与 MQ-owned 子集分别说明。`mq_held_commands` 仍来自 Inbox，是技术处置，不是业务拒绝。组织范围读取只返回关联 Session 属于该组织的 MQ-owned 解读 ACK 等待；Inbox/quarantine没有可信组织列，不按消息body自报组织过滤后公开。
+
+组织 Health 复用同一只读快照，输出 `messaging.pending_interpretation_receipts` 及其年龄；原 `backlog.pending_deliveries` 继续包含该组织的全部未确认结果，两者范围不同。共享读取、提交隔离及组织边界由 [Health 实库回归](../../../tests/integration/test_mq_health.py)保护。
+
+本次宿主退役 M2 的源码审查与历史 T24 计数分开。失败的文档哈希门禁保留记录；修正文档与事实台账不代表 CI、真实业务链或生产已经验收。
 
 ## 观测起点、保留记录与小型milestone
 
