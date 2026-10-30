@@ -4,10 +4,10 @@ on:
     inputs:
       operation:
         type: choice
-        options: [deploy, rollback, build]
+        options: [deploy, rollback, build, prepare]
         default: deploy
       candidate_digest:
-        description: 'Previously built immutable ACR digest; deploy reuses this image without rebuilding'
+        description: 'Previously built immutable ACR digest; required for offline prepare'
         required: false
       revision:
         description: 'Full main commit SHA; empty selects this workflow commit'
@@ -51,7 +51,10 @@ jobs:
         run: |
           set -euo pipefail
           if [ -n "$CANDIDATE_DIGEST" ]; then
-            [[ "$OPERATION" == deploy && "$CANDIDATE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+            [[ ( "$OPERATION" == deploy || "$OPERATION" == prepare ) && "$CANDIDATE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+          fi
+          if [ "$OPERATION" = prepare ]; then
+            [[ "$CANDIDATE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
           fi
           [[ "$REQUESTED_SHA" =~ ^[0-9a-f]{40}$ ]]
           git merge-base --is-ancestor "$REQUESTED_SHA" origin/main
@@ -123,7 +126,7 @@ jobs:
       always() && inputs.operation != 'build' && needs.gate.result == 'success' && needs.gate.outputs.deploy == 'true' &&
       (needs.build.result == 'success' ||
        (inputs.operation == 'rollback' && needs.build.result == 'skipped') ||
-       (inputs.operation == 'deploy' && inputs.candidate_digest != '' && needs.build.result == 'skipped'))
+       ((inputs.operation == 'deploy' || inputs.operation == 'prepare') && inputs.candidate_digest != '' && needs.build.result == 'skipped'))
     runs-on:
       group: qlume
       labels: [self-hosted, macOS, ARM64]
@@ -190,10 +193,19 @@ jobs:
           SVRA_HOST_PUBLIC_KEY: ${{ vars.SVRA_HOST_PUBLIC_KEY }}
         run: uv run --no-dev python scripts/cd/deploy.py
       - name: Record verified deployment baseline
+        if: inputs.operation != 'prepare'
         uses: actions/upload-artifact@v4
         with:
           name: qs-ai-deployed-${{ steps.release.outputs.actual_revision }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: deployment-receipt.json
+          if-no-files-found: error
+          retention-days: 90
+      - name: Record offline preparation without a deployment marker
+        if: inputs.operation == 'prepare'
+        uses: actions/upload-artifact@v4
+        with:
+          name: qs-ai-prepared-${{ needs.gate.outputs.revision }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: release-receipt.json
           if-no-files-found: error
           retention-days: 90
       - name: Release summary

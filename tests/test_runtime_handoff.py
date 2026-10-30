@@ -290,7 +290,18 @@ def test_checkpoint_compose_roundtrip_preserves_literal_environment_and_all_moun
 
 
 @pytest.mark.parametrize(
-    "conflict", [None, "environment", "mount", "source", "image", "inventory", "budget"]
+    "conflict",
+    [
+        None,
+        "named_user",
+        "environment",
+        "mount",
+        "source",
+        "image",
+        "inventory",
+        "budget",
+        "root_uid",
+    ],
 )
 def test_observation_compares_actual_runtime_with_frozen_config_without_exposing_it(
     handoff, tmp_path, monkeypatch, conflict
@@ -345,6 +356,8 @@ def test_observation_compares_actual_runtime_with_frozen_config_without_exposing
         service["image"] = "sha256:" + "b" * 64
     if conflict == "budget":
         service["cpus"] = 1.0
+    if conflict == "named_user":
+        service["user"] = row["Config"]["User"] = image["Config"]["User"] = "app"
 
     def run(phase, args):
         if phase == "handoff runtime":
@@ -353,11 +366,13 @@ def test_observation_compares_actual_runtime_with_frozen_config_without_exposing
             return json.dumps([image])
         if phase == "handoff frozen Compose":
             return json.dumps(config)
+        if phase == "handoff effective uid":
+            return "0" if conflict == "root_uid" else "10001\n"
         assert phase == "handoff project inventory"
         return "c" * 64 + ("\n" + "e" * 64 if conflict == "inventory" else "")
 
     monkeypatch.setattr(module.deploy, "run", run)
-    if conflict:
+    if conflict not in (None, "named_user"):
         with pytest.raises(module.deploy.DeploymentError):
             module.observe()
     else:
@@ -365,3 +380,17 @@ def test_observation_compares_actual_runtime_with_frozen_config_without_exposing
         assert facts["revision"] == REVISION
         assert service["environment"]["QS_AI_DATABASE_URL"] not in json.dumps(facts)
         assert facts["state_sha256"] == module.digest(handoff.raw_state)
+        assert facts["effective_uid"] == "10001"
+
+
+def test_handoff_failure_reports_only_a_bounded_phase_not_private_output():
+    client = load("scripts/cd/deploy.py")
+    raw = (
+        b"private credential and configuration withheld\n"
+        b"QS_AI_HANDOFF_FAILURE:runtime_binding:DeploymentError\n"
+    )
+    assert client.export_failure_kind(raw) == "handoff_runtime_binding"
+    assert (
+        client.export_failure_kind(b"QS_AI_HANDOFF_FAILURE:private-credential:Error")
+        == "unclassified"
+    )

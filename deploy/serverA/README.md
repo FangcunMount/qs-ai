@@ -36,6 +36,8 @@ QS_AI_MESSAGING_BINDING 是经审阅的非秘密 JSON。最终事务绑定包含
 
 普通部署在进入运行切换前先调用已有 `prepare` 阶段，核对归档、加载并固定镜像、完成离线配置与迁移 head 检查。活动数据库维护执行器因此可以读取目标镜像契约；准备失败时不进入运行切换。显式 `prepare` 仍只准备镜像，回退流程仍使用既有成功版本。
 
+手动发布入口的 `operation=prepare` 必须给出已构建的 `candidate_digest`，复用已有离线客户端和主机阶段。它不构建镜像、不探测当前数据库、不停止或启动业务服务、不更新 state 指针；只上传 `qs-ai-prepared-*` 制品，不生成 `qs-ai-deployed-*` 标记。服务源码 `revision` 仍须是 main 祖先且该 SHA 的 push CI 成功，生产环境仍只允许从 main 执行工作流。
+
 数据库探针核对 MySQL 版本、当前与目标 Alembic heads；迁移后必须与镜像的全部 heads 完全相同。云实例须支持当前 MySQL 任务实现；CI 版本兼容性另行核验。普通部署在Alembic或停止旧服务前拒绝跨0038/0040及0039中间态；对应自动部署同样受阻。迁移单独执行，不与服务启动绑定；MySQL DDL 失败可能部分完成，须核对实际结构后处置。
 
 迁移或迁移后 schema 检查失败时不切换服务。服务切换失败且 schema 未变化时恢复旧版本；schema 已变化时要求兼容性处理，不自动降级数据库。首次没有旧版本的服务启动失败会停止本次容器。
@@ -45,6 +47,8 @@ state.json 仅在脚本自动部署检查（readiness、准确镜像、mTLS和�
 回滚可由 GitHub 手动工作流 operation=rollback 发起，也可以使用成功发布目录保留的 deploy.py rollback。回滚不调用模型，不修改业务数据，不执行 Alembic downgrade。目标镜像须识别当前持久契约，先比较current数据库与目标镜像离线head、通过自身exact-head结构探针及MQ密钥预检；已经 MQ-enabled 的发布不得回落 messaging-disabled。禁止删除消息表、mq_owned 或原回执来绕过归属限制。
 
 ## 运行范围
+
+接管检查通过容器内的 `id -u` 核验实际 UID 为 10001，并继续比较原生 Compose 与容器用户配置；Docker `User` 使用名称 `app` 是有效配置。失败只公开固定阶段码，原始 SSH／Docker／配置错误正文继续隐藏。
 
 普通发布与回退在镜像加载、数据库探测和停止服务前，核对实际运行镜像与 `state.json.current` 的绑定。若独立维护流程已更新运行版本而旧台账未同步，发布拒绝继续，不能把旧指针当作可用回退版本。
 

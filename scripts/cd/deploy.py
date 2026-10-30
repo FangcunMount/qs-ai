@@ -334,6 +334,14 @@ def remote_operation(
 
 def export_failure_kind(raw: bytes) -> str:
     """Allowlisted categories only; daemon stderr may contain private registry details."""
+    owned = re.search(
+        rb"(?m)^QS_AI_HANDOFF_FAILURE:"
+        rb"(initialization|runtime_identity|inventory|image_source|compose_source|runtime_binding)"
+        rb":[A-Za-z_]+$",
+        raw,
+    )
+    if owned:
+        return "handoff_" + owned[1].decode("ascii")
     message = raw.lower()
     for category, patterns in (
         ("no_space", (b"no space left", b"disk full", b"not enough space")),
