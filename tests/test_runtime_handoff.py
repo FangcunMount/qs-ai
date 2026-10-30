@@ -240,6 +240,7 @@ def test_client_sends_password_over_ssh_stdin_and_never_argv(monkeypatch):
     )
     assert captured[0][2] == {"input": json.dumps({"material_password": password})}
     assert password not in " ".join(captured[0][1])
+    assert captured[0][1][-1].startswith("python3 -B /tmp/reviewed.py ")
     assert hashlib.sha256(password.encode()).hexdigest() not in str(captured)
 
 

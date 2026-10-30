@@ -322,12 +322,12 @@ def remote_operation(
     """Only the server's fixed material verifier consumes this optional credential."""
     password = env.get("SVRA_SUDO_PASSWORD", "")
     if not password:
-        return run(phase, [*ssh, " ".join(["python3", script, *arguments])])
+        return run(phase, [*ssh, " ".join(["python3", "-B", script, *arguments])])
     if any(c in password for c in "\x00\r\n") or len(password.encode()) > 4096:
         raise ValueError("Invalid material authentication credential")
     return run(
         phase,
-        [*ssh, " ".join(["python3", script, "--material-password-stdin", *arguments])],
+        [*ssh, " ".join(["python3", "-B", script, "--material-password-stdin", *arguments])],
         input=json.dumps({"material_password": password}),
     )
 
