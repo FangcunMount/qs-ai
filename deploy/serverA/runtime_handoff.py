@@ -204,13 +204,13 @@ def prepare(name, image, state_sha, config_sha):
     global PHASE
     release = deploy.release_path(name)
     facts, config = observe()
+    PHASE = "checkpoint_identity"
     if not name.startswith(facts["revision"] + "-") or (
         facts["image_id"],
         facts["state_sha256"],
         facts["config_sha256"],
     ) != (image, state_sha, config_sha):
         raise deploy.DeploymentError("Reviewed runtime/state/configuration identity differs")
-    PHASE = "checkpoint_identity"
     raw_state = state_bytes()
     if digest(raw_state) != state_sha:
         raise deploy.DeploymentError("Previous state changed before preparation")
@@ -250,8 +250,9 @@ def prepare(name, image, state_sha, config_sha):
     (release / "image.env").write_text(f"QS_AI_IMAGE={image}\n")
     (release / "old-state.json").write_bytes(raw_state)
     database = compatible(release)
+    current_facts = observe()[0]
     PHASE = "runtime_recheck"
-    if observe()[0] != facts:
+    if current_facts != facts:
         raise deploy.DeploymentError("Runtime changed during checkpoint preparation")
     PHASE = "checkpoint_receipt"
     proof = {
@@ -285,13 +286,16 @@ def adopt(name, prepared_sha):
         or materials(release) != proof["materials"]
     ):
         raise deploy.DeploymentError("Prepared checkpoint changed")
-    if observe()[0] != proof["facts"]:
+    current_facts = observe()[0]
+    PHASE = "runtime_recheck"
+    if current_facts != proof["facts"]:
         raise deploy.DeploymentError(
             "Runtime or previous state changed; prepare a fresh checkpoint"
         )
     database = compatible(release)
+    current_facts = observe()[0]
     PHASE = "runtime_recheck"
-    if observe()[0] != proof["facts"]:
+    if current_facts != proof["facts"]:
         raise deploy.DeploymentError("Runtime changed during adoption")
     PHASE = "checkpoint_adoption"
     deploy.write_json(

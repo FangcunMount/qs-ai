@@ -446,3 +446,22 @@ def test_checkpoint_failure_classifies_real_stage_without_private_output(
         == "handoff_" + phase + "_deploymenterror"
     )
     assert handoff.module.state_bytes() == handoff.raw_state
+
+
+def test_final_runtime_recheck_has_its_own_phase(handoff, monkeypatch):
+    observations = 0
+
+    def observe():
+        nonlocal observations
+        observations += 1
+        facts = copy.deepcopy(handoff.facts)
+        if observations > 1:
+            facts["container_id"] = "changed"
+        handoff.module.PHASE = "runtime_binding"
+        return facts, copy.deepcopy(handoff.config)
+
+    monkeypatch.setattr(handoff.module, "observe", observe)
+    with pytest.raises(handoff.module.deploy.DeploymentError, match="Runtime changed"):
+        prepared(handoff)
+    assert handoff.module.PHASE == "runtime_recheck"
+    assert handoff.module.state_bytes() == handoff.raw_state
