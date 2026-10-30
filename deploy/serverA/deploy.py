@@ -965,6 +965,25 @@ def messaging_key_preflight(release: Path) -> None:
             ),
         )
 
+        # Import the actual driver before any runtime replacement. Key/schema
+        # probes do not import this dependency or exercise its HOME log writes.
+        run(
+            "RocketMQ driver import preflight",
+            compose(
+                release,
+                "run",
+                "--rm",
+                "--no-deps",
+                "-T",
+                "qs-ai",
+                "/app/.venv/bin/python",
+                "-c",
+                "from rocketmq.v5.client import ClientConfiguration, Credentials; "
+                "from rocketmq.v5.producer import Producer; "
+                "from rocketmq.v5.consumer import SimpleConsumer",
+            ),
+        )
+
 
 def restore(state: dict) -> None:
     schema_followup_guard()

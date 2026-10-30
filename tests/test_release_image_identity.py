@@ -261,9 +261,12 @@ def test_rollback_uses_pinned_actual_id_before_probe_and_restores_state(
         if phase == "pinned image identity":
             assert args[-1] == target_id
             return json.dumps([{**inspected_image(manifest), "Id": target_id}])
-        assert phase == "MQ key file preflight"
+        assert phase in {"MQ key file preflight", "RocketMQ driver import preflight"}
         assert str(target / "runtime.json") in args
-        assert args[-1] == "qs_ai.maintenance.messaging_preflight"
+        if phase == "MQ key file preflight":
+            assert args[-1] == "qs_ai.maintenance.messaging_preflight"
+        else:
+            assert args[-2] == "-c" and "rocketmq.v5.client" in args[-1]
         return ""
 
     monkeypatch.setattr(remote, "run", run)
@@ -281,6 +284,7 @@ def test_rollback_uses_pinned_actual_id_before_probe_and_restores_state(
         "pinned image identity",
         "MQ material receipt verification",
         "MQ key file preflight",
+        "RocketMQ driver import preflight",
         "probe",
         "probe",
         "stop",

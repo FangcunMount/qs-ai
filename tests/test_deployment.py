@@ -197,6 +197,7 @@ def test_migration_failure_never_replaces_service(remote, tmp_path, monkeypatch)
         "compose services",
         "MQ material receipt verification",
         "MQ key file preflight",
+        "RocketMQ driver import preflight",
         "TLS file preflight",
         "compose services",
         "migration",
@@ -430,7 +431,12 @@ def test_registry_auth_is_private_and_does_not_use_host_keychain(tmp_path):
         )
 
 
-def test_tls_preflight_failure_preserves_running_release(remote, tmp_path, monkeypatch):
+@pytest.mark.parametrize(
+    "failure_phase", ["RocketMQ driver import preflight", "TLS file preflight"]
+)
+def test_runtime_preflight_failure_preserves_running_release(
+    remote, tmp_path, monkeypatch, failure_phase
+):
     release, manifest = setup_release(remote, tmp_path, monkeypatch)
     calls = simulate_apply(remote, monkeypatch, manifest)
     original = remote.run
@@ -438,20 +444,20 @@ def test_tls_preflight_failure_preserves_running_release(remote, tmp_path, monke
     def run(phase, args):
         if phase == "compose services":
             return "qs-ai"
-        if phase == "TLS file preflight":
-            raise remote.DeploymentError("TLS file preflight failed")
+        if phase == failure_phase:
+            raise remote.DeploymentError(failure_phase + " failed")
         return original(phase, args)
 
     monkeypatch.setattr(remote, "run", run)
     monkeypatch.setattr(remote, "probe", lambda *args: pytest.fail("must not access database"))
-    with pytest.raises(remote.DeploymentError, match="TLS file"):
+    with pytest.raises(remote.DeploymentError, match=failure_phase):
         remote.apply(release, {})
     assert calls == [
         "image load",
         "image identity",
         "MQ material receipt verification",
         "MQ key file preflight",
-    ]
+    ] + (["RocketMQ driver import preflight"] if failure_phase == "TLS file preflight" else [])
     assert not (tmp_path / "state.json").exists()
 
 
@@ -589,6 +595,8 @@ def test_execution_compose_resolves_isolation_tls_and_health(tmp_path, mode):
     for field, flag in (("GENERATION", "execution"), ("EVALUATION", "evaluation")):
         assert values[f"QS_AI_{field}__ENABLED"] == str(mode in {flag, "all"}).lower()
     assert service["read_only"]
+    assert values["HOME"] == "/tmp"
+    assert any((v == "/tmp" or v.startswith("/tmp:")) for v in service["tmpfs"])
     assert len(service["volumes"]) == 11
     assert all(v["read_only"] for v in service["volumes"])
     assert {"qs-ai-grpc", "qs-ai-api"} <= set(service["networks"]["backend"]["aliases"])

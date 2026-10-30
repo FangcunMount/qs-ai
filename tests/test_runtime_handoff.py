@@ -64,7 +64,12 @@ def handoff(tmp_path, monkeypatch):
             return json.dumps([HEAD])
         if phase == "database probe":
             return json.dumps({"current": [HEAD], "expected": [HEAD]})
-        assert phase in {"TLS file preflight", "MQ key file preflight", "handoff live mTLS probe"}
+        assert phase in {
+            "TLS file preflight",
+            "MQ key file preflight",
+            "RocketMQ driver import preflight",
+            "handoff live mTLS probe",
+        }
         return ""
 
     monkeypatch.setattr(module.deploy, "run", run)
