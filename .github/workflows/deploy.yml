@@ -152,6 +152,7 @@ jobs:
         env:
           DEPLOY_SHA: ${{ needs.gate.outputs.revision }}
           DEPLOY_OPERATION: ${{ inputs.operation || 'deploy' }}
+          SVRA_SUDO_PASSWORD: ${{ secrets.SVRA_SUDO_PASSWORD }}
           IMAGE_DIGEST: ${{ inputs.candidate_digest || needs.build.outputs.digest }}
           ALIYUN_ACR_REGISTRY: ${{ secrets.ALIYUN_ACR_REGISTRY }}
           ALIYUN_ACR_NAMESPACE: ${{ secrets.ALIYUN_ACR_NAMESPACE }}

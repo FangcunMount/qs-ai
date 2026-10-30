@@ -675,6 +675,7 @@ def test_ordinary_main_rollback_uses_followup_restore_wrapper(context, monkeypat
     called = []
     monkeypatch.setattr(remote, "ROOT", context.root)
     monkeypatch.setattr(remote, "global_deploy_lock", contextlib.nullcontext)
+    monkeypatch.setattr(remote, "guard_current_runtime", lambda _state: None)
     monkeypatch.setattr(remote.sys, "argv", ["deploy.py", "rollback"])
     monkeypatch.setattr(
         remote,

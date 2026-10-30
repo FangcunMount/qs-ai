@@ -316,6 +316,22 @@ def run(phase: str, args: list[str], **kwargs) -> str:
     return result.stdout
 
 
+def remote_operation(
+    phase: str, ssh: list[str], script: str, arguments: list[str], env: dict
+) -> str:
+    """Only the server's fixed material verifier consumes this optional credential."""
+    password = env.get("SVRA_SUDO_PASSWORD", "")
+    if not password:
+        return run(phase, [*ssh, " ".join(["python3", script, *arguments])])
+    if any(c in password for c in "\x00\r\n") or len(password.encode()) > 4096:
+        raise ValueError("Invalid material authentication credential")
+    return run(
+        phase,
+        [*ssh, " ".join(["python3", script, "--material-password-stdin", *arguments])],
+        input=json.dumps({"material_password": password}),
+    )
+
+
 def export_failure_kind(raw: bytes) -> str:
     """Allowlisted categories only; daemon stderr may contain private registry details."""
     message = raw.lower()
@@ -505,6 +521,40 @@ def record_preparation(ssh: list[str], release_id: str, package: Path) -> None:
             stream.write(f"release_id={release_id}\nrevision={manifest['revision']}\n")
 
 
+def ssh_transport(env: dict, work: Path):
+    host, user = required(env, "SVRA_HOST"), required(env, "SVRA_USERNAME")
+    if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9.-]*", host):
+        raise ValueError("Invalid SSH host")
+    if not re.fullmatch(r"[a-zA-Z_][a-zA-Z0-9_-]*", user):
+        raise ValueError("Invalid SSH user")
+    port = int(env.get("SVRA_SSH_PORT") or "22")
+    if not 1 <= port <= 65535:
+        raise ValueError("Invalid SSH port")
+    key, hosts = work / "key", work / "known_hosts"
+    key.write_text(required(env, "SVRA_SSH_KEY") + "\n")
+    public_key = required(env, "SVRA_HOST_PUBLIC_KEY").strip()
+    if not re.fullmatch(r"ssh-ed25519 [A-Za-z0-9+/=]+(?: [^\r\n]+)?", public_key):
+        raise ValueError("Expected verified serverA ed25519 host public key")
+    hosts.write_text(f"[{host}]:{port} {public_key}\n{host} {public_key}\n")
+    common = [
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        "IdentitiesOnly=yes",
+        "-o",
+        "StrictHostKeyChecking=yes",
+        "-o",
+        f"UserKnownHostsFile={hosts}",
+        "-o",
+        "ConnectTimeout=20",
+        "-i",
+        str(key),
+    ]
+    ssh = ["ssh", *common, "-p", str(port), f"{user}@{host}"]
+    scp = ["scp", *common, "-P", str(port)]
+    return ssh, scp, host, user
+
+
 def main() -> None:
     os.umask(0o077)
     env = dict(os.environ)
@@ -519,38 +569,9 @@ def main() -> None:
     if not run_id.isdigit() or not attempt.isdigit():
         raise ValueError("Invalid run identifier")
     release_id = f"{revision}-{run_id}-{attempt}"
-    host, user = required(env, "SVRA_HOST"), required(env, "SVRA_USERNAME")
-    if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9.-]*", host):
-        raise ValueError("Invalid SSH host")
-    if not re.fullmatch(r"[a-zA-Z_][a-zA-Z0-9_-]*", user):
-        raise ValueError("Invalid SSH user")
-    port = int(env.get("SVRA_SSH_PORT") or "22")
-    if not 1 <= port <= 65535:
-        raise ValueError("Invalid SSH port")
     with tempfile.TemporaryDirectory(prefix="qs-ai-", dir=env.get("RUNNER_TEMP")) as temporary:
         work = Path(temporary)
-        key, hosts = work / "key", work / "known_hosts"
-        key.write_text(required(env, "SVRA_SSH_KEY") + "\n")
-        public_key = required(env, "SVRA_HOST_PUBLIC_KEY").strip()
-        if not re.fullmatch(r"ssh-ed25519 [A-Za-z0-9+/=]+(?: [^\r\n]+)?", public_key):
-            raise ValueError("Expected verified serverA ed25519 host public key")
-        hosts.write_text(f"[{host}]:{port} {public_key}\n{host} {public_key}\n")
-        common = [
-            "-o",
-            "BatchMode=yes",
-            "-o",
-            "IdentitiesOnly=yes",
-            "-o",
-            "StrictHostKeyChecking=yes",
-            "-o",
-            f"UserKnownHostsFile={hosts}",
-            "-o",
-            "ConnectTimeout=20",
-            "-i",
-            str(key),
-        ]
-        ssh = ["ssh", *common, "-p", str(port), f"{user}@{host}"]
-        scp = ["scp", *common, "-P", str(port)]
+        ssh, scp, host, user = ssh_transport(env, work)
         if run("server identity", [*ssh, "hostname -s"]).strip().lower() != "servera":
             raise RuntimeError("SSH target is not serverA")
         remote_script = f"/tmp/qs-ai-deploy-{run_id}-{attempt}.py"
@@ -570,7 +591,7 @@ def main() -> None:
             )
         try:
             if action == "rollback":
-                print(run("rollback", [*ssh, f"python3 {remote_script} rollback"]), end="")
+                print(remote_operation("rollback", ssh, remote_script, ["rollback"], env), end="")
                 record_deployment(ssh)
                 return
             docker_config = work / "docker"
@@ -641,9 +662,8 @@ def main() -> None:
             # The active schema executor reads target heads before runtime handoff.
             # Pin and preflight the uploaded image before entering that executor.
             print(
-                run(
-                    "remote preparation",
-                    [*ssh, f"python3 {remote_script} prepare {release_id}"],
+                remote_operation(
+                    "remote preparation", ssh, remote_script, ["prepare", release_id], env
                 ),
                 end="",
             )
@@ -652,7 +672,7 @@ def main() -> None:
                 return
             try:
                 print(
-                    run("remote deployment", [*ssh, f"python3 {remote_script} {release_id}"]),
+                    remote_operation("remote deployment", ssh, remote_script, [release_id], env),
                     end="",
                 )
             except RuntimeError:
