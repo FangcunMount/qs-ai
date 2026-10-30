@@ -173,12 +173,32 @@ def materials(release):
 
 
 def compatible(release):
+    global PHASE
+    PHASE = "checkpoint_binding"
     deploy.require_final_messaging(release)
-    deploy._offline_release_preflight(release, True)
+    PHASE = "offline_preflight"
+    try:
+        deploy._offline_release_preflight(release, True)
+    except deploy.DeploymentError as error:
+        # Fixed local prefixes only; never expose private command/driver output.
+        for prefix, phase in (
+            ("Installed MQ materials not verified;", "material_receipt"),
+            ("Reviewed material tool unavailable;", "material_tool"),
+            ("MQ key file preflight failed (", "mq_key_files"),
+            ("TLS file preflight failed (", "tls_files"),
+            ("compose services failed (", "compose_validation"),
+        ):
+            if str(error).startswith(prefix):
+                PHASE = phase
+                break
+        raise
+    PHASE = "schema_contract"
     heads = deploy.expected_heads(release)
+    PHASE = "schema_probe"
     result = deploy.probe(release, True)  # Existing read-only schema checker, no Alembic.
     if result.get("current") != heads or result.get("expected") != heads:
         raise deploy.DeploymentError("Existing runtime schema is not an exact rollback head")
+    PHASE = "live_tls"
     deploy.run(
         "handoff live mTLS probe",
         deploy.compose(
@@ -195,8 +215,10 @@ def compatible(release):
 
 
 def prepare(name, image, state_sha, config_sha):
+    global PHASE
     release = deploy.release_path(name)
     facts, config = observe()
+    PHASE = "checkpoint_identity"
     if not name.startswith(facts["revision"] + "-") or (
         facts["image_id"],
         facts["state_sha256"],
@@ -206,6 +228,7 @@ def prepare(name, image, state_sha, config_sha):
     raw_state = state_bytes()
     if digest(raw_state) != state_sha:
         raise deploy.DeploymentError("Previous state changed before preparation")
+    PHASE = "checkpoint_files"
     release.mkdir(mode=0o700)  # A fresh immutable checkpoint; never overwrite any old release.
     service = config["services"]["qs-ai"]
     for mount in service.get("volumes", []):
@@ -241,8 +264,11 @@ def prepare(name, image, state_sha, config_sha):
     (release / "image.env").write_text(f"QS_AI_IMAGE={image}\n")
     (release / "old-state.json").write_bytes(raw_state)
     database = compatible(release)
-    if observe()[0] != facts:
+    current_facts = observe()[0]
+    PHASE = "runtime_recheck"
+    if current_facts != facts:
         raise deploy.DeploymentError("Runtime changed during checkpoint preparation")
+    PHASE = "checkpoint_receipt"
     proof = {
         "format": "qs-ai-runtime-handoff/v1",
         "release": name,
@@ -261,6 +287,8 @@ def prepare(name, image, state_sha, config_sha):
 
 
 def adopt(name, prepared_sha):
+    global PHASE
+    PHASE = "checkpoint_review"
     release = deploy.release_path(name)
     raw = (release / "handoff-prepared.json").read_bytes()
     if digest(raw) != prepared_sha:
@@ -272,13 +300,18 @@ def adopt(name, prepared_sha):
         or materials(release) != proof["materials"]
     ):
         raise deploy.DeploymentError("Prepared checkpoint changed")
-    if observe()[0] != proof["facts"]:
+    current_facts = observe()[0]
+    PHASE = "runtime_recheck"
+    if current_facts != proof["facts"]:
         raise deploy.DeploymentError(
             "Runtime or previous state changed; prepare a fresh checkpoint"
         )
     database = compatible(release)
-    if observe()[0] != proof["facts"]:
+    current_facts = observe()[0]
+    PHASE = "runtime_recheck"
+    if current_facts != proof["facts"]:
         raise deploy.DeploymentError("Runtime changed during adoption")
+    PHASE = "checkpoint_adoption"
     deploy.write_json(
         release / "verification.json",
         {
