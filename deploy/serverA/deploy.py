@@ -1005,24 +1005,31 @@ def apply(release: Path, state: dict) -> None:
     revision = manifest["revision"]
     archive = release / "image.tar.gz"
     _offline_release_preflight(release, enabled)
-    before = probe(release)
+    policy = manifest.get("schema_policy", "upgrade-compatible")
+    if policy not in {"require-existing", "upgrade-compatible"}:
+        raise DeploymentError("Unknown application release schema policy")
+    require_existing = policy == "require-existing"
+    before = probe(release, require_existing)
     guard_schema_transition(before["current"], before["expected"])
+    if require_existing and before["current"] != before["expected"]:
+        raise DeploymentError("Application release requires the existing exact schema head")
     write_json(release / "verification.json", {"phase": "preflight", "database": before})
-    # A migration failure never replaces a healthy service. MySQL DDL may be partial.
-    run(
-        "migration",
-        compose(
-            release,
-            "run",
-            "--rm",
-            "--no-deps",
-            "-T",
-            runtime_service(release),
-            "/app/.venv/bin/alembic",
-            "upgrade",
-            "head",
-        ),
-    )
+    if not require_existing:
+        # A migration failure never replaces a healthy service. MySQL DDL may be partial.
+        run(
+            "migration",
+            compose(
+                release,
+                "run",
+                "--rm",
+                "--no-deps",
+                "-T",
+                runtime_service(release),
+                "/app/.venv/bin/alembic",
+                "upgrade",
+                "head",
+            ),
+        )
     after = probe(release, True)
     try:
         if state.get("current"):

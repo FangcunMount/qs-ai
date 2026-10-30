@@ -601,6 +601,7 @@ def main() -> None:
                 for block in iter(lambda: stream.read(1024 * 1024), b""):
                     checksum.update(block)
             manifest = {
+                "schema_policy": "require-existing",
                 "revision": revision,
                 "image_id": inspected["Id"],
                 "image_ref": alias,
