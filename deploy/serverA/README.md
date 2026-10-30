@@ -48,6 +48,9 @@ state.json 仅在脚本自动部署检查（readiness、准确镜像、mTLS和�
 
 ## 运行范围
 
+生产模板将 `HOME=/tmp` 与既有 64 MiB tmpfs 配套使用。RocketMQ Python 驱动导入时即创建 `$HOME/logs/rocketmq_python`；默认 `/home/app` 位于只读根文件系统，会在连接 Broker 前失败。prepare、apply 和兼容恢复的离线预检先实际导入驱动，再进入数据库检查和运行切换；只导入类，不构造客户端或启动业务循环。
+
+
 接管检查通过容器内的 `id -u` 核验实际 UID 为 10001，并继续比较原生 Compose 与容器用户配置；Docker `User` 使用名称 `app` 是有效配置。失败只公开固定阶段码，原始 SSH／Docker／配置错误正文继续隐藏。
 
 原生 profile 可以保持 root 私有权限。接管使用既有授权的 `sudo -n docker compose ... config` 读取当前固定 namespace 的配置，完整渲染摘要必须与实际容器的环境、镜像、挂载、身份和资源约束一致。部署账号无法直接读取的原文件哈希标记为 `null`、`native_files_raw_hashes_available=false`，不能当作原始字节哈希已核验；不增加文件可读权限或通用 root Python 权限。
