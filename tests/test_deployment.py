@@ -364,6 +364,8 @@ def test_transport_prepares_before_handoff_and_never_deploys_after_failed_prefli
 
     def run(phase, args, **kwargs):
         calls.append((phase, args))
+        if phase == "upload release" and args[-2].endswith("/manifest.json"):
+            assert json.loads(Path(args[-2]).read_text())["schema_policy"] == "require-existing"
         if phase == "server identity":
             return "serverA\n"
         if phase == "image inspect":
@@ -792,3 +794,78 @@ def test_v2_write_switch_is_explicit_and_defaults_closed():
     env["QS_AI_MODEL_V2_WRITES_ENABLED"] = "yes"
     with pytest.raises(ValueError, match="must be true or false"):
         value()
+
+
+@pytest.mark.parametrize("current", ["0038_messaging_observations", "0037_workflow_messaging"])
+def test_application_only_schema_policy_never_migrates(remote, tmp_path, monkeypatch, current):
+    release, manifest = setup_release(remote, tmp_path, monkeypatch)
+    manifest["schema_policy"] = "require-existing"
+    (release / "manifest.json").write_text(json.dumps(manifest))
+    freeze_release_binding(release, manifest)
+    calls = simulate_apply(remote, monkeypatch, manifest, fail_migration=True)
+    probes = []
+
+    def probe(_path, require=False):
+        probes.append(require)
+        return {"current": [current], "expected": ["0038_messaging_observations"]}
+
+    monkeypatch.setattr(remote, "probe", probe)
+    verified = []
+    monkeypatch.setattr(remote, "verify", lambda path: verified.append(path.name))
+    monkeypatch.setattr(remote, "schema_followup_publish", lambda *args: None)
+    monkeypatch.setattr(
+        remote,
+        "stop_release",
+        lambda *args: pytest.fail("no current runtime may be stopped before schema acceptance"),
+    )
+    if current == "0038_messaging_observations":
+        remote.apply(release, {})
+        assert verified == [release.name]
+        assert json.loads((tmp_path / "state.json").read_text())["current"] == release.name
+    else:
+        with pytest.raises(remote.DeploymentError, match="existing exact schema"):
+            remote.apply(release, {})
+        assert not verified
+        assert not (tmp_path / "state.json").exists()
+    assert probes and all(probes)
+    assert "migration" not in calls
+
+
+def test_unknown_application_schema_policy_fails_without_migration(remote, tmp_path, monkeypatch):
+    release, manifest = setup_release(remote, tmp_path, monkeypatch)
+    manifest["schema_policy"] = "typo"
+    (release / "manifest.json").write_text(json.dumps(manifest))
+    freeze_release_binding(release, manifest)
+    calls = simulate_apply(remote, monkeypatch, manifest, fail_migration=True)
+    monkeypatch.setattr(
+        remote, "probe", lambda *args: pytest.fail("unknown policy cannot probe a database")
+    )
+    with pytest.raises(remote.DeploymentError, match="Unknown application"):
+        remote.apply(release, {})
+    assert "migration" not in calls
+
+
+def test_pinned_release_workflow_reuses_verified_digest_and_rejects_invalid_input():
+    import os
+    import subprocess
+    import textwrap
+
+    source = (ROOT / ".github/workflows/deploy.yml").read_text()
+    start = source.index('          if [ -n "$CANDIDATE_DIGEST" ]; then')
+    end = source.index('          [[ "$REQUESTED_SHA"', start)
+    gate = "set -euo pipefail\n" + textwrap.dedent(source[start:end])
+    for operation, digest, valid in (
+        ("deploy", "sha256:" + "a" * 64, True),
+        ("deploy", "latest", False),
+        ("build", "sha256:" + "a" * 64, False),
+        ("rollback", "sha256:" + "a" * 64, False),
+    ):
+        result = subprocess.run(
+            ["bash", "-c", gate],
+            env=dict(os.environ, OPERATION=operation, CANDIDATE_DIGEST=digest),
+            capture_output=True,
+            timeout=5,
+        )
+        assert (result.returncode == 0) is valid
+    assert "inputs.candidate_digest == ''" in source
+    assert "IMAGE_DIGEST: ${{ inputs.candidate_digest || needs.build.outputs.digest }}" in source
