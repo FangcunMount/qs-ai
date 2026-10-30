@@ -417,3 +417,32 @@ def test_handoff_failure_reports_only_a_bounded_phase_not_private_output():
         client.export_failure_kind(b"QS_AI_HANDOFF_FAILURE:private-credential:Error")
         == "unclassified"
     )
+
+
+@pytest.mark.parametrize(
+    ("method", "phase"),
+    [
+        ("require_final_messaging", "checkpoint_binding"),
+        ("_offline_release_preflight", "offline_preflight"),
+        ("expected_heads", "schema_contract"),
+        ("probe", "schema_probe"),
+    ],
+)
+def test_checkpoint_failure_classifies_real_stage_without_private_output(
+    handoff, monkeypatch, method, phase
+):
+    def fail(*_args):
+        raise handoff.module.deploy.DeploymentError("private output withheld")
+
+    monkeypatch.setattr(handoff.module.deploy, method, fail)
+    with pytest.raises(handoff.module.deploy.DeploymentError):
+        prepared(handoff)
+    assert handoff.module.PHASE == phase
+    client = load("scripts/cd/deploy.py")
+    assert (
+        client.export_failure_kind(
+            ("QS_AI_HANDOFF_FAILURE:" + phase + ":DeploymentError\n").encode()
+        )
+        == "handoff_" + phase + "_deploymenterror"
+    )
+    assert handoff.module.state_bytes() == handoff.raw_state
