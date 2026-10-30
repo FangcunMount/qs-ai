@@ -301,6 +301,9 @@ def test_checkpoint_compose_roundtrip_preserves_literal_environment_and_all_moun
         "inventory",
         "budget",
         "root_uid",
+        "private_files",
+        "private_files_mismatch",
+        "null_defaults",
     ],
 )
 def test_observation_compares_actual_runtime_with_frozen_config_without_exposing_it(
@@ -314,6 +317,15 @@ def test_observation_compares_actual_runtime_with_frozen_config_without_exposing
     compose = directory / "compose.json"
     compose.write_text("{}")
     (directory / "runtime.env").write_text("private-placeholder")
+    if conflict in {"private_files", "private_files_mismatch"}:
+        original_read = Path.read_bytes
+
+        def private_read(path):
+            if path.parent == directory:
+                raise PermissionError("Native profile remains root-private")
+            return original_read(path)
+
+        monkeypatch.setattr(Path, "read_bytes", private_read)
     config = copy.deepcopy(handoff.config)
     config["services"]["qs-ai"]["read_only"] = True
     service = config["services"]["qs-ai"]
@@ -346,7 +358,7 @@ def test_observation_compares_actual_runtime_with_frozen_config_without_exposing
         "Architecture": "amd64",
         "Config": {"Env": ["QS_AI_RELEASE_SHA=" + REVISION]},
     }
-    if conflict == "environment":
+    if conflict in {"environment", "private_files_mismatch"}:
         service["environment"]["QS_AI_DATABASE_URL"] = "changed-private-url"
     if conflict == "mount":
         row["Mounts"][0]["RW"] = True
@@ -358,6 +370,13 @@ def test_observation_compares_actual_runtime_with_frozen_config_without_exposing
         service["cpus"] = 1.0
     if conflict == "named_user":
         service["user"] = row["Config"]["User"] = image["Config"]["User"] = "app"
+    if conflict == "null_defaults":
+        service.update(user=None, command=None, entrypoint=None)
+        row["Config"]["User"] = image["Config"]["User"] = "app"
+        row["Config"]["Cmd"] = image["Config"]["Cmd"] = ["python", "-m", "server"]
+        row["Config"]["Entrypoint"] = image["Config"]["Entrypoint"] = ["/app/entry"]
+        service["environment"]["REMOVED_BY_COMPOSE"] = None
+        image["Config"]["Env"].append("REMOVED_BY_COMPOSE=old")
 
     def run(phase, args):
         if phase == "handoff runtime":
@@ -372,7 +391,7 @@ def test_observation_compares_actual_runtime_with_frozen_config_without_exposing
         return "c" * 64 + ("\n" + "e" * 64 if conflict == "inventory" else "")
 
     monkeypatch.setattr(module.deploy, "run", run)
-    if conflict not in (None, "named_user"):
+    if conflict not in (None, "named_user", "private_files", "null_defaults"):
         with pytest.raises(module.deploy.DeploymentError):
             module.observe()
     else:
@@ -381,6 +400,10 @@ def test_observation_compares_actual_runtime_with_frozen_config_without_exposing
         assert service["environment"]["QS_AI_DATABASE_URL"] not in json.dumps(facts)
         assert facts["state_sha256"] == module.digest(handoff.raw_state)
         assert facts["effective_uid"] == "10001"
+        assert facts["native_files_raw_hashes_available"] is (conflict != "private_files")
+        if conflict == "private_files":
+            assert set(facts["native_files_sha256"].values()) == {None}
+            assert facts["config_sha256"] == module.deploy.json_digest(config)
 
 
 def test_handoff_failure_reports_only_a_bounded_phase_not_private_output():
@@ -389,7 +412,7 @@ def test_handoff_failure_reports_only_a_bounded_phase_not_private_output():
         b"private credential and configuration withheld\n"
         b"QS_AI_HANDOFF_FAILURE:runtime_binding:DeploymentError\n"
     )
-    assert client.export_failure_kind(raw) == "handoff_runtime_binding"
+    assert client.export_failure_kind(raw) == "handoff_runtime_binding_deploymenterror"
     assert (
         client.export_failure_kind(b"QS_AI_HANDOFF_FAILURE:private-credential:Error")
         == "unclassified"
