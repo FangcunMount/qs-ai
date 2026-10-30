@@ -843,3 +843,29 @@ def test_unknown_application_schema_policy_fails_without_migration(remote, tmp_p
     with pytest.raises(remote.DeploymentError, match="Unknown application"):
         remote.apply(release, {})
     assert "migration" not in calls
+
+
+def test_pinned_release_workflow_reuses_verified_digest_and_rejects_invalid_input():
+    import os
+    import subprocess
+    import textwrap
+
+    source = (ROOT / ".github/workflows/deploy.yml").read_text()
+    start = source.index('          if [ -n "$CANDIDATE_DIGEST" ]; then')
+    end = source.index('          [[ "$REQUESTED_SHA"', start)
+    gate = "set -euo pipefail\n" + textwrap.dedent(source[start:end])
+    for operation, digest, valid in (
+        ("deploy", "sha256:" + "a" * 64, True),
+        ("deploy", "latest", False),
+        ("build", "sha256:" + "a" * 64, False),
+        ("rollback", "sha256:" + "a" * 64, False),
+    ):
+        result = subprocess.run(
+            ["bash", "-c", gate],
+            env=dict(os.environ, OPERATION=operation, CANDIDATE_DIGEST=digest),
+            capture_output=True,
+            timeout=5,
+        )
+        assert (result.returncode == 0) is valid
+    assert "inputs.candidate_digest == ''" in source
+    assert "IMAGE_DIGEST: ${{ inputs.candidate_digest || needs.build.outputs.digest }}" in source
