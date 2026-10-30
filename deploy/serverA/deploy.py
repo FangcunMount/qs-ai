@@ -24,6 +24,30 @@ class DeploymentError(RuntimeError):
 ROOT = Path("/opt/qs-ai")
 RETENTION_ROOT = Path("/var/lib/fangcun-image-retention")
 MATERIAL_TOOL_SHA256 = "36f3046ed453dfbf8beae684269c94d1a6db0abaa23de51e09d41e462c6a3d5c"
+_MATERIAL_PASSWORD = None
+
+
+def read_material_auth() -> None:
+    """Optional SSH stdin envelope; never pass credentials in argv or application env."""
+    global _MATERIAL_PASSWORD
+    if sys.argv[1:2] != ["--material-password-stdin"]:
+        return
+    raw = sys.stdin.read(8193)
+    try:
+        value = json.loads(raw)
+        password = value["material_password"]
+        if (
+            len(raw) > 8192
+            or set(value) != {"material_password"}
+            or not isinstance(password, str)
+            or not password
+            or any(c in password for c in "\x00\r\n")
+        ):
+            raise ValueError
+    except (ValueError, TypeError, KeyError):
+        raise DeploymentError("Invalid material authentication envelope") from None
+    _MATERIAL_PASSWORD = password
+    del sys.argv[1]
 
 
 def installed_material_tool() -> Path:
@@ -465,7 +489,31 @@ def write_json(path: Path, value: dict) -> None:
 
 
 def run(phase: str, args: list[str]) -> str:
-    result = subprocess.run(args, capture_output=True, text=True, timeout=1200)
+    authentication = {}
+    # Password authentication is restricted to the reviewed read-only entry point.
+    # Docker and every other privileged command retain the existing sudoers policy.
+    prefix = [
+        "sudo",
+        "-n",
+        "/usr/bin/python3",
+        "-I",
+        "/opt/fangcun-m4/material-tools/" + MATERIAL_TOOL_SHA256 + ".py",
+        "--verify-installed",
+        "--host",
+        "serverA",
+        "--expect-role",
+        "ai",
+        "--expect-revision",
+    ]
+    if (
+        _MATERIAL_PASSWORD is not None
+        and len(args) == 12
+        and args[:11] == prefix
+        and re.fullmatch(r"m4-[a-z0-9][a-z0-9-]{0,59}", args[11])
+    ):
+        args = ["sudo", "-S", "-p", "", *args[2:]]
+        authentication["input"] = _MATERIAL_PASSWORD + "\n"
+    result = subprocess.run(args, capture_output=True, text=True, timeout=1200, **authentication)
     if result.returncode:
         # Do not expose raw driver/Compose errors, which may contain credentials.
         detail = ""
@@ -658,6 +706,32 @@ def release_path(name: str) -> Path:
     if not re.fullmatch(r"[0-9a-f]{40}-[0-9]+-[0-9]+", name):
         raise ValueError("Invalid release identifier")
     return ROOT / "releases" / name
+
+
+def guard_current_runtime(state: dict) -> None:
+    """Reject a stale rollback pointer before loading images, probing DBs or stopping."""
+    containers = run(
+        "current runtime inventory",
+        ["sudo", "-n", "docker", "ps", "-q", "--filter", "label=com.docker.compose.project=qs-ai"],
+    ).split()
+    if not state.get("current"):
+        if containers:
+            raise DeploymentError(
+                "Running AI has no release state; explicit runtime handoff required"
+            )
+        return
+    expected = release_image_id(release_path(state["current"]), verify_identity=True)
+    if not containers:
+        raise DeploymentError("Current AI release is not running; preserve rollback evidence")
+    for container in containers:
+        actual = run(
+            "current runtime image",
+            ["sudo", "-n", "docker", "inspect", container, "--format", "{{.Image}}"],
+        ).strip()
+        if actual != expected:
+            raise DeploymentError(
+                "Running AI differs from release state; explicit runtime handoff required"
+            )
 
 
 def validate_transaction_binding(value: dict) -> None:
@@ -1130,6 +1204,7 @@ def retain_successful_image(release):
 
 def main() -> None:
     os.umask(0o077)
+    read_material_auth()
     ROOT.mkdir(exist_ok=True)
     with global_deploy_lock(), (ROOT / "deploy.lock").open("a") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -1141,6 +1216,7 @@ def main() -> None:
             return
         if len(sys.argv) != 2:
             raise DeploymentError("Expected release, rollback, or prepare <release>")
+        guard_current_runtime(state)
         if sys.argv[1] == "rollback":
             followup = schema_followup_module()
             if followup is None:

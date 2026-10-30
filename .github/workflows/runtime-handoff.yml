@@ -1,0 +1,65 @@
+name: Existing AI runtime handoff
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        type: choice
+        options: [inspect, prepare, adopt]
+        default: inspect
+      release:
+        description: 'Fresh checkpoint: observed source SHA-run-attempt'
+        required: false
+      image_id:
+        description: 'Exact image ID returned by inspect'
+        required: false
+      state_sha256:
+        description: 'Exact old state hash returned by inspect'
+        required: false
+      config_sha256:
+        description: 'Exact frozen config hash returned by inspect'
+        required: false
+      prepared_sha256:
+        description: 'Reviewed prepare receipt hash, required for adopt'
+        required: false
+permissions:
+  contents: read
+concurrency:
+  group: qs-ai-serverA
+  cancel-in-progress: false
+jobs:
+  handoff:
+    if: vars.AUTO_DEPLOY_ENABLED == 'false'
+    runs-on:
+      group: qlume
+      labels: [self-hosted, macOS, ARM64]
+    environment: production
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.12.13'
+          python-version: '3.11'
+      - run: uv sync --locked --no-dev
+      - name: Inspect or adopt the already-running runtime without replacing it
+        env:
+          AUTO_DEPLOY_ENABLED: ${{ vars.AUTO_DEPLOY_ENABLED }}
+          HANDOFF_OPERATION: ${{ inputs.operation }}
+          HANDOFF_RELEASE: ${{ inputs.release }}
+          HANDOFF_IMAGE: ${{ inputs.image_id }}
+          HANDOFF_STATE_SHA: ${{ inputs.state_sha256 }}
+          HANDOFF_CONFIG_SHA: ${{ inputs.config_sha256 }}
+          HANDOFF_PREPARED_SHA: ${{ inputs.prepared_sha256 }}
+          SVRA_HOST: ${{ vars.SVRA_PUBLIC_HOST || vars.SVRA_HOST || secrets.SVRA_HOST }}
+          SVRA_USERNAME: ${{ vars.SVRA_USERNAME || secrets.SVRA_USERNAME }}
+          SVRA_SSH_PORT: ${{ vars.SVRA_SSH_PORT || secrets.SVRA_SSH_PORT || '22' }}
+          SVRA_SSH_KEY: ${{ secrets.SVR_MINI_SSH_KEY || secrets.SVRA_SSH_KEY }}
+          SVRA_HOST_PUBLIC_KEY: ${{ vars.SVRA_HOST_PUBLIC_KEY }}
+          SVRA_SUDO_PASSWORD: ${{ secrets.SVRA_SUDO_PASSWORD }}
+        run: uv run python scripts/cd/runtime_handoff.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: qs-ai-handoff-${{ inputs.operation }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: handoff-receipt.json
+          if-no-files-found: error
+          retention-days: 90

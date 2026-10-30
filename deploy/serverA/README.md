@@ -46,6 +46,14 @@ state.json 仅在脚本自动部署检查（readiness、准确镜像、mTLS和�
 
 ## 运行范围
 
+普通发布与回退在镜像加载、数据库探测和停止服务前，核对实际运行镜像与 `state.json.current` 的绑定。若独立维护流程已更新运行版本而旧台账未同步，发布拒绝继续，不能把旧指针当作可用回退版本。
+
+此时保持 `AUTO_DEPLOY_ENABLED=false`，使用 [Existing AI runtime handoff](../../.github/workflows/runtime-handoff.yml) 的三个独立操作。`inspect` 只读取得当前容器、镜像、源码、旧台账和原生 Compose 配置的哈希；`prepare` 输入这些精确值及新的 `<当前源码 SHA>-<run>-<attempt>` 检查点 ID，在主机私有目录保存当前配置和旧台账原始字节，复用材料、密钥、TLS、只读 exact-head schema 和当前 mTLS 探针；`adopt` 输入准备结果的 `prepared_sha256`，在两把既有发布锁下重查运行事实和材料后才更新指针。两步均不停止、重建或启动服务，不执行 Alembic、不修改业务数据。准备失败保留现场且不更新指针。
+
+检查点固定实际镜像 ID，记录 `provenance=observed-existing-runtime` 和 `deployed=false`，不冒充一次新部署。旧 `state.json` 原始字节保存在检查点的 `old-state.json`，历史发布目录保留；不兼容的旧指针退出普通 `previous` 候选。下一次正常发布成功后，当前检查点才成为其回退版本。配置正文只保存在 serverA 的 0700/0600 路径，不进入 Actions 制品或日志。Compose 导出省略的 `create_host_path=false` 会显式写回检查点，保持单文件只读挂载限制。
+
+可选 Secret `SVRA_SUDO_PASSWORD` 只通过 SSH 标准输入传给已固定哈希的 `--verify-installed` 材料验证命令；Docker 等其他命令仍使用既有 `sudo -n` 规则。密码不进入命令参数、容器环境或制品。无该 Secret 时继续使用原来的免密验证规则；认证失败须修正有效作用域的凭据，不修改 sudoers 或绕过材料检查。接管不代表后续新版本已完成生产验收。
+
 一个 qs-ai 容器，上限 768 MiB / 0.75 CPU，UID 10001、只读根文件系统和有界日志。HTTP 映射 127.0.0.1:18080，gRPC 仅容器网络可达。qs-ai-grpc / qs-ai-api 为网络别名。短维护窗口内先停止旧准入并排空全部旧进程，再启动新服务；回滚也先停止新服务，不允许执行器重叠。停止宽限 210 秒，MQ 发布器保留至业务回执和失败移交完成。
 
 操作语义与证据分层见 [部署迁移与兼容回滚](../../docs/04-接口与运维/05-部署迁移与兼容回滚.md)。历史发布记录从 [文档总入口](../../docs/README.md)进入，不能把历史健康/验收刷新为当前状态。
