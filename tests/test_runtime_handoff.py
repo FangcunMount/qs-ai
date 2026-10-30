@@ -493,3 +493,55 @@ def test_offline_failure_exports_only_allowlisted_local_phase(handoff, monkeypat
         == "handoff_" + phase + "_deploymenterror"
     )
     assert handoff.module.state_bytes() == handoff.raw_state
+
+
+@pytest.mark.parametrize("operation", ["run", "up", "stop", "exec", "config"])
+@pytest.mark.parametrize("observed", [True, False])
+def test_only_native_oneoff_probes_release_reserved_addresses(tmp_path, operation, observed):
+    remote = load("deploy/serverA/deploy.py")
+    release = tmp_path / "checkpoint"
+    release.mkdir()
+    config = {
+        "services": {
+            "qs-ai": {
+                "environment": {"PRIVATE": "unchanged"},
+                "networks": {
+                    "infra-network": {
+                        "ipv4_address": "172.20.0.225",
+                        "ipv6_address": "fd00::225",
+                        "aliases": ["qs-ai-grpc"],
+                        "priority": 1000,
+                    }
+                },
+            }
+        }
+    }
+    for name, value in {
+        "compose.yaml": config,
+        "runtime.json": {"services": {"qs-ai": {"environment": {}}}},
+        "manifest.json": {"provenance": "observed-existing-runtime" if observed else "historical"},
+    }.items():
+        (release / name).write_text(json.dumps(value))
+    (release / "image.env").write_text("QS_AI_IMAGE=" + IMAGE + "\n")
+    original = {p.name: p.read_bytes() for p in release.iterdir()}
+    args = remote.compose(release, operation, "--rm")
+    transient = None
+    with pytest.raises(RuntimeError, match="command fails"):
+        with remote.preflight_network(args) as command:
+            if operation == "run" and observed:
+                transient = Path(command[9])
+                assert transient.is_file()
+                assert transient.stat().st_mode & 0o077 == 0
+                derived = json.loads(transient.read_text())
+                expected = copy.deepcopy(config)
+                for network in expected["services"]["qs-ai"]["networks"].values():
+                    network.pop("ipv4_address")
+                    network.pop("ipv6_address")
+                assert derived == expected
+                assert command[:9] == args[:9] and command[10:] == args[10:]
+            else:
+                assert command == args
+            raise RuntimeError("command fails")
+    assert transient is None or not transient.exists()
+    assert {p.name: p.read_bytes() for p in release.iterdir()} == original
+    assert args[9] == str(release / "compose.yaml")
