@@ -1235,6 +1235,28 @@ def global_deploy_lock():
         yield
 
 
+RETENTION_HELPER = Path("/usr/local/libexec/fangcun/image-retention.py")
+
+
+def trusted_retention_helper(package):
+    trusted = RETENTION_HELPER
+    if trusted.resolve() != trusted:
+        raise DeploymentError("Untrusted image retention helper path")
+    for parent in trusted.parents:
+        info = parent.stat()
+        if not stat.S_ISDIR(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022:
+            raise DeploymentError("Untrusted image retention helper parent")
+    info = trusted.lstat()
+    if (
+        not stat.S_ISREG(info.st_mode)
+        or info.st_uid != 0
+        or stat.S_IMODE(info.st_mode) != 0o755
+        or trusted.read_bytes() != package.read_bytes()
+    ):
+        raise DeploymentError("Trusted image retention helper missing or differs")
+    return trusted
+
+
 def retain_successful_image(release):
     # Cleanup has its own failure status; never trigger application rollback.
     try:
@@ -1245,6 +1267,7 @@ def retain_successful_image(release):
             if script.name == "deploy.py"
             else (script.with_name(script.stem + "-retention.py"))
         )
+        trusted = trusted_retention_helper(helper)
         previous = json.loads((ROOT / "state.json").read_text()).get("previous")
         protected = []
         if previous:
@@ -1258,8 +1281,9 @@ def retain_successful_image(release):
             [
                 "sudo",
                 "-n",
-                "python3",
-                str(helper),
+                "/usr/bin/python3",
+                "-I",
+                str(trusted),
                 "--service",
                 "qs-ai",
                 "--image-ref",
