@@ -63,6 +63,9 @@ jobs:
           assert importlib.util.find_spec('nsq') is None
           assert importlib.util.find_spec('tornado') is None
           PYDEPS
+      - name: Test image retention policy
+        run: python3 scripts/cd/test_image_retention.py
+
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run mypy

@@ -4,6 +4,8 @@ import io
 import json
 import tarfile
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
 from sqlalchemy.engine import make_url
@@ -639,6 +641,60 @@ def test_retention_failure_does_not_fail_successful_deployment(
     remote.retain_successful_image(release)
     assert "::warning::" in capsys.readouterr().out
     assert not (release / "failure.json").exists()
+
+
+@pytest.mark.parametrize("failure", [None, "symlink", "parent_owner", "parent_write", "content"])
+def test_retention_trust_checks_installed_bytes_and_ancestors(
+    remote, tmp_path, monkeypatch, failure
+):
+    package = tmp_path / "image-retention.py"
+    package.write_bytes(b"reviewed helper")
+    trusted = MagicMock(spec=Path)
+    parent = MagicMock(spec=Path)
+    trusted.parents = (parent,)
+    trusted.resolve.return_value = trusted if failure != "symlink" else tmp_path
+    parent.stat.return_value = SimpleNamespace(
+        st_uid=1000 if failure == "parent_owner" else 0,
+        st_mode=0o40777 if failure == "parent_write" else 0o40755,
+    )
+    trusted.lstat.return_value = SimpleNamespace(st_uid=0, st_mode=0o100755)
+    trusted.read_bytes.return_value = b"different" if failure == "content" else package.read_bytes()
+    monkeypatch.setattr(remote, "RETENTION_HELPER", trusted)
+    if failure:
+        with pytest.raises(remote.DeploymentError):
+            remote.trusted_retention_helper(package)
+    else:
+        assert remote.trusted_retention_helper(package) is trusted
+
+
+def test_retention_invokes_only_installed_isolated_python(remote, tmp_path, monkeypatch):
+    frozen = "sha256:" + "a" * 64
+    monkeypatch.setattr(remote, "ROOT", tmp_path)
+    (tmp_path / "state.json").write_text(json.dumps({"previous": None}))
+    monkeypatch.setattr(remote, "release_image_id", lambda _: frozen)
+    monkeypatch.setattr(remote, "trusted_retention_helper", lambda _: remote.RETENTION_HELPER)
+    monkeypatch.setattr(remote, "schema_followup_module", lambda: None)
+    calls = []
+    monkeypatch.setattr(remote, "run", lambda phase, args: calls.append((phase, args)))
+    remote.retain_successful_image(tmp_path)
+    assert calls == [
+        (
+            "image retention",
+            [
+                "sudo",
+                "-n",
+                "/usr/bin/python3",
+                "-I",
+                "/usr/local/libexec/fangcun/image-retention.py",
+                "--service",
+                "qs-ai",
+                "--image-ref",
+                frozen,
+                "--apply",
+                "--deployment-locked",
+            ],
+        )
+    ]
 
 
 def test_cutover_stops_admission_then_all_consumers_before_start(remote, tmp_path, monkeypatch):

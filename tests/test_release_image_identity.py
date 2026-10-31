@@ -232,9 +232,13 @@ def test_retention_protects_actual_loaded_ids_not_export_ids(remote, tmp_path, m
     )
     calls = []
     monkeypatch.setattr(remote, "run", lambda phase, args: calls.append((phase, args)))
+    # Host trust is independently exercised by the deployment boundary tests.
+    # This case keeps its focus on loaded IDs versus exported image identities.
+    monkeypatch.setattr(remote, "trusted_retention_helper", lambda _: remote.RETENTION_HELPER)
     remote.retain_successful_image(current)
     phase, args = calls[0]
     assert phase == "image retention"
+    assert args[:5] == ["sudo", "-n", "/usr/bin/python3", "-I", str(remote.RETENTION_HELPER)]
     assert args[args.index("--image-ref") + 1] == current_id
     assert args[args.index("--protect-image-id") + 1] == previous_id
     assert source["image_id"] not in args
