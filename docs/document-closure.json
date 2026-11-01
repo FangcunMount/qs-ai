@@ -1,10 +1,10 @@
 {
   "schema_version": "qs-ai-document-closure/v1",
-  "source_commit": "d16e2bc2528306a9e94d9e8172937a669bfe585c",
+  "source_commit": "8f66838d40d5c222c3bdccc290b6886feb30d7ac",
   "reviewed_on": "2026-11-01",
   "authority": "runtime composition > code > machine contracts/config/migrations > scoped tests > maintained prose > dated evidence/plans/archive",
   "source_catalog": {
-    ".github/workflows/ci.yml": "5f10e5a8a543ce455eeda72d8178807117936ed3e67f27fa21bc9bc9fc622241",
+    ".github/workflows/ci.yml": "15adeefc0bfdd21a4068ae405289edd654e7f1ae4fbfdc6a1e83d0554829cff5",
     ".github/workflows/deploy.yml": "7d2f1b970453731ba1ac8f136e287c465a3172bfd455b172421d8f4b0584a7e4",
     ".github/workflows/m7-messaging.yml": "e9b73769948db5c81da115c12d3f666768668db3c004e73556bce479ef738398",
     "Dockerfile": "a228b397109b1627bee2c2cb66b3d33d3a2c7d4238a726c5b7e1a61503accf8a",
