@@ -24,6 +24,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   verify:
+    if: github.event_name != 'workflow_dispatch' || inputs.image44_digest == ''
     strategy:
       fail-fast: false
       matrix:
@@ -213,7 +214,7 @@ jobs:
   test-coverage:
     name: Complete test coverage
     needs: verify
-    if: always()
+    if: always() && (github.event_name != 'workflow_dispatch' || inputs.image44_digest == '')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -230,6 +231,7 @@ jobs:
           python3 scripts/ci/verify_test_shards.py ci-results
           --revision "$GITHUB_SHA" --count 4 --mysql 8.0.36 8.4 --attempt "$GITHUB_RUN_ATTEMPT"
   image:
+    if: github.event_name != 'workflow_dispatch' || inputs.image44_digest == ''
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -263,6 +265,7 @@ jobs:
           PY
 
   retirement-tools:
+    if: github.event_name != 'workflow_dispatch' || inputs.image44_digest == ''
     name: Retirement backup and restore (${{ matrix.mysql-version }})
     runs-on: ubuntu-latest
     strategy:

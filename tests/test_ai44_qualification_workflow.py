@@ -27,3 +27,14 @@ def test_image44_job_is_manual_hosted_and_has_no_business_credentials():
     assert "docker pull --platform linux/amd64" in raw
     assert "ai44_image_start.py" in raw and '--source-sha "$SERVICE_SHA"' in raw
     assert not any("deploy.py" in step.get("run", "") for step in steps)
+
+
+def test_manual_image_qualification_cannot_substitute_for_push_source_ci():
+    workflow = yaml.safe_load(Path(".github/workflows/ci.yml").read_text())
+    for name in ("verify", "image", "retirement-tools", "test-coverage"):
+        condition = workflow["jobs"][name]["if"]
+        assert (
+            "github.event_name != 'workflow_dispatch' || inputs.image44_digest == ''" in condition
+        )
+    gate = workflow["jobs"]["image44-qualification"]["steps"][1]["run"]
+    assert "--event push" in gate and "--branch main" in gate
