@@ -6,7 +6,7 @@ import sqlalchemy as sa
 from reliable_messaging.durable import MessageConflict
 
 from qs_ai.contracts.workflow import messaging_pb2 as pb
-from qs_ai.infrastructure.persistence.mysql.messaging import inbox
+from qs_ai.infrastructure.persistence.mysql.messaging import inbox, outbox
 from qs_ai.infrastructure.persistence.mysql.messaging_observations import (
     collect_observations,
     observations,
@@ -23,7 +23,6 @@ from tests.messaging_fixtures import (
 )
 from tests.messaging_fixtures import keys as keys
 from tests.messaging_fixtures import storage as storage
-from tests.retired_publisher import assert_retired_publisher_absent
 from tests.test_grpc_commands import Aborted, Context
 
 pytestmark = pytest.mark.integration
@@ -69,8 +68,7 @@ async def test_mq_payload_fetch_audit_retains_original_error_and_never_admits(
         await transport._body(original.envelope)
     assert failure.value is error
     assert await counter(tx, kind) == 1
-    assert await counts(tx, inbox) == [0]
-    await assert_retired_publisher_absent(tx)
+    assert await counts(tx, inbox, outbox) == [0, 0]
 
 
 @pytest.mark.parametrize(
@@ -113,8 +111,7 @@ async def test_mq_payload_serve_audit_preserves_read_rollback_and_fixed_rpc_erro
     assert len(reads) == (0 if scenario == "workload" else 1)
     assert all(not db.in_transaction() for db in reads)
     assert await counter(tx, kind) == 1
-    assert await counts(tx, inbox) == [0]
-    await assert_retired_publisher_absent(tx)
+    assert await counts(tx, inbox, outbox) == [0, 0]
 
 
 async def test_mq_audit_storage_failure_never_masks_payload_failure_or_fabricates_counts(
@@ -143,8 +140,7 @@ async def test_mq_audit_storage_failure_never_masks_payload_failure_or_fabricate
         assert failure.value is error
         assert "mq_payload_observation_unavailable" in caplog.text
         assert "private" not in caplog.text
-        assert await counts(tx, inbox) == [0]
-        await assert_retired_publisher_absent(tx)
+        assert await counts(tx, inbox, outbox) == [0, 0]
     finally:
         async with database.engine.begin() as conn:
             await conn.run_sync(observations.create)

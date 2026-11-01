@@ -80,7 +80,9 @@ jobs:
       - run: uv run python -m qs_ai.bootstrap.database_check --require-head
       - name: Empty publisher current and legacy boundaries (native MySQL)
         if: matrix.shard == 0
-        run: uv run pytest tests/integration/test_empty_publisher_retirement.py -q
+        run: >-
+          uv run pytest tests/integration/test_empty_publisher_retirement.py
+          tests/integration/test_transaction_admission_root.py -q
       - uses: actions/checkout@v4
         with:
           repository: FangcunMount/qs-server
