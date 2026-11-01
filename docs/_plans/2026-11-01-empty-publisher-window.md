@@ -62,3 +62,11 @@ MySQL DDL隐式提交，不能以事务rollback恢复已删表。原43镜像不�
 该入口要求原批准SHA及其持久consumed、同源同库新writer回执和当前一小时内恢复批准；锁定ledger行，独占消费新批准，仅条件更新一行43→44。无CREATE/DROP、无业务行恢复。commit回复未知或输出保存失败都先只读实查，不能把无输出当未执行。
 
 DDL成功后、业务重开前`verify --baseline /run/m5/frozen.json --baseline-sha256 <原件SHA256> --output /run/m5/after.json`，须44严格缺表+全部保留字节一致；capture/verify不自己授予重开资格。重开后新事实变化是正常业务，旧快照比较不再是可回放授权，故障只用44兼容前向映像修复。不得用43镜像、downgrade、直接stamp、重建旧表或覆盖旧全备恢复生产。
+
+首次业务重开命令之前，必须在原批准同一持久目录独占写入`review.json.business-reopen-issued`并fsync，再复制到另一保护位置；标记不因启动失败而删除。迁移与F1入口在检查和消费前都拒绝该标记（包括符号链接/异常文件）。正式单一协调会话在W08完整44复验后执行以下受审文件动作，再发实际启动命令；该动作本身不启动服务：
+
+```sh
+/app/.venv/bin/python -c 'from qs_ai.maintenance.publisher_material import write_private; write_private("/run/m5/review.json.business-reopen-issued", b"issued-before-business-start-command\n")'
+```
+
+取消窗口后恢复原43业务也先记录此标记，永久禁止该operation再次迁移或执行首启动前修复。批准/恢复批准commit或SSH结果未知时原标记和原consumed全部保留。
