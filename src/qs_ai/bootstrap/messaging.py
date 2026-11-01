@@ -59,6 +59,51 @@ def require_final_messaging(settings: Settings) -> None:
         )
 
 
+class _SubscriberLifetime:
+    """Join explicit Stop with the pinned SDK's exceptional wait notification.
+
+    RocketMQ SDK0.5.0 wait raises RuntimeError even after a successful host Stop;
+    transport failures carry their original cause. Only that uncaused notification
+    during an explicit, completed Stop is a normal lifecycle exit. Stop errors,
+    cancellation and caused transport failures remain failures.
+    """
+
+    def __init__(self, subscriber: Subscriber, publisher_ready: asyncio.Event, seconds: float):
+        self.subscriber = subscriber
+        self.publisher_ready = publisher_ready
+        self.seconds = seconds
+        self.started = asyncio.Event()
+        self.stopping = False
+        self.stop_result: asyncio.Future[bool] = asyncio.get_running_loop().create_future()
+
+    async def run(self) -> None:
+        await self.publisher_ready.wait()
+        await self.subscriber.start()
+        self.started.set()
+        try:
+            await self.subscriber.wait()
+        except RuntimeError as error:
+            if (
+                not isinstance(self.subscriber, RocketMQSubscriber)
+                or error.__cause__ is not None
+                or not self.stopping
+                or not await asyncio.shield(self.stop_result)
+            ):
+                raise
+
+    async def stop(self) -> None:
+        self.stopping = True
+        try:
+            await self.subscriber.stop(grace_seconds=self.seconds)
+        except BaseException:
+            if not self.stop_result.done():
+                self.stop_result.set_result(False)
+            raise
+        else:
+            if not self.stop_result.done():
+                self.stop_result.set_result(True)
+
+
 class MessagingRuntime:
     recorder: TransactionOnlyEvents
     tx: Transactions
@@ -224,25 +269,14 @@ class MessagingRuntime:
             )
         )
         for index, subscriber in enumerate(self.subscribers):
-            started = asyncio.Event()
-
-            async def consume(
-                subscriber: Subscriber = subscriber, started: asyncio.Event = started
-            ) -> None:
-                await self.publisher_ready.wait()
-                await subscriber.start()
-                started.set()
-                await subscriber.wait()
-
-            async def halt_subscriber(subscriber: Subscriber = subscriber) -> None:
-                await subscriber.stop(grace_seconds=drain_seconds)
+            lifetime = _SubscriberLifetime(subscriber, self.publisher_ready, drain_seconds)
 
             result.append(
                 Component(
                     f"mq_subscriber_{index}",
-                    consume,
-                    halt_subscriber,
-                    started.is_set,
+                    lifetime.run,
+                    lifetime.stop,
+                    lifetime.started.is_set,
                     drain_seconds + 1,
                 )
             )
