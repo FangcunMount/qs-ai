@@ -65,6 +65,10 @@ async def test_messaging_inventory_is_read_only_and_borrowed_pool_survives(legac
     monkeypatch.setattr(AsyncSession, "execute", enforce_read_only)
     report = await inventory(tx)
     assert checked == [True] and report["complete"]
+    retired = report["sections"]["ai_messaging_outbox"]
+    assert retired["available"] and not retired["table_exists"]
+    assert retired["retired_at_head"] == "0044_empty_publisher"
+    assert retired["rows"] is None and retired["total"] is None
     assert report["handoff_schema_compatible"]
     assert any(r["event_id"] == event_id for r in report["sections"]["result_outbox"]["rows"])
     assert await saved(tx, result_outbox) == before

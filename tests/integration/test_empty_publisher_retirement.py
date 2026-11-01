@@ -3,6 +3,7 @@
 import hashlib
 import json
 import os
+from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
@@ -14,6 +15,7 @@ from reliable_messaging.transaction_mysql import MySQLTransactionStore
 
 from qs_ai.maintenance.empty_publisher_retirement import retire
 from qs_ai.maintenance.schema_refactor.validation import require_runtime_schema
+from tests.integration.test_initial_transaction_binding import invoke
 from tests.integration.test_transaction_schema import installed as installed
 from tests.integration.test_transaction_schema import plan
 from tests.test_empty_publisher_review import reviewed
@@ -58,6 +60,28 @@ async def test_fresh_head_install_and_current_metadata_agree(tmp_path):
                 == "0044_empty_publisher"
             )
             assert "messaging_outbox" not in sa.inspect(conn).get_table_names()
+        target = SimpleNamespace(url=engine.url.set(drivername="mysql+asyncmy"))
+        review = tmp_path / "initial-binding.json"
+        preview = await invoke(
+            target,
+            review,
+            "preview",
+            "--operation-id",
+            "fresh0044",
+            "--store-id",
+            "new-original-primary",
+            "--writer-epoch",
+            "m3-1",
+        )
+        assert preview[0] == 0, preview[2]
+        assert json.loads(review.read_text())["schema_head"] == "0044_empty_publisher"
+        approved = hashlib.sha256(review.read_bytes()).hexdigest()
+        result = await invoke(
+            target, review, "apply", "--reviewed-sha256", approved, "--writers-excluded"
+        )
+        assert result[0] == 0, result[2]
+        verified = await invoke(target, review, "verify", "--reviewed-sha256", approved)
+        assert verified[0] == 0 and verified[1]["read_only"] is True
     finally:
         if engine is not None:
             engine.dispose()
@@ -176,3 +200,45 @@ async def test_reviewed_upgrade_preserves_all_retained_rows_and_refuses_replay(
         with pytest.raises(ValueError, match="table set"):
             await conn.run_sync(require_runtime_schema)
         await conn.execute(sa.text("DROP TABLE messaging_outbox"))
+
+
+async def test_pre_drop_failure_keeps_consumed_marker_and_original_store(
+    legacy_engine, tmp_path, monkeypatch
+):
+    engine = legacy_engine
+    path, candidate = reviewed(tmp_path, monkeypatch)
+    async with engine.begin() as conn:
+        await conn.execute(sa.text("DELETE FROM messaging_outbox WHERE message_id='old'"))
+    async with engine.connect() as conn:
+        before = await conn.run_sync(snapshot)
+        uuid, db = (await conn.execute(sa.text("SELECT @@server_uuid,DATABASE()"))).one()
+        ddl = (await conn.execute(sa.text("SHOW CREATE TABLE messaging_outbox"))).one()[1]
+        candidate.update(
+            mysql_identity_sha256=hashlib.sha256(
+                json.dumps([uuid, db], sort_keys=True, separators=(",", ":")).encode()
+            ).hexdigest(),
+            table_ddl_sha256=hashlib.sha256(ddl.encode()).hexdigest(),
+        )
+        path.write_text(json.dumps(candidate))
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+
+        def fail_drop(connection, cursor, statement, parameters, context, executemany):
+            if statement == "DROP TABLE messaging_outbox":
+                raise RuntimeError("injected before DDL dispatch")
+
+        sa.event.listen(engine.sync_engine, "before_cursor_execute", fail_drop)
+        try:
+            with pytest.raises(RuntimeError, match="before DDL dispatch"):
+                await conn.run_sync(
+                    lambda c: retire(c, fresh=False, review_path=str(path), reviewed_sha256=digest)
+                )
+        finally:
+            sa.event.remove(engine.sync_engine, "before_cursor_execute", fail_drop)
+        assert path.with_suffix(".json.consumed").read_text().strip() == digest
+        assert await conn.run_sync(snapshot) == before
+        await conn.run_sync(require_runtime_schema)
+        with pytest.raises(FileExistsError):
+            await conn.run_sync(
+                lambda c: retire(c, fresh=False, review_path=str(path), reviewed_sha256=digest)
+            )
+        assert await conn.scalar(sa.text("SELECT COUNT(*) FROM messaging_outbox")) == 0
