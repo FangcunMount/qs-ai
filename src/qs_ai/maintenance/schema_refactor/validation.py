@@ -273,6 +273,15 @@ def require_schema(
 
 def require_runtime_schema(conn: Connection) -> None:
     """Validate each explicit runtime layout without changing conversion contracts."""
+    _runtime_schema(conn, pending_publisher_drop=False)
+
+
+def require_pending_publisher_drop(conn: Connection) -> None:
+    """Offline recovery only: exact43 ledger and exact44 physical layout."""
+    _runtime_schema(conn, pending_publisher_drop=True)
+
+
+def _runtime_schema(conn: Connection, *, pending_publisher_drop: bool) -> None:
     from qs_ai.infrastructure.persistence.mysql.native_limit_schema import (
         metadata as native_metadata,
     )
@@ -288,7 +297,13 @@ def require_runtime_schema(conn: Connection) -> None:
     heads = list(conn.execute(sa.text("SELECT version_num FROM alembic_version")).scalars())
     if heads not in (["0043_native_transaction_limit"], ["0044_empty_publisher"]):
         raise ValueError("Unknown runtime schema head")
-    excluded = frozenset({"messaging_outbox"}) if heads == ["0044_empty_publisher"] else frozenset()
+    if pending_publisher_drop and heads != ["0043_native_transaction_limit"]:
+        raise ValueError("Pending publisher recovery requires exact43 ledger")
+    excluded = (
+        frozenset({"messaging_outbox"})
+        if pending_publisher_drop or heads == ["0044_empty_publisher"]
+        else frozenset()
+    )
     schema = str(conn.scalar(sa.text("SELECT DATABASE()")))
     _require_layout(
         conn,
