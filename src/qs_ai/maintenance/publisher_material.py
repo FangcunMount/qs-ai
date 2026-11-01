@@ -90,6 +90,15 @@ def write_private(path: str, raw: bytes) -> None:
         os.close(parent)
 
 
+def require_not_reopened(original_review: str) -> None:
+    # lstat also rejects a symlink or malformed marker; never remove it to retry.
+    try:
+        os.lstat(original_review + ".business-reopen-issued")
+    except FileNotFoundError:
+        return
+    raise ValueError("Business reopen issued; preserve new facts and repair44 forward")
+
+
 def current_receipt(value: dict[str, Any]) -> None:
     now = datetime.now(UTC)
     issued = datetime.fromisoformat(value["recorded_at"])

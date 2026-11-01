@@ -228,3 +228,30 @@ def test_capture_never_promotes_live_readonly_to_frozen(tmp_path, monkeypatch):
     result = protection(frozen, source="a" * 40, operation="live")
     assert result["frozen"] is False and result["execution_approval"] is False
     assert result["retained_fingerprints_are_backup"] is False
+
+
+def test_first_business_reopen_marker_permanently_closes_prestart_repair(tmp_path):
+    from qs_ai.maintenance.publisher_material import require_not_reopened, write_private
+
+    review = str(tmp_path / "review.json")
+    require_not_reopened(review)
+    write_private(review + ".business-reopen-issued", b"issued-before-start-command\n")
+    with pytest.raises(ValueError, match="Business reopen issued"):
+        require_not_reopened(review)
+
+
+async def test_cleanup_failure_returns_failure_without_driver_detail(tmp_path, monkeypatch, capsys):
+    import qs_ai.maintenance.publisher_window as module
+
+    class CleanupFailure:
+        engine = None
+
+        async def close(self):
+            raise RuntimeError("sensitive-driver-detail")
+
+    monkeypatch.setenv("QS_AI_PUBLISHER_WINDOW_DATABASE_URL", "mysql+asyncmy://synthetic-only")
+    monkeypatch.setattr(module, "Database", lambda *args, **kwargs: CleanupFailure())
+    assert await module.run(type("Args", (), {})()) == 1
+    output = capsys.readouterr()
+    assert "sensitive-driver-detail" not in output.err
+    assert "cleanup failed" in output.err

@@ -24,6 +24,7 @@ from qs_ai.maintenance.publisher_material import (
     document,
     encoded,
     private_bytes,
+    require_not_reopened,
     same_retained,
     snapshot,
     write_private,
@@ -108,6 +109,7 @@ def reconcile(conn: Connection, path: str, reviewed_sha: str) -> dict[str, Any]:
         operation=recovery["operation_id"],
         identity=recovery["mysql_identity_sha256"],
     )
+    require_not_reopened(recovery["original_review"])
     original = document(recovery["original_review"], recovery["original_sha256"])
     original = _review(
         recovery["original_review"],
@@ -136,6 +138,7 @@ def reconcile(conn: Connection, path: str, reviewed_sha: str) -> dict[str, Any]:
     if current["state"] != "43_drop_committed_ledger_pending":
         raise ValueError("Forward convergence requires proven target absence")
     same_retained(frozen, current)
+    require_not_reopened(recovery["original_review"])
     write_private(path + ".consumed", (reviewed_sha + "\n").encode())
     result = conn.execute(
         sa.text("UPDATE alembic_version SET version_num=:target WHERE version_num=:previous"),
@@ -206,7 +209,11 @@ async def run(args: argparse.Namespace) -> int:
         return 1
     finally:
         if database is not None:
-            await database.close()
+            try:
+                await database.close()
+            except Exception:
+                print("Owned window database cleanup failed", file=sys.stderr)
+                return 1
 
 
 def main() -> None:

@@ -309,7 +309,14 @@ async def test_unknown_ddl_result_converges_forward_without_replaying_drop(
 
 
 @pytest.mark.parametrize(
-    "drift", ["retained_bytes", "retained_schema", "missing_original_marker", "wrong_database"]
+    "drift",
+    [
+        "retained_bytes",
+        "retained_schema",
+        "missing_original_marker",
+        "wrong_database",
+        "business_reopened",
+    ],
 )
 async def test_forward_recovery_refuses_unproved_original_state(
     legacy_engine,
@@ -348,6 +355,8 @@ async def test_forward_recovery_refuses_unproved_original_state(
             await conn.execute(sa.text("CREATE TABLE unexpected_retained_drift (id INT)"))
         elif drift == "missing_original_marker":
             path.with_suffix(".json.consumed").unlink()
+        elif drift == "business_reopened":
+            write_json(path.with_suffix(".json.business-reopen-issued"), {"issued": True})
         else:
             value["mysql_identity_sha256"] = "0" * 64
         recovery_sha = write_json(recovery, value)

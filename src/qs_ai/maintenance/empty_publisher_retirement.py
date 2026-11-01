@@ -16,6 +16,7 @@ from qs_ai.maintenance.publisher_material import (
     digest,
     document,
     encoded,
+    require_not_reopened,
     same_retained,
     snapshot,
     write_private,
@@ -158,6 +159,7 @@ def retire(
         raise ValueError("Nonempty publisher remains protected")
     if not fresh:
         assert review_path is not None and reviewed_sha256 is not None
+        require_not_reopened(review_path)
         plan = _review(review_path, reviewed_sha256, identity, digest(ddl.encode()))
         frozen = document(plan["protection_manifest"], plan["protection_sha256"])["snapshot"]
         same_retained(frozen, snapshot(conn))
@@ -173,6 +175,7 @@ def retire(
             if not fresh:
                 assert review_path is not None and reviewed_sha256 is not None
                 _review(review_path, reviewed_sha256, identity, digest(ddl.encode()))
+                require_not_reopened(review_path)
                 # Durable host-mounted directory, consumed before DDL dispatch.
                 write_private(review_path + ".consumed", (reviewed_sha256 + "\n").encode())
             conn.execute(sa.text("DROP TABLE messaging_outbox"))
