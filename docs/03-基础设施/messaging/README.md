@@ -1,5 +1,7 @@
 # 事务消息、原业务事实与确认
 
+> 2026-11-01 F04候选：新增0044_empty_publisher，仅退役空messaging_outbox；0043继续要求原表，0044严格要求其缺席。result历史、模型调用/响应、Inbox、业务ACK、事务archive/见证及native-limit治理保留。生产仍为0043，本候选未合并/未发布/未执行现库DDL。旧0038↔0040转换契约不扩展；审计按新版本标记retired且rows/total为null，不将缺表伪报零行。
+
 当前服务只接受RocketMQ和唯一`ai.mysql` owner；本次可读命名候选固定已发布稳定版0.5.0（源码559c735，与可读RC实现字节一致），生产升级状态另由infra登记。宿主持有数据库池、业务根事务和生命周期，构造/启动不执行DDL。旧NSQ provider、普通发布Outbox、MQRelay及历史结果转移执行器均已退役，开发隔离依赖和SDK通用兼容包不在生产清理范围内。
 
 ## 事务装配与预算
