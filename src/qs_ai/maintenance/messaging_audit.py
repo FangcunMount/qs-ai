@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 from qs_ai.infrastructure.persistence.mysql.database import Database, Transactions
 from qs_ai.infrastructure.workflow_transport.messaging import INLINE_BODY
-from qs_ai.maintenance.schema_layout import require_handoff_head as require_known_head
+from qs_ai.maintenance.schema_layout import require_audit_head as require_known_head
 from qs_ai.maintenance.schema_layout import retained_physical_table as physical_table
 from qs_ai.maintenance.schema_refactor.layouts import OLD_HEAD
 
@@ -83,6 +83,17 @@ async def inventory(transactions: Transactions, *, max_rows: int = 1000) -> dict
                 "physical_table": table,
             }
             report["sections"][name] = entry
+            if schema_head == "0044_empty_publisher" and name == "ai_messaging_outbox":
+                # Intentional physical absence is a versioned fact, never a fake zero.
+                entry.update(
+                    available=available is None,
+                    retired_at_head=schema_head,
+                    total=None,
+                    rows=None,
+                )
+                if available is not None:
+                    report["complete"] = False
+                return
             if available is None or not set(fields).union(required or set()).issubset(available):
                 entry.update(available=False, total=None, rows=None)
                 report["complete"] = False

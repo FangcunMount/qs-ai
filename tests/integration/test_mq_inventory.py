@@ -86,7 +86,7 @@ async def test_messaging_inventory_missing_table_is_unavailable_not_empty(legacy
         section = report["sections"]["ai_messaging_inbox"]
         assert not report["complete"] and not section["table_exists"]
         assert section["rows"] is None and section["total"] is None
-        assert report["schema_heads"] == ["0043_native_transaction_limit"]
+        assert report["schema_heads"] == ["0044_empty_publisher"]
     finally:
         async with tx.open() as db:
             await db.execute(text(f"RENAME TABLE mq_inventory_hidden TO {inbox.name}"))

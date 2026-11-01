@@ -42,9 +42,15 @@ def handoff_tables(head: str) -> tuple[sa.Table, sa.Table]:
     return result_outbox, outbox
 
 
+def require_audit_head(heads: list[str] | None) -> str:
+    if heads == ["0044_empty_publisher"]:
+        return heads[0]
+    return require_handoff_head(heads)
+
+
 def retained_physical_table(head: str, logical_name: str) -> str:
     """Names for retained business/Outbox audit only, not whole-layout conversion."""
-    require_handoff_head([head])
+    require_audit_head([head])
     return physical_table(
         NEW_HEAD
         if head
@@ -52,6 +58,7 @@ def retained_physical_table(head: str, logical_name: str) -> str:
             "0041_transaction_messaging",
             "0042_transaction_event_receipts",
             "0043_native_transaction_limit",
+            "0044_empty_publisher",
         )
         else head,
         logical_name,

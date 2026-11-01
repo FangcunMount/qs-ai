@@ -25,11 +25,17 @@ database_url = settings.database_url.get_secret_value() if settings.database_url
 owned_metadata = sa.MetaData()
 for source in (metadata, messaging_metadata, transaction_metadata, native_limit_metadata):
     for table in source.tables.values():
-        table.to_metadata(owned_metadata)
+        if table.name != "messaging_outbox":
+            table.to_metadata(owned_metadata)
 assert evaluation_sequences.name in owned_metadata.tables
 
 
 def migrate(connection: Connection) -> None:
+    # Only a genuinely empty catalog before the migration root may use the
+    # fresh-install path. An unversioned existing schema is never a new store.
+    context.config.attributes["empty_publisher_fresh_install"] = not sa.inspect(
+        connection
+    ).get_table_names()
     context.configure(
         connection=connection,
         version_table_schema=str(connection.scalar(sa.text("SELECT DATABASE()"))),

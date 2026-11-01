@@ -80,7 +80,7 @@ def validate_plan(plan: Any, source: str, now: datetime) -> dict[str, Any]:
         or plan["source_sha"] != source
         or plan["owner"] != "ai.mysql"
         or plan["route_revision"] != "m3-1"
-        or plan["schema_head"] != HEAD
+        or plan["schema_head"] not in {HEAD, "0044_empty_publisher"}
     ):
         raise ValueError("Initial binding contract mismatch")
     for field in ("operation_id", "store_id", "writer_epoch", "database"):
@@ -165,7 +165,7 @@ async def inspect(conn: AsyncConnection, *, bound: dict[str, Any] | None = None)
     return {
         "database": str(row[1]),
         "identity_sha256": digest([str(row[0]), str(row[1])]),
-        "schema_head": HEAD,
+        "schema_head": str(await conn.scalar(sa.text("SELECT version_num FROM alembic_version"))),
         "ddl_sha256": digest(ddl),
         "migration_resources_sha256": migration_digest(),
     }
