@@ -363,11 +363,19 @@ jobs:
           set -euo pipefail
           umask 077
           python3 .image44-infra/scripts/rocketmq/ai44_image_start.py             --source .image44-ai --source-sha "$SERVICE_SHA"             --image "$REGISTRY/$NAMESPACE/qs-ai@$IMAGE_DIGEST"             --output "$RUNNER_TEMP/ai44-qualification"
-      - name: Preserve actual image proof and independent forward archive
+      - name: Preserve actual image report including failed lifecycle diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ai44-qualification-${{ inputs.image44_source_sha }}-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/ai44-qualification/
+          name: ai44-report-${{ inputs.image44_source_sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ai44-qualification/ai44-image-qualification.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Preserve independently qualified forward archive
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai44-forward-${{ inputs.image44_source_sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ai44-qualification/ai44-forward-image.tar.gz
           if-no-files-found: error
           retention-days: 30

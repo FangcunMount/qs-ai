@@ -4,7 +4,7 @@
   "reviewed_on": "2026-11-01",
   "authority": "runtime composition > code > machine contracts/config/migrations > scoped tests > maintained prose > dated evidence/plans/archive",
   "source_catalog": {
-    ".github/workflows/ci.yml": "b4ae74a5b2962d161808767a2986e0bfb6b47d242e4da8c94f155ccf2f48e58d",
+    ".github/workflows/ci.yml": "cb5ce7dff36fc66034351f4ed647ad83c922225176f6f354f68641802c005406",
     ".github/workflows/deploy.yml": "7d2f1b970453731ba1ac8f136e287c465a3172bfd455b172421d8f4b0584a7e4",
     ".github/workflows/m7-messaging.yml": "e9b73769948db5c81da115c12d3f666768668db3c004e73556bce479ef738398",
     "Dockerfile": "a228b397109b1627bee2c2cb66b3d33d3a2c7d4238a726c5b7e1a61503accf8a",
