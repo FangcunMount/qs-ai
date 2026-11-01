@@ -1,6 +1,19 @@
 name: checks
 on:
   workflow_dispatch:
+    inputs:
+      image44_digest:
+        description: Optional immutable AI44 ACR digest; only enables an isolated image qualification
+        type: string
+        required: false
+      image44_source_sha:
+        description: Exact previously verified main service source
+        type: string
+        required: false
+      image44_infra_sha:
+        description: Exact reviewed hosted-only image qualification source
+        type: string
+        required: false
   push:
     branches: [main]
   pull_request:
@@ -285,3 +298,73 @@ jobs:
         env:
           M5_TEST_MONGO_URI: mongodb://127.0.0.1:27017
           M5_TEST_MYSQL_URL: mysql://root:retirement_test_only@127.0.0.1:3306
+
+  image44-qualification:
+    name: Actual immutable44 image and forward restart
+    if: github.event_name == 'workflow_dispatch' && github.repository == 'FangcunMount/qs-ai' && inputs.image44_digest != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Require exact reviewed source, digest and successful main CI before registry access
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SERVICE_SHA: ${{ inputs.image44_source_sha }}
+          IMAGE_DIGEST: ${{ inputs.image44_digest }}
+          INFRA_SHA: ${{ inputs.image44_infra_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$SERVICE_SHA" =~ ^[0-9a-f]{40}$ && "$INFRA_SHA" =~ ^[0-9a-f]{40}$ && "$IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+          git fetch origin main
+          git merge-base --is-ancestor "$SERVICE_SHA" FETCH_HEAD
+          gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml --commit "$SERVICE_SHA" --branch main --event push --json conclusion --jq 'any(.[]; .conclusion == "success")' | grep -qx true
+      - uses: actions/checkout@v4
+        with:
+          repository: FangcunMount/qs-ai
+          ref: ${{ inputs.image44_source_sha }}
+          path: .image44-ai
+      - uses: actions/checkout@v4
+        with:
+          repository: FangcunMount/infra
+          ref: ${{ inputs.image44_infra_sha }}
+          path: .image44-infra
+      - name: Verify hosted-only image contract
+        run: python3 -B -m unittest discover -s .image44-infra/scripts/rocketmq -p test_ai44_image_start.py
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.ALIYUN_ACR_REGISTRY }}
+          username: ${{ secrets.ALIYUN_ACR_USERNAME }}
+          password: ${{ secrets.ALIYUN_ACR_PASSWORD }}
+      - name: Pull exact application image and build only the owned Broker fixture
+        env:
+          REGISTRY: ${{ secrets.ALIYUN_ACR_REGISTRY }}
+          NAMESPACE: ${{ secrets.ALIYUN_ACR_NAMESPACE }}
+          IMAGE_DIGEST: ${{ inputs.image44_digest }}
+        run: |
+          set -euo pipefail
+          docker pull --platform linux/amd64 "$REGISTRY/$NAMESPACE/qs-ai@$IMAGE_DIGEST"
+          bash .image44-infra/scripts/rocketmq/fetch-release.sh
+          docker build -t rocketmq-m3-image-start:5.5.1 .image44-infra/components/rocketmq
+      - name: Actual44 restore and paused runtime starts with retained new fixture facts
+        env:
+          REGISTRY: ${{ secrets.ALIYUN_ACR_REGISTRY }}
+          NAMESPACE: ${{ secrets.ALIYUN_ACR_NAMESPACE }}
+          IMAGE_DIGEST: ${{ inputs.image44_digest }}
+          SERVICE_SHA: ${{ inputs.image44_source_sha }}
+        run: |
+          set -euo pipefail
+          umask 077
+          python3 .image44-infra/scripts/rocketmq/ai44_image_start.py             --source .image44-ai --source-sha "$SERVICE_SHA"             --image "$REGISTRY/$NAMESPACE/qs-ai@$IMAGE_DIGEST"             --output "$RUNNER_TEMP/ai44-qualification"
+      - name: Preserve actual image proof and independent forward archive
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai44-qualification-${{ inputs.image44_source_sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ai44-qualification/
+          if-no-files-found: error
+          retention-days: 30
