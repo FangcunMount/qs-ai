@@ -13,7 +13,6 @@ from qs_ai.application.evaluation.management import ManagementScope
 from qs_ai.infrastructure.persistence.mysql.database import EventSession
 from qs_ai.infrastructure.persistence.mysql.evaluation_checkpoints import save_checkpoint
 from qs_ai.infrastructure.persistence.mysql.evaluation_management import MySQLEvaluationManagement
-from qs_ai.infrastructure.persistence.mysql.messaging import outbox
 from qs_ai.infrastructure.persistence.mysql.transaction_schema import archive
 from qs_ai.infrastructure.workflow_transport.cancellation_drain_state import (
     CancellationDrainPlanner,
@@ -33,6 +32,7 @@ from tests.integration.test_transaction_start_admission import (
     required_disposable_primary as required_disposable_primary,
 )
 from tests.messaging_fixtures import keys as keys
+from tests.retired_publisher import assert_retired_publisher_absent
 from tests.route_fixtures import legacy_routes
 
 pytestmark = pytest.mark.integration
@@ -156,13 +156,7 @@ async def test_original_drain_business_audit_sequence_archive_and_witness_commit
             assert (None if sequence is None else (sequence["sequence"], sequence["version"])) == (
                 (1, source_version + 1) if committed else None
             )
-            assert not (
-                await db.scalars(
-                    select(outbox.c.message_id).where(
-                        outbox.c.message_id == first.envelope().message_id
-                    )
-                )
-            ).all()
+            await assert_retired_publisher_absent(db)
             assert await db.scalar(text("SELECT @@transaction_isolation")) == "READ-COMMITTED"
     finally:
         host.tx.database.engine = engine

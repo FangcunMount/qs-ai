@@ -88,7 +88,8 @@ async def installed():
             command.upgrade(config, "0043_native_transaction_limit")
             conn.commit()
             # Migration and metadata must agree; this also covers native binary types/indexes.
-            command.check(config)
+            # This retained historical fixture intentionally stops at0043.
+            # The0044 tests run Alembic check at the current head.
             require_runtime_schema(conn)
             with pytest.raises(ValueError, match="table set"):
                 require_schema(conn)  # Frozen 0040 conversion validator remains strict.

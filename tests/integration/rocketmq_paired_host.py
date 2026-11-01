@@ -41,7 +41,7 @@ from qs_ai.config import Settings
 from qs_ai.contracts.workflow import messaging_pb2 as pb
 from qs_ai.contracts.workflow import messaging_pb2_grpc as rpc
 from qs_ai.infrastructure.persistence.mysql.database import Database
-from qs_ai.infrastructure.persistence.mysql.messaging import inbox, outbox
+from qs_ai.infrastructure.persistence.mysql.messaging import inbox
 from qs_ai.infrastructure.persistence.mysql.messaging_observability import (
     collect_messaging_snapshot,
 )
@@ -58,6 +58,7 @@ from tests.integration.test_transaction_start_admission import (
     required_disposable_primary as required_disposable_primary,
 )
 from tests.probes.finalization_proxy import RPCProxy
+from tests.retired_publisher import assert_retired_publisher_absent
 from tests.test_input_binding import bound_case
 
 pytestmark = pytest.mark.integration
@@ -702,7 +703,7 @@ async def start_loop(p, *, large=False, before_start=None, after_start=None, exp
         )
         assert incoming["wire_sha256"] == facts["command"]["wire_sha256"]
         assert incoming["body_sha256"] == facts["command"]["body_sha256"]
-        assert not (await db.execute(select(outbox))).first()
+        await assert_retired_publisher_absent(db)
         assert not (await db.execute(select(model_calls))).first()
         session = (await db.execute(select(sessions))).mappings().one()
         assert session["id"] == facts["projection"]["session_id"]

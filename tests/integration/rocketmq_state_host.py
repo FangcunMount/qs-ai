@@ -54,7 +54,6 @@ from qs_ai.infrastructure.persistence.mysql.database import Database
 from qs_ai.infrastructure.persistence.mysql.evaluation_management import MySQLEvaluationManagement
 from qs_ai.infrastructure.persistence.mysql.evaluation_reviews import accept_reviews
 from qs_ai.infrastructure.persistence.mysql.evaluation_worker import EvaluationWorker
-from qs_ai.infrastructure.persistence.mysql.messaging import outbox
 from qs_ai.infrastructure.persistence.mysql.schema import evaluation_checkpoints, evaluation_runs
 from qs_ai.infrastructure.persistence.mysql.solutions import MySQLSolutions
 from qs_ai.infrastructure.persistence.mysql.transaction_schema import event_receipts, witness
@@ -144,6 +143,7 @@ from tests.integration.test_transaction_evaluation_admission import (
 )
 from tests.integration.test_transaction_resolution_state import unknown as resolution_seed
 from tests.integration.test_transaction_solution_dispatch import service_request
+from tests.retired_publisher import assert_retired_publisher_absent
 from tests.test_generation_manifest import assets as assets
 from tests.test_generation_manifest import complete_release as complete_release
 from tests.test_generation_manifest import evaluation_release as evaluation_release
@@ -396,13 +396,7 @@ async def broker(original, required_broker):
                                 row["progress_json"]["preflight"]["evaluated_at"]
                                 == operation.evidence.evaluated_at.isoformat()
                             )
-                            assert not (
-                                await db.scalars(
-                                    select(outbox.c.message_id).where(
-                                        outbox.c.message_id == value.envelope().message_id
-                                    )
-                                )
-                            ).all()
+                            await assert_retired_publisher_absent(db)
                         for label in (
                             "worker_original_root",
                             "first_preflight_evidence",
@@ -639,11 +633,7 @@ async def governance_broker(host, required_broker):
         )
         assert await host.archives.read_committed(message_id) == value
         async with host.tx.open() as db:
-            assert not (
-                await db.scalars(
-                    select(outbox.c.message_id).where(outbox.c.message_id == message_id)
-                )
-            ).all()
+            await assert_retired_publisher_absent(db)
         recorder.flush.assert_not_called()
         return reserved
 
@@ -1846,11 +1836,7 @@ async def test_actual_default_serial_factory_commits_dispatch_response_and_termi
                         await asyncio.sleep(0.01)
                 assert b.messages[reference.message_id] == hashlib.sha256(value.wire).hexdigest()
                 async with tx.open() as db:
-                    assert not await db.scalar(
-                        select(outbox.c.message_id).where(
-                            outbox.c.message_id == reference.message_id
-                        )
-                    )
+                    await assert_retired_publisher_absent(db)
         async with tx.open() as db:
             response = (
                 (
@@ -2594,12 +2580,7 @@ async def _actual_interpretation_finish(b, kind, monkeypatch):
         history = next(row for row in after[5] if row["event_id"] == message_id)
         assert history["mq_owned"] and not history["delivered"] and history["attempts"] == 0
         async with b.host.tx.open() as db:
-            assert (
-                await db.scalar(
-                    select(outbox.c.message_id).where(outbox.c.message_id == message_id)
-                )
-                is None
-            )
+            await assert_retired_publisher_absent(db)
             current_call = (
                 (
                     await db.execute(

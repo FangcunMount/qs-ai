@@ -253,11 +253,14 @@ async def test_startup_and_readonly_release_check_share_the_identity_gate(
 ):
     conn, _ = identity_server
     schema = create_layout(identity_server, NEW_HEAD)
-    # The current image requires 0042; frozen conversion tests above stay 0040.
+    # Construct the current owned0044 layout for this deliberate identity drift probe.
+    # Reviewed0043->0044 migration is exercised in test_empty_publisher_retirement.
     config = Config("alembic.ini")
     config.attributes["connection"] = conn
     command.upgrade(config, "0042_transaction_event_receipts")
     command.upgrade(config, "0043_native_transaction_limit")
+    conn.execute(sa.text("DROP TABLE messaging_outbox"))
+    conn.execute(sa.text("UPDATE alembic_version SET version_num='0044_empty_publisher'"))
     conn.commit()
     remove_identity(conn, schema, ("governance_draft_heads", "draft_row_id"))
     url = conn.engine.url.set(database=schema, drivername="mysql+asyncmy")

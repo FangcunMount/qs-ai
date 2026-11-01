@@ -14,7 +14,7 @@ from sqlalchemy import select, update
 
 from qs_ai.contracts.workflow import messaging_pb2 as pb
 from qs_ai.contracts.workflow import workflow_pb2 as workflow
-from qs_ai.infrastructure.persistence.mysql.messaging import MessagingStore, inbox, outbox
+from qs_ai.infrastructure.persistence.mysql.messaging import MessagingStore, inbox
 from qs_ai.infrastructure.persistence.mysql.retry_admission import audit_digest
 from qs_ai.infrastructure.persistence.mysql.schema import (
     jobs,
@@ -39,6 +39,7 @@ from tests.integration.test_transaction_start_admission import (
 )
 from tests.integration.test_transaction_start_admission import reserve, rows
 from tests.messaging_fixtures import keys as keys
+from tests.retired_publisher import assert_retired_publisher_absent
 from tests.route_fixtures import legacy_routes
 from tests.transaction_fixtures import admission, command
 
@@ -156,7 +157,7 @@ async def test_retry_commits_exact_first_source_audit_history_and_witness_withou
         stored = await host.archives.read_committed(archived.envelope().message_id)
         assert stored is not None
         assert hashlib.sha256(stored.wire).digest() == hashlib.sha256(archived.wire).digest()
-        assert not await rows(host, outbox, outbox.c.message_id == archived.envelope().message_id)
+        await assert_retired_publisher_absent(host.tx)
 
 
 async def test_changed_original_failure_audit_aborts_whole_retry_before_any_new_fact_commits(host):

@@ -1,5 +1,7 @@
 # 持久化、事务与迁移
 
+> 2026-11-01 F04候选：新增0044_empty_publisher，仅退役空messaging_outbox；0043继续要求原表，0044严格要求其缺席。result历史、模型调用/响应、Inbox、业务ACK、事务archive/见证及native-limit治理保留。生产仍为0043，本候选未合并/未发布/未执行现库DDL。旧0038↔0040转换契约不扩展；审计按新版本标记retired且rows/total为null，不将缺表伪报零行。
+
 
 M4 C03 当前读取：Payload只接受精确Committed事务档案，缺档案返回NotFound；ACK缺原事务档案直接拒绝，不再读取旧发布记录来确认业务。当前 `result_outbox` 中的解释状态历史、首次wire及业务receipt仍保留。以下旧阶段段落由C04继续收敛，不代表当前兼容入口。
 
@@ -140,3 +142,5 @@ recorder失败时，根提交不能继续；rollback清掉evaluation_events标�
 这些存储集成测试需要可销毁MySQL及相应消息依赖，收集成功或skip不算通过。源码、迁移脚本和本地纯规则测试不能代替某环境heads、真实事务恢复和原成果STORED的证据。
 
 0042 运行时使用 `require_runtime_schema`：完整0040业务布局加四张固定协议表、不可变档案与独立业务 ACK 历史，校验二进制列、默认值、主键和索引；缺表/索引或多余未知表均拒绝。原 `require_schema` 仍用于冻结0038/0039/0040转换，不接受0041作为旧布局；启动校验无DDL。
+
+AI246的同窗口保护和44兼容前向恢复见[日期执行包](../../_plans/2026-11-01-empty-publisher-window.md)；正常启动不接受43缺表中间态，恢复工具不能回放业务历史。

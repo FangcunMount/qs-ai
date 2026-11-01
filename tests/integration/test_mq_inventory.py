@@ -65,6 +65,10 @@ async def test_messaging_inventory_is_read_only_and_borrowed_pool_survives(legac
     monkeypatch.setattr(AsyncSession, "execute", enforce_read_only)
     report = await inventory(tx)
     assert checked == [True] and report["complete"]
+    retired = report["sections"]["ai_messaging_outbox"]
+    assert retired["available"] and not retired["table_exists"]
+    assert retired["retired_at_head"] == "0044_empty_publisher"
+    assert retired["rows"] is None and retired["total"] is None
     assert report["handoff_schema_compatible"]
     assert any(r["event_id"] == event_id for r in report["sections"]["result_outbox"]["rows"])
     assert await saved(tx, result_outbox) == before
@@ -86,7 +90,7 @@ async def test_messaging_inventory_missing_table_is_unavailable_not_empty(legacy
         section = report["sections"]["ai_messaging_inbox"]
         assert not report["complete"] and not section["table_exists"]
         assert section["rows"] is None and section["total"] is None
-        assert report["schema_heads"] == ["0043_native_transaction_limit"]
+        assert report["schema_heads"] == ["0044_empty_publisher"]
     finally:
         async with tx.open() as db:
             await db.execute(text(f"RENAME TABLE mq_inventory_hidden TO {inbox.name}"))

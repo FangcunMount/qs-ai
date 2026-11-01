@@ -13,7 +13,6 @@ from qs_ai.contracts.workflow import messaging_pb2 as pb
 from qs_ai.infrastructure.persistence.mysql.database import EventSession, Transactions
 from qs_ai.infrastructure.persistence.mysql.evaluation_cancellation import plan_cancellation
 from qs_ai.infrastructure.persistence.mysql.evaluation_management import MySQLEvaluationManagement
-from qs_ai.infrastructure.persistence.mysql.messaging import outbox
 from qs_ai.infrastructure.persistence.mysql.schema import evaluation_checkpoints, evaluation_runs
 from qs_ai.infrastructure.persistence.mysql.transaction_schema import archive
 from qs_ai.infrastructure.workflow_transport.evaluation_state_plan import (
@@ -50,6 +49,7 @@ from tests.integration.test_transaction_evaluation_admission import (
 from tests.integration.test_transaction_evaluation_admission import (
     trigger_admin as trigger_admin,
 )
+from tests.retired_publisher import assert_retired_publisher_absent
 from tests.route_fixtures import legacy_routes
 
 pytestmark = pytest.mark.integration
@@ -220,13 +220,7 @@ async def test_state_only_original_business_sequence_archive_and_witness_commit_
             assert (None if current is None else (current["sequence"], current["version"])) == (
                 (1, 2) if committed else (1, 1) if fault == "sequence_changed" else None
             )
-            assert not (
-                await db.scalars(
-                    select(outbox.c.message_id).where(
-                        outbox.c.message_id == value.envelope().message_id
-                    )
-                )
-            ).all()
+            await assert_retired_publisher_absent(db)
             version = await db.scalar(
                 select(evaluation_checkpoints.c.version).where(
                     evaluation_checkpoints.c.run_id == intent.run_id

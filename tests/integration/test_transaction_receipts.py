@@ -9,7 +9,6 @@ from reliable_messaging.durable import MessageConflict
 from sqlalchemy import delete, select
 
 from qs_ai.contracts.workflow import messaging_pb2 as pb
-from qs_ai.infrastructure.persistence.mysql.messaging import outbox
 from qs_ai.infrastructure.persistence.mysql.schema import result_outbox
 from qs_ai.infrastructure.persistence.mysql.transaction_receipts import TransactionMessagingStore
 from qs_ai.infrastructure.persistence.mysql.transaction_schema import event_receipts
@@ -28,6 +27,7 @@ from tests.integration.test_transaction_start_admission import (
     required_disposable_primary as required_disposable_primary,
 )
 from tests.messaging_fixtures import keys as keys
+from tests.retired_publisher import assert_retired_publisher_absent
 
 pytestmark = pytest.mark.integration
 
@@ -117,7 +117,7 @@ async def test_new_business_receipt_and_original_history_share_ack_commit_and_ro
     await accept(p, message)
     assert await receipts(p, event) == first  # Original receipt time is immutable.
     assert await p.host.archives.read_committed(event.envelope().message_id) == event
-    assert not await rows(p.host, outbox, outbox.c.message_id == event.envelope().message_id)
+    await assert_retired_publisher_absent(p.host.tx)
     if kind == pb.INTERPRETATION_STATE:
         original = await rows(
             p.host, result_outbox, result_outbox.c.event_id == event.envelope().message_id

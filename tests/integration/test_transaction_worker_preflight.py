@@ -11,7 +11,6 @@ from sqlalchemy import select, text
 
 from qs_ai.infrastructure.persistence.mysql.database import EventSession
 from qs_ai.infrastructure.persistence.mysql.evaluation_worker import EvaluationWorker
-from qs_ai.infrastructure.persistence.mysql.messaging import outbox
 from qs_ai.infrastructure.persistence.mysql.schema import evaluation_checkpoints, evaluation_runs
 from qs_ai.infrastructure.persistence.mysql.transaction_schema import archive
 from qs_ai.infrastructure.workflow_transport.evaluation_preflight_dispatch import (
@@ -47,6 +46,7 @@ from tests.integration.test_transaction_evaluation_admission import (
 from tests.integration.test_transaction_evaluation_admission import (
     trigger_admin as trigger_admin,
 )
+from tests.retired_publisher import assert_retired_publisher_absent
 from tests.route_fixtures import legacy_routes
 
 pytestmark = pytest.mark.integration
@@ -193,13 +193,7 @@ async def test_actual_worker_commits_frozen_preflight_with_state_witness_and_no_
             else:
                 assert version == (3 if fault == "source_changed" else 2)
                 assert "preflight" not in row["progress_json"]
-            assert not (
-                await db.scalars(
-                    select(outbox.c.message_id).where(
-                        outbox.c.message_id == value.envelope().message_id
-                    )
-                )
-            ).all()
+            await assert_retired_publisher_absent(db)
         assert await StoreChecker(host.store).check(reserved.execution.references[0]) == (
             Decision.COMMIT if committed else Decision.ROLLBACK
         )

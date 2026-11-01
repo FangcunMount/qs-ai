@@ -48,7 +48,6 @@ from qs_ai.contracts.workflow import messaging_pb2 as pb
 from qs_ai.infrastructure.persistence.mysql.messaging import (
     MessagingStore,
     inbox,
-    outbox,
     quarantine,
 )
 from qs_ai.infrastructure.persistence.mysql.transaction_schema import (
@@ -92,6 +91,7 @@ from tests.integration.test_transaction_start_admission import (
 )
 from tests.messaging_fixtures import keys as keys
 from tests.messaging_fixtures import receiver
+from tests.retired_publisher import assert_retired_publisher_absent
 from tests.transaction_fixtures import admission, start_message
 
 pytestmark = pytest.mark.integration
@@ -413,12 +413,7 @@ async def broker(host, required_broker):
                         for ref in observed.execution.references:
                             assert await StoreChecker(host.store).check(ref) == Decision.COMMIT
                         async with host.tx.open() as db:
-                            ids = [v.envelope().message_id for v in values]
-                            assert not (
-                                await db.scalars(
-                                    select(outbox.c.message_id).where(outbox.c.message_id.in_(ids))
-                                )
-                            ).all()
+                            await assert_retired_publisher_absent(db)
                         passed("no_new_publish_outbox")
                         passed("fresh_checker")
                         passed("original_first_wire")

@@ -20,7 +20,6 @@ from sqlalchemy import delete, insert, select
 from qs_ai.application.interpretation.ports import WorkflowResult
 from qs_ai.contracts.workflow import messaging_pb2 as pb
 from qs_ai.contracts.workflow import messaging_pb2_grpc as rpc
-from qs_ai.infrastructure.persistence.mysql.messaging import outbox
 from qs_ai.infrastructure.persistence.mysql.messaging_observations import observations
 from qs_ai.infrastructure.persistence.mysql.schema import model_calls, questions, result_outbox
 from qs_ai.infrastructure.persistence.mysql.transaction_archive import ArchivePayloadReader
@@ -47,6 +46,7 @@ from tests.integration.test_transaction_start_admission import keys as keys
 from tests.integration.test_transaction_start_admission import (
     required_disposable_primary as required_disposable_primary,
 )
+from tests.retired_publisher import assert_retired_publisher_absent
 from tests.route_fixtures import legacy_routes
 
 pytestmark = pytest.mark.integration
@@ -217,12 +217,7 @@ async def committed_body(p, transport):
     assert result.reference == p.reference and result.body == p.first.body
     assert await StoreChecker(p.host.store).check(p.owned.references[0]) == Decision.COMMIT
     async with p.host.tx.open() as db:
-        assert (
-            await db.scalar(
-                select(outbox.c.message_id).where(outbox.c.message_id == p.reference.message_id)
-            )
-            is None
-        )
+        await assert_retired_publisher_absent(db)
         history = (
             (
                 await db.execute(

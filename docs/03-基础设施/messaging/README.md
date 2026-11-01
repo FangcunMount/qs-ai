@@ -1,5 +1,7 @@
 # 事务消息、原业务事实与确认
 
+> 2026-11-01 F04候选：新增0044_empty_publisher，仅退役空messaging_outbox；0043继续要求原表，0044严格要求其缺席。result历史、模型调用/响应、Inbox、业务ACK、事务archive/见证及native-limit治理保留。生产仍为0043，本候选未合并/未发布/未执行现库DDL。旧0038↔0040转换契约不扩展；审计按新版本标记retired且rows/total为null，不将缺表伪报零行。
+
 当前服务只接受RocketMQ和唯一`ai.mysql` owner；本次可读命名候选固定已发布稳定版0.5.0（源码559c735，与可读RC实现字节一致），生产升级状态另由infra登记。宿主持有数据库池、业务根事务和生命周期，构造/启动不执行DDL。旧NSQ provider、普通发布Outbox、MQRelay及历史结果转移执行器均已退役，开发隔离依赖和SDK通用兼容包不在生产清理范围内。
 
 ## 事务装配与预算
@@ -59,3 +61,5 @@
 封新准入后仍等待已接受业务，保留Checker处理未决事务；再排空Subscriber和所属SDK调用，最后关闭宿主池。`ShutdownIncomplete`保留真实在途容量并允许继续Wait，取消不提前释放线程或RPC。详见[生命周期](../../01-运行时/04-生命周期与优雅关闭.md)。
 
 当前验收分别覆盖[原事务command](../../../tests/integration/test_transaction_command_receiver.py)、[业务ACK](../../../tests/integration/test_transaction_receipts.py)、[实际MySQL/mTLS正文](../../../tests/integration/rocketmq_payload_host.py)、[当前QS/AI成对](../../../tests/integration/rocketmq_paired_host.py)、[进程/Broker故障](../../../tests/integration/rocketmq_paired_faults.py)、[生命周期](../../../tests/test_transaction_transport_lifecycle.py)及[退役入口](../../../tests/test_mq_handoff_cli.py)。缺依赖不能算原生通过；源码CI、固定制品/镜像、生产及合法system验收由[infra总表](https://github.com/FangcunMount/infra/blob/main/docs/server/rocketmq-m4-execution.md)分别登记。
+
+AI246的同窗口保护和44兼容前向恢复见[日期执行包](../../_plans/2026-11-01-empty-publisher-window.md)；正常启动不接受43缺表中间态，恢复工具不能回放业务历史。

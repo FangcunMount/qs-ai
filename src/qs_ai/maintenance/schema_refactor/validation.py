@@ -272,7 +272,16 @@ def require_schema(
 
 
 def require_runtime_schema(conn: Connection) -> None:
-    """Validate fixed 0043 runtime without changing frozen conversion layouts."""
+    """Validate each explicit runtime layout without changing conversion contracts."""
+    _runtime_schema(conn, pending_publisher_drop=False)
+
+
+def require_pending_publisher_drop(conn: Connection) -> None:
+    """Offline recovery only: exact43 ledger and exact44 physical layout."""
+    _runtime_schema(conn, pending_publisher_drop=True)
+
+
+def _runtime_schema(conn: Connection, *, pending_publisher_drop: bool) -> None:
     from qs_ai.infrastructure.persistence.mysql.native_limit_schema import (
         metadata as native_metadata,
     )
@@ -285,12 +294,23 @@ def require_runtime_schema(conn: Connection) -> None:
         for table in source.tables.values():
             table.to_metadata(metadata)
 
+    heads = list(conn.execute(sa.text("SELECT version_num FROM alembic_version")).scalars())
+    if heads not in (["0043_native_transaction_limit"], ["0044_empty_publisher"]):
+        raise ValueError("Unknown runtime schema head")
+    if pending_publisher_drop and heads != ["0043_native_transaction_limit"]:
+        raise ValueError("Pending publisher recovery requires exact43 ledger")
+    excluded = (
+        frozenset({"messaging_outbox"})
+        if pending_publisher_drop or heads == ["0044_empty_publisher"]
+        else frozenset()
+    )
     schema = str(conn.scalar(sa.text("SELECT DATABASE()")))
     _require_layout(
         conn,
         NEW_HEAD,
         schema,
-        expected_head="0043_native_transaction_limit",
+        expected_head=heads[0],
+        excluded_tables=excluded,
         extensions=metadata,
     )
     inspector = sa.inspect(conn)
@@ -356,10 +376,12 @@ def _require_layout(
     allow_external_incoming: bool = False,
     expected_head: str | None = None,
     extensions: sa.MetaData | None = None,
+    excluded_tables: frozenset[str] = frozenset(),
 ) -> None:
     schema = schema or str(conn.scalar(sa.text("SELECT DATABASE()")))
     actual = contracts.tables(conn, schema)
     expected = {physical(name, head) for name in v0038.metadata.tables} | {"alembic_version"}
+    expected -= excluded_tables
     if extensions is not None:
         expected |= set(extensions.tables)
     if actual != expected:
@@ -512,6 +534,8 @@ def _require_layout(
     inherited = contracts.final_column_collations(bound, legacy)
     for table in contracts.load()["tables"]:
         name = contracts.renamed(table["name"], head)
+        if name in excluded_tables:
+            continue
         columns = inspector.get_columns(name, schema=schema)
         expected_columns = table["columns"]
         if set(c["name"] for c in columns) != set(c["name"] for c in expected_columns):

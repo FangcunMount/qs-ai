@@ -78,6 +78,20 @@ jobs:
           QS_AI_DATABASE_URL: mysql+asyncmy://root:qs_ai_local_root@127.0.0.1:3306/qs_ai
       - run: uv run alembic check
       - run: uv run python -m qs_ai.bootstrap.database_check --require-head
+      - name: Empty publisher current and legacy boundaries (native MySQL)
+        if: matrix.shard == 0
+        run: >-
+          uv run pytest tests/integration/test_empty_publisher_retirement.py
+          tests/integration/test_transaction_admission_root.py -q
+          --junitxml=publisher-window-${{ matrix.mysql-version }}.xml
+      - name: Preserve publisher window native qualification
+        if: always() && matrix.shard == 0
+        uses: actions/upload-artifact@v4
+        with:
+          name: publisher-window-${{ matrix.mysql-version }}-${{ github.run_attempt }}
+          path: publisher-window-${{ matrix.mysql-version }}.xml
+          if-no-files-found: error
+          retention-days: 30
       - uses: actions/checkout@v4
         with:
           repository: FangcunMount/qs-server
