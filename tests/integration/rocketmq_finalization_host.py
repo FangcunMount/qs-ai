@@ -23,7 +23,6 @@ from reliable_messaging.transaction import Decision, Execution, StoreChecker, de
 from reliable_messaging.transport import RouteKey
 from sqlalchemy import select
 
-from qs_ai.infrastructure.persistence.mysql.messaging import outbox
 from qs_ai.infrastructure.persistence.mysql.schema import artifacts, jobs, model_calls, sessions
 from qs_ai.infrastructure.persistence.mysql.transaction_schema import execution
 from qs_ai.infrastructure.workflow_transport.messaging import EVENTS, authenticate, parse_body
@@ -49,6 +48,7 @@ from tests.integration.test_transaction_start_admission import (
 )
 from tests.probes.finalization_provider import ProviderProbe
 from tests.probes.finalization_proxy import RPCProxy
+from tests.retired_publisher import assert_retired_publisher_absent
 from tests.test_input_binding import bound_case
 from tests.test_output_validation import candidate
 
@@ -368,10 +368,7 @@ async def test_actual_independent_report_worker_http_counter_and_broker(
             )
             assert session["status"] == "completed" and job["status"] == "done"
             assert artifact["payload"]["invocation_id"] == call["invocation_id"]
-            assert (
-                await db.scalar(select(outbox.c.message_id).where(outbox.c.producer == "qs-ai"))
-                is None
-            )
+            await assert_retired_publisher_absent(db)
         assert await asyncio.to_thread(probe.counts) == {call["invocation_id"]: 1}
         passed("external_http_counter")
         passed("no_new_publish_outbox")

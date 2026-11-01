@@ -14,7 +14,6 @@ from qs_ai.infrastructure.persistence.mysql.evaluation_runs import (
     MySQLRunCreator,
     apply_run_creation,
 )
-from qs_ai.infrastructure.persistence.mysql.messaging import outbox
 from qs_ai.infrastructure.persistence.mysql.transaction_schema import archive
 from qs_ai.infrastructure.workflow_transport.creation_state import (
     CreationStatePlanner,
@@ -34,6 +33,7 @@ from tests.integration.test_transaction_start_admission import (
     required_disposable_primary as required_disposable_primary,
 )
 from tests.messaging_fixtures import keys as keys
+from tests.retired_publisher import assert_retired_publisher_absent
 from tests.route_fixtures import legacy_routes
 from tests.test_generation_manifest import assets as assets
 from tests.test_generation_manifest import complete_release as complete_release
@@ -156,13 +156,7 @@ async def test_creation_first_definition_mode_policy_sequence_archive_and_witnes
             assert (None if sequence is None else (sequence["sequence"], sequence["version"])) == (
                 (1, 1) if committed else None
             )
-            assert not (
-                await db.scalars(
-                    select(outbox.c.message_id).where(
-                        outbox.c.message_id == first.envelope().message_id
-                    )
-                )
-            ).all()
+            await assert_retired_publisher_absent(db)
     finally:
         if trigger is not None:
             async with trigger_admin.begin() as db:

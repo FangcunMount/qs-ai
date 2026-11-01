@@ -11,7 +11,6 @@ from sqlalchemy import delete, select, text
 from qs_ai.infrastructure.persistence.mysql.database import EventSession
 from qs_ai.infrastructure.persistence.mysql.evaluation_management import MySQLEvaluationManagement
 from qs_ai.infrastructure.persistence.mysql.evaluation_reviews import accept_reviews
-from qs_ai.infrastructure.persistence.mysql.messaging import outbox
 from qs_ai.infrastructure.persistence.mysql.transaction_schema import archive
 from qs_ai.infrastructure.workflow_transport.review_state import ReviewStatePlanner, ReviewStateRoot
 from qs_ai.infrastructure.workflow_transport.review_state_plan import (
@@ -32,6 +31,7 @@ from tests.integration.test_transaction_start_admission import (
     required_disposable_primary as required_disposable_primary,
 )
 from tests.messaging_fixtures import keys as keys
+from tests.retired_publisher import assert_retired_publisher_absent
 from tests.route_fixtures import legacy_routes
 
 pytestmark = pytest.mark.integration
@@ -135,13 +135,7 @@ async def test_review_business_first_clocks_sequence_archive_and_witness_share_o
             assert (None if sequence is None else (sequence["sequence"], sequence["version"])) == (
                 (1, version + 1) if committed else None
             )
-            assert not (
-                await db.scalars(
-                    select(outbox.c.message_id).where(
-                        outbox.c.message_id == first.envelope().message_id
-                    )
-                )
-            ).all()
+            await assert_retired_publisher_absent(db)
             assert await db.scalar(text("SELECT @@transaction_isolation")) == "READ-COMMITTED"
     finally:
         host.tx.database.engine = engine

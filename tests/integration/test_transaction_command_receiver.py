@@ -12,7 +12,6 @@ from sqlalchemy import delete, func, insert
 from qs_ai.infrastructure.persistence.mysql.messaging import (
     MessagingStore,
     inbox,
-    outbox,
     quarantine,
 )
 from qs_ai.infrastructure.workflow_transport.messaging import COMMANDS
@@ -29,6 +28,7 @@ from tests.integration.test_transaction_start_admission import (
 )
 from tests.messaging_fixtures import keys as keys
 from tests.messaging_fixtures import received, receiver
+from tests.retired_publisher import assert_retired_publisher_absent
 from tests.route_fixtures import COMMAND_TOPIC, legacy_routes
 from tests.transaction_fixtures import admission, start_message
 
@@ -106,8 +106,7 @@ async def test_receiver_authenticates_and_reads_persisted_winner_on_duplicate_wi
     await handler.receive_command(delivered(message))
     assert runtime.execute_count == runtime.reserve_count == 1
     assert len(await rows(host, inbox, inbox.c.message_id == header.message_id)) == 1
-    for archive in frozen:
-        assert not await rows(host, outbox, outbox.c.message_id == archive.envelope().message_id)
+    await assert_retired_publisher_absent(host.tx)
 
 
 async def test_prepared_winner_cannot_be_reacquired_or_reexecuted_by_redelivery(receiver_host):
@@ -153,14 +152,12 @@ async def test_committed_legacy_inbox_is_not_resealed_or_adopted_as_sdk_witness(
         await handler.receive_command(delivered(message))
         assert runtime.execute_count == runtime.reserve_count == 0
         assert not host.executions
-        assert not await rows(host, outbox, outbox.c.message_id == stored["receipt_id"])
+        await assert_retired_publisher_absent(host.tx)
         assert await rows(
             host, quarantine, quarantine.c.wire_sha256 == hashlib.sha256(message.wire).hexdigest()
         )
     finally:
         async with host.tx.open() as db:
-            if "stored" in locals():
-                await db.execute(delete(outbox).where(outbox.c.message_id == stored["receipt_id"]))
             await db.execute(delete(inbox).where(inbox.c.message_id == message.envelope.message_id))
             await db.commit()
 

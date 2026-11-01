@@ -15,7 +15,7 @@ from qs_ai.contracts.workflow import messaging_pb2 as pb
 from qs_ai.contracts.workflow import workflow_pb2 as workflow
 from qs_ai.domain.interpretation.model import Question, Session
 from qs_ai.infrastructure.persistence.mysql.interpretation import MySQLUnitOfWork
-from qs_ai.infrastructure.persistence.mysql.messaging import MessagingStore, inbox, outbox
+from qs_ai.infrastructure.persistence.mysql.messaging import MessagingStore, inbox
 from qs_ai.infrastructure.persistence.mysql.schema import (
     jobs,
     model_calls,
@@ -39,6 +39,7 @@ from tests.integration.test_transaction_start_admission import (
 )
 from tests.integration.test_transaction_start_admission import reserve, rows
 from tests.messaging_fixtures import keys as keys
+from tests.retired_publisher import assert_retired_publisher_absent
 from tests.route_fixtures import legacy_routes
 from tests.transaction_fixtures import admission, command
 
@@ -148,7 +149,7 @@ async def test_original_change_commits_business_first_state_receipt_and_all_witn
         archive = await host.archives.read_committed(value.envelope().message_id)
         assert archive is not None
         assert hashlib.sha256(archive.wire).digest() == hashlib.sha256(value.wire).digest()
-        assert not await rows(host, outbox, outbox.c.message_id == value.envelope().message_id)
+        await assert_retired_publisher_absent(host.tx)
     assert (await rows(host, inbox, inbox.c.message_id == message.envelope().message_id))[0][
         "decision"
     ] == "accepted"

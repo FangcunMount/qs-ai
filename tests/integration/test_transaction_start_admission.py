@@ -24,7 +24,7 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from qs_ai.application.governance.publication import MovePublication
-from qs_ai.infrastructure.persistence.mysql.messaging import MessagingStore, inbox, outbox
+from qs_ai.infrastructure.persistence.mysql.messaging import MessagingStore, inbox
 from qs_ai.infrastructure.persistence.mysql.publications import MySQLPublications
 from qs_ai.infrastructure.persistence.mysql.schema import (
     jobs,
@@ -51,6 +51,7 @@ from qs_ai.infrastructure.workflow_transport.transaction_command import (
 )
 from tests.integration.test_interpretation import kit as kit
 from tests.messaging_fixtures import keys as keys
+from tests.retired_publisher import assert_retired_publisher_absent
 from tests.route_fixtures import legacy_routes
 from tests.transaction_fixtures import admission, start_message
 
@@ -202,7 +203,7 @@ async def assert_committed_original_root(host, message, owned, expected_status):
         assert stored is not None
         assert hashlib.sha256(stored.wire).hexdigest() == hashlib.sha256(value.wire).hexdigest()
         assert hashlib.sha256(stored.body).hexdigest() == hashlib.sha256(value.body).hexdigest()
-        assert not await rows(host, outbox, outbox.c.message_id == value.envelope().message_id)
+        await assert_retired_publisher_absent(host.tx)
     async with host.tx.open() as db:
         assert (
             await db.scalar(

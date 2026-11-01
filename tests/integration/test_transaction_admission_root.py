@@ -13,7 +13,7 @@ from reliable_messaging.transaction_mysql import MySQLTransactionStore
 from qs_ai.contracts.workflow import messaging_pb2 as pb
 from qs_ai.contracts.workflow import workflow_pb2 as workflow
 from qs_ai.infrastructure.persistence.mysql.database import Database, EventSession, Transactions
-from qs_ai.infrastructure.persistence.mysql.messaging import MessagingStore, inbox, outbox
+from qs_ai.infrastructure.persistence.mysql.messaging import MessagingStore, inbox
 from qs_ai.infrastructure.persistence.mysql.transaction_archive import TransactionArchive
 from qs_ai.infrastructure.persistence.mysql.transaction_schema import archive
 from qs_ai.infrastructure.workflow_transport.admission_receipts import (
@@ -27,6 +27,7 @@ from qs_ai.infrastructure.workflow_transport.transaction_command import (
     freeze_admission_plan,
 )
 from tests.integration.test_transaction_schema import installed as installed
+from tests.retired_publisher import assert_retired_publisher_absent
 from tests.route_fixtures import legacy_routes
 
 pytestmark = pytest.mark.integration
@@ -159,14 +160,7 @@ async def test_held_root_uses_actual_inbox_archive_and_witness_atomically(
             assert row["decision"] == "held" and row["receipt_id"] == receipt.envelope.message_id
         else:
             assert row is None
-        assert (
-            await db.scalar(
-                sa.select(sa.func.count())
-                .select_from(outbox)
-                .where(outbox.c.message_id == receipt.envelope.message_id)
-            )
-            == 0
-        )
+        await assert_retired_publisher_absent(db)
     stored = await archives.read_committed(receipt.envelope.message_id)
     if committed:
         assert stored is not None

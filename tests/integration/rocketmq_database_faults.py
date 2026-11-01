@@ -15,7 +15,7 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from qs_ai.bootstrap.transaction_messaging import TransactionRuntime
-from qs_ai.infrastructure.persistence.mysql.messaging import inbox, outbox
+from qs_ai.infrastructure.persistence.mysql.messaging import inbox
 from qs_ai.infrastructure.persistence.mysql.schema import model_calls, sessions
 from qs_ai.infrastructure.workflow_transport.messaging import COMMANDS
 from qs_ai.infrastructure.workflow_transport.start_plan import StartPlanFacts
@@ -30,6 +30,7 @@ from tests.integration.rocketmq_admission_host import required_broker as require
 from tests.integration.rocketmq_admission_host import (
     required_disposable_primary as required_disposable_primary,
 )
+from tests.retired_publisher import assert_retired_publisher_absent
 
 pytestmark = pytest.mark.integration
 
@@ -170,13 +171,7 @@ async def test_actual_command_original_commit_packet_fault(broker):
         stats = next_runtime.stats()
         assert stats["half_prepared_results"] == 0 and not stats["ready"]
         async with fresh_sessions() as db:
-            assert not (
-                await db.scalars(
-                    select(outbox.c.message_id).where(
-                        outbox.c.message_id.in_([value.envelope().message_id for value in archives])
-                    )
-                )
-            ).all()
+            await assert_retired_publisher_absent(db)
         await next_runtime.close(grace_seconds=20)
         async with fresh_sessions() as db:
             assert await db.scalar(select(1)) == 1

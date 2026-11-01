@@ -9,7 +9,6 @@ from sqlalchemy import delete, select, text
 
 from qs_ai.infrastructure.persistence.mysql.database import EventSession
 from qs_ai.infrastructure.persistence.mysql.evaluation_management import MySQLEvaluationManagement
-from qs_ai.infrastructure.persistence.mysql.messaging import outbox
 from qs_ai.infrastructure.persistence.mysql.transaction_schema import archive
 from qs_ai.infrastructure.workflow_transport.evaluation_governance_state import (
     GovernanceStateOperation,
@@ -33,6 +32,7 @@ from tests.integration.test_transaction_start_admission import (
     required_disposable_primary as required_disposable_primary,
 )
 from tests.messaging_fixtures import keys as keys
+from tests.retired_publisher import assert_retired_publisher_absent
 from tests.route_fixtures import legacy_routes
 
 pytestmark = pytest.mark.integration
@@ -153,13 +153,7 @@ async def test_original_governance_business_history_sequence_archive_and_witness
             assert (None if sequence is None else (sequence["sequence"], sequence["version"])) == (
                 (1, version + 1) if committed else None
             )
-            assert not (
-                await db.scalars(
-                    select(outbox.c.message_id).where(
-                        outbox.c.message_id == first.envelope().message_id
-                    )
-                )
-            ).all()
+            await assert_retired_publisher_absent(db)
             assert await db.scalar(text("SELECT @@transaction_isolation")) == "READ-COMMITTED"
     finally:
         # Restore the original engine reference without disposing the shared pool.

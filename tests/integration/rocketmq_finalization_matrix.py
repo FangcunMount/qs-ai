@@ -18,7 +18,6 @@ from reliable_messaging.transaction import Decision, StoreChecker
 from sqlalchemy import delete, select, update
 
 from qs_ai.application.interpretation.route_assets import executable_route
-from qs_ai.infrastructure.persistence.mysql.messaging import outbox
 from qs_ai.infrastructure.persistence.mysql.schema import (
     artifacts,
     evaluation_checkpoints,
@@ -36,6 +35,7 @@ from tests.integration.broker_routes import (
     owned_broker_route,
     owned_broker_routes,
 )
+from tests.retired_publisher import assert_retired_publisher_absent
 
 PATHS = (
     "interpretation_report",
@@ -338,10 +338,7 @@ async def test_independent_five_path_finalization_matrix(
             assert after["terminal"][0]["invocation_id"] == invocation
             assert after["terminal"][0]["evidence_json"]["status"] == "succeeded"
         async with tx.open() as db:
-            assert (
-                await db.scalar(select(outbox.c.message_id).where(outbox.c.producer == "qs-ai"))
-                is None
-            )
+            await assert_retired_publisher_absent(db)
         committed = []
         aborted = []
         for owned in await executions(host):
