@@ -61,3 +61,5 @@
 封新准入后仍等待已接受业务，保留Checker处理未决事务；再排空Subscriber和所属SDK调用，最后关闭宿主池。`ShutdownIncomplete`保留真实在途容量并允许继续Wait，取消不提前释放线程或RPC。详见[生命周期](../../01-运行时/04-生命周期与优雅关闭.md)。
 
 当前验收分别覆盖[原事务command](../../../tests/integration/test_transaction_command_receiver.py)、[业务ACK](../../../tests/integration/test_transaction_receipts.py)、[实际MySQL/mTLS正文](../../../tests/integration/rocketmq_payload_host.py)、[当前QS/AI成对](../../../tests/integration/rocketmq_paired_host.py)、[进程/Broker故障](../../../tests/integration/rocketmq_paired_faults.py)、[生命周期](../../../tests/test_transaction_transport_lifecycle.py)及[退役入口](../../../tests/test_mq_handoff_cli.py)。缺依赖不能算原生通过；源码CI、固定制品/镜像、生产及合法system验收由[infra总表](https://github.com/FangcunMount/infra/blob/main/docs/server/rocketmq-m4-execution.md)分别登记。
+
+AI246的同窗口保护和44兼容前向恢复见[日期执行包](../../_plans/2026-11-01-empty-publisher-window.md)；正常启动不接受43缺表中间态，恢复工具不能回放业务历史。
