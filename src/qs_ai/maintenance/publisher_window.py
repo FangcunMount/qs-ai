@@ -116,6 +116,8 @@ def reconcile(conn: Connection, path: str, reviewed_sha: str) -> dict[str, Any]:
         original["table_ddl_sha256"],
         current=False,
     )
+    if original["operation_id"] != recovery["operation_id"]:
+        raise ValueError("Original window operation differs")
     frozen = document(original["protection_manifest"], original["protection_sha256"])["snapshot"]
     # The original marker is required even when its approval has since expired.
     marker_path = recovery["original_review"] + ".consumed"

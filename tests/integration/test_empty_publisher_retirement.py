@@ -392,3 +392,36 @@ def test_original_production_empty_target_ddl_restores_only_in_isolated_mysql():
         with server.connect() as conn:
             conn.execute(sa.text(f"DROP DATABASE `{name}`"))
         server.dispose()
+
+
+async def test_capture_cli_is_readonly_and_releases_owned_pool(
+    legacy_engine, tmp_path, monkeypatch
+):
+    from qs_ai.maintenance.publisher_window import run
+
+    engine = legacy_engine
+    monkeypatch.setenv("QS_AI_RELEASE_SHA", "a" * 40)
+    monkeypatch.setenv(
+        "QS_AI_PUBLISHER_WINDOW_DATABASE_URL", engine.url.render_as_string(hide_password=False)
+    )
+    output = tmp_path / "live.json"
+    async with engine.connect() as conn:
+        before = await conn.run_sync(protected_snapshot)
+    result = await run(
+        SimpleNamespace(
+            command="capture",
+            operation_id="native-readonly",
+            writer_receipt=None,
+            writer_sha256=None,
+            output=str(output),
+        )
+    )
+    assert result == 0
+    value = json.loads(output.read_text())
+    assert value["frozen"] is False and value["execution_approval"] is False
+    assert value["pool_released"] is True and value["transaction_released"] is True
+    assert value["snapshot"]["target"]["rows"] == 1  # Never fake the nonempty legacy fixture.
+    async with engine.connect() as conn:
+        after = await conn.run_sync(protected_snapshot)
+    assert before["retained"] == after["retained"]
+    assert before["target"] == after["target"] and before["head"] == after["head"]
