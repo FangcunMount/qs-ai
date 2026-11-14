@@ -72,6 +72,7 @@ async def supervise(
 ) -> None:
     """Fail the process if any mandatory component exits, including clean exits."""
     stopper = asyncio.create_task(stop.wait())
+    stage = "startup"
     try:
         for component in components:
             state.tasks[component.name] = asyncio.create_task(component.run(), name=component.name)
@@ -79,24 +80,22 @@ async def supervise(
         async with asyncio.timeout(startup_seconds):
             while not stop.is_set():
                 if not state.healthy:
-                    _report_exits(state.tasks, "startup")
                     raise RuntimeError("Component exited during startup")
                 if all(component.started() for component in components):
                     state.ready = True
                     event("service_ready", "qs-ai")
                     break
                 await asyncio.sleep(0.01)
+        stage = "runtime"
         if not stop.is_set():
-            done, _ = await asyncio.wait(
+            await asyncio.wait(
                 [stopper, *state.tasks.values()], return_when=asyncio.FIRST_COMPLETED
             )
             if not stop.is_set():
-                _report_exits(
-                    {name: task for name, task in state.tasks.items() if task in done},
-                    "runtime",
-                )
                 raise RuntimeError("Required component exited unexpectedly")
     except BaseException:
+        if not stop.is_set():
+            _report_exits(state.tasks, stage)
         state.failed = True
         event("service_failed", "qs-ai")
         raise

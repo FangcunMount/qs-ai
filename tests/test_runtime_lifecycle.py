@@ -134,3 +134,42 @@ async def test_startup_timeout_stops_started_components():
             startup_seconds=0.01,
         )
     assert stopped.is_set()
+
+
+async def test_startup_deadline_reports_component_that_finished_before_drain(caplog, monkeypatch):
+    state = RuntimeState()
+
+    async def run():
+        raise OSError("fixture-sensitive-text")
+
+    async def halt():
+        pass
+
+    real_sleep = asyncio.sleep
+
+    async def yield_then_timeout(delay):
+        if delay == 0.01:
+            await real_sleep(0)
+            assert state.tasks["worker"].done()
+            raise TimeoutError
+        await real_sleep(delay)
+
+    monkeypatch.setattr(asyncio, "sleep", yield_then_timeout)
+    with pytest.raises(TimeoutError):
+        await supervise(
+            [Component("worker", run, halt, lambda: False, 1)],
+            state,
+            asyncio.Event(),
+        )
+    events = [record.diagnostic for record in caplog.records if hasattr(record, "diagnostic")]
+    exit_event = {
+        "event": "required_component_exited",
+        "component": "worker",
+        "stage": "startup",
+        "status": "raised",
+        "error_type": "OSError",
+    }
+    assert events.index(exit_event) < next(
+        i for i, event in enumerate(events) if event["event"] == "service_failed"
+    )
+    assert "fixture-sensitive-text" not in repr(events) + caplog.text
