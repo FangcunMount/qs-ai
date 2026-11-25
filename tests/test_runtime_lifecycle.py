@@ -33,7 +33,7 @@ async def test_ready_only_after_all_components_start_and_cleared_before_stop():
 
 
 @pytest.mark.parametrize("raises", [False, True])
-async def test_unexpected_component_exit_is_fatal_and_drains_peers(raises):
+async def test_unexpected_component_exit_is_fatal_and_drains_peers(raises, caplog):
     state = RuntimeState()
     stopped = asyncio.Event()
 
@@ -60,6 +60,43 @@ async def test_unexpected_component_exit_is_fatal_and_drains_peers(raises):
     assert stopped.is_set()
     assert state.failed and not state.ready
     assert all(t.done() for t in state.tasks.values())
+    diagnostics = [record.diagnostic for record in caplog.records if hasattr(record, "diagnostic")]
+    exited = [item for item in diagnostics if item["event"] == "required_component_exited"]
+    expected = {
+        "event": "required_component_exited",
+        "component": "broken",
+        "stage": "runtime",
+        "status": "raised" if raises else "returned",
+    }
+    if raises:
+        expected["error_type"] = "ValueError"
+    assert exited == [expected]
+    assert diagnostics.index(expected) < next(
+        i for i, item in enumerate(diagnostics) if item["event"] == "service_failed"
+    )
+    assert "sensitive-payload" not in repr(diagnostics) + caplog.text
+
+
+async def test_component_cancelled_during_startup_is_identified(caplog):
+    async def cancelled():
+        raise asyncio.CancelledError
+
+    async def halt():
+        pass
+
+    with pytest.raises(RuntimeError, match="Component exited during startup"):
+        await supervise(
+            [Component("worker", cancelled, halt, lambda: False, 1)],
+            RuntimeState(),
+            asyncio.Event(),
+        )
+    diagnostics = [record.diagnostic for record in caplog.records if hasattr(record, "diagnostic")]
+    assert {
+        "event": "required_component_exited",
+        "component": "worker",
+        "stage": "startup",
+        "status": "cancelled",
+    } in diagnostics
 
 
 async def test_drain_timeout_cancels_inflight_and_finalizes_resources():
@@ -97,3 +134,42 @@ async def test_startup_timeout_stops_started_components():
             startup_seconds=0.01,
         )
     assert stopped.is_set()
+
+
+async def test_startup_deadline_reports_component_that_finished_before_drain(caplog, monkeypatch):
+    state = RuntimeState()
+
+    async def run():
+        raise OSError("fixture-sensitive-text")
+
+    async def halt():
+        pass
+
+    real_sleep = asyncio.sleep
+
+    async def yield_then_timeout(delay):
+        if delay == 0.01:
+            await real_sleep(0)
+            assert state.tasks["worker"].done()
+            raise TimeoutError
+        await real_sleep(delay)
+
+    monkeypatch.setattr(asyncio, "sleep", yield_then_timeout)
+    with pytest.raises(TimeoutError):
+        await supervise(
+            [Component("worker", run, halt, lambda: False, 1)],
+            state,
+            asyncio.Event(),
+        )
+    events = [record.diagnostic for record in caplog.records if hasattr(record, "diagnostic")]
+    exit_event = {
+        "event": "required_component_exited",
+        "component": "worker",
+        "stage": "startup",
+        "status": "raised",
+        "error_type": "OSError",
+    }
+    assert events.index(exit_event) < next(
+        i for i, event in enumerate(events) if event["event"] == "service_failed"
+    )
+    assert "fixture-sensitive-text" not in repr(events) + caplog.text
